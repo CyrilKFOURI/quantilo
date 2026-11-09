@@ -10989,6 +10989,8 @@ export interface components {
              * @enum {string}
              */
             spacing: "narrow" | "normal" | "wide";
+            /** Palette */
+            palette?: string | null;
             table?: components["schemas"]["TableView"];
             /**
              * Show As

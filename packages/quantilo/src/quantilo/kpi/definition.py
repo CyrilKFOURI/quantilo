@@ -134,6 +134,8 @@ class View(Strict):
     # room between the periods' bars.
     line: bool = False
     spacing: Literal["narrow", "normal", "wide"] = "normal"
+    # Display only (047): the categories' palette for this KPI (None: the app's setting).
+    palette: str | None = Field(default=None, max_length=40, pattern=r"^[a-z0-9-]+$")
     table: TableView = Field(default_factory=TableView)
     show_as: ShowAs = "value"
 

@@ -8,6 +8,7 @@ import duckdb
 import numpy as np
 import pandas as pd
 import pytest
+from pydantic import ValidationError
 
 from quantilo.ingestion.sql import lit
 from quantilo.kpi import rules
@@ -439,6 +440,20 @@ def test_the_view_keeps_a_line_over_bars_and_the_bar_spacing() -> None:
         {"measures": [{"id": "m1", "agg": "count"}], "view": {"line": True, "spacing": "wide"}}
     )
     assert (chosen.view.line, chosen.view.spacing) == (True, "wide")
+
+
+def test_the_view_keeps_a_palette_of_its_own() -> None:
+    assert (
+        Definition.model_validate({"measures": [{"id": "m1", "agg": "count"}]}).view.palette is None
+    )
+    chosen = Definition.model_validate(
+        {"measures": [{"id": "m1", "agg": "count"}], "view": {"palette": "tableau20"}}
+    )
+    assert chosen.view.palette == "tableau20"
+    with pytest.raises(ValidationError):
+        Definition.model_validate(
+            {"measures": [{"id": "m1", "agg": "count"}], "view": {"palette": "<x>"}}
+        )
     with pytest.raises(ValueError):
         Definition.model_validate(
             {"measures": [{"id": "m1", "agg": "count"}], "view": {"spacing": "huge"}}

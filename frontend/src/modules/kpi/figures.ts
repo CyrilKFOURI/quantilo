@@ -3,6 +3,7 @@ import type { Data, Layout } from "plotly.js-dist-min";
 import type { KpiNumberFormat, KpiResult } from "../../api/client";
 import type { ChartTokens } from "../../charts/theme";
 import { withAlpha } from "../../charts/figures";
+import { paletteById } from "../../lib/palettes";
 import type { Format, ShowAs } from "./definition";
 import { formatShown, PERCENT_MODES } from "./format";
 import { DIVERGING_MODES, seriesIndex, shownOverall, shownValues } from "./pivot";
@@ -30,6 +31,8 @@ export type ChartInput = {
   line?: boolean;
   /** 045: room between the periods' bars. */
   spacing?: "narrow" | "normal" | "wide";
+  /** 047: this KPI's palette (null or unknown: the app's, already in the tokens). */
+  palette?: string | null;
   panel?: string | null; // small multiples: the first split's label shown in this panel
 };
 
@@ -86,7 +89,9 @@ function legend(tokens: ChartTokens, count: number): Partial<Layout> {
 
 /** One measure's chart (one panel of small multiples when `panel` is set). */
 export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
-  return (tokens) => {
+  return (appTokens) => {
+    const own = paletteById(input.palette);
+    const tokens = own ? { ...appTokens, palette: [...own.colors] } : appTokens;
     const { result, measure, chart, mode } = input;
     const find = seriesIndex(result);
     const periods = result.periods;
@@ -229,7 +234,7 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
       } as Data;
     });
     // 045: a line over the bars, one per category through its own bars.
-    if (input.line && BARS.has(chart)) data.push(...linesOver(input, tokens, traces, x, chart === "grouped_bars"));
+    if (input.line && BARS.has(chart)) data.push(...linesOver(input, tokens, traces, x, chart));
     const zero = chart !== "line"; // R-VIS-31: bars and areas start at 0, lines fit the data
     const spacing = input.spacing ?? "normal";
     return {
@@ -255,32 +260,48 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
   };
 }
 
-/** One line per category, in its bars' colour, through its own bars (no second hover: the bars carry it). */
+/** One line per category, in its bars' colour, along the top of its own bars: its bar in a group,
+ *  its segment in a stack (047). A plain line, no points, no second hover (the bars carry it). */
 function linesOver(
   input: ChartInput,
   tokens: ChartTokens,
   traces: { name: string; color: string; values: (number | null)[] }[],
   x: string[],
-  grouped: boolean,
+  chart: string,
 ): Data[] {
   const single = traces.length <= 1;
+  const grouped = chart === "grouped_bars";
+  const tops = chart === "stacked_bars" ? stackTops(traces.map((trace) => trace.values)) : traces.map((trace) => trace.values);
   return traces.map((trace, i) => {
     const color = single ? tokens.ink1 : trace.color;
     return {
       type: "scatter",
-      mode: "lines+markers",
+      mode: "lines",
       name: trace.name || undefined,
       legendgroup: single ? undefined : trace.name,
       showlegend: false,
       offsetgroup: grouped ? String(i) : undefined,
       x,
-      y: scaled(input, trace.values),
+      y: scaled(input, tops[i] ?? []),
       hoverinfo: "skip",
       connectgaps: true,
       line: { color, width: 2 },
-      marker: { size: 7, color, line: { color: tokens.surface, width: 1.5 } },
     } as Data;
   });
+}
+
+/** The top of each segment of a stack, in stacking order (positives up from 0, negatives down from 0). */
+export function stackTops(series: (number | null)[][]): (number | null)[][] {
+  const up: number[] = [];
+  const down: number[] = [];
+  return series.map((values) =>
+    values.map((value, j) => {
+      if (value === null || value === undefined) return null;
+      const side = value >= 0 ? up : down;
+      side[j] = (side[j] ?? 0) + value;
+      return side[j];
+    }),
+  );
 }
 
 function heatmap(

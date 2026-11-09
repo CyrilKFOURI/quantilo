@@ -302,6 +302,7 @@ export function KpiPage() {
                     labelsMode={view.labels}
                     hideOther={applied.other === "hide"}
                     line={view.line}
+                    palette={view.palette}
                     spacing={view.spacing}
                     labels={labels}
                     formats={formats}

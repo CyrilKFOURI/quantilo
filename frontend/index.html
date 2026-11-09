@@ -18,6 +18,8 @@
         if (density === "comfortable") document.documentElement.dataset.density = density;
         var motion = localStorage.getItem("de.motion");
         if (motion === "reduce" || motion === "full") document.documentElement.dataset.motion = motion;
+        var palette = localStorage.getItem("de.palette");
+        if (palette && /^[a-z0-9-]+$/.test(palette) && palette !== "quantilo") document.documentElement.dataset.palette = palette;
       } catch (e) {}
     </script>
   </head>

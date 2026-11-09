@@ -15,9 +15,11 @@ import { loadPlotly } from "./charts/Plot";
 import { startLite } from "./lite/bridge";
 import { EngineGate } from "./lite/EngineGate";
 import { LITE } from "./lite/flag";
+import { installPaletteStyles } from "./lib/palettes";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing #root element");
+installPaletteStyles();
 
 if (LITE) {
   // Browser-only build: Python runs in a worker; addresses use # (a static host has no routes).

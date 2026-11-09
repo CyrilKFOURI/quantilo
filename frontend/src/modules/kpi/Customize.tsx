@@ -2,6 +2,7 @@ import { ChevronDown, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { useId, type ReactNode } from "react";
 
 import type { KpiDefinition, KpiResult } from "../../api/client";
+import { PaletteSelect } from "../../features/theme/PaletteSelect";
 import { t, type MessageKey } from "../../lib/i18n";
 import { Checkbox, Select, TextInput } from "../../ui/fields";
 import { chartFor, chartName } from "./KpiCharts";
@@ -225,6 +226,16 @@ export function Customize({
                     </option>
                   ))}
                 </Select>
+              </Cell>
+            )}
+            {main && (
+              <Cell label={t("palette.label")} why={t("kpi.paletteWhy")} changed={view.palette !== null} onReset={() => onView(withView(definition, { palette: null }))}>
+                <PaletteSelect
+                  value={view.palette}
+                  inherit={t("palette.inherit")}
+                  onChange={(palette) => onView(withView(definition, { palette }))}
+                  className={field}
+                />
               </Cell>
             )}
             {main && time && grouped && (

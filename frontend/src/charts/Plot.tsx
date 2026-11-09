@@ -63,13 +63,13 @@ async function drain() {
   drawing = false;
 }
 
-/** Bumps when the theme changes (data-theme attribute or system preference). */
+/** Bumps when the theme or the palette changes (data-theme / data-palette, or system preference). */
 function useThemeVersion(): number {
   const [version, setVersion] = useState(0);
   useEffect(() => {
     const bump = () => setVersion((v) => v + 1);
     const observer = new MutationObserver(bump);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-palette"] });
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     media.addEventListener("change", bump);
     return () => {

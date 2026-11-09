@@ -27,6 +27,7 @@ export function KpiCharts({
   hideOther,
   line,
   spacing,
+  palette,
   labels,
   formats,
 }: {
@@ -38,6 +39,8 @@ export function KpiCharts({
   hideOther: boolean;
   line: boolean;
   spacing: "narrow" | "normal" | "wide";
+  /** 047: this KPI's palette (null: the app's). */
+  palette?: string | null;
   labels: Record<string, string>;
   formats: Record<string, Format>;
 }) {
@@ -61,6 +64,7 @@ export function KpiCharts({
           hideOther,
           line,
           spacing,
+          palette,
         };
         const name = labels[measure.id] ?? measure.label;
         const height = result.resolved.time ? 240 : Math.min(520, 70 + 26 * (result.splits[0]?.levels.length ?? 4));

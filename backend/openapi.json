@@ -38776,6 +38776,19 @@
             "title": "Spacing",
             "default": "normal"
           },
+          "palette": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40,
+                "pattern": "^[a-z0-9-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Palette"
+          },
           "table": {
             "$ref": "#/components/schemas/TableView"
           },

@@ -69,6 +69,7 @@ export function viewOf(definition: KpiDefinition): Required<Omit<View, "table">>
     show_as: view.show_as ?? "value",
     line: view.line ?? false,
     spacing: view.spacing ?? "normal",
+    palette: view.palette ?? null,
     table: {
       layout: table.layout ?? "auto",
       totals: table.totals ?? "auto",
@@ -129,6 +130,7 @@ export function customised(definition: KpiDefinition): number {
     Number(view.show_as !== "value") +
     Number(view.line) +
     Number(view.spacing !== "normal") +
+    Number(view.palette !== null) +
     Number(view.table.layout !== "auto") +
     Number(view.table.totals !== "auto") +
     Number(view.table.shading !== "auto") +

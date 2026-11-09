@@ -11,10 +11,12 @@ import {
   useStorage,
   useUpdateSettings,
 } from "../../api/hooks";
+import { PaletteSelect, PaletteSwatches } from "../../features/theme/PaletteSelect";
 import { ThemeSwitcher } from "../../features/theme/ThemeSwitcher";
 import { ALPHAS, FACTORY_DEFAULTS, PAGE_SIZES, TOP_NS, useAnalysisDefaults } from "../../lib/defaults";
 import { formatBytes } from "../../lib/format";
 import { t, type MessageKey } from "../../lib/i18n";
+import { DEFAULT_PALETTE, palettePreference } from "../../lib/palettes";
 import { densityPreference, motionPreference, usePreference } from "../../lib/preferences";
 import { Button } from "../../ui/Button";
 import { ErrorNote, Select, TextInput } from "../../ui/fields";
@@ -32,6 +34,7 @@ const RATES: { key: keyof DetectionSettings; label: MessageKey; hint: MessageKey
 export function SettingsPage() {
   const [density, setDensity] = usePreference(densityPreference);
   const [motion, setMotion] = usePreference(motionPreference);
+  const [palette, setPalette] = usePreference(palettePreference);
   const [defaults, setDefaults] = useAnalysisDefaults();
 
   return (
@@ -72,6 +75,16 @@ export function SettingsPage() {
               { value: "full", label: t("settings.motionFull") },
             ]}
           />
+        </SettingRow>
+        <SettingRow
+          label={t("palette.label")}
+          hint={t("settings.paletteHint")}
+          onReset={palette !== DEFAULT_PALETTE ? () => setPalette(DEFAULT_PALETTE) : undefined}
+        >
+          <span className="flex w-64 max-w-[55vw] flex-col items-stretch gap-1.5">
+            <PaletteSelect value={palette} onChange={(id) => setPalette(id ?? DEFAULT_PALETTE)} className="w-full" />
+            <PaletteSwatches id={palette} />
+          </span>
         </SettingRow>
       </Section>
 

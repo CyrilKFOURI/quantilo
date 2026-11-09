@@ -302,7 +302,7 @@ A **recipe** keeps the work done on a dataset — corrected types, filters, KPIs
 
 ### Settings
 
-- **Appearance**: theme (system, light, dark), density (compact, comfortable), animations (system, reduce, full).
+- **Appearance**: theme (system, light, dark), density (compact, comfortable), animations (system, reduce, full), and **Chart colours**: the palette of categories in every chart, from well-known palettes (Okabe–Ito and Paul Tol, safe for colour-blind readers; ColorBrewer; Tableau 10 and 20; Observable; D3; CARTO). The number of colours is in brackets; past it, colours repeat. A KPI can use its own palette (Customize › Chart colours).
 - **Analysis defaults**: starting values of *Top categories per chart*, *Cards per page* and the normality tests' *α*, for datasets you haven't customised yet (each page can still change them). Remembered in this browser.
 - **Type detection**: the thresholds used by the next detections (imports and *Re-run detection*): how many distinct whole numbers still count as *discrete* (20), the share of values that must read as numbers or dates to convert a text column (95 %), the share of distinct values that makes an *identifier* (95 %), the share of empty values that makes a column *ignored* (95 %). Validated types and manual corrections are kept. *Back to defaults* restores them.
 - **Compute**: the graphics card found (*Check again* looks again) and *Use the GPU when available*, for the deep synthetic-data models coming next (no effect yet).

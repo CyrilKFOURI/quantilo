@@ -1,5 +1,7 @@
 import type { Config, Layout } from "plotly.js-dist-min";
 
+import { paletteById } from "../lib/palettes";
+
 /** Colors read from the CSS tokens (docs/UI_UX.md), so charts follow the light/dark theme. */
 export type ChartTokens = {
   ink1: string;
@@ -15,7 +17,7 @@ export type ChartTokens = {
   text: string;
   id: string;
   font: string;
-  /** Categorical palette, fixed order (--chart-1…8). */
+  /** Categorical palette, fixed order (--chart-1…8, or the whole palette chosen in Settings, 047). */
   palette: string[];
 };
 
@@ -41,7 +43,8 @@ export function readTokens(root: HTMLElement = document.documentElement): ChartT
   const named = Object.fromEntries(
     Object.entries(TOKEN_NAMES).map(([key, name]) => [key, read(name)]),
   ) as Omit<ChartTokens, "palette">;
-  return { ...named, palette: Array.from({ length: 8 }, (_, i) => read(`--chart-${i + 1}`)) };
+  const chosen = paletteById(root.dataset.palette);
+  return { ...named, palette: chosen ? [...chosen.colors] : Array.from({ length: 8 }, (_, i) => read(`--chart-${i + 1}`)) };
 }
 
 export function baseLayout(tokens: ChartTokens): Partial<Layout> {
