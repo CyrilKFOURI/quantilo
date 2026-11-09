@@ -124,7 +124,6 @@ export function stabilityFigure(runs: number[]): Figure {
     layout: {
       yaxis: { ...title("Agreement (adjusted Rand)"), range: [0, 1.05] },
       xaxis: title("Subsample (80 % of the rows)"),
-      barcornerradius: 3,
       shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: 0.6, y1: 0.6, line: { color: tokens.ink3, width: 1, dash: "dash" } }],
     },
   });

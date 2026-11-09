@@ -133,9 +133,9 @@
   }
 
   /* `data-keep-line`: a short value (a count, a date, a status) stays on one line; the
-     table's wide column (a name, a path) gives way instead of the value breaking letter by letter. */
-  main th:not([data-keep-line]),
-  main td:not([data-keep-line]) {
+     table's wide column (a name, a path) gives way instead of the value breaking letter by letter.
+     On a table (a KPI pivot), every cell keeps its line and the table scrolls sideways. */
+  main :is(th, td):not([data-keep-line]):not([data-keep-line] *) {
     overflow-wrap: anywhere;
     white-space: normal !important;
   }
@@ -143,7 +143,7 @@
   /* A column set to the full width (the name on a laptop) would leave the others one letter
      wide once cells can break anywhere: below 1024 px every column follows its content. A table
      whose short columns keep their line (`data-keep-line`) lets its wide column fill the rest. */
-  main table:not(:has([data-keep-line])) :is(th, td).w-full {
+  main table:not([data-keep-line]):not(:has([data-keep-line])) :is(th, td).w-full {
     width: auto !important;
   }
 

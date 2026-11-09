@@ -74,7 +74,7 @@ export function Shell({ modules, panels = [] }: { modules: ModuleManifest[]; pan
         </RadixDialog.Root>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar onMenu={phone ? () => setDrawer(true) : undefined} />
+        <TopBar onMenu={phone ? () => setDrawer(true) : undefined} appMark={!phone && (belowLaptop || collapsed)} />
         <ActivityBar />
         <main
           id="main"

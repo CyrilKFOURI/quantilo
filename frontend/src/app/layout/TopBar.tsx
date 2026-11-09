@@ -9,8 +9,10 @@ import { useStoredState } from "../../lib/useStoredState";
 import { CyfouriLogo } from "../../ui/CyfouriLogo";
 import { Logo } from "../../ui/Logo";
 
-/** `onMenu`: on a phone, the button that opens the navigation drawer (041). */
-export function TopBar({ onMenu }: { onMenu?: () => void }) {
+/** `onMenu`: on a phone, the button that opens the navigation drawer (041). `appMark`: the sidebar
+ *  is an icon rail (tablet, or collapsed) showing CYFOURI only, so the app's mark and name come
+ *  here, next to it (043). */
+export function TopBar({ onMenu, appMark = false }: { onMenu?: () => void; appMark?: boolean }) {
   const { datasetId } = useParams({ strict: false });
   const dataset = useDataset(datasetId);
   const ready = Boolean(datasetId && dataset.data?.status === "ready");
@@ -34,6 +36,13 @@ export function TopBar({ onMenu }: { onMenu?: () => void }) {
           <Link to="/" aria-label={t("app.name")} className="flex shrink-0 items-center gap-2 text-ink-1">
             <CyfouriLogo size={16} />
             <Logo size={20} />
+          </Link>
+        )}
+        {appMark && (
+          <Link to="/" className="flex shrink-0 items-center gap-2 text-ink-1">
+            <Logo size={20} />
+            <span className="text-sm font-semibold tracking-tight">{t("app.name")}</span>
+            <span className="h-5 w-px bg-line" aria-hidden />
           </Link>
         )}
         {datasetId && dataset.data ? (

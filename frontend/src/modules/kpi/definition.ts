@@ -67,6 +67,8 @@ export function viewOf(definition: KpiDefinition): Required<Omit<View, "table">>
     share: view.share ?? false,
     labels: view.labels ?? "auto",
     show_as: view.show_as ?? "value",
+    line: view.line ?? false,
+    spacing: view.spacing ?? "normal",
     table: {
       layout: table.layout ?? "auto",
       totals: table.totals ?? "auto",
@@ -125,6 +127,8 @@ export function customised(definition: KpiDefinition): number {
     Number(view.share) +
     Number(view.labels !== "auto") +
     Number(view.show_as !== "value") +
+    Number(view.line) +
+    Number(view.spacing !== "normal") +
     Number(view.table.layout !== "auto") +
     Number(view.table.totals !== "auto") +
     Number(view.table.shading !== "auto") +

@@ -429,3 +429,17 @@ def test_a_column_without_readable_values_is_never_suggested() -> None:
     ]
     columns = [c for c in columns if c.name != "rating"]
     assert all("store" not in s.name for s in suggest(columns))
+
+
+def test_the_view_keeps_a_line_over_bars_and_the_bar_spacing() -> None:
+    old = Definition.model_validate({"measures": [{"id": "m1", "agg": "count"}]})
+    assert (old.view.line, old.view.spacing) == (False, "normal")  # saved before 045
+
+    chosen = Definition.model_validate(
+        {"measures": [{"id": "m1", "agg": "count"}], "view": {"line": True, "spacing": "wide"}}
+    )
+    assert (chosen.view.line, chosen.view.spacing) == (True, "wide")
+    with pytest.raises(ValueError):
+        Definition.model_validate(
+            {"measures": [{"id": "m1", "agg": "count"}], "view": {"spacing": "huge"}}
+        )

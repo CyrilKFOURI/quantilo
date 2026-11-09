@@ -10978,6 +10978,17 @@ export interface components {
              * @enum {string}
              */
             labels: "auto" | "on" | "off";
+            /**
+             * Line
+             * @default false
+             */
+            line: boolean;
+            /**
+             * Spacing
+             * @default normal
+             * @enum {string}
+             */
+            spacing: "narrow" | "normal" | "wide";
             table?: components["schemas"]["TableView"];
             /**
              * Show As

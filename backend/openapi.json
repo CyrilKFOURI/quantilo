@@ -38761,6 +38761,21 @@
             "title": "Labels",
             "default": "auto"
           },
+          "line": {
+            "type": "boolean",
+            "title": "Line",
+            "default": false
+          },
+          "spacing": {
+            "type": "string",
+            "enum": [
+              "narrow",
+              "normal",
+              "wide"
+            ],
+            "title": "Spacing",
+            "default": "normal"
+          },
           "table": {
             "$ref": "#/components/schemas/TableView"
           },

@@ -11,6 +11,10 @@ const OTHER = "Other";
 const MARKERS_MAX = 60; // R-VIS-34
 const BAR_LABELS_MAX = 12; // R-VIS-35
 const DIRECT_LABELS_MAX = 4;
+const BARS = new Set(["bars", "stacked_bars", "grouped_bars"]);
+/** Room between the periods (045): one bar, or a group of bars side by side. */
+const SPACING = { narrow: 0.12, normal: 0.3, wide: 0.5 } as const;
+const GROUP_SPACING = { narrow: 0.2, normal: 0.38, wide: 0.55 } as const;
 const STACKED = new Set(["stacked_bars", "stacked_area", "hbar_stacked"]);
 
 export type ChartInput = {
@@ -22,18 +26,23 @@ export type ChartInput = {
   custom: Format;
   labels: "auto" | "on" | "off";
   hideOther: boolean;
+  /** 045: a line over bars over time (the total per period when the bars are split). */
+  line?: boolean;
+  /** 045: room between the periods' bars. */
+  spacing?: "narrow" | "normal" | "wide";
   panel?: string | null; // small multiples: the first split's label shown in this panel
 };
 
 type Built = { data: Data[]; layout?: Partial<Layout> };
 
 /** The colour of a split's label: fixed categorical order by position in the split, so a label
- *  keeps its colour across views; "Other" grey; an ordinal split one hue light → dark (R-VIS-33). */
+ *  keeps its colour across views; "Other" grey; an ordinal split one hue light → dark (R-VIS-33).
+ *  Two labels (true / false, yes / no) always get two different hues, never two blues (045). */
 export function levelColor(levels: string[], label: string, ordinal: boolean, tokens: ChartTokens): string {
   if (label === OTHER) return tokens.ink3;
   const real = levels.filter((l) => l !== OTHER);
   const index = Math.max(0, real.indexOf(label));
-  if (ordinal) {
+  if (ordinal && real.length > 2) {
     const step = real.length > 1 ? index / (real.length - 1) : 1;
     return withAlpha(tokens.palette[0] ?? tokens.ink2, 0.5 + 0.5 * step);
   }
@@ -101,7 +110,7 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
               orientation: "h",
               y: rows,
               x: scaled(input, values),
-              marker: { color: rows.map((g) => (g === OTHER ? tokens.ink3 : (tokens.palette[0] ?? tokens.ink2))), cornerradius: 4 },
+              marker: { color: rows.map((g) => (g === OTHER ? tokens.ink3 : (tokens.palette[0] ?? tokens.ink2))) },
               text: show ? text(input, values) : undefined,
               textposition: "outside",
               cliponaxis: false,
@@ -187,7 +196,6 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
           type: "bar",
           marker: {
             color: trace.color,
-            cornerradius: chart === "stacked_bars" ? 0 : 4,
             line: { color: tokens.surface, width: chart === "stacked_bars" ? 1 : 0 },
             // incomplete periods hatched (R-TIME-05)
             pattern: { shape: partial.map((p) => (p ? "/" : "")), fgcolor: tokens.surface, solidity: 0.4 },
@@ -218,11 +226,17 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
         textfont: { color: tokens.ink2, size: 11 },
       } as Data;
     });
+    // 045: a line over the bars, through each bar, or through the total of the period when split.
+    const overlay = input.line && BARS.has(chart) ? lineOver(input, tokens, traces, x) : null;
+    if (overlay) data.push(overlay);
     const zero = chart !== "line"; // R-VIS-31: bars and areas start at 0, lines fit the data
+    const spacing = input.spacing ?? "normal";
     return {
       data,
       layout: {
         barmode: chart === "stacked_bars" ? "stack" : chart === "grouped_bars" ? "group" : undefined,
+        bargap: chart === "grouped_bars" ? GROUP_SPACING[spacing] : SPACING[spacing],
+        bargroupgap: chart === "grouped_bars" ? 0.06 : undefined,
         hovermode: "x unified",
         xaxis: { type: "category", showgrid: false, automargin: true },
         yaxis: {
@@ -235,6 +249,40 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
       },
     };
   };
+}
+
+/** Whether a line can go over these bars: one series, or a total that means something (sums). */
+export function lineAllowed(mode: ShowAs, series: number): boolean {
+  return series <= 1 || mode === "value" || mode === "running";
+}
+
+function lineOver(
+  input: ChartInput,
+  tokens: ChartTokens,
+  traces: { name: string; values: (number | null)[] }[],
+  x: string[],
+): Data | null {
+  if (!lineAllowed(input.mode, traces.length)) return null;
+  const values =
+    traces.length <= 1
+      ? (traces[0]?.values ?? [])
+      : x.map((_, j) => {
+          const parts = traces.map((t) => t.values[j]).filter((v): v is number => v !== null && v !== undefined);
+          return parts.length ? parts.reduce((a, b) => a + b, 0) : null;
+        });
+  const name = traces.length <= 1 ? "" : "Total";
+  return {
+    type: "scatter",
+    mode: "lines+markers",
+    name: name || undefined,
+    x,
+    y: scaled(input, values),
+    customdata: text(input, values),
+    hovertemplate: name ? `${name}: %{customdata}<extra></extra>` : `%{customdata}<extra></extra>`,
+    line: { color: tokens.ink1, width: 2 },
+    marker: { size: 6, color: tokens.ink1, line: { color: tokens.surface, width: 1.5 } },
+    showlegend: Boolean(name),
+  } as Data;
 }
 
 function heatmap(

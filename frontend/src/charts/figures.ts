@@ -70,9 +70,8 @@ export function barsFigure(chart: Chart, type: AnalysisType): (tokens: ChartToke
       ? {
           yaxis: { autorange: "reversed", showgrid: false, type: "category" },
           xaxis: { showgrid: true },
-          barcornerradius: 3,
         }
-      : { xaxis: { type: "category" }, barcornerradius: 3 };
+      : { xaxis: { type: "category" } };
     return { data: [trace], layout };
   };
 }
@@ -186,7 +185,7 @@ export function timelineFigure(chart: Chart): (tokens: ChartTokens) => Built {
           hovertemplate: "%{x}<br>%{y:,} rows<extra></extra>",
         } as Data);
     // Period labels ("2024-03", "2024-03-18", "2024") are dates: a date axis spaces its ticks.
-    return { data: [trace], layout: { xaxis: { type: "date", nticks: 6, tickangle: 0 }, barcornerradius: 2 } };
+    return { data: [trace], layout: { xaxis: { type: "date", nticks: 6, tickangle: 0 } } };
   };
 }
 

@@ -25,6 +25,8 @@ export function KpiCharts({
   showAs,
   labelsMode,
   hideOther,
+  line,
+  spacing,
   labels,
   formats,
 }: {
@@ -34,6 +36,8 @@ export function KpiCharts({
   showAs: ShowAs;
   labelsMode: "auto" | "on" | "off";
   hideOther: boolean;
+  line: boolean;
+  spacing: "narrow" | "normal" | "wide";
   labels: Record<string, string>;
   formats: Record<string, Format>;
 }) {
@@ -55,6 +59,8 @@ export function KpiCharts({
           custom: formats[measure.id] ?? {},
           labels: labelsMode,
           hideOther,
+          line,
+          spacing,
         };
         const name = labels[measure.id] ?? measure.label;
         const height = result.resolved.time ? 240 : Math.min(520, 70 + 26 * (result.splits[0]?.levels.length ?? 4));

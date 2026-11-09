@@ -208,7 +208,7 @@ export function horizontalBars(bars: Bar[], color: (tokens: ChartTokens) => stri
         hovertemplate: "%{y}<br>%{x:,}<extra></extra>",
       } as Data,
     ],
-    layout: { yaxis: { autorange: "reversed", type: "category", showgrid: false }, xaxis: { showgrid: true }, barcornerradius: 3 },
+    layout: { yaxis: { autorange: "reversed", type: "category", showgrid: false }, xaxis: { showgrid: true } },
   });
 }
 

@@ -81,8 +81,9 @@ export function PivotTable({
         </div>
       </div>
       {table.note && <p className="text-xs text-ink-3">{table.note}</p>}
-      <div className="max-h-[560px] overflow-auto border-t border-line">
-        <table className="w-full border-separate border-spacing-0 text-[13px] tabular-nums">
+      {/* A wide table (periods across) scrolls sideways; its values never break letter by letter. */}
+      <div className="max-h-[560px] overflow-auto overscroll-x-contain border-t border-line">
+        <table data-keep-line className="w-full border-separate border-spacing-0 text-[13px] tabular-nums">
           <thead>
             {table.head.map((row, r) => (
               <tr key={r}>
@@ -90,7 +91,7 @@ export function PivotTable({
                   <th
                     rowSpan={table.head.length}
                     scope="col"
-                    className="sticky top-0 left-0 z-20 border-b border-line bg-surface-2 px-3 py-2 text-left text-xs font-medium text-ink-2"
+                    className="sticky top-0 left-0 z-20 border-b border-line bg-surface-2 px-3 py-2 text-left text-xs font-medium whitespace-nowrap text-ink-2"
                   >
                     {table.corner}
                   </th>

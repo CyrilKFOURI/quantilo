@@ -1,5 +1,5 @@
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { ChevronDown, Copy, FolderOpen, Pencil, Plus, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
+import { ChevronDown, Copy, FolderOpen, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { ApiError, type KpiDefinition, type KpiResult, type SavedKpi } from "../../api/client";
@@ -12,7 +12,6 @@ import { Builder } from "./Builder";
 import { Customize } from "./Customize";
 import {
   computeDefinition,
-  customised,
   dataPart,
   formatOf,
   RATIO,
@@ -271,7 +270,19 @@ export function KpiPage() {
           ) : !result || !view || !tableOptions || !applied ? (
             <Loading label={t("loading.kpis")} className="h-[420px]" />
           ) : (
-            <div className={`grid gap-6 ${panel ? "xl:grid-cols-[minmax(0,1fr)_300px]" : ""}`}>
+            <div className="space-y-6">
+              {draft && (
+                // 045: the display settings sit above what they change, opened from their own line.
+                <Customize
+                  definition={applied}
+                  result={result}
+                  draft={draft}
+                  open={panel}
+                  onToggle={() => setPanel(!panel)}
+                  onView={applyView}
+                  onData={setDraft}
+                />
+              )}
               <div className={`min-w-0 space-y-6 ${compute.isFetching ? "opacity-60 transition-opacity" : ""}`} aria-busy={compute.isFetching}>
                 {result.warnings.map((w) => (
                   <p key={w} className="border-l-2 border-accent pl-3 text-xs text-ink-2">
@@ -280,15 +291,9 @@ export function KpiPage() {
                 ))}
                 <Tiles result={result} labels={labels} formats={formats} />
                 <section aria-labelledby="kpi-chart" className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <h2 id="kpi-chart" className="truncate text-[15px] font-semibold text-ink-1" title={result.name}>
-                      {result.name}
-                    </h2>
-                    <Button variant={panel ? "secondary" : "ghost"} icon={SlidersHorizontal} onClick={() => setPanel(!panel)} aria-expanded={panel}>
-                      {t("kpi.customize")}
-                      {customised(applied) > 0 && <span className="rounded-full bg-accent px-1.5 text-[11px] text-accent-ink">{customised(applied)}</span>}
-                    </Button>
-                  </div>
+                  <h2 id="kpi-chart" className="truncate text-[15px] font-semibold text-ink-1" title={result.name}>
+                    {result.name}
+                  </h2>
                   <KpiCharts
                     result={result}
                     chart={view.chart}
@@ -296,6 +301,8 @@ export function KpiPage() {
                     showAs={view.show_as}
                     labelsMode={view.labels}
                     hideOther={applied.other === "hide"}
+                    line={view.line}
+                    spacing={view.spacing}
                     labels={labels}
                     formats={formats}
                   />
@@ -329,11 +336,6 @@ export function KpiPage() {
                   fileName={result.name}
                 />
               </div>
-              {panel && draft && (
-                <div className="xl:sticky xl:top-4 xl:self-start">
-                  <Customize definition={applied} result={result} draft={draft} onView={applyView} onData={setDraft} onClose={() => setPanel(false)} />
-                </div>
-              )}
             </div>
           )}
         </div>
