@@ -5,7 +5,15 @@ description = "Quantilo, a data analysis library: exploratory data analysis with
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Cyril Kfouri" }]
+keywords = ["data analysis", "eda", "statistics", "profiling", "time series", "machine learning"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
 dependencies = [
     "duckdb>=1.5.6",
     "numpy>=2.5.4",
@@ -16,6 +24,11 @@ dependencies = [
     "scipy>=1.18.1",
     "statsmodels>=0.15.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/CyrilKFOURI/quantilo"
+App = "https://quantilo-app.vercel.app"
+Source = "https://github.com/CyrilKFOURI/quantilo/tree/master/packages/quantilo"
 
 [project.optional-dependencies]
 # Boosting models and hyper-parameter tuning (019, 021).
