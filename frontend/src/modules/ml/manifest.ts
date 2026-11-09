@@ -10,5 +10,6 @@ export const mlModule: ModuleManifest = {
   icon: BrainCircuit,
   path: "/d/$datasetId/ml",
   component: MlPage,
+  group: "ml",
   validateSearch: validateMlSearch,
 };

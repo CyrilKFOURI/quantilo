@@ -22,12 +22,12 @@ const lockedInLite = (module: ModuleManifest): ModuleManifest =>
 /** Active modules. Adding a module = creating its folder and listing its manifest here. */
 export const modules: ModuleManifest[] = [
   timeseriesModule,
-  lockedInLite(mlModule),
-  segmentsModule, // in the browser version too: sampled beyond 50,000 rows, t-SNE locked
   kpiModule,
-  lockedInLite(syntheticModule),
+  lockedInLite(mlModule),
+  segmentsModule, // a tab of Machine learning; in the browser version too: sampled beyond 50,000 rows, t-SNE locked
   // light (SciPy and statsmodels): runs in the browser-only build too
   experimentsModule,
+  lockedInLite(syntheticModule),
 ];
 
 /** Panels docked beside the pages. Adding one = listing its manifest here. */

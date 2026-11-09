@@ -23,14 +23,23 @@ const small = "h-7 text-xs";
 const KINDS = ["auto", "rate", "mean", "count", "ratio"] as const;
 const ALPHAS = [0.01, 0.05, 0.1];
 
-function Group({ label, children }: { label: string; children: ReactNode }) {
+/** One setting. On a phone (046) the settings sit three per row, label above: `wide` takes the
+ *  whole row (the metrics and their chips, the planned shares). */
+function Group({ label, wide = false, children }: { label: string; wide?: boolean; children: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5 max-sm:w-full" role="group" aria-label={label}>
-      <span className="text-ink-3 max-sm:basis-full">{label}</span>
+    <div
+      className={`flex flex-wrap items-center gap-1.5 max-sm:min-w-0 max-sm:gap-1 max-sm:[&_select]:w-full max-sm:[&_select]:max-w-none ${wide ? "max-sm:col-span-3" : "max-sm:flex-col max-sm:items-stretch"}`}
+      role="group"
+      aria-label={label}
+    >
+      <span className={`text-ink-3 max-sm:text-[11px] ${wide ? "max-sm:basis-full" : ""}`}>{label}</span>
       {children}
     </div>
   );
 }
+
+/** A row of settings: wrapped on a laptop, three per row on a phone (046). */
+const ROW = "flex flex-wrap items-center gap-x-3 gap-y-2 max-sm:grid max-sm:grid-cols-3 max-sm:items-end";
 
 const Divider = () => <span className="hidden h-5 w-px bg-line sm:block" aria-hidden />;
 
@@ -174,7 +183,7 @@ function SetupBar({
   const share = (level: string) => design.expected?.[level];
   const fields = (
     <>
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+    <div className={ROW}>
       <Group label={t("experiments.variant")}>
         <Select
           aria-label={t("experiments.variant")}
@@ -205,7 +214,7 @@ function SetupBar({
         </Select>
       </Group>
       <Divider />
-      <Group label={t("experiments.metrics")}>
+      <Group label={t("experiments.metrics")} wide>
         {design.metrics.map((metric, i) => (
           <MetricChip
             key={`${metric.column}-${metric.denominator ?? ""}-${i}`}
@@ -263,13 +272,13 @@ function SetupBar({
           ))}
         </Select>
       </Group>
-      <Button variant={more ? "secondary" : "ghost"} icon={SlidersHorizontal} className={`${small} ml-auto`} onClick={() => setMore(!more)} aria-expanded={more}>
+      <Button variant={more ? "secondary" : "ghost"} icon={SlidersHorizontal} className={`${small} ml-auto max-sm:ml-0 max-sm:self-end`} onClick={() => setMore(!more)} aria-expanded={more}>
         {t("experiments.more")}
       </Button>
     </div>
     {more && (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-2">
-        <Group label={t("experiments.planned")}>
+      <div className={`${ROW} border-t border-line pt-2`}>
+        <Group label={t("experiments.planned")} wide>
           {levels.map((level) => (
             <label key={`${design.variant}-${level}`} className="inline-flex items-center gap-1 text-xs text-ink-2">
               {level}

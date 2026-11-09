@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
 import type { AnalysisType } from "../api/client";
+import type { PageGroup } from "../app/layout/PageGroups";
 import type { MessageKey } from "../lib/i18n";
 
 type Base = {
@@ -13,6 +14,10 @@ type Base = {
   locked?: boolean;
   /** Parses the page's own URL parameters. */
   validateSearch?: (search: Record<string, unknown>) => Record<string, unknown>;
+  /** 046: a tab of a group of pages (its tabs above it); the group has one sidebar entry. */
+  group?: PageGroup;
+  /** 046: false when the page is reached from its group's tabs only, not from the sidebar. */
+  nav?: boolean;
 };
 
 /** A panel a module docks beside every page (e.g. the assistant); it decides when to show itself. */

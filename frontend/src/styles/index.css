@@ -171,8 +171,9 @@
    the inline label layouts each page uses on a laptop. */
 .params-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  /* 046: three per row, on a phone too (the owner's request); labels sit above their field. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 8px;
   align-items: end;
 }
 

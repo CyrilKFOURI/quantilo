@@ -1,15 +1,11 @@
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useParams, useRouterState } from "@tanstack/react-router";
 import {
   BookOpen,
   BookMarked,
-  Columns3,
-  GitCompareArrows,
-  Grid3x3,
   House,
   LayoutGrid,
   PanelLeftClose,
   PanelLeftOpen,
-  Rows3,
   ScatterChart,
   Settings,
   type LucideIcon,
@@ -22,30 +18,16 @@ import { t, type MessageKey } from "../../lib/i18n";
 import type { ModuleManifest } from "../../modules/types";
 import { CyfouriLogo } from "../../ui/CyfouriLogo";
 import { Logo } from "../../ui/Logo";
+import { groupEntry, groupOf, type PageGroup } from "./PageGroups";
 
-/** Pages of the open dataset. */
-const DATASET_PAGES: {
-  labelKey: MessageKey;
-  icon: LucideIcon;
-  to?:
-    | "/d/$datasetId"
-    | "/d/$datasetId/columns"
-    | "/d/$datasetId/compare"
-    | "/d/$datasetId/correlations"
-    | "/d/$datasetId/data"
-    | "/d/$datasetId/changes";
-}[] = [
-  { labelKey: "nav.overview", icon: LayoutGrid, to: "/d/$datasetId" },
-  { labelKey: "nav.columns", icon: Columns3, to: "/d/$datasetId/columns" },
-  { labelKey: "nav.compare", icon: ScatterChart, to: "/d/$datasetId/compare" },
-  {
-    labelKey: "nav.correlations",
-    icon: Grid3x3,
-    to: "/d/$datasetId/correlations",
-  },
-  { labelKey: "nav.data", icon: Rows3, to: "/d/$datasetId/data" },
-  { labelKey: "nav.changes", icon: GitCompareArrows, to: "/d/$datasetId/changes" },
+/** Pages of the open dataset (046): two entries, each a group of pages with its own tabs
+ *  (Overview: summary, columns, data, changes; Relationships: two variables, correlations). */
+const DATASET_PAGES: { labelKey: MessageKey; icon: LucideIcon; group: PageGroup }[] = [
+  { labelKey: "nav.overview", icon: LayoutGrid, group: "overview" },
+  { labelKey: "nav.relationships", icon: ScatterChart, group: "relationships" },
 ];
+
+const activeClass = "bg-accent-soft !text-ink-1 font-medium";
 
 const itemClass =
   "flex h-(--control-h) items-center gap-2.5 rounded-md px-2 text-ink-2 transition-colors";
@@ -61,6 +43,7 @@ type SidebarProps = {
 
 export function Sidebar({ collapsed, onToggle, modules, drawer = false, onNavigate }: SidebarProps) {
   const { datasetId } = useParams({ strict: false });
+  const current = groupOf(useRouterState({ select: (state) => state.location.pathname }));
   return (
     <nav
       aria-label={t("nav.label")}
@@ -120,19 +103,16 @@ export function Sidebar({ collapsed, onToggle, modules, drawer = false, onNaviga
         </ul>
 
         <NavSection title={t("nav.section.dataset")} collapsed={collapsed}>
-          {DATASET_PAGES.map(({ labelKey, icon: Icon, to }) => (
+          {DATASET_PAGES.map(({ labelKey, icon: Icon, group }) => (
             <li key={labelKey}>
-              {datasetId && to ? (
+              {datasetId ? (
                 <Link
-                  to={to}
-                  params={{ datasetId }}
-                  activeOptions={{ exact: true, includeSearch: false }}
+                  to={groupEntry(group) as never}
+                  params={{ datasetId } as never}
                   title={collapsed ? t(labelKey) : undefined}
                   aria-label={collapsed ? t(labelKey) : undefined}
-                  className={`${itemClass} hover:bg-surface-2 hover:text-ink-1`}
-                  activeProps={{
-                    className: "bg-accent-soft !text-ink-1 font-medium",
-                  }}
+                  aria-current={current === group ? "page" : undefined}
+                  className={`${itemClass} hover:bg-surface-2 hover:text-ink-1 ${current === group ? activeClass : ""}`}
                 >
                   <Icon size={16} strokeWidth={1.5} aria-hidden />
                   {!collapsed && t(labelKey)}
@@ -155,7 +135,7 @@ export function Sidebar({ collapsed, onToggle, modules, drawer = false, onNaviga
 
         {modules.length > 0 && (
           <NavSection title={t("nav.section.modules")} collapsed={collapsed}>
-            {modules.map((module) => (
+            {modules.filter((module) => module.nav !== false).map((module) => (
               <li key={module.id}>
                 {module.scope === "global" ? (
                   <NavLink
@@ -169,6 +149,7 @@ export function Sidebar({ collapsed, onToggle, modules, drawer = false, onNaviga
                     module={module}
                     datasetId={datasetId}
                     collapsed={collapsed}
+                    active={Boolean(module.group) && current === module.group}
                   />
                 )}
               </li>
@@ -220,11 +201,17 @@ function DatasetModuleLink({
   module,
   datasetId,
   collapsed,
+  active,
 }: {
   module: DatasetModule;
   datasetId: string | undefined;
   collapsed: boolean;
+  /** One of its group's tabs is open (Machine learning while on Segments). */
+  active: boolean;
 }) {
+  // A group's entry leads to its first tab the build can run (browser version: Segments, 046).
+  const to = module.group ? groupEntry(module.group) : module.path;
+  const locked = module.locked && to === module.path;
   const dataset = useDataset(datasetId);
   const columns = useColumns(
     datasetId ?? "",
@@ -258,17 +245,18 @@ function DatasetModuleLink({
   }
   return (
     <Link
-      to={module.path}
+      to={to as never}
       params={{ datasetId } as never}
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
-      className={`${itemClass} hover:bg-surface-2 hover:text-ink-1`}
+      aria-current={active ? "page" : undefined}
+      className={`${itemClass} hover:bg-surface-2 hover:text-ink-1 ${active ? activeClass : ""}`}
       activeOptions={{ includeSearch: false }}
-      activeProps={{ className: "bg-accent-soft !text-ink-1 font-medium" }}
+      activeProps={{ className: activeClass }}
     >
       <Icon size={16} strokeWidth={1.5} aria-hidden />
       {!collapsed && label}
-      {!collapsed && module.locked && <LockBadge className="ml-auto" />}
+      {!collapsed && locked && <LockBadge className="ml-auto" />}
     </Link>
   );
 }
@@ -312,7 +300,7 @@ function NavLink({
       aria-label={collapsed ? label : undefined}
       className={`${itemClass} hover:bg-surface-2 hover:text-ink-1`}
       activeOptions={{ exact: to === "/" }}
-      activeProps={{ className: "bg-accent-soft !text-ink-1 font-medium" }}
+      activeProps={{ className: activeClass }}
     >
       <Icon size={16} strokeWidth={1.5} aria-hidden />
       {!collapsed && label}

@@ -6,6 +6,7 @@ import {
   retainSearchParams,
   type RouterHistory,
 } from "@tanstack/react-router";
+import type { ReactElement } from "react";
 
 import { validateFilterSearch, type FilterSearch } from "../api/filters";
 import { modules as registeredModules, panels as registeredPanels } from "../modules/registry";
@@ -26,7 +27,19 @@ import {
 import { CorrelationsPage } from "../pages/correlations/CorrelationsPage";
 import { DataPage, validateDataSearch } from "../pages/data/DataPage";
 import { VariablePage } from "../pages/variable/VariablePage";
+import { Grouped, type PageGroup } from "./layout/PageGroups";
 import { Shell } from "./layout/Shell";
+
+/** 046: a page of a group gets the group's tabs above it. */
+function inGroup(group: PageGroup, Page: () => ReactElement | null) {
+  return function GroupedPage() {
+    return (
+      <Grouped group={group}>
+        <Page />
+      </Grouped>
+    );
+  };
+}
 
 type RouterOptions = {
   history?: RouterHistory;
@@ -76,12 +89,12 @@ export function createAppRouter({
   const datasetRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/d/$datasetId",
-    component: OverviewPage,
+    component: inGroup("overview", OverviewPage),
   });
   const columnsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/d/$datasetId/columns",
-    component: ColumnsPage,
+    component: inGroup("overview", ColumnsPage),
   });
   const variableRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -92,30 +105,30 @@ export function createAppRouter({
     getParentRoute: () => rootRoute,
     path: "/d/$datasetId/compare",
     validateSearch: validateCompareSearch,
-    component: ComparePage,
+    component: inGroup("relationships", ComparePage),
   });
   const correlationsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/d/$datasetId/correlations",
-    component: CorrelationsPage,
+    component: inGroup("relationships", CorrelationsPage),
   });
   const dataRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/d/$datasetId/data",
     validateSearch: validateDataSearch,
-    component: DataPage,
+    component: inGroup("overview", DataPage),
   });
   const changesRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/d/$datasetId/changes",
     validateSearch: validateChangesSearch,
-    component: ChangesPage,
+    component: inGroup("overview", ChangesPage),
   });
   const moduleRoutes = modules.map((module) =>
     createRoute({
       getParentRoute: () => rootRoute,
       path: module.path,
-      component: module.component,
+      component: module.group ? inGroup(module.group, module.component) : module.component,
       ...(module.validateSearch
         ? { validateSearch: module.validateSearch }
         : {}),

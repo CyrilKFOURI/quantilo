@@ -6,7 +6,6 @@ import type { Column, RowsMode, RowsView } from "../../api/client";
 import { useActiveFilters } from "../../api/filters";
 import { useColumnSummaries, useColumns, useDataset, useRowBlocks } from "../../api/hooks";
 import { DataTable, type TableColumn } from "../../features/data/DataTable";
-import { RecordList } from "../../features/data/RecordList";
 import { ExportMenu } from "../../features/data/ExportMenu";
 import { useTableLayout } from "../../features/data/useTableLayout";
 import { ConditionEditor } from "../../features/filters/ConditionEditor";
@@ -14,7 +13,6 @@ import { NoRows } from "../../features/filters/NoRows";
 import { useFilters } from "../../features/filters/useFilters";
 import { formatCount } from "../../lib/format";
 import { t } from "../../lib/i18n";
-import { BELOW_LAPTOP, PHONE, useMedia } from "../../lib/useMedia";
 import { Dialog } from "../../ui/Dialog";
 import { ErrorNote, TextInput } from "../../ui/fields";
 import { Popover } from "../../ui/Popover";
@@ -47,9 +45,6 @@ export function DataPage() {
   const filters = useActiveFilters(datasetId);
   const { add } = useFilters(datasetId);
   const layout = useTableLayout(datasetId);
-  // 041: below a laptop the rows are cards (nothing scrolls sideways): 4 fields on a phone, 6 on a tablet.
-  const phone = useMedia(PHONE);
-  const belowLaptop = useMedia(BELOW_LAPTOP);
   const [draft, setDraft] = useState<{ term: string; for: string | undefined }>({ term: search.q ?? "", for: search.q });
   const [filtering, setFiltering] = useState<Column | null>(null);
 
@@ -143,29 +138,20 @@ export function DataPage() {
       ) : total === 0 ? (
         <Empty datasetId={datasetId} view={view} filtered={filters.length > 0} />
       ) : (
+        // 046: a real table on every screen (the owner's choice over the 041 cards); on a phone it
+        // scrolls sideways inside its frame, the header and the row numbers stay in place.
         <div className="min-h-90 flex-1">
-          {belowLaptop ? (
-            <RecordList
-              datasetId={datasetId}
-              fields={phone ? 4 : 6}
-              columns={tableColumns}
-              total={total}
-              view={view}
-              onSort={(column, sort) => update({ sort: sort ? column : undefined, desc: sort === "desc" ? true : undefined })}
-            />
-          ) : (
-            <DataTable
-              datasetId={datasetId}
-              columns={tableColumns}
-              pinned={layout.pinned}
-              total={total}
-              view={view}
-              onSort={(column, sort) => update({ sort: sort ? column : undefined, desc: sort === "desc" ? true : undefined })}
-              onFilter={setFiltering}
-              onHide={layout.hide}
-              onPin={layout.togglePin}
-            />
-          )}
+          <DataTable
+            datasetId={datasetId}
+            columns={tableColumns}
+            pinned={layout.pinned}
+            total={total}
+            view={view}
+            onSort={(column, sort) => update({ sort: sort ? column : undefined, desc: sort === "desc" ? true : undefined })}
+            onFilter={setFiltering}
+            onHide={layout.hide}
+            onPin={layout.togglePin}
+          />
         </div>
       )}
 
