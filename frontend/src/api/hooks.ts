@@ -11,6 +11,8 @@ import {
   api,
   type ChartParams,
   type CompareParams,
+  type DriverSpec,
+  type ScenarioChange,
   type SeriesParams,
   type SeriesSectionKey,
   type CorrelationMethod,
@@ -19,12 +21,15 @@ import {
   type ImportOptions,
   type KpiDefinition,
   type ComputeSettings,
+  type ServerSettings,
+  type VersionSettings,
   type SyntheticRequest,
   type MlChoicesInput,
   type MlClasses,
   type MlContext,
   type MlValidation,
   type MlTuneRequest,
+  type MlAutoRequest,
   type OutlierMethod,
   type DetectionSettings,
   type RowsView,
@@ -83,6 +88,9 @@ export const queryKeys = {
   ) => ["datasets", id, "timeseries", section, params, extra, filters] as const,
   settings: ["settings"] as const,
   storage: ["storage"] as const,
+  versions: (id: string, stamp: string) => ["datasets", id, "versions", stamp] as const,
+  changes: (id: string, vs: string | null, part: string, stamp: string, extra = "") =>
+    ["datasets", id, "changes", vs, part, stamp, extra] as const,
   rows: (id: string, view: RowsView, filters: Condition[], block: number) =>
     ["datasets", id, "rows", view, filters, block] as const,
 };
@@ -483,10 +491,12 @@ export function useStartForecast(id: string) {
     mutationFn: ({
       params,
       extra,
+      drivers,
     }: {
       params: SeriesParams;
       extra: Record<string, string>;
-    }) => api.startForecast(id, params, extra, filters),
+      drivers?: DriverSpec[];
+    }) => api.startForecast(id, params, extra, filters, drivers),
   });
 }
 
@@ -503,11 +513,91 @@ export function useForecastJob(jobId: string | null) {
   });
 }
 
+/** Start (or reuse) a forecast of every group (039). */
+export function useStartGroupForecast(id: string) {
+  const filters = useActiveFilters(id);
+  return useMutation({
+    mutationFn: ({
+      params,
+      extra,
+    }: {
+      params: SeriesParams;
+      extra: Record<string, string>;
+    }) => api.startGroupForecast(id, params, extra, filters),
+  });
+}
+
+/** Follow a forecast of every group until it ends (also in the background). */
+export function useGroupJob(jobId: string | null) {
+  return useQuery({
+    queryKey: ["group-forecast-jobs", jobId ?? ""],
+    queryFn: () => api.groupJob(jobId ?? ""),
+    enabled: Boolean(jobId),
+    refetchInterval: (query) =>
+      query.state.data?.status === "running" || !query.state.data ? 700 : false,
+    refetchIntervalInBackground: true,
+    retry: false,
+  });
+}
+
+export function useCancelGroupJob() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (jobId: string) => api.cancelGroupJob(jobId),
+    onSuccess: (job) => client.setQueryData(["group-forecast-jobs", job.id], job),
+  });
+}
+
+/** One driver model's forecast per list of what-if changes ([] = the base forecast), 039. */
+export function useScenarios(
+  id: string,
+  params: SeriesParams,
+  extra: Record<string, string>,
+  drivers: DriverSpec[],
+  scenarios: ScenarioChange[][],
+  enabled = true,
+) {
+  const filters = useActiveFilters(id);
+  return useQueries({
+    queries: scenarios.map((changes) => ({
+      queryKey: ["datasets", id, "timeseries", "scenario", params, extra, filters, drivers, changes],
+      queryFn: () => api.scenario(id, params, extra, filters, drivers, changes),
+      enabled,
+      staleTime: 60_000,
+      retry: false,
+    })),
+    // Structurally shared: the same object while nothing changed (stable for useMemo).
+    combine: (found) => ({
+      data: found.map((r) => r.data),
+      error: found.find((r) => r.error)?.error ?? null,
+      pending: found.some((r) => r.isFetching),
+    }),
+  });
+}
+
 export function useCancelForecast() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (jobId: string) => api.cancelForecast(jobId),
     onSuccess: (job) => client.setQueryData(["forecast-jobs", job.id], job),
+  });
+}
+
+/** Is this a panel (entities × periods)? Its period, entity and the embargo the target calls for. */
+export function useMlPanel(id: string, target: string, period: string | null = null, entity: string | null = null) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "panel", target, period, entity, filters],
+    queryFn: () => api.mlPanel(id, target, period, entity, filters),
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/** A panel run's predictions without the part some columns explain, every period scored again. */
+export function useMlNeutralize(id: string) {
+  return useMutation({
+    mutationFn: (args: { runId: string; columns: string[]; proportion: number }) => api.mlNeutralize(id, args.runId, args.columns, args.proportion),
   });
 }
 
@@ -562,14 +652,46 @@ export function useMlPreparation(
   choices: MlChoicesInput,
   enabled: boolean,
   classes: MlClasses | null = null,
+  validation: MlValidation | null = null,
 ) {
   const filters = useActiveFilters(id);
   return useQuery({
-    queryKey: ["datasets", id, "ml", "preparation", target, model, settings, choices, classes, filters],
-    queryFn: () => api.mlPreparation(id, target, model, settings, choices, filters, classes),
+    queryKey: ["datasets", id, "ml", "preparation", target, model, settings, choices, classes, validation, filters],
+    queryFn: () => api.mlPreparation(id, target, model, settings, choices, filters, classes, validation),
     enabled,
     placeholderData: keepPreviousData,
     staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/** Where the run is wrong (036): computed on demand on its held-out predictions, then cached. */
+export function useMlErrors(id: string, runId: string, measure: string | null) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "errors", runId, measure ?? ""],
+    queryFn: () => api.mlErrors(id, runId, measure),
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** Subgroups where the second run fixes or worsens the first one's errors. */
+export function useMlErrorsCompared(id: string, runId: string, otherId: string) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "errors-compared", runId, otherId],
+    queryFn: () => api.mlErrorsCompared(id, runId, otherId),
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** A run's metrics per group of a sensitive column (none chosen: nothing fetched). */
+export function useMlFairness(id: string, runId: string, column: string | null) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "fairness", runId, column ?? ""],
+    queryFn: () => api.mlFairness(id, runId, column ?? ""),
+    enabled: Boolean(column),
+    staleTime: Infinity,
     retry: false,
   });
 }
@@ -655,6 +777,30 @@ export function useMlStopTuning() {
   return useMutation({ mutationFn: (jobId: string) => api.mlStopTuning(jobId) });
 }
 
+/** The Auto (038): the best model within a time budget, followed step by step. */
+export function useMlAuto(id: string) {
+  const filters = useActiveFilters(id);
+  return useMutation({
+    mutationFn: (args: { target: string; body: MlAutoRequest; classes: MlClasses | null; validation: MlValidation | null }) =>
+      api.mlAuto(id, args.target, args.body, args.classes, args.validation, filters),
+  });
+}
+
+export function useMlAutoJob(jobId: string | null) {
+  return useQuery({
+    queryKey: ["ml", "auto-jobs", jobId ?? ""],
+    queryFn: () => api.mlAutoJob(jobId ?? ""),
+    enabled: Boolean(jobId),
+    refetchInterval: (query) => (query.state.data && query.state.data.status !== "running" ? false : 700),
+    refetchIntervalInBackground: true,
+    retry: false,
+  });
+}
+
+export function useMlStopAuto() {
+  return useMutation({ mutationFn: (jobId: string) => api.mlStopAuto(jobId) });
+}
+
 /** A numeric target's distribution, to cut it into classes in the browser. */
 export function useMlDistribution(id: string, column: string, enabled: boolean) {
   const filters = useActiveFilters(id);
@@ -692,6 +838,93 @@ export function useMlRun(id: string, runId: string | null) {
     queryFn: () => api.mlRun(id, runId ?? ""),
     enabled: Boolean(runId),
     staleTime: Infinity,
+  });
+}
+
+// --- Predict on new data (037) -------------------------------------------------------------
+
+/** Can the run's model predict this dataset? Ready, Check or Blocked, column by column. */
+export function useMlCheck(id: string, runId: string, source: string | null) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "check", runId, source ?? ""],
+    queryFn: () => api.mlCheck(id, runId, source ?? ""),
+    enabled: Boolean(source),
+    retry: false,
+  });
+}
+
+export function useMlPredict(id: string, runId: string) {
+  return useMutation({
+    mutationFn: ({ source, keep }: { source: string; keep: string[] }) => api.mlPredict(id, runId, source, keep),
+  });
+}
+
+export function useMlPredictJob(jobId: string | null) {
+  return useQuery({
+    queryKey: ["ml", "predict-jobs", jobId ?? ""],
+    queryFn: () => api.mlPredictJob(jobId ?? ""),
+    enabled: Boolean(jobId),
+    refetchInterval: (query) => (query.state.data?.status === "running" || !query.state.data ? 500 : false),
+    refetchIntervalInBackground: true,
+    retry: false,
+  });
+}
+
+/** Stop a prediction after its current block of rows. */
+export function useMlCancelPredict() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (jobId: string) => api.mlCancelPredict(jobId),
+    onSuccess: (job) => client.setQueryData(["ml", "predict-jobs", job.id], job),
+  });
+}
+
+export function useMlPredictions(id: string, runId: string) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "predictions", runId],
+    queryFn: () => api.mlPredictions(id, runId),
+    retry: false,
+  });
+}
+
+export function useMlPrediction(id: string, predictionId: string | null) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "prediction", predictionId ?? ""],
+    queryFn: () => api.mlPrediction(id, predictionId ?? ""),
+    enabled: Boolean(predictionId),
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+export function useMlPredictionRows(id: string, predictionId: string, offset: number, limit: number, lessReliable: boolean) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "prediction", predictionId, "rows", offset, limit, lessReliable],
+    queryFn: () => api.mlPredictionRows(id, predictionId, offset, limit, lessReliable),
+    placeholderData: keepPreviousData,
+    staleTime: Infinity,
+  });
+}
+
+export function useMlPredictionRowExplanation(id: string, predictionId: string, row: number | null) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "prediction", predictionId, "explain", row ?? -1],
+    queryFn: () => api.mlPredictionRowExplanation(id, predictionId, row ?? 0),
+    enabled: row !== null,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** The predicted rows with their predictions, imported as a new dataset. */
+export function useMlSavePrediction(id: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (predictionId: string) => api.mlSavePrediction(id, predictionId),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.datasets });
+      void client.invalidateQueries({ queryKey: ["datasets", id, "ml", "predictions"] });
+    },
   });
 }
 
@@ -740,8 +973,8 @@ export function useSettings() {
 export function useUpdateSettings() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (change: { detection?: DetectionSettings; compute?: ComputeSettings }) => {
-      const current = client.getQueryData<{ detection: DetectionSettings; compute: ComputeSettings }>(queryKeys.settings);
+    mutationFn: (change: { detection?: DetectionSettings; compute?: ComputeSettings; versions?: VersionSettings }) => {
+      const current = client.getQueryData<ServerSettings>(queryKeys.settings);
       if (!current) throw new Error("Settings not loaded yet.");
       return api.updateSettings({ ...current, ...change });
     },
@@ -880,6 +1113,67 @@ export function useSyntheticOrigin(id: string | undefined) {
   });
 }
 
+
+/** A dataset's data and types: when either changes, comparisons are read again. */
+function stampOf(dataset: Dataset | undefined): string {
+  return dataset ? `${dataset.imported_at ?? ""}|${dataset.types_version}` : "";
+}
+
+/** Imported versions of a dataset, newest first (031). */
+export function useVersions(dataset: Dataset | undefined) {
+  const id = dataset?.id ?? "";
+  return useQuery({
+    queryKey: queryKeys.versions(id, stampOf(dataset)),
+    queryFn: () => api.versions(id),
+    enabled: dataset?.status === "ready",
+  });
+}
+
+/** What changed since the previous version, or since dataset `vs`. */
+export function useChanges(dataset: Dataset | undefined, vs: string | null, enabled = true) {
+  const id = dataset?.id ?? "";
+  return useQuery({
+    queryKey: queryKeys.changes(id, vs, "summary", stampOf(dataset)),
+    queryFn: () => api.changes(id, vs),
+    enabled: enabled && dataset?.status === "ready",
+    retry: false,
+    staleTime: 60_000,
+  });
+}
+
+export function useChangeRows(dataset: Dataset | undefined, vs: string | null, key: string | null, enabled: boolean) {
+  const id = dataset?.id ?? "";
+  return useQuery({
+    queryKey: queryKeys.changes(id, vs, "rows", stampOf(dataset), key ?? ""),
+    queryFn: () => api.changeRows(id, vs, key),
+    enabled,
+    retry: false,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useChangeKpis(dataset: Dataset | undefined, vs: string | null, enabled: boolean) {
+  const id = dataset?.id ?? "";
+  return useQuery({
+    queryKey: queryKeys.changes(id, vs, "kpis", stampOf(dataset)),
+    queryFn: () => api.changeKpis(id, vs),
+    enabled,
+    retry: false,
+    staleTime: 60_000,
+  });
+}
+
+export function useChangeRelations(dataset: Dataset | undefined, vs: string | null, enabled: boolean) {
+  const id = dataset?.id ?? "";
+  return useQuery({
+    queryKey: queryKeys.changes(id, vs, "relations", stampOf(dataset)),
+    queryFn: () => api.changeRelations(id, vs),
+    enabled,
+    retry: false,
+    staleTime: 60_000,
+  });
+}
 
 export function useStorage() {
   return useQuery({ queryKey: queryKeys.storage, queryFn: api.storage });

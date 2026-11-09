@@ -7,7 +7,7 @@ Thanks for your interest. Issues and pull requests are welcome.
 Requires [uv](https://docs.astral.sh/uv/) and Node 22.
 
 ```bash
-cd packages/cyfouri-data-explorer && uv sync --extra ml   # the engine alone, for its tests
+cd packages/quantilo && uv sync --extra ml   # the engine alone, for its tests
 cd backend && uv sync --extra agent      # add --extra deep for the PyTorch models
 cd frontend && npm ci
 ./scripts/dev.ps1                         # backend 127.0.0.1:8000 + Vite 127.0.0.1:5173
@@ -18,14 +18,14 @@ cd frontend && npm ci
 Everything CI runs, locally:
 
 ```bash
-cd packages/cyfouri-data-explorer && uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run pytest
+cd packages/quantilo && uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run pytest
 cd backend && uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run pytest
 cd frontend && npm run lint && npm run typecheck && npm test && npm run build
 ```
 
 - **Tests first** for behaviour changes; statistics are checked against reference implementations (SciPy, statsmodels) where one exists.
 - **API changes**: regenerate the typed client — `uv run python -m app.openapi_dump openapi.json` in `backend/`, then `npm run gen:api` in `frontend/`.
-- **Where code goes**: see [ARCHITECTURE](docs/ARCHITECTURE.md). Every calculation lives in the engine, `packages/cyfouri-data-explorer/` (no web code, no SQLite; CI installs it alone), with a `Dataset` method for the library. The app (`backend/`) adds state and HTTP; each module (`backend/app/modules/`) stays isolated and registers in one line.
+- **Where code goes**: see [ARCHITECTURE](docs/ARCHITECTURE.md). Every calculation lives in the engine, `packages/quantilo/` (no web code, no SQLite; CI installs it alone), with a `Dataset` method for the library. The app (`backend/`) adds state and HTTP; each module (`backend/app/modules/`) stays isolated and registers in one line.
 - **Visible changes**: update the [user guide](docs/USER_GUIDE.md), which the app shows on `/help`.
 - **New dependencies**: open an issue first; the Docker image has a size budget (900 MB uncompressed, checked in CI; 850 MB today). Dependabot proposes monthly updates.
 

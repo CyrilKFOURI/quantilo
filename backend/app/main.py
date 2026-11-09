@@ -4,16 +4,17 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from cyfouri_data_explorer.compare.service import CompareService
-from cyfouri_data_explorer.correlations.service import CorrelationService
-from cyfouri_data_explorer.profiling.service import ProfilingService
-from cyfouri_data_explorer.rows.service import RowService
-from cyfouri_data_explorer.variable.service import VariableService
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from quantilo.compare.service import CompareService
+from quantilo.correlations.service import CorrelationService
+from quantilo.profiling.service import ProfilingService
+from quantilo.rows.service import RowService
+from quantilo.variable.service import VariableService
 
 from app.api import (
+    changes,
     columns,
     compare,
     correlations,
@@ -40,6 +41,7 @@ from app.services.datasets.service import DatasetService
 from app.services.filters.saved import SavedFilterService
 from app.services.report.service import ReportService
 from app.services.settings.service import SettingsService
+from app.services.versions.service import VersionService
 
 API_PREFIX = "/api/v1"
 
@@ -64,7 +66,7 @@ def create_app(settings: Settings | None = None, job_runner: JobRunner | None = 
         yield
         runner.shutdown()
 
-    app = FastAPI(title="Data Explorer", version=health.app_version(), lifespan=lifespan)
+    app = FastAPI(title="Quantilo", version=health.app_version(), lifespan=lifespan)
     app.state.workspace = workspace
     app.state.datasets = dataset_service
     app.state.columns = column_service
@@ -93,12 +95,23 @@ def create_app(settings: Settings | None = None, job_runner: JobRunner | None = 
         app.state.rows._counts.clear,
     ]
     app.state.settings = settings_service
+    versions = VersionService(
+        workspace,
+        dataset_service,
+        column_service,
+        settings_service.keep_policy,
+        settings.keep_version_limit_mb * 1024 * 1024,
+    )
+    dataset_service.after_import.append(versions.record)  # after the type detection
+    dataset_service.before_reimport.append(versions.keep_previous)
+    settings_service.cache_clearers.append(versions.clear)
+    app.state.versions = versions
     register_error_handlers(app)
     protect(app, tuple(settings.allowed_hosts))
 
     api = APIRouter(prefix=API_PREFIX)
     routers = (health, datasets, sources, jobs, columns, profiling, variable, filters, compare)
-    for module in (*routers, correlations, rows, report, settings_api):
+    for module in (*routers, correlations, rows, report, changes, settings_api):
         api.include_router(module.router)
     app.include_router(api)
     mount_modules(app, API_PREFIX)

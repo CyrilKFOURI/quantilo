@@ -1,26 +1,16 @@
 import { useHealth } from "../../api/hooks";
 import { t } from "../../lib/i18n";
 
+/** Says something only when the backend is down or degraded; a working app stays silent. */
 export function HealthIndicator() {
-  const { data, isPending, isError } = useHealth();
-
-  let dot = "bg-ink-3";
-  let message = t("health.checking");
-  if (isError) {
-    dot = "bg-bad";
-    message = t("health.down");
-  } else if (data?.status === "ok") {
-    dot = "bg-ok";
-    message = t("health.ok", { version: data.version });
-  } else if (data) {
-    dot = "bg-warn";
-    message = t("health.degraded");
-  }
+  const { data, isError } = useHealth();
+  if (!isError && (!data || data.status === "ok")) return null;
+  const down = isError;
 
   return (
-    <p role="status" aria-busy={isPending} className="flex items-center gap-2 text-xs text-ink-2">
-      <span aria-hidden className={`size-1.5 rounded-full ${dot}`} />
-      {message}
+    <p role="status" className="flex items-center gap-2 text-xs text-ink-2">
+      <span aria-hidden className={`size-1.5 rounded-full ${down ? "bg-bad" : "bg-warn"}`} />
+      {down ? t("health.down") : t("health.degraded")}
     </p>
   );
 }

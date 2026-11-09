@@ -3,10 +3,10 @@
 from difflib import get_close_matches
 from typing import Any, ClassVar
 
-from cyfouri_data_explorer.charts.prepare import ChartParams
-from cyfouri_data_explorer.filters.model import Condition
-from cyfouri_data_explorer.variable.analyze import VariableProfile
 from pydantic import BaseModel, Field
+from quantilo.charts.prepare import ChartParams
+from quantilo.filters.model import Condition
+from quantilo.variable.analyze import VariableProfile
 
 from app.modules.agent.engine.tools import AppLink, Tool, ToolContext, ToolError, ToolOutput
 from app.modules.agent.tools import AppServices

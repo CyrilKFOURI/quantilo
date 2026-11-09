@@ -5,6 +5,13 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
+  // `--mode lite`: the browser-only build (Python in the page, src/lite), for any static host.
+  ...(mode === "lite" && {
+    base: "./",
+    define: { "import.meta.env.VITE_LITE": JSON.stringify("1") },
+    build: { outDir: "dist-lite" },
+    worker: { format: "es" as const },
+  }),
   server: {
     host: "127.0.0.1",
     port: 5173,

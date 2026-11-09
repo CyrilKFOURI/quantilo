@@ -39,11 +39,12 @@ export function AgentPanel() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed right-5 bottom-5 z-30 inline-flex items-center gap-2 rounded-full border border-line bg-surface-1 px-4 py-2.5 text-[13px] font-medium text-ink-1 shadow-[0_8px_24px_-12px_rgb(0_0_0/0.35)] hover:bg-surface-2"
+        // 041: on a phone, a round icon button that covers less of the page.
+        className="fixed right-5 bottom-5 z-30 inline-flex items-center gap-2 rounded-full border border-line bg-surface-1 px-4 py-2.5 text-[13px] font-medium text-ink-1 shadow-[0_8px_24px_-12px_rgb(0_0_0/0.35)] hover:bg-surface-2 max-sm:right-3 max-sm:bottom-[calc(12px+env(safe-area-inset-bottom))] max-sm:size-10 max-sm:justify-center max-sm:p-0"
         title={t("agent.shortcut")}
       >
-        <Sparkles size={15} className="text-accent" aria-hidden />
-        {t("agent.open")}
+        <Sparkles size={15} className="text-accent max-sm:size-[18px]" aria-hidden />
+        <span className="max-sm:sr-only">{t("agent.open")}</span>
       </button>
     );
   }

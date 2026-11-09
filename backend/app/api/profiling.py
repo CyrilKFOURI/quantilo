@@ -1,9 +1,9 @@
 from typing import Annotated
 
-from cyfouri_data_explorer.charts.prepare import Chart, ChartParams
-from cyfouri_data_explorer.profiling.overview import Overview
-from cyfouri_data_explorer.profiling.service import ProfilingService
 from fastapi import APIRouter, Depends, Query, Request
+from quantilo.charts.prepare import Chart, ChartParams
+from quantilo.profiling.overview import Overview
+from quantilo.profiling.service import ProfilingService
 
 from app.api.filters import Filters
 from app.schemas.columns import ColumnSummary

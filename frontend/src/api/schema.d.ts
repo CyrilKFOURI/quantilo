@@ -584,6 +584,117 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Versions
+         * @description Every imported version, newest first.
+         */
+        get: operations["versions_api_v1_datasets__dataset_id__versions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Changes
+         * @description What changed since the previous version (or since dataset `vs`), from the two photos.
+         */
+        get: operations["changes_api_v1_datasets__dataset_id__changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/changes/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Rows
+         * @description Rows added, removed and modified, joined on `key` (default: the first identifier).
+         */
+        get: operations["rows_api_v1_datasets__dataset_id__changes_rows_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/changes/rows/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Rows */
+        get: operations["export_rows_api_v1_datasets__dataset_id__changes_rows_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/changes/kpis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Kpis */
+        get: operations["kpis_api_v1_datasets__dataset_id__changes_kpis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/changes/relations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Relations */
+        get: operations["relations_api_v1_datasets__dataset_id__changes_relations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings": {
         parameters: {
             query?: never;
@@ -810,9 +921,31 @@ export interface paths {
         put?: never;
         /**
          * Start Forecast
-         * @description Start (or reuse) a forecast job: models scored by rolling origin, then refitted.
+         * @description Start (or reuse) a forecast job: models scored by rolling origin, then refitted. The
+         *     body's drivers are used by SARIMAX, the linear regression and gradient boosting.
          */
         post: operations["start_forecast_api_v1_modules_timeseries_datasets__dataset_id__forecast_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/timeseries/datasets/{dataset_id}/drivers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Drivers
+         * @description Columns that could drive the series (correlation of their changes, future values in the
+         *     file) and the calendar variables that make sense for the period.
+         */
+        get: operations["drivers_api_v1_modules_timeseries_datasets__dataset_id__drivers_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -863,6 +996,152 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/modules/timeseries/datasets/{dataset_id}/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Groups
+         * @description How many series the group column holds and the hierarchy recognised above it (columns
+         *     where each group value goes with a single value: store → region).
+         */
+        get: operations["groups_api_v1_modules_timeseries_datasets__dataset_id__groups_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/timeseries/datasets/{dataset_id}/forecast-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Group Forecast
+         * @description Start (or reuse) a forecast of every series of the group: the best model per series,
+         *     optionally a global LightGBM model and coherent totals over the hierarchy.
+         */
+        post: operations["start_group_forecast_api_v1_modules_timeseries_datasets__dataset_id__forecast_groups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/timeseries/group-forecast-jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Group Forecast Job
+         * @description Progress (series done), then the result, of a forecast of every group.
+         */
+        get: operations["group_forecast_job_api_v1_modules_timeseries_group_forecast_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Cancel Group Forecast
+         * @description Stop: the series not started yet are dropped.
+         */
+        delete: operations["cancel_group_forecast_api_v1_modules_timeseries_group_forecast_jobs__job_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/timeseries/group-forecast-jobs/{job_id}/forecast.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Group Forecast Csv
+         * @description Every forecast in long format (group, level, period, forecast, 80 % and 95 % bounds).
+         */
+        get: operations["group_forecast_csv_api_v1_modules_timeseries_group_forecast_jobs__job_id__forecast_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/timeseries/datasets/{dataset_id}/scenario": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Scenario
+         * @description One driver model's forecast (SARIMAX, linear regression, gradient boosting) with other
+         *     future values of the known-in-advance drivers: ± x %, a fixed value, over a range of
+         *     periods. Without changes: the base forecast. Same as `TimeSeries.scenario`.
+         */
+        post: operations["scenario_api_v1_modules_timeseries_datasets__dataset_id__scenario_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/timeseries/datasets/{dataset_id}/analyses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Analyses
+         * @description Analyses kept on this dataset, newest first.
+         */
+        get: operations["list_analyses_api_v1_modules_timeseries_datasets__dataset_id__analyses_get"];
+        put?: never;
+        /** Save Analysis */
+        post: operations["save_analysis_api_v1_modules_timeseries_datasets__dataset_id__analyses_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/timeseries/datasets/{dataset_id}/analyses/{analysis_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Analysis */
+        delete: operations["delete_analysis_api_v1_modules_timeseries_datasets__dataset_id__analyses__analysis_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/modules/ml/datasets/{dataset_id}/targets": {
         parameters: {
             query?: never;
@@ -875,6 +1154,27 @@ export interface paths {
          * @description Every column as a possible target: the problem it defines, or why it cannot be one.
          */
         get: operations["targets_api_v1_modules_ml_datasets__dataset_id__targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/panel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Panel
+         * @description Whether the rows look like a panel (entities by periods): its period and entity, found or
+         *     as given, and the embargo the target calls for.
+         */
+        get: operations["panel_api_v1_modules_ml_datasets__dataset_id__panel_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1125,6 +1425,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/neutralize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Neutralize
+         * @description A panel run's held-out predictions without the part some columns explain linearly,
+         *     period by period, and every period scored again.
+         */
+        post: operations["neutralize_api_v1_modules_ml_datasets__dataset_id__runs__run_id__neutralize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/periods.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Periods
+         * @description A panel run's score per period, as CSV.
+         */
+        get: operations["periods_api_v1_modules_ml_datasets__dataset_id__runs__run_id__periods_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/predictions.csv": {
         parameters: {
             query?: never;
@@ -1138,6 +1479,609 @@ export interface paths {
          */
         get: operations["predictions_api_v1_modules_ml_datasets__dataset_id__runs__run_id__predictions_csv_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Run Errors
+         * @description Where the model is wrong, on its held-out predictions: subgroups notably worse than
+         *     average (Benjamini-Hochberg), error by column, worst predictions, hints.
+         */
+        get: operations["run_errors_api_v1_modules_ml_datasets__dataset_id__runs__run_id__errors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/errors/compare/{other_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Run Errors Compared
+         * @description Subgroups where the other run fixes this run's errors, and where it makes them worse.
+         */
+        get: operations["run_errors_compared_api_v1_modules_ml_datasets__dataset_id__runs__run_id__errors_compare__other_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/errors/fairness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Run Fairness
+         * @description Metrics side by side for each group of a sensitive column (display only).
+         */
+        get: operations["run_fairness_api_v1_modules_ml_datasets__dataset_id__runs__run_id__errors_fairness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Card
+         * @description What the run's model expects (columns, types, categories, ranges) and its validation.
+         */
+        get: operations["card_api_v1_modules_ml_datasets__dataset_id__runs__run_id__card_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check
+         * @description Can the model predict this dataset? Ready, Check or Blocked, column by column.
+         */
+        get: operations["check_api_v1_modules_ml_datasets__dataset_id__runs__run_id__check_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/predictions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Predictions
+         * @description The predictions made with this run, most recent first.
+         */
+        get: operations["predictions_api_v1_modules_ml_datasets__dataset_id__runs__run_id__predictions_get"];
+        put?: never;
+        /**
+         * Predict
+         * @description Check, then predict every row in the background, 100 000 at a time (refused if blocked).
+         */
+        post: operations["predict_api_v1_modules_ml_datasets__dataset_id__runs__run_id__predictions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/predict-jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Prediction Job */
+        get: operations["prediction_job_api_v1_modules_ml_predict_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Cancel Prediction
+         * @description Stop after the current block of rows; nothing is saved.
+         */
+        delete: operations["cancel_prediction_api_v1_modules_ml_predict_jobs__job_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/predictions/{prediction_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Prediction
+         * @description A prediction: its check, distribution against the validation, scores if the data had the
+         *     answer.
+         */
+        get: operations["prediction_api_v1_modules_ml_datasets__dataset_id__predictions__prediction_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/predictions/{prediction_id}/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Prediction Rows
+         * @description A page of the predicted rows (only the less reliable ones on demand).
+         */
+        get: operations["prediction_rows_api_v1_modules_ml_datasets__dataset_id__predictions__prediction_id__rows_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/predictions/{prediction_id}/rows/{row}/explanation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Prediction Row Explanation
+         * @description Why the model predicts what it does for one predicted row (0-based).
+         */
+        get: operations["prediction_row_explanation_api_v1_modules_ml_datasets__dataset_id__predictions__prediction_id__rows__row__explanation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/predictions/{prediction_id}/predictions.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Prediction Csv
+         * @description Every predicted row with its kept columns, as CSV (formulas neutralised).
+         */
+        get: operations["prediction_csv_api_v1_modules_ml_datasets__dataset_id__predictions__prediction_id__predictions_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/predictions/{prediction_id}/dataset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save As Dataset
+         * @description The predicted rows with their predictions, imported as a new dataset.
+         */
+        post: operations["save_as_dataset_api_v1_modules_ml_datasets__dataset_id__predictions__prediction_id__dataset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/model.zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Model
+         * @description The model as a zip: model.joblib, model_card.json, predict.py (no data rows).
+         */
+        get: operations["export_model_api_v1_modules_ml_datasets__dataset_id__runs__run_id__model_zip_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/auto": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start
+         * @description Find the best model within a time budget: baselines, one model per family, successive
+         *     elimination, tuning of the 3 best families, then an ensemble kept only if clearly better.
+         */
+        post: operations["start_api_v1_modules_ml_datasets__dataset_id__auto_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/auto-jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Follow */
+        get: operations["follow_api_v1_modules_ml_auto_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Stop
+         * @description Stop the Auto at its next checkpoint; the best model found so far is saved as a run.
+         */
+        delete: operations["stop_api_v1_modules_ml_auto_jobs__job_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/segments/datasets/{dataset_id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Plan
+         * @description The columns a segmentation would use (rule and reason for each) and the method Auto
+         *     takes.
+         */
+        post: operations["plan_api_v1_modules_segments_datasets__dataset_id__plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/segments/datasets/{dataset_id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Runs */
+        get: operations["runs_api_v1_modules_segments_datasets__dataset_id__runs_get"];
+        put?: never;
+        /**
+         * Segment
+         * @description Segment in the background: prepare, choose k, check stability, describe.
+         */
+        post: operations["segment_api_v1_modules_segments_datasets__dataset_id__runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/segments/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Job */
+        get: operations["job_api_v1_modules_segments_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Cancel
+         * @description Stop at the next step; nothing is saved.
+         */
+        delete: operations["cancel_api_v1_modules_segments_jobs__job_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/segments/datasets/{dataset_id}/runs/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compare
+         * @description The runs side by side, and how much their segments agree (adjusted Rand index).
+         */
+        get: operations["compare_api_v1_modules_segments_datasets__dataset_id__runs_compare_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/segments/datasets/{dataset_id}/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Run */
+        get: operations["run_api_v1_modules_segments_datasets__dataset_id__runs__run_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete */
+        delete: operations["delete_api_v1_modules_segments_datasets__dataset_id__runs__run_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/segments/datasets/{dataset_id}/runs/{run_id}/names": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename
+         * @description Rename segments (empty names keep the proposed ones).
+         */
+        patch: operations["rename_api_v1_modules_segments_datasets__dataset_id__runs__run_id__names_patch"];
+        trace?: never;
+    };
+    "/api/v1/modules/segments/datasets/{dataset_id}/runs/{run_id}/tsne": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tsne
+         * @description Draw the map with t-SNE (at most 5,000 rows), in the background.
+         */
+        post: operations["tsne_api_v1_modules_segments_datasets__dataset_id__runs__run_id__tsne_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/segments/datasets/{dataset_id}/runs/{run_id}/profiles.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Profiles */
+        get: operations["profiles_api_v1_modules_segments_datasets__dataset_id__runs__run_id__profiles_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/segments/datasets/{dataset_id}/runs/{run_id}/dataset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Dataset
+         * @description The rows with a `segment` column, as a new dataset (the source is not changed).
+         */
+        post: operations["create_dataset_api_v1_modules_segments_datasets__dataset_id__runs__run_id__dataset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/segments/datasets/{dataset_id}/unusual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unusual Runs */
+        get: operations["unusual_runs_api_v1_modules_segments_datasets__dataset_id__unusual_get"];
+        put?: never;
+        /**
+         * Find Unusual
+         * @description Score every row in the background, propose a threshold, explain the most unusual rows.
+         */
+        post: operations["find_unusual_api_v1_modules_segments_datasets__dataset_id__unusual_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/segments/datasets/{dataset_id}/unusual/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unusual Run */
+        get: operations["unusual_run_api_v1_modules_segments_datasets__dataset_id__unusual__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/segments/datasets/{dataset_id}/unusual/{run_id}/rows/{row}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unusual Row
+         * @description Every value of the row, placed on its column (percentile, or share of its category).
+         */
+        get: operations["unusual_row_api_v1_modules_segments_datasets__dataset_id__unusual__run_id__rows__row__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/segments/datasets/{dataset_id}/unusual/{run_id}/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Unusual */
+        get: operations["export_unusual_api_v1_modules_segments_datasets__dataset_id__unusual__run_id__export_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/segments/datasets/{dataset_id}/unusual/{run_id}/dataset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Unusual Dataset
+         * @description The rows with `unusual_score` and `is_unusual`, as a new dataset.
+         */
+        post: operations["create_unusual_dataset_api_v1_modules_segments_datasets__dataset_id__unusual__run_id__dataset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/segments/datasets/{dataset_id}/marks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Marks */
+        get: operations["marks_api_v1_modules_segments_datasets__dataset_id__marks_get"];
+        /**
+         * Set Mark
+         * @description Mark a row "expected" (it leaves the next list) or "error"; null removes the mark.
+         */
+        put: operations["set_mark_api_v1_modules_segments_datasets__dataset_id__marks_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1481,6 +2425,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/modules/experiments/datasets/{dataset_id}/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Candidates */
+        get: operations["candidates_api_v1_modules_experiments_datasets__dataset_id__candidates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/experiments/datasets/{dataset_id}/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Analyze */
+        post: operations["analyze_api_v1_modules_experiments_datasets__dataset_id__analyze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/experiments/datasets/{dataset_id}/baseline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Baseline */
+        get: operations["baseline_api_v1_modules_experiments_datasets__dataset_id__baseline_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/experiments/sample-size": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sample Size */
+        post: operations["sample_size_api_v1_modules_experiments_sample_size_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/modules/agent/settings": {
         parameters: {
             query?: never;
@@ -1658,6 +2670,238 @@ export interface paths {
         put?: never;
         /** Stop */
         post: operations["stop_api_v1_modules_agent_conversations__conversation_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/recipes/recipes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Recipes */
+        get: operations["list_recipes_api_v1_modules_recipes_recipes_get"];
+        put?: never;
+        /** Create */
+        post: operations["create_api_v1_modules_recipes_recipes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/recipes/datasets/{dataset_id}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Draft
+         * @description Everything kept on the dataset, as the steps of a new recipe (all of them, to tick).
+         */
+        get: operations["draft_api_v1_modules_recipes_datasets__dataset_id__draft_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/recipes/datasets/{dataset_id}/compatible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compatible
+         * @description Recipes made on other files that this dataset fits (≥ 80 % of their columns by name).
+         */
+        get: operations["compatible_api_v1_modules_recipes_datasets__dataset_id__compatible_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/recipes/recipes/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Recipe
+         * @description A `.recipe.json` file, validated against its schema (nothing in it is run).
+         */
+        post: operations["import_recipe_api_v1_modules_recipes_recipes_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/recipes/recipes/{recipe_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detail */
+        get: operations["detail_api_v1_modules_recipes_recipes__recipe_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete */
+        delete: operations["delete_api_v1_modules_recipes_recipes__recipe_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit
+         * @description Rename, turn steps on or off, delete steps: a new version of the recipe.
+         */
+        patch: operations["edit_api_v1_modules_recipes_recipes__recipe_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/modules/recipes/recipes/{recipe_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export File */
+        get: operations["export_file_api_v1_modules_recipes_recipes__recipe_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/recipes/recipes/{recipe_id}/python": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Python */
+        get: operations["export_python_api_v1_modules_recipes_recipes__recipe_id__python_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/recipes/recipes/{recipe_id}/history.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** History Csv */
+        get: operations["history_csv_api_v1_modules_recipes_recipes__recipe_id__history_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/recipes/recipes/{recipe_id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Plan
+         * @description How the dataset's columns pair with the recipe's, and the steps that will be skipped.
+         */
+        post: operations["plan_api_v1_modules_recipes_recipes__recipe_id__plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/recipes/recipes/{recipe_id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Run
+         * @description Replay the recipe on the dataset in the background (step by step, cancellable).
+         */
+        post: operations["start_run_api_v1_modules_recipes_recipes__recipe_id__runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/recipes/recipe-runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Run Detail
+         * @description Progress, then the report: steps, key figures next to the previous run, what changed.
+         */
+        get: operations["run_detail_api_v1_modules_recipes_recipe_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Cancel Run
+         * @description Stop after the step in progress: the steps done stay, the others are cancelled.
+         */
+        delete: operations["cancel_run_api_v1_modules_recipes_recipe_runs__run_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/recipes/recipe-runs/{run_id}/files/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Run File */
+        get: operations["run_file_api_v1_modules_recipes_recipe_runs__run_id__files__name__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1913,6 +3157,7 @@ export interface components {
         AppSettings: {
             detection?: components["schemas"]["DetectionSettings"];
             compute?: components["schemas"]["ComputeSettings"];
+            versions?: components["schemas"]["VersionSettings"];
         };
         /** ArCoefficient */
         ArCoefficient: {
@@ -1953,6 +3198,177 @@ export interface components {
             bic: number | null;
         };
         /**
+         * AutoEntry
+         * @description One model the Auto tried: a row of the final leaderboard.
+         */
+        AutoEntry: {
+            /** Id */
+            id: string;
+            /** Model */
+            model: string;
+            /** Label */
+            label: string;
+            /** Family */
+            family: string;
+            /** Step */
+            step: string;
+            /** Settings */
+            settings?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Status
+             * @default running
+             * @enum {string}
+             */
+            status: "running" | "done" | "failed" | "skipped" | "stopped";
+            /** Score */
+            score?: number | null;
+            /** Std */
+            std?: number | null;
+            /**
+             * Seconds
+             * @default 0
+             */
+            seconds: number;
+            /**
+             * Rows
+             * @default 0
+             */
+            rows: number;
+            /**
+             * Share
+             * @default 1
+             */
+            share: number;
+            /** Note */
+            note?: string | null;
+            /** Estimate */
+            estimate?: number | null;
+        };
+        /** AutoJob */
+        AutoJob: {
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "done" | "stopped" | "failed";
+            /** Target */
+            target: string;
+            progress?: components["schemas"]["AutoProgress"] | null;
+            /** Run Id */
+            run_id?: string | null;
+            /** Error */
+            error?: string | null;
+        };
+        /**
+         * AutoProgress
+         * @description The Auto's state, read while it runs and kept with the run it saves (its journal).
+         */
+        AutoProgress: {
+            /** Budget Seconds */
+            budget_seconds: number;
+            /**
+             * Metric
+             * @default
+             */
+            metric: string;
+            /**
+             * Greater Is Better
+             * @default true
+             */
+            greater_is_better: boolean;
+            /** Criterion */
+            criterion?: string | null;
+            /**
+             * Compared On
+             * @default
+             */
+            compared_on: string;
+            /** Step */
+            step?: string | null;
+            /** Steps */
+            steps?: components["schemas"]["AutoStep"][];
+            /** Entries */
+            entries?: components["schemas"]["AutoEntry"][];
+            /** Log */
+            log?: components["schemas"]["LogLine"][];
+            ensemble?: components["schemas"]["EnsembleResult"] | null;
+            /** Best */
+            best?: string | null;
+            /** Gain */
+            gain?: string | null;
+            /** Test Score */
+            test_score?: number | null;
+            /**
+             * Seconds
+             * @default 0
+             */
+            seconds: number;
+            /**
+             * Trials
+             * @default 0
+             */
+            trials: number;
+            /**
+             * Stopped
+             * @default false
+             */
+            stopped: boolean;
+            /**
+             * Finished
+             * @default false
+             */
+            finished: boolean;
+        };
+        /**
+         * AutoRequest
+         * @description What the Auto may spend and try. `trials`: a fixed number of Optuna trials per tuned
+         *     family (the ranking is then reproducible at a fixed seed); None: as many as the time allows.
+         */
+        AutoRequest: {
+            /**
+             * Minutes
+             * @default 5
+             */
+            minutes: number;
+            /** Models */
+            models?: string[] | null;
+            /** Trials */
+            trials?: number | null;
+            /**
+             * Stacking
+             * @default false
+             */
+            stacking: boolean;
+            preparation?: components["schemas"]["Choices"] | null;
+        };
+        /** AutoStep */
+        AutoStep: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            /**
+             * Status
+             * @default waiting
+             * @enum {string}
+             */
+            status: "waiting" | "running" | "done" | "skipped" | "stopped";
+            /**
+             * Seconds
+             * @default 0
+             */
+            seconds: number;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
+        /**
          * Backtest
          * @description One rolling origin: the model saw the first `origin` periods and forecast the next ones.
          */
@@ -1989,6 +3405,15 @@ export interface components {
             label: string;
             /** Count */
             count: number;
+        };
+        /** BestShare */
+        BestShare: {
+            /** Model */
+            model: string;
+            /** Series */
+            series: number;
+            /** Share */
+            share: number;
         };
         /** Bin */
         Bin: {
@@ -2169,6 +3594,75 @@ export interface components {
             /** Values */
             values: number;
         };
+        /** CellEdit */
+        CellEdit: {
+            /** Key */
+            key: string;
+            /** Column */
+            column: string;
+            /** Before */
+            before: string | null;
+            /** After */
+            after: string | null;
+        };
+        /**
+         * ChangedSlice
+         * @description A subgroup where the second run changes the error more than elsewhere.
+         */
+        ChangedSlice: {
+            /** Where */
+            where: string;
+            /** Conditions */
+            conditions: components["schemas"]["Condition"][];
+            /** Rows */
+            rows: number;
+            /** Share */
+            share: number;
+            /** First */
+            first: number;
+            /** Second */
+            second: number;
+            /** P Value */
+            p_value: number;
+            /** Q Value */
+            q_value: number;
+            /** Sentence */
+            sentence: string;
+        };
+        /** Changes */
+        Changes: {
+            before: components["schemas"]["Side"];
+            after: components["schemas"]["Side"];
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "none" | "check" | "breaking";
+            /** Level Label */
+            level_label: string;
+            /** Headline */
+            headline: string;
+            /** Reasons */
+            reasons: string[];
+            /** Rows Change */
+            rows_change: number;
+            /** Rows Change Pct */
+            rows_change_pct: number | null;
+            counts: components["schemas"]["Counts"];
+            /** Schema */
+            schema: components["schemas"]["SchemaChange"][];
+            /** Quality */
+            quality: components["schemas"]["QualityChange"][];
+            /** Dates */
+            dates: components["schemas"]["DateChange"][];
+            /** Distributions */
+            distributions: components["schemas"]["Shift"][];
+            /**
+             * Thresholds
+             * @default PSI < 0.1 stable · 0.1–0.25 moderate · > 0.25 strong (Siddiqi, 2006)
+             */
+            thresholds: string;
+        };
         /** Chart */
         Chart: {
             /**
@@ -2301,9 +3795,9 @@ export interface components {
             share: number;
             /** Auc */
             auc: number | null;
-            roc: components["schemas"]["cyfouri_data_explorer__ml__train__Curve"];
-            pr: components["schemas"]["cyfouri_data_explorer__ml__train__Curve"];
-            calibration: components["schemas"]["cyfouri_data_explorer__ml__train__Curve"] | null;
+            roc: components["schemas"]["quantilo__ml__train__Curve"];
+            pr: components["schemas"]["quantilo__ml__train__Curve"];
+            calibration: components["schemas"]["quantilo__ml__train__Curve"] | null;
         };
         /** ClassReport */
         ClassReport: {
@@ -2360,9 +3854,9 @@ export interface components {
             confusion: number[][];
             /** Report */
             report: components["schemas"]["ClassReport"][];
-            roc?: components["schemas"]["cyfouri_data_explorer__ml__train__Curve"] | null;
-            pr?: components["schemas"]["cyfouri_data_explorer__ml__train__Curve"] | null;
-            calibration?: components["schemas"]["cyfouri_data_explorer__ml__train__Curve"] | null;
+            roc?: components["schemas"]["quantilo__ml__train__Curve"] | null;
+            pr?: components["schemas"]["quantilo__ml__train__Curve"] | null;
+            calibration?: components["schemas"]["quantilo__ml__train__Curve"] | null;
             /** Threshold */
             threshold?: number | null;
             /** Truth */
@@ -2408,6 +3902,15 @@ export interface components {
             /** Similarity */
             similarity: number;
         };
+        /** ColumnBin */
+        ColumnBin: {
+            /** Label */
+            label: string;
+            /** Rows */
+            rows: number;
+            /** Error */
+            error: number | null;
+        };
         /**
          * ColumnChange
          * @description A correction of one column. `None` fields are left unchanged.
@@ -2433,6 +3936,39 @@ export interface components {
         ColumnChangesRequest: {
             /** Changes */
             changes: components["schemas"]["ColumnChange"][];
+        };
+        /** ColumnCheck */
+        ColumnCheck: {
+            /** Column */
+            column: string;
+            /** Expected */
+            expected: string;
+            /** Found */
+            found: string | null;
+            /** Importance */
+            importance: number | null;
+            /** Important */
+            important: boolean;
+            /** Converted */
+            converted: boolean;
+            /** Unreadable */
+            unreadable: number;
+            /** Missing */
+            missing: number;
+            /** Unknown Rows */
+            unknown_rows: number;
+            /** Unknown Share */
+            unknown_share: number;
+            /** Unknown Values */
+            unknown_values: string[];
+            /** Unknown Rule */
+            unknown_rule: string | null;
+            /** Out Of Range */
+            out_of_range: number;
+            /** Range */
+            range: string | null;
+            /** Note */
+            note: string | null;
         };
         /**
          * ColumnChoice
@@ -2480,6 +4016,34 @@ export interface components {
             levels?: components["schemas"]["ValueRow"][];
             target?: components["schemas"]["TargetOverlay"] | null;
         };
+        /** ColumnEdits */
+        ColumnEdits: {
+            /** Column */
+            column: string;
+            /** Modified */
+            modified: number;
+        };
+        /**
+         * ColumnErrors
+         * @description The mean error per category or per quintile of one column.
+         */
+        ColumnErrors: {
+            /** Column */
+            column: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "number" | "date" | "category";
+            /** Bins */
+            bins: components["schemas"]["ColumnBin"][];
+            /** Spread */
+            spread: number;
+            /** Worst */
+            worst: string | null;
+            /** Excluded */
+            excluded: boolean;
+        };
         /** ColumnInfo */
         ColumnInfo: {
             /** Name */
@@ -2505,6 +4069,24 @@ export interface components {
             synthetic: number[];
             /** Biggest */
             biggest: string;
+        };
+        /** ColumnMatch */
+        ColumnMatch: {
+            /** Recipe */
+            recipe: string;
+            /** Type */
+            type: string;
+            /** Column */
+            column: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "same" | "matched" | "proposed" | "missing";
+            /** Distance */
+            distance?: number | null;
+            /** File Type */
+            file_type?: string | null;
         };
         /** ColumnOut */
         ColumnOut: {
@@ -2580,6 +4162,34 @@ export interface components {
             distinct: number;
             /** Skewness */
             skewness?: number | null;
+        };
+        /**
+         * ColumnStep
+         * @description A correction of one column (`None` fields are left as detected).
+         */
+        ColumnStep: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "column";
+            /** Column */
+            column: string;
+            /** Type */
+            type?: ("numeric_continuous" | "numeric_discrete" | "categorical_nominal" | "categorical_ordinal" | "boolean" | "datetime" | "text" | "identifier" | "ignored") | null;
+            /** Role */
+            role?: string | null;
+            /** Order */
+            order?: string[] | null;
+            /** Excluded */
+            excluded?: boolean | null;
         };
         /** ColumnSummary */
         ColumnSummary: {
@@ -2669,7 +4279,7 @@ export interface components {
             regression?: components["schemas"]["Regression"] | null;
             density?: components["schemas"]["Density"] | null;
             /** Groups */
-            groups?: components["schemas"]["cyfouri_data_explorer__compare__analyze__Group"][];
+            groups?: components["schemas"]["quantilo__compare__analyze__Group"][];
             contingency?: components["schemas"]["Contingency"] | null;
             /** Series */
             series?: components["schemas"]["Series"][];
@@ -2686,6 +4296,17 @@ export interface components {
             /** Color Levels */
             color_levels?: string[];
             layout?: components["schemas"]["GroupLayout"] | null;
+        };
+        /** CompatibleRecipe */
+        CompatibleRecipe: {
+            /** Recipe Id */
+            recipe_id: string;
+            /** Name */
+            name: string;
+            /** Matched */
+            matched: number;
+            /** Total */
+            total: number;
         };
         /**
          * ComputeSettings
@@ -2739,6 +4360,13 @@ export interface components {
             /** Counts */
             counts: number[][];
         };
+        /** Contribution */
+        Contribution: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: number;
+        };
         /** ConversionOut */
         ConversionOut: {
             /**
@@ -2783,6 +4411,39 @@ export interface components {
             /** Synthetic Share */
             synthetic_share: number;
         };
+        /** Counts */
+        Counts: {
+            /**
+             * Added
+             * @default 0
+             */
+            added: number;
+            /**
+             * Removed
+             * @default 0
+             */
+            removed: number;
+            /**
+             * Renamed
+             * @default 0
+             */
+            renamed: number;
+            /**
+             * Retyped
+             * @default 0
+             */
+            retyped: number;
+            /**
+             * Shifted
+             * @default 0
+             */
+            shifted: number;
+            /**
+             * New Categories
+             * @default 0
+             */
+            new_categories: number;
+        };
         /** Coverage */
         Coverage: {
             /** Column */
@@ -2795,6 +4456,27 @@ export interface components {
             missing: number;
             /** Outliers */
             outliers: number | null;
+        };
+        /** CreateRecipe */
+        CreateRecipe: {
+            /** Name */
+            name: string;
+            /** Dataset Id */
+            dataset_id: string;
+            /** Keep */
+            keep?: string[] | null;
+            /** Active Filter */
+            active_filter?: string | null;
+            /**
+             * Report
+             * @default false
+             */
+            report: boolean;
+            /**
+             * Csv
+             * @default false
+             */
+            csv: boolean;
         };
         /** CreatedDataset */
         CreatedDataset: {
@@ -2828,7 +4510,7 @@ export interface components {
              * @default utf-8
              * @enum {string}
              */
-            encoding: "utf-8" | "latin-1" | "utf-16";
+            encoding: "utf-8" | "latin-1" | "windows-1252" | "utf-16";
             /**
              * Header
              * @default true
@@ -2840,6 +4522,15 @@ export interface components {
              * @enum {string}
              */
             decimal: "." | ",";
+        };
+        /** CurvePoint */
+        CurvePoint: {
+            /** Per Group */
+            per_group: number;
+            /** Lift */
+            lift: number | null;
+            /** Absolute */
+            absolute: number | null;
         };
         /** DatasetOut */
         DatasetOut: {
@@ -2896,6 +4587,36 @@ export interface components {
             name: string;
             /** Bytes */
             bytes: number;
+        };
+        /** DateChange */
+        DateChange: {
+            /** Column */
+            column: string;
+            /**
+             * Grain
+             * @enum {string}
+             */
+            grain: "day" | "month" | "year";
+            /** Before Min */
+            before_min: string | null;
+            /** Before Max */
+            before_max: string | null;
+            /** After Min */
+            after_min: string | null;
+            /** After Max */
+            after_max: string | null;
+            /** Future */
+            future: number;
+            /** Gaps */
+            gaps: string[];
+            /** Periods */
+            periods: string[];
+            /** Before Counts */
+            before_counts: number[];
+            /** After Counts */
+            after_counts: number[];
+            /** Notable */
+            notable: boolean;
         };
         /** DcrHistogram */
         DcrHistogram: {
@@ -2962,7 +4683,7 @@ export interface components {
             ratio?: components["schemas"]["Ratio"] | null;
             time?: components["schemas"]["Time"] | null;
             /** Groups */
-            groups?: components["schemas"]["cyfouri_data_explorer__kpi__definition__Group"][];
+            groups?: components["schemas"]["quantilo__kpi__definition__Group"][];
             /**
              * Top
              * @default 8
@@ -3182,11 +4903,138 @@ export interface components {
             method: string | null;
             describe: components["schemas"]["Describe"];
             normality: components["schemas"]["Normality"];
-            density: components["schemas"]["cyfouri_data_explorer__variable__numeric__Curve"] | null;
+            density: components["schemas"]["quantilo__variable__numeric__Curve"] | null;
             qq: components["schemas"]["QQ"] | null;
             /** Bins */
             bins: components["schemas"]["Bin"][];
             fit: components["schemas"]["Fit"];
+        };
+        /** DriftColumn */
+        DriftColumn: {
+            /** Column */
+            column: string;
+            /** Psi */
+            psi: number | null;
+            /** Drift */
+            drift: ("stable" | "moderate" | "strong") | null;
+            /** Long Tail */
+            long_tail: boolean;
+            /** Important */
+            important: boolean;
+        };
+        /**
+         * Driver
+         * @description One driver as asked for. `column`: a column of the file, or for a calendar driver one of
+         *     `weekday`, `month`, `month_end`. Calendar drivers and flags are always known in advance.
+         */
+        Driver: {
+            /** Column */
+            column: string;
+            /**
+             * Kind
+             * @default column
+             * @enum {string}
+             */
+            kind: "column" | "flag" | "calendar";
+            /**
+             * Known
+             * @default false
+             */
+            known: boolean;
+            /**
+             * Future
+             * @default file
+             * @enum {string}
+             */
+            future: "file" | "constant" | "last";
+            /** Value */
+            value?: number | null;
+        };
+        /**
+         * DriverCandidate
+         * @description A column that could be a driver.
+         */
+        DriverCandidate: {
+            /** Column */
+            column: string;
+            /** Flag */
+            flag: boolean;
+            /** Correlation */
+            correlation: number | null;
+            /** Suggested */
+            suggested: boolean;
+            /** Future Periods */
+            future_periods: number;
+        };
+        /**
+         * DriverEffect
+         * @description What one driver brings to one model (028 A4).
+         */
+        DriverEffect: {
+            /** Driver */
+            driver: string;
+            /** Coefficient */
+            coefficient: number | null;
+            /** P Value */
+            p_value: number | null;
+            /** Importance */
+            importance: number | null;
+            /** Mase Without */
+            mase_without: number | null;
+            /** Verdict */
+            verdict: ("helps" | "unclear" | "no_help") | null;
+        };
+        /**
+         * DriverForecast
+         * @description One driver model's forecast with given future driver values (scenarios, 039).
+         */
+        DriverForecast: {
+            /** Model */
+            model: string;
+            /** Info */
+            info: string | null;
+            /** Future */
+            future: string[];
+            /** Forecast */
+            forecast: number[];
+            /** Low80 */
+            low80: number[];
+            /** High80 */
+            high80: number[];
+            /** Low95 */
+            low95: number[];
+            /** High95 */
+            high95: number[];
+            /** Drivers */
+            drivers: components["schemas"]["DriverInfo"][];
+            /** Notes */
+            notes: string[];
+        };
+        /**
+         * DriverInfo
+         * @description How a driver was used.
+         */
+        DriverInfo: {
+            /** Column */
+            column: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "column" | "flag" | "calendar";
+            /** Known */
+            known: boolean;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "lag" | "file" | "constant" | "last" | "calendar";
+            /** Lag */
+            lag: number;
+            /** Label */
+            label: string;
+            /** Future Values */
+            future_values: (number | null)[];
         };
         /** Ecdf */
         Ecdf: {
@@ -3206,6 +5054,17 @@ export interface components {
             /** Strength */
             strength: number;
         };
+        /** EditRecipe */
+        EditRecipe: {
+            /** Name */
+            name?: string | null;
+            /** Enabled */
+            enabled?: {
+                [key: string]: boolean;
+            } | null;
+            /** Remove */
+            remove?: string[];
+        };
         /** Effect */
         Effect: {
             /** Name */
@@ -3214,6 +5073,32 @@ export interface components {
             value: number | null;
             /** Magnitude */
             magnitude: ("negligible" | "small" | "medium" | "large") | null;
+        };
+        /** EnsembleResult */
+        EnsembleResult: {
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "greedy" | "stacking";
+            /** Members */
+            members: components["schemas"]["Member"][];
+            /** Score */
+            score: number | null;
+            /** Std */
+            std: number | null;
+            /** Best Single */
+            best_single: string | null;
+            /** Best Score */
+            best_score: number | null;
+            /** Best Std */
+            best_std: number | null;
+            /** Kept */
+            kept: boolean;
+            /** Reason */
+            reason: string;
+            /** Stacking Score */
+            stacking_score?: number | null;
         };
         /** EntityCandidate */
         EntityCandidate: {
@@ -3242,6 +5127,77 @@ export interface components {
             /** Size */
             size?: number | null;
         };
+        /**
+         * ErrorAnalysis
+         * @description Where a model is wrong: subgroups, error by column, worst predictions, hints.
+         */
+        ErrorAnalysis: {
+            /** Task */
+            task: string;
+            /** Measure */
+            measure: string;
+            /** Measures */
+            measures: string[];
+            /** Label */
+            label: string;
+            /** Source */
+            source: string;
+            /** Rows */
+            rows: number;
+            /** Overall */
+            overall: number;
+            /** Columns */
+            columns: number;
+            /** Tested */
+            tested: number;
+            /** Slices */
+            slices: components["schemas"]["Slice"][];
+            /** Message */
+            message: string | null;
+            /** By Column */
+            by_column: components["schemas"]["ColumnErrors"][];
+            /** Worst */
+            worst: components["schemas"]["ErrorPrediction"][];
+            /** Hints */
+            hints: components["schemas"]["Hint"][];
+            /** Conditions */
+            conditions?: components["schemas"]["Condition"][];
+        };
+        /** ErrorComparison */
+        ErrorComparison: {
+            /** Measure */
+            measure: string;
+            /** Label */
+            label: string;
+            /** Rows */
+            rows: number;
+            /** First */
+            first: number;
+            /** Second */
+            second: number;
+            /** Better */
+            better: components["schemas"]["ChangedSlice"][];
+            /** Worse */
+            worse: components["schemas"]["ChangedSlice"][];
+            /** Message */
+            message: string | null;
+        };
+        /**
+         * ErrorPrediction
+         * @description One held-out row: its prediction and how wrong it is.
+         */
+        ErrorPrediction: {
+            /** Row */
+            row: number;
+            /** Actual */
+            actual: string;
+            /** Predicted */
+            predicted: string;
+            /** Error */
+            error?: number | null;
+            /** Probability */
+            probability?: number | null;
+        };
         /** Estimate */
         Estimate: {
             /** Seconds */
@@ -3258,6 +5214,362 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /**
+         * ExpectedColumn
+         * @description A column the model reads: how it was read in training, how much it matters, the
+         *     categories it knows and the range it was trained on.
+         */
+        ExpectedColumn: {
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
+            parser?: components["schemas"]["Parser"];
+            /** Role */
+            role?: string | null;
+            /** Order */
+            order?: string[] | null;
+            /** Importance */
+            importance?: number | null;
+            /**
+             * Important
+             * @default true
+             */
+            important: boolean;
+            /** Categories */
+            categories?: string[] | null;
+            /** Unknown Rule */
+            unknown_rule?: string | null;
+            /** Minimum */
+            minimum?: number | null;
+            /** Maximum */
+            maximum?: number | null;
+            /** Range */
+            range?: string | null;
+        };
+        /** ExperimentCandidates */
+        ExperimentCandidates: {
+            /** Variants */
+            variants: components["schemas"]["ExperimentVariantCandidate"][];
+            /** Metrics */
+            metrics: components["schemas"]["ExperimentMetricCandidate"][];
+            /** Units */
+            units: components["schemas"]["ExperimentUnitCandidate"][];
+            /** Times */
+            times: string[];
+            /** Segments */
+            segments: string[];
+            suggested: components["schemas"]["ExperimentDesign"] | null;
+        };
+        /** ExperimentCheck */
+        ExperimentCheck: {
+            /** Key */
+            key: string;
+            /** P Value */
+            p_value: number | null;
+            /** Low */
+            low: number | null;
+            /** High */
+            high: number | null;
+            /** Note */
+            note: string;
+        };
+        /** ExperimentComparison */
+        ExperimentComparison: {
+            /** Metric */
+            metric: string;
+            /** Variant */
+            variant: string;
+            /** Control */
+            control: string;
+            /** Test */
+            test: string;
+            /** N Control */
+            n_control: number;
+            /** N Variant */
+            n_variant: number;
+            /** Control Value */
+            control_value: number | null;
+            /** Variant Value */
+            variant_value: number | null;
+            /** Diff */
+            diff: number | null;
+            /** Diff Low */
+            diff_low: number | null;
+            /** Diff High */
+            diff_high: number | null;
+            /** Lift */
+            lift: number | null;
+            /** Lift Low */
+            lift_low: number | null;
+            /** Lift High */
+            lift_high: number | null;
+            /** Statistic */
+            statistic: number | null;
+            /** P Value */
+            p_value: number | null;
+            /** P Adjusted */
+            p_adjusted: number | null;
+            /** Significant */
+            significant: boolean;
+            /** Power */
+            power: number | null;
+            /** Mde */
+            mde: number | null;
+            /** Mde Relative */
+            mde_relative: number | null;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "better" | "worse" | "unclear" | "underpowered" | "not_tested";
+            /** Sentence */
+            sentence: string;
+            /** Checks */
+            checks?: components["schemas"]["ExperimentCheck"][];
+        };
+        /** ExperimentCumulative */
+        ExperimentCumulative: {
+            /** Column */
+            column: string;
+            /** Metric */
+            metric: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "rate" | "mean" | "count" | "ratio";
+            /**
+             * Grain
+             * @enum {string}
+             */
+            grain: "day" | "week" | "month";
+            /** Lines */
+            lines: components["schemas"]["ExperimentCumulativeLine"][];
+            /** Warning */
+            warning: string;
+        };
+        /** ExperimentCumulativeLine */
+        ExperimentCumulativeLine: {
+            /** Variant */
+            variant: string;
+            /** Periods */
+            periods: string[];
+            /** Diff */
+            diff: (number | null)[];
+            /** Low */
+            low: (number | null)[];
+            /** High */
+            high: (number | null)[];
+            /** P Value */
+            p_value: (number | null)[];
+        };
+        /** ExperimentCuped */
+        ExperimentCuped: {
+            /** Pre */
+            pre: string;
+            /** Theta */
+            theta: number;
+            /** Correlation */
+            correlation: number;
+            /** Reduction */
+            reduction: number;
+            /** Filled */
+            filled: number;
+            /** Sentence */
+            sentence: string;
+        };
+        /** ExperimentDesign */
+        ExperimentDesign: {
+            /**
+             * Variant
+             * @description The column that names each unit's variant (2 to 5).
+             */
+            variant: string;
+            /** Metrics */
+            metrics: components["schemas"]["ExperimentMetric"][];
+            /**
+             * Primary
+             * @description The main metric's column; the first if unset.
+             */
+            primary?: string | null;
+            /**
+             * Control
+             * @description The control variant; guessed if unset.
+             */
+            control?: string | null;
+            /**
+             * Unit
+             * @description One row per event: the column naming the unit.
+             */
+            unit?: string | null;
+            /**
+             * Expected
+             * @description Planned share of each variant (equal if unset).
+             */
+            expected?: {
+                [key: string]: number;
+            } | null;
+            /**
+             * Segment
+             * @description Effect per level of this column.
+             */
+            segment?: string | null;
+            /**
+             * Time
+             * @description Date column for the cumulative difference.
+             */
+            time?: string | null;
+            /**
+             * Alpha
+             * @default 0.05
+             */
+            alpha: number;
+        };
+        /** ExperimentMetric */
+        ExperimentMetric: {
+            /** Column */
+            column: string;
+            /**
+             * Kind
+             * @default auto
+             */
+            kind: ("rate" | "mean" | "count" | "ratio") | "auto";
+            /**
+             * Denominator
+             * @description Ratio of sums: column ÷ denominator.
+             */
+            denominator?: string | null;
+            /**
+             * Pre
+             * @description The same measure before the experiment (CUPED).
+             */
+            pre?: string | null;
+        };
+        /** ExperimentMetricCandidate */
+        ExperimentMetricCandidate: {
+            /** Column */
+            column: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "rate" | "mean" | "count" | "ratio";
+        };
+        /** ExperimentMetricResult */
+        ExperimentMetricResult: {
+            /** Column */
+            column: string;
+            /** Label */
+            label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "rate" | "mean" | "count" | "ratio";
+            /** Reason */
+            reason: string;
+            /** Primary */
+            primary: boolean;
+            /** Aggregation */
+            aggregation: string | null;
+            /** Values */
+            values: (number | null)[];
+            /** Comparisons */
+            comparisons: components["schemas"]["ExperimentComparison"][];
+            cuped?: components["schemas"]["ExperimentCuped"] | null;
+            /** Skewness */
+            skewness?: number | null;
+        };
+        /** ExperimentResult */
+        ExperimentResult: {
+            design: components["schemas"]["ExperimentDesign"];
+            /** Rows */
+            rows: number;
+            /** Units */
+            units: number;
+            /** Variants */
+            variants: components["schemas"]["ExperimentVariant"][];
+            srm: components["schemas"]["ExperimentSrm"];
+            /** Metrics */
+            metrics: components["schemas"]["ExperimentMetricResult"][];
+            /** Comparisons */
+            comparisons: number;
+            /** Correction */
+            correction: string;
+            /** Warnings */
+            warnings: string[];
+            /** Suggested Unit */
+            suggested_unit: string | null;
+            segments?: components["schemas"]["ExperimentSegments"] | null;
+            cumulative?: components["schemas"]["ExperimentCumulative"] | null;
+        };
+        /** ExperimentSegment */
+        ExperimentSegment: {
+            /** Level */
+            level: string;
+            /** Units */
+            units: number;
+            /** Comparisons */
+            comparisons: components["schemas"]["ExperimentComparison"][];
+        };
+        /** ExperimentSegments */
+        ExperimentSegments: {
+            /** Column */
+            column: string;
+            /** Metric */
+            metric: string;
+            /** Levels */
+            levels: components["schemas"]["ExperimentSegment"][];
+            /** Skipped */
+            skipped: number;
+            /** Warning */
+            warning: string;
+        };
+        /** ExperimentSrm */
+        ExperimentSrm: {
+            /** Statistic */
+            statistic: number | null;
+            /** P Value */
+            p_value: number | null;
+            /** Alarm */
+            alarm: boolean;
+            /** Message */
+            message: string;
+        };
+        /** ExperimentUnitCandidate */
+        ExperimentUnitCandidate: {
+            /** Column */
+            column: string;
+            /** Rows Per Value */
+            rows_per_value: number;
+        };
+        /** ExperimentVariant */
+        ExperimentVariant: {
+            /** Label */
+            label: string;
+            /** Control */
+            control: boolean;
+            /** Rows */
+            rows: number;
+            /** Units */
+            units: number;
+            /** Share */
+            share: number;
+            /** Expected */
+            expected: number;
+        };
+        /** ExperimentVariantCandidate */
+        ExperimentVariantCandidate: {
+            /** Column */
+            column: string;
+            /** Levels */
+            levels: string[];
+            /** Counts */
+            counts: number[];
+            /** Control */
+            control: string;
+        };
         /** Explanation */
         Explanation: {
             permutation: components["schemas"]["Permutation"] | null;
@@ -3269,7 +5581,7 @@ export interface components {
             /** Tree */
             tree: components["schemas"]["TreeNode"][] | null;
             /** Pairs */
-            pairs: components["schemas"]["cyfouri_data_explorer__ml__explain__Pair"][];
+            pairs: components["schemas"]["quantilo__ml__explain__Pair"][];
             /** Warnings */
             warnings?: string[];
         };
@@ -3284,6 +5596,83 @@ export interface components {
             error?: string | null;
             explanation?: components["schemas"]["Explanation"] | null;
         };
+        /** Exposure */
+        Exposure: {
+            /** Column */
+            column: string;
+            /** Mean */
+            mean: number;
+        };
+        /**
+         * Fairness
+         * @description Metrics side by side for each group of a sensitive column (display only).
+         */
+        Fairness: {
+            /** Column */
+            column: string;
+            /** Metrics */
+            metrics: string[];
+            /** Labels */
+            labels: {
+                [key: string]: string;
+            };
+            /** Groups */
+            groups: components["schemas"]["GroupMetrics"][];
+            /** Gaps */
+            gaps: {
+                [key: string]: number | null;
+            };
+            /** Positive */
+            positive: string | null;
+        };
+        /** FigureChange */
+        FigureChange: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kpi" | "forecast" | "model";
+            /** Value */
+            value: number | null;
+            /** Previous */
+            previous: number | null;
+            /** Change */
+            change: number | null;
+            /** Change Pct */
+            change_pct: number | null;
+            /** Detail */
+            detail?: string | null;
+            /** Higher Is Better */
+            higher_is_better?: boolean | null;
+        };
+        /** FigureHistory */
+        FigureHistory: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Kind */
+            kind: string;
+            /** Detail */
+            detail: string | null;
+            /** Points */
+            points: components["schemas"]["FigurePoint"][];
+        };
+        /** FigurePoint */
+        FigurePoint: {
+            /** Run Id */
+            run_id: string;
+            /** Created At */
+            created_at: string;
+            /** Dataset Name */
+            dataset_name: string;
+            /** Value */
+            value: number | null;
+        };
         /** FileInfo */
         FileInfo: {
             /** Name */
@@ -3295,6 +5684,33 @@ export interface components {
             format: "csv" | "parquet" | "excel" | "npy";
             /** Size */
             size: number;
+        };
+        /**
+         * FilterStep
+         * @description A saved filter; the active one gives its rows to the steps that name it (`filter`).
+         */
+        FilterStep: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "filter";
+            /** Name */
+            name: string;
+            /** Conditions */
+            conditions: components["schemas"]["Condition"][];
+            /**
+             * Active
+             * @default false
+             */
+            active: boolean;
         };
         /** Fit */
         Fit: {
@@ -3339,6 +5755,38 @@ export interface components {
             /** Steps */
             steps?: number | null;
         };
+        /**
+         * FoldSpan
+         * @description One fold on the time axis: what it trained on, the gap left out, what it was tested on.
+         */
+        FoldSpan: {
+            /** Fold */
+            fold: number;
+            /** Train Start */
+            train_start: number;
+            /** Train End */
+            train_end: number;
+            /** Test Start */
+            test_start: number;
+            /** Test End */
+            test_end: number;
+            /** Train Periods */
+            train_periods: number;
+            /** Test Periods */
+            test_periods: number;
+            /** Train Rows */
+            train_rows: number;
+            /** Test Rows */
+            test_rows: number;
+            /** Train From */
+            train_from: string;
+            /** Train To */
+            train_to: string;
+            /** Test From */
+            test_from: string;
+            /** Test To */
+            test_to: string;
+        };
         /** ForecastJob */
         ForecastJob: {
             /** Id */
@@ -3357,6 +5805,14 @@ export interface components {
             result?: components["schemas"]["SeriesForecast"] | null;
             /** Error */
             error?: string | null;
+        };
+        /**
+         * ForecastOptions
+         * @description What does not fit in the query string: the drivers (028 A4).
+         */
+        ForecastOptions: {
+            /** Drivers */
+            drivers?: components["schemas"]["Driver"][];
         };
         /** Format */
         Format: {
@@ -3389,6 +5845,17 @@ export interface components {
             /** Importance */
             importance: number;
         };
+        /** GlobalSummary */
+        GlobalSummary: {
+            /** Library */
+            library: string;
+            /** Info */
+            info: string;
+            /** Wins */
+            wins: number;
+            /** Series */
+            series: number;
+        };
         /** GpuStatus */
         GpuStatus: {
             /**
@@ -3418,6 +5885,69 @@ export interface components {
             /** Column */
             column: string;
         };
+        /** GroupForecast */
+        GroupForecast: {
+            /** Group */
+            group: string;
+            /** Horizon */
+            horizon: number;
+            /** Periods */
+            periods: string[];
+            /** Future */
+            future: string[];
+            /** Models */
+            models: string[];
+            /** Rows */
+            rows: components["schemas"]["GroupRow"][];
+            /** Groups */
+            groups: number;
+            /** Kept */
+            kept: number;
+            /** Pooled */
+            pooled: number;
+            /** Limit */
+            limit: number;
+            /** Short */
+            short: number;
+            /** Best Models */
+            best_models: components["schemas"]["BestShare"][];
+            global_model: components["schemas"]["GlobalSummary"] | null;
+            hierarchy: components["schemas"]["HierarchyResult"] | null;
+            /** Notes */
+            notes: string[];
+            /** Workers */
+            workers: number;
+            /**
+             * Seconds
+             * @default 0
+             */
+            seconds: number;
+        };
+        /** GroupJob */
+        GroupJob: {
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "done" | "cancelled" | "failed";
+            /** Done */
+            done: number;
+            /** Total */
+            total: number;
+            /**
+             * Stage
+             * @default series
+             * @enum {string}
+             */
+            stage: "series" | "global" | "reconcile";
+            /** Current */
+            current?: string | null;
+            result?: components["schemas"]["GroupForecast"] | null;
+            /** Error */
+            error?: string | null;
+        };
         /**
          * GroupLayout
          * @description How a number and one or two categories were laid out (R-CMP-04, R-CMP-05).
@@ -3439,6 +5969,89 @@ export interface components {
             color_kept: number;
             /** Sentence */
             sentence: string;
+        };
+        /** GroupMetrics */
+        GroupMetrics: {
+            /** Group */
+            group: string;
+            /** Rows */
+            rows: number;
+            /** Values */
+            values: {
+                [key: string]: number | null;
+            };
+            /** Few */
+            few: boolean;
+        };
+        /** GroupRow */
+        GroupRow: {
+            /** Label */
+            label: string;
+            /** Level */
+            level: string;
+            /** Parent */
+            parent: string | null;
+            /** Volume */
+            volume: number;
+            /** Demand */
+            demand: string | null;
+            /** Best */
+            best: string | null;
+            /** Info */
+            info: string | null;
+            /** Mase */
+            mase: number | null;
+            /** Wape */
+            wape: number | null;
+            /** Total */
+            total: number;
+            /** Change */
+            change: number | null;
+            /** Short History */
+            short_history: boolean;
+            /** Other */
+            other: boolean;
+            /** History */
+            history: (number | null)[];
+            /** Forecast */
+            forecast: number[];
+            /** Low80 */
+            low80: number[];
+            /** High80 */
+            high80: number[];
+            /** Low95 */
+            low95: number[];
+            /** High95 */
+            high95: number[];
+            /** Base */
+            base: number[];
+            /** Global Mase */
+            global_mase?: number | null;
+            /** Error */
+            error?: string | null;
+        };
+        /**
+         * GroupsSetup
+         * @description Every series of the group column, before forecasting them all (039).
+         */
+        GroupsSetup: {
+            setup: components["schemas"]["SeriesSetup"];
+            /** Group */
+            group: string;
+            /** Groups */
+            groups: number;
+            /** Limit */
+            limit: number;
+            /** Max Limit */
+            max_limit: number;
+            /** Summable */
+            summable: boolean;
+            /** Candidates */
+            candidates: components["schemas"]["ParentCandidate"][];
+            /** Levels */
+            levels: string[];
+            /** Browser */
+            browser: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -3485,6 +6098,47 @@ export interface components {
              * @enum {string}
              */
             db: "ok" | "error";
+        };
+        /** HierarchyResult */
+        HierarchyResult: {
+            /** Levels */
+            levels: string[];
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "bottom_up" | "top_down" | "mint_shrink";
+            /** Method Auto */
+            method_auto: boolean;
+            /** Gap */
+            gap: number;
+            /** Errors */
+            errors: components["schemas"]["LevelError"][];
+            /** Shrinkage */
+            shrinkage?: number | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** Hint */
+        Hint: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "few_rows" | "excluded_column" | "log_target" | "rare_class";
+            /** Text */
+            text: string;
+            /** Column */
+            column?: string | null;
+        };
+        /** Histogram */
+        Histogram: {
+            /** Edges */
+            edges: number[];
+            /** Before */
+            before: number[];
+            /** After */
+            after: number[];
         };
         /** HistogramBar */
         HistogramBar: {
@@ -3534,6 +6188,11 @@ export interface components {
              * @default 100
              */
             sample_pct: number;
+        };
+        /** ImportRecipe */
+        ImportRecipe: {
+            /** Content */
+            content: string;
         };
         /** ImportRequest */
         ImportRequest: {
@@ -3593,6 +6252,18 @@ export interface components {
             /** Y */
             y?: string | null;
         };
+        /**
+         * Interval
+         * @description A number's prediction interval from the validation errors (split conformal).
+         */
+        Interval: {
+            /** Level */
+            level: number;
+            /** Half Width */
+            half_width: number;
+            /** Errors */
+            errors: number;
+        };
         /** JobOut */
         JobOut: {
             /** Id */
@@ -3615,6 +6286,65 @@ export interface components {
             /** Finished At */
             finished_at: string | null;
         };
+        JsonValue: unknown;
+        /** KeyFigure */
+        KeyFigure: {
+            /** Id */
+            id: string;
+            /** Step */
+            step: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kpi" | "forecast" | "model";
+            /** Label */
+            label: string;
+            /** Value */
+            value: number | null;
+            /** Detail */
+            detail?: string | null;
+            /** Higher Is Better */
+            higher_is_better?: boolean | null;
+        };
+        /** KpiChange */
+        KpiChange: {
+            /** Name */
+            name: string;
+            /** Measure */
+            measure: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "broken" | "unavailable";
+            /** Before */
+            before?: number | null;
+            /** After */
+            after?: number | null;
+            /** Change */
+            change?: number | null;
+            /** Problem */
+            problem?: string | null;
+            /** Common */
+            common?: components["schemas"]["KpiPeriodChange"][];
+            /**
+             * Revised
+             * @default 0
+             */
+            revised: number;
+        };
+        /** KpiPeriodChange */
+        KpiPeriodChange: {
+            /** Label */
+            label: string;
+            /** Before */
+            before: number | null;
+            /** After */
+            after: number | null;
+            /** Change */
+            change: number | null;
+        };
         /** KpiResult */
         KpiResult: {
             /** Name */
@@ -3634,6 +6364,26 @@ export interface components {
             resolved: components["schemas"]["Resolved"];
             /** Warnings */
             warnings: string[];
+        };
+        /** KpiStep */
+        KpiStep: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "kpi";
+            /** Name */
+            name: string;
+            definition: components["schemas"]["Definition-Output"];
+            /** Filter */
+            filter?: string | null;
         };
         /** Law */
         Law: {
@@ -3723,6 +6473,36 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** LevelError */
+        LevelError: {
+            /** Level */
+            level: string;
+            /** Nodes */
+            nodes: number;
+            /** Mase Before */
+            mase_before: number | null;
+            /** Mase After */
+            mase_after: number | null;
+        };
+        /** LevelShift */
+        LevelShift: {
+            /** Value */
+            value: string;
+            /** Before */
+            before: number;
+            /** After */
+            after: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "appeared" | "disappeared" | "kept";
+            /**
+             * Certain
+             * @default true
+             */
+            certain: boolean;
+        };
         /** LinkPair */
         LinkPair: {
             /** A */
@@ -3767,6 +6547,29 @@ export interface components {
             /** Entries */
             entries: components["schemas"]["Entry"][];
         };
+        /** LogLine */
+        LogLine: {
+            /** At */
+            at: number;
+            /** Step */
+            step: string;
+            /** Message */
+            message: string;
+        };
+        /** MarkChange */
+        MarkChange: {
+            /** Key */
+            key: string;
+            /** Mark */
+            mark: ("expected" | "error") | null;
+        };
+        /** Matching */
+        Matching: {
+            /** Columns */
+            columns: components["schemas"]["ColumnMatch"][];
+            /** New Columns */
+            new_columns?: string[];
+        };
         /** Matrix */
         Matrix: {
             /**
@@ -3798,7 +6601,7 @@ export interface components {
              */
             truncated: number;
             /** Pairs */
-            pairs?: components["schemas"]["cyfouri_data_explorer__correlations__matrix__Pair"][];
+            pairs?: components["schemas"]["quantilo__correlations__matrix__Pair"][];
         };
         /** MatrixMember */
         MatrixMember: {
@@ -3855,8 +6658,23 @@ export interface components {
             /** Approximate */
             approximate: boolean;
             format: components["schemas"]["NumberFormat"];
-            chart: components["schemas"]["cyfouri_data_explorer__kpi__rules__Decision"];
-            share: components["schemas"]["cyfouri_data_explorer__kpi__rules__Option"];
+            chart: components["schemas"]["quantilo__kpi__rules__Decision"];
+            share: components["schemas"]["quantilo__kpi__rules__Option"];
+        };
+        /** Member */
+        Member: {
+            /** Entry */
+            entry: string;
+            /** Model */
+            model: string;
+            /** Label */
+            label: string;
+            /** Weight */
+            weight: number;
+            /** Settings */
+            settings?: {
+                [key: string]: unknown;
+            };
         };
         /** MethodOption */
         MethodOption: {
@@ -3911,6 +6729,150 @@ export interface components {
             /** Synthetic */
             synthetic: number | null;
         };
+        /** MetricBaseline */
+        MetricBaseline: {
+            /** Column */
+            column: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "rate" | "mean";
+            /** Value */
+            value: number | null;
+            /** Sd */
+            sd: number | null;
+            /** Rows */
+            rows: number;
+        };
+        /**
+         * MlStep
+         * @description A model trained again on the new rows (not reused: that is predicting, 037).
+         */
+        MlStep: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "ml";
+            /** Target */
+            target: string;
+            /** Model */
+            model?: string | null;
+            /** Settings */
+            settings?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            preparation?: components["schemas"]["Choices"] | null;
+            classes?: components["schemas"]["Classes"] | null;
+            validation?: components["schemas"]["Validation"];
+            /** Conditions */
+            conditions?: components["schemas"]["Condition"][];
+            /** Inputs */
+            inputs?: string[];
+        };
+        /**
+         * ModelCard
+         * @description Everything needed to use the model elsewhere, without a single row of data.
+         */
+        ModelCard: {
+            /**
+             * Format
+             * @default quantilo/model-card
+             * @constant
+             */
+            format: "quantilo/model-card";
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+            /** Model */
+            model: string;
+            /** Model Label */
+            model_label: string;
+            /**
+             * Task
+             * @enum {string}
+             */
+            task: "regression" | "binary" | "multiclass";
+            target: components["schemas"]["ExpectedColumn"];
+            classes?: components["schemas"]["Classes"] | null;
+            /** Labels */
+            labels?: string[];
+            /** Positive */
+            positive?: string | null;
+            /** Threshold */
+            threshold?: number | null;
+            /** Columns */
+            columns: components["schemas"]["ExpectedColumn"][];
+            validation: components["schemas"]["ValidationSummary"];
+            interval?: components["schemas"]["Interval"] | null;
+            /** Versions */
+            versions?: {
+                [key: string]: string;
+            };
+            /** Trained At */
+            trained_at?: string | null;
+            /** Created At */
+            created_at: string;
+            /**
+             * Source
+             * @default
+             */
+            source: string;
+            /** Pipeline Sha256 */
+            pipeline_sha256?: string | null;
+            /**
+             * Security
+             * @default model.joblib is a Python pickle: loading it runs code. Only load a model you exported yourself or got from someone you trust. The Quantilo app never imports model files.
+             */
+            security: string;
+        };
+        /** ModelCheck */
+        ModelCheck: {
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "ready" | "check" | "blocked";
+            /** Message */
+            message: string;
+            /** Rows */
+            rows: number;
+            /** Columns */
+            columns: components["schemas"]["ColumnCheck"][];
+            /** Missing */
+            missing: string[];
+            /** Ignored */
+            ignored: string[];
+            /** Target Present */
+            target_present: boolean;
+            /** Problems */
+            problems?: string[];
+            drift?: components["schemas"]["ModelDrift"] | null;
+        };
+        /** ModelDrift */
+        ModelDrift: {
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "none" | "check" | "breaking";
+            /** Headline */
+            headline: string;
+            /** Columns */
+            columns: components["schemas"]["DriftColumn"][];
+            /** Shifted */
+            shifted: string[];
+        };
         /** ModelResult */
         ModelResult: {
             /** Key */
@@ -3940,6 +6902,15 @@ export interface components {
             error?: string | null;
             /** Backtests */
             backtests?: components["schemas"]["Backtest"][];
+            /**
+             * Uses Drivers
+             * @default false
+             */
+            uses_drivers: boolean;
+            /** Mase Without Drivers */
+            mase_without_drivers?: number | null;
+            /** Drivers */
+            drivers?: components["schemas"]["DriverEffect"][];
         };
         /** ModelView */
         ModelView: {
@@ -3967,6 +6938,51 @@ export interface components {
             probabilities: boolean;
             /** Space */
             space: components["schemas"]["Param"][];
+        };
+        /** Moments */
+        Moments: {
+            /** Mean */
+            mean: number | null;
+            /** Median */
+            median: number | null;
+            /** Std */
+            std: number | null;
+        };
+        /** Names */
+        Names: {
+            /** Names */
+            names: {
+                [key: string]: string;
+            };
+        };
+        /**
+         * NeutralizeRequest
+         * @description Remove from a panel run's predictions the part these columns explain (035).
+         */
+        NeutralizeRequest: {
+            /** Columns */
+            columns: string[];
+            /**
+             * Proportion
+             * @default 1
+             */
+            proportion: number;
+        };
+        /** Neutralized */
+        Neutralized: {
+            /** Columns */
+            columns: string[];
+            /** Proportion */
+            proportion: number;
+            /** Value */
+            value: number | null;
+            /** Periods */
+            periods: components["schemas"]["PeriodScore"][];
+            summary: components["schemas"]["PeriodSummary"];
+            /** Before */
+            before: components["schemas"]["Exposure"][];
+            /** After */
+            after: components["schemas"]["Exposure"][];
         };
         /** Normality */
         Normality: {
@@ -4018,8 +7034,8 @@ export interface components {
         NumericProfile: {
             describe: components["schemas"]["Describe"];
             normality: components["schemas"]["Normality"];
-            kde: components["schemas"]["cyfouri_data_explorer__variable__numeric__Curve"] | null;
-            ecdf: components["schemas"]["cyfouri_data_explorer__variable__numeric__Curve"] | null;
+            kde: components["schemas"]["quantilo__variable__numeric__Curve"] | null;
+            ecdf: components["schemas"]["quantilo__variable__numeric__Curve"] | null;
             qq: components["schemas"]["QQ"] | null;
             /** Sample */
             sample: number[];
@@ -4077,6 +7093,33 @@ export interface components {
             rules?: components["schemas"]["OutlierRule"][];
             /** Rows */
             rows?: components["schemas"]["OutlierRow"][];
+        };
+        /** OutputStep */
+        OutputStep: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "output";
+            /**
+             * Report
+             * @default false
+             */
+            report: boolean;
+            /**
+             * Csv
+             * @default false
+             */
+            csv: boolean;
+            /** Filter */
+            filter?: string | null;
         };
         /** Overview */
         Overview: {
@@ -4164,6 +7207,82 @@ export interface components {
             /** Meets */
             meets: boolean;
         };
+        /** PanelAlert */
+        PanelAlert: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "future" | "late" | "suspicious" | "embargo";
+            /** Message */
+            message: string;
+            /** Column */
+            column?: string | null;
+        };
+        /**
+         * PanelCheck
+         * @description What the ML page says about the rows: a panel or not, its period and entity.
+         */
+        PanelCheck: {
+            /** Panel */
+            panel: boolean;
+            /** Period */
+            period: string | null;
+            /** Entity */
+            entity: string | null;
+            /** Periods */
+            periods: number;
+            /** Per Period */
+            per_period: number;
+            /** Entities */
+            entities: number | null;
+            /** Duplicates */
+            duplicates: number;
+            /** Embargo */
+            embargo: number | null;
+            /** Embargo Reason */
+            embargo_reason: string | null;
+            /** Period Candidates */
+            period_candidates?: string[];
+            /** Entity Candidates */
+            entity_candidates?: string[];
+            /** Message */
+            message?: string | null;
+        };
+        /** PanelResult */
+        PanelResult: {
+            /** Period Column */
+            period_column: string;
+            /** Entity Column */
+            entity_column: string | null;
+            /** Window */
+            window: string;
+            /** Embargo */
+            embargo: number;
+            /** Step */
+            step: number;
+            /** Criterion */
+            criterion: string;
+            /** Value */
+            value: number | null;
+            /** Periods */
+            periods: components["schemas"]["PeriodScore"][];
+            summary: components["schemas"]["PeriodSummary"];
+            /** Folds */
+            folds: components["schemas"]["FoldSpan"][];
+            /** Exposures */
+            exposures: components["schemas"]["Exposure"][];
+            /** Max Exposure */
+            max_exposure: number | null;
+            /** Exposure Columns */
+            exposure_columns: number;
+            /** Alerts */
+            alerts?: components["schemas"]["PanelAlert"][];
+            /** Suggested Embargo */
+            suggested_embargo?: number | null;
+            /** Embargo Reason */
+            embargo_reason?: string | null;
+        };
         /** Param */
         Param: {
             /** Key */
@@ -4184,6 +7303,18 @@ export interface components {
             log: boolean;
             /** Choices */
             choices?: string[];
+        };
+        /**
+         * ParentCandidate
+         * @description A categorical column that could sit above the group in a hierarchy (039).
+         */
+        ParentCandidate: {
+            /** Column */
+            column: string;
+            /** Values */
+            values: number;
+            /** Parent */
+            parent: boolean;
         };
         /**
          * Parser
@@ -4249,6 +7380,51 @@ export interface components {
             /** Partial */
             partial: boolean;
         };
+        /** PeriodScore */
+        PeriodScore: {
+            /** Period */
+            period: string;
+            /** Rank */
+            rank: number;
+            /** Fold */
+            fold: number;
+            /** Rows */
+            rows: number;
+            /** Score */
+            score: number | null;
+            /** Pearson */
+            pearson?: number | null;
+            /** Spearman */
+            spearman?: number | null;
+        };
+        /**
+         * PeriodSummary
+         * @description How regular the model is from one period to the next.
+         */
+        PeriodSummary: {
+            /** Metric */
+            metric: string;
+            /** Periods */
+            periods: number;
+            /** Mean */
+            mean: number | null;
+            /** Std */
+            std: number | null;
+            /** Sharpe */
+            sharpe: number | null;
+            /** Threshold */
+            threshold: number | null;
+            /** Share Good */
+            share_good: number | null;
+            /** Worst */
+            worst: number | null;
+            /** Worst Period */
+            worst_period: string | null;
+            /** Longest Bad Streak */
+            longest_bad_streak: number | null;
+            /** Lower Is Better */
+            lower_is_better: boolean;
+        };
         /** Permutation */
         Permutation: {
             /** Metric */
@@ -4306,6 +7482,19 @@ export interface components {
             gpu?: string | null;
             sequence?: components["schemas"]["SequencePlan"] | null;
         };
+        /** PlannedStep */
+        PlannedStep: {
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Sentence */
+            sentence: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Skip */
+            skip: string | null;
+        };
         /** Points */
         Points: {
             /** X */
@@ -4316,6 +7505,110 @@ export interface components {
             z?: number[] | null;
             /** Color */
             color?: string[] | null;
+        };
+        /** PredictStart */
+        PredictStart: {
+            /**
+             * Source
+             * @description The dataset to predict.
+             */
+            source: string;
+            /**
+             * Keep
+             * @description Columns kept next to the predictions.
+             */
+            keep?: string[];
+        };
+        /** Prediction */
+        Prediction: {
+            /** Id */
+            id: string;
+            /** Run Id */
+            run_id: string;
+            /** Source Id */
+            source_id: string | null;
+            /** Source Name */
+            source_name: string;
+            /** Rows */
+            rows: number;
+            /** Less Reliable */
+            less_reliable: number;
+            /** Level */
+            level: string;
+            /** Created At */
+            created_at: string;
+            /** Created Dataset Id */
+            created_dataset_id?: string | null;
+            /** Keep */
+            keep?: string[];
+            check?: components["schemas"]["ModelCheck"] | null;
+            summary?: components["schemas"]["PredictionReport"] | null;
+        };
+        /**
+         * PredictionDistribution
+         * @description The predictions on this data against those on the validation rows.
+         */
+        PredictionDistribution: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "number" | "classes";
+            /** Edges */
+            edges: number[];
+            /** Labels */
+            labels: string[];
+            /** New */
+            new: number[];
+            /** Validation */
+            validation: number[];
+        };
+        /** PredictionJob */
+        PredictionJob: {
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "done" | "failed" | "cancelled";
+            /**
+             * Rows
+             * @default 0
+             */
+            rows: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            /** Prediction Id */
+            prediction_id?: string | null;
+            /** Error */
+            error?: string | null;
+        };
+        /** PredictionReport */
+        PredictionReport: {
+            /** Rows */
+            rows: number;
+            /** Less Reliable */
+            less_reliable: number;
+            /** Columns */
+            columns: string[];
+            distribution: components["schemas"]["PredictionDistribution"];
+            /** Scores */
+            scores: {
+                [key: string]: number | null;
+            } | null;
+            /** Scored Rows */
+            scored_rows: number;
+            /** Validation Scores */
+            validation_scores: {
+                [key: string]: number | null;
+            };
+            /** Primary */
+            primary: string;
+            interval: components["schemas"]["Interval"] | null;
         };
         /** PredictionRow */
         PredictionRow: {
@@ -4332,10 +7625,45 @@ export interface components {
             /** Correct */
             correct?: boolean | null;
         };
+        /** PredictionRows */
+        PredictionRows: {
+            /** Columns */
+            columns: string[];
+            /** Rows */
+            rows: unknown[][];
+            /** Total */
+            total: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
+         * PredictionSummary
+         * @description A prediction made with a run, as the run lists it.
+         */
+        PredictionSummary: {
+            /** Id */
+            id: string;
+            /** Run Id */
+            run_id: string;
+            /** Source Id */
+            source_id: string | null;
+            /** Source Name */
+            source_name: string;
+            /** Rows */
+            rows: number;
+            /** Less Reliable */
+            less_reliable: number;
+            /** Level */
+            level: string;
+            /** Created At */
+            created_at: string;
+            /** Created Dataset Id */
+            created_dataset_id?: string | null;
+        };
         /** Preparation */
         Preparation: {
             /** Decisions */
-            decisions: components["schemas"]["cyfouri_data_explorer__ml__preparation__Decision"][];
+            decisions: components["schemas"]["quantilo__ml__preparation__Decision"][];
             /**
              * Inputs
              * @default 0
@@ -4362,6 +7690,11 @@ export interface components {
              * @default 0
              */
             dropped_rows: number;
+            /**
+             * Distance
+             * @default false
+             */
+            distance: boolean;
         };
         /**
          * PreparationPreview
@@ -4490,6 +7823,21 @@ export interface components {
             /** Coverage */
             coverage?: components["schemas"]["Coverage"][];
         };
+        /** QualityChange */
+        QualityChange: {
+            /** Column */
+            column: string;
+            /** Missing Before */
+            missing_before: number;
+            /** Missing After */
+            missing_after: number;
+            /** Outliers Before */
+            outliers_before: number | null;
+            /** Outliers After */
+            outliers_after: number | null;
+            /** Notable */
+            notable: boolean;
+        };
         /** RareValue */
         RareValue: {
             /** Column */
@@ -4515,6 +7863,250 @@ export interface components {
              */
             percent: boolean;
             format?: components["schemas"]["Format"];
+        };
+        /**
+         * Recipe
+         * @description A recipe: `Recipe.from_dataset(ds)`, `.run(other)`, `.to_json()`, `.to_python()`.
+         */
+        Recipe: {
+            /**
+             * Format
+             * @default quantilo/recipe
+             * @constant
+             */
+            format: "quantilo/recipe";
+            /**
+             * Schema
+             * @default 1
+             * @constant
+             */
+            schema: 1;
+            /** Name */
+            name: string;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+            /** Created At */
+            created_at?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Columns */
+            columns?: components["schemas"]["RecipeColumn"][];
+            /** Steps */
+            steps?: (components["schemas"]["ColumnStep"] | components["schemas"]["FilterStep"] | components["schemas"]["KpiStep"] | components["schemas"]["TimeSeriesStep"] | components["schemas"]["MlStep"] | components["schemas"]["OutputStep"])[];
+        };
+        /**
+         * RecipeChanges
+         * @description What changed (031), at the top of a run's report.
+         */
+        RecipeChanges: {
+            /** Level */
+            level: string;
+            /** Level Label */
+            level_label: string;
+            /** Headline */
+            headline: string;
+            /** Vs */
+            vs: string | null;
+        };
+        /**
+         * RecipeColumn
+         * @description A column of the dataset the recipe was made on: its name and detected type (what a new
+         *     file is matched on), and for a category read by a step, its values (to flag new ones).
+         */
+        RecipeColumn: {
+            /** Name */
+            name: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "numeric_continuous" | "numeric_discrete" | "categorical_nominal" | "categorical_ordinal" | "boolean" | "datetime" | "text" | "identifier" | "ignored";
+            /** Categories */
+            categories?: string[] | null;
+        };
+        /** RecipeDetail */
+        RecipeDetail: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Version */
+            version: number;
+            /** Steps */
+            steps: number;
+            /** Source Dataset Id */
+            source_dataset_id: string | null;
+            /** Source */
+            source: string | null;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            last_run?: components["schemas"]["RecipeRunSummary"] | null;
+            recipe?: components["schemas"]["Recipe"] | null;
+            /** Step Views */
+            step_views?: components["schemas"]["RecipeStepView"][];
+            /** Runs */
+            runs?: components["schemas"]["RecipeRunSummary"][];
+            /** History */
+            history?: components["schemas"]["FigureHistory"][];
+        };
+        /**
+         * RecipeDraft
+         * @description Everything a dataset keeps, as the steps of a recipe to tick.
+         */
+        RecipeDraft: {
+            recipe: components["schemas"]["Recipe"];
+            /** Steps */
+            steps: components["schemas"]["RecipeStepView"][];
+        };
+        /**
+         * RecipeDriver
+         * @description A forecast driver (028 A4), as `timeseries.drivers.Driver`.
+         */
+        RecipeDriver: {
+            /** Column */
+            column: string;
+            /**
+             * Kind
+             * @default column
+             * @enum {string}
+             */
+            kind: "column" | "flag" | "calendar";
+            /**
+             * Known
+             * @default false
+             */
+            known: boolean;
+            /**
+             * Future
+             * @default file
+             * @enum {string}
+             */
+            future: "file" | "constant" | "last";
+            /** Value */
+            value?: number | null;
+        };
+        /** RecipePlan */
+        RecipePlan: {
+            matching: components["schemas"]["Matching"];
+            /** Mapping */
+            mapping: {
+                [key: string]: string | null;
+            };
+            /** Steps */
+            steps: components["schemas"]["PlannedStep"][];
+        };
+        /** RecipeRunDetail */
+        RecipeRunDetail: {
+            /** Id */
+            id: string;
+            /** Recipe Id */
+            recipe_id: string;
+            /** Version */
+            version: number;
+            /** Dataset Id */
+            dataset_id: string | null;
+            /** Dataset Name */
+            dataset_name: string;
+            /** Status */
+            status: string;
+            /** Created At */
+            created_at: string;
+            /** Finished At */
+            finished_at: string | null;
+            /** Figures */
+            figures?: components["schemas"]["KeyFigure"][];
+            /**
+             * Kind
+             * @default run
+             */
+            kind: string;
+            report?: components["schemas"]["RunReport"] | null;
+            changes?: components["schemas"]["RecipeChanges"] | null;
+            /** Compared */
+            compared?: components["schemas"]["FigureChange"][];
+            /** Previous Run Id */
+            previous_run_id?: string | null;
+            /**
+             * Recipe Name
+             * @default
+             */
+            recipe_name: string;
+            /** Error */
+            error?: string | null;
+        };
+        /** RecipeRunRequest */
+        RecipeRunRequest: {
+            /** Dataset Id */
+            dataset_id: string;
+            /** Mapping */
+            mapping?: {
+                [key: string]: string | null;
+            } | null;
+        };
+        /** RecipeRunSummary */
+        RecipeRunSummary: {
+            /** Id */
+            id: string;
+            /** Recipe Id */
+            recipe_id: string;
+            /** Version */
+            version: number;
+            /** Dataset Id */
+            dataset_id: string | null;
+            /** Dataset Name */
+            dataset_name: string;
+            /** Status */
+            status: string;
+            /** Created At */
+            created_at: string;
+            /** Finished At */
+            finished_at: string | null;
+            /** Figures */
+            figures?: components["schemas"]["KeyFigure"][];
+            /**
+             * Kind
+             * @default run
+             */
+            kind: string;
+        };
+        /** RecipeStepView */
+        RecipeStepView: {
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Sentence */
+            sentence: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+        };
+        /** RecipeSummary */
+        RecipeSummary: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Version */
+            version: number;
+            /** Steps */
+            steps: number;
+            /** Source Dataset Id */
+            source_dataset_id: string | null;
+            /** Source */
+            source: string | null;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            last_run?: components["schemas"]["RecipeRunSummary"] | null;
         };
         /** Recommendation */
         Recommendation: {
@@ -4558,6 +8150,33 @@ export interface components {
             }[];
             /** Heteroscedasticity P */
             heteroscedasticity_p?: number | null;
+        };
+        /** RelationChange */
+        RelationChange: {
+            /** A */
+            a: string;
+            /** B */
+            b: string;
+            /** Metric */
+            metric: string;
+            /** Before */
+            before: number | null;
+            /** After */
+            after: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "appeared" | "disappeared" | "changed" | "stable";
+        };
+        /** RelationsAnswer */
+        RelationsAnswer: {
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string | null;
+            /** Pairs */
+            pairs: components["schemas"]["RelationChange"][];
         };
         /** RenameRequest */
         RenameRequest: {
@@ -4607,9 +8226,9 @@ export interface components {
         };
         /** Resolved */
         Resolved: {
-            grain: components["schemas"]["cyfouri_data_explorer__kpi__rules__Decision"] | null;
-            layout: components["schemas"]["cyfouri_data_explorer__kpi__rules__Decision"];
-            shading: components["schemas"]["cyfouri_data_explorer__kpi__rules__Decision"];
+            grain: components["schemas"]["quantilo__kpi__rules__Decision"] | null;
+            layout: components["schemas"]["quantilo__kpi__rules__Decision"];
+            shading: components["schemas"]["quantilo__kpi__rules__Decision"];
             /** Time */
             time: boolean;
             /** Why */
@@ -4621,6 +8240,78 @@ export interface components {
             id: string;
             /** Label */
             label: string;
+        };
+        /** RowChanges */
+        RowChanges: {
+            /** Key */
+            key: string;
+            /** Rows Before */
+            rows_before: number;
+            /** Rows After */
+            rows_after: number;
+            /** Added */
+            added: number;
+            /** Removed */
+            removed: number;
+            /** Modified */
+            modified: number;
+            /** Unchanged */
+            unchanged: number;
+            /** Columns */
+            columns: components["schemas"]["ColumnEdits"][];
+            /** Examples */
+            examples: components["schemas"]["CellEdit"][];
+            /** Added Keys */
+            added_keys?: string[];
+            /** Removed Keys */
+            removed_keys?: string[];
+            /** Compared */
+            compared?: string[];
+        };
+        /** RowExplanation */
+        RowExplanation: {
+            /** Row */
+            row: number;
+            /** Method */
+            method: string | null;
+            /** Scale */
+            scale: string | null;
+            /** Base */
+            base: number | null;
+            /** Positive */
+            positive: string | null;
+            /** Steps */
+            steps: components["schemas"]["Contribution"][];
+            /** Unavailable */
+            unavailable: string | null;
+        };
+        /**
+         * RowValue
+         * @description One value of a row, placed on its column (the row's card).
+         */
+        RowValue: {
+            /** Column */
+            column: string;
+            /** Type */
+            type: string;
+            /** Value */
+            value: unknown;
+            /** Percentile */
+            percentile: number | null;
+            /** Share */
+            share: number | null;
+            /** Median */
+            median: unknown;
+        };
+        /** RowsAnswer */
+        RowsAnswer: {
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string | null;
+            /** Candidates */
+            candidates: string[];
+            result?: components["schemas"]["RowChanges"] | null;
         };
         /** RowsColumn */
         RowsColumn: {
@@ -4715,6 +8406,8 @@ export interface components {
             /** Evaluation Rows */
             evaluation_rows?: number[];
             learning_curve?: components["schemas"]["LearningCurve"] | null;
+            panel?: components["schemas"]["PanelResult"] | null;
+            auto?: components["schemas"]["AutoProgress"] | null;
         };
         /** RunColumn */
         RunColumn: {
@@ -4727,6 +8420,38 @@ export interface components {
              * @enum {string}
              */
             treatment: "model" | "unique" | "fake" | "leave";
+        };
+        /** RunReport */
+        RunReport: {
+            /** Recipe */
+            recipe: string;
+            /** Version */
+            version: number;
+            /** Dataset */
+            dataset: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "done" | "warning" | "failed" | "cancelled";
+            /** Steps */
+            steps: components["schemas"]["StepResult"][];
+            matching: components["schemas"]["Matching"];
+            /** Mapping */
+            mapping: {
+                [key: string]: string | null;
+            };
+            /** Figures */
+            figures?: components["schemas"]["KeyFigure"][];
+            /** New Columns */
+            new_columns?: string[];
+            /**
+             * Started At
+             * @default
+             */
+            started_at: string;
+            /** Finished At */
+            finished_at?: string | null;
         };
         /**
          * RunRequest
@@ -4829,6 +8554,106 @@ export interface components {
             /** Synthetic */
             synthetic: number[][];
         };
+        /** SampleSize */
+        SampleSize: {
+            /** Kind */
+            kind: string;
+            /** Baseline */
+            baseline: number;
+            /** Target */
+            target: number;
+            /** Effect Absolute */
+            effect_absolute: number;
+            /** Effect Relative */
+            effect_relative: number | null;
+            /** Effect Size */
+            effect_size: number;
+            /** Alpha */
+            alpha: number;
+            /** Alpha Per Comparison */
+            alpha_per_comparison: number;
+            /** Power */
+            power: number;
+            /** Variants */
+            variants: number;
+            /** Ratio */
+            ratio: number;
+            /** Control */
+            control: number;
+            /** Per Variant */
+            per_variant: number;
+            /** Total */
+            total: number;
+            /** Days */
+            days: number | null;
+            /** Sentence */
+            sentence: string;
+            /** Curve */
+            curve?: components["schemas"]["CurvePoint"][];
+        };
+        /** SampleSizeRequest */
+        SampleSizeRequest: {
+            /**
+             * Kind
+             * @default rate
+             * @enum {string}
+             */
+            kind: "rate" | "mean";
+            /**
+             * Baseline
+             * @description The current rate (0.10 = 10 %) or mean.
+             */
+            baseline: number;
+            /**
+             * Sd
+             * @description Standard deviation of a mean metric.
+             */
+            sd?: number | null;
+            /**
+             * Effect
+             * @description Smallest effect worth detecting.
+             */
+            effect: number;
+            /**
+             * Relative
+             * @description The effect is a lift (0.05 = +5 %), else absolute.
+             * @default true
+             */
+            relative: boolean;
+            /**
+             * Alpha
+             * @default 0.05
+             */
+            alpha: number;
+            /**
+             * Power
+             * @default 0.8
+             */
+            power: number;
+            /**
+             * Variants
+             * @description Groups, the control included.
+             * @default 2
+             */
+            variants: number;
+            /**
+             * Ratio
+             * @description Units of each variant per control unit.
+             * @default 1
+             */
+            ratio: number;
+            /**
+             * Daily
+             * @description Units entering the test per day.
+             */
+            daily?: number | null;
+        };
+        /** SaveAnalysis */
+        SaveAnalysis: {
+            /** Name */
+            name: string;
+            config: components["schemas"]["SeriesConfig"];
+        };
         /** SaveFilterRequest */
         SaveFilterRequest: {
             /** Name */
@@ -4841,6 +8666,18 @@ export interface components {
             /** Name */
             name: string;
             definition: components["schemas"]["Definition-Input"];
+        };
+        /** SavedAnalysis */
+        SavedAnalysis: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            config: components["schemas"]["SeriesConfig"];
+            /** Origin */
+            origin: string | null;
+            /** Created At */
+            created_at: string;
         };
         /** SavedFilter */
         SavedFilter: {
@@ -4864,6 +8701,72 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
+        };
+        /**
+         * ScenarioChange
+         * @description One change of a what-if scenario (039 story 6): a known-in-advance driver moved by
+         *     `amount` % (`how="percent"`, -10 = ten percent lower) or set to `amount` (`how="value"`),
+         *     on the forecast periods from `start` to `end` (period labels such as "2025-12"; None = from
+         *     the first, or to the last, forecast period).
+         */
+        ScenarioChange: {
+            /** Column */
+            column: string;
+            /**
+             * How
+             * @default percent
+             * @enum {string}
+             */
+            how: "percent" | "value";
+            /**
+             * Amount
+             * @default 0
+             */
+            amount: number;
+            /** Start */
+            start?: string | null;
+            /** End */
+            end?: string | null;
+        };
+        /**
+         * ScenarioOptions
+         * @description The drivers and what changes in their future values (039 story 6).
+         */
+        ScenarioOptions: {
+            /** Drivers */
+            drivers: components["schemas"]["Driver"][];
+            /** Future */
+            future?: {
+                [key: string]: number[];
+            } | null;
+            /** Changes */
+            changes?: components["schemas"]["ScenarioChange"][];
+        };
+        /** SchemaChange */
+        SchemaChange: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "added" | "removed" | "renamed" | "retyped" | "constant" | "empty";
+            /** Column */
+            column: string;
+            /** Before */
+            before?: string | null;
+            /** After */
+            after?: string | null;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /** Used By */
+            used_by?: string[];
+            /**
+             * Breaking
+             * @default false
+             */
+            breaking: boolean;
         };
         /** Scores */
         Scores: {
@@ -4953,6 +8856,384 @@ export interface components {
              * @default 0
              */
             last: number;
+        };
+        /** SegmentComparison */
+        SegmentComparison: {
+            /** Runs */
+            runs: components["schemas"]["SegmentRunSummary"][];
+            /** Agreement */
+            agreement: (number | null)[][];
+        };
+        /**
+         * SegmentDendrogram
+         * @description Ward's tree, its last merges only (scipy's dendrogram coordinates).
+         */
+        SegmentDendrogram: {
+            /** Icoord */
+            icoord: number[][];
+            /** Dcoord */
+            dcoord: number[][];
+            /** Leaves */
+            leaves: string[];
+            /** Cut */
+            cut: number;
+            /** Rows */
+            rows: number;
+        };
+        /** SegmentJob */
+        SegmentJob: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "segments" | "tsne" | "unusual";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "done" | "failed" | "cancelled";
+            /** Stage */
+            stage: string;
+            /** Progress */
+            progress?: number | null;
+            /** Message */
+            message?: string | null;
+            /** Run Id */
+            run_id?: string | null;
+            /** Error */
+            error?: string | null;
+        };
+        /** SegmentKChoice */
+        SegmentKChoice: {
+            /** K */
+            k: number;
+            /** Forced */
+            forced: boolean;
+            /** Why */
+            why: string;
+            /** Votes */
+            votes?: {
+                [key: string]: number;
+            };
+        };
+        /** SegmentMap */
+        SegmentMap: {
+            /**
+             * Projection
+             * @enum {string}
+             */
+            projection: "pca" | "tsne";
+            /** X */
+            x: number[];
+            /** Y */
+            y: number[];
+            /** Segments */
+            segments: number[];
+            /** Rows */
+            rows: number[];
+            /** Centres */
+            centres: components["schemas"]["SegmentMapCentre"][];
+            /** Explained */
+            explained: number[] | null;
+            /** Points */
+            points: number;
+            /** Of */
+            of: number;
+        };
+        /** SegmentMapCentre */
+        SegmentMapCentre: {
+            /** Segment */
+            segment: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
+        /** SegmentMethodOption */
+        SegmentMethodOption: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "kmeans" | "kprototypes" | "gmm" | "ward" | "hdbscan";
+            /** Label */
+            label: string;
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string | null;
+        };
+        /**
+         * SegmentPlan
+         * @description What a segmentation with these choices would use, before running it.
+         */
+        SegmentPlan: {
+            preparation: components["schemas"]["Preparation"];
+            /** Rows */
+            rows: number;
+            /** Fit Rows */
+            fit_rows: number;
+            /** Sampled */
+            sampled: boolean;
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "kmeans" | "kprototypes" | "gmm" | "ward" | "hdbscan";
+            /** Method Why */
+            method_why: string;
+            /** Categorical Share */
+            categorical_share: number;
+            /** Methods */
+            methods: components["schemas"]["SegmentMethodOption"][];
+        };
+        /** SegmentPortrait */
+        SegmentPortrait: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Size */
+            size: number;
+            /** Share */
+            share: number;
+            /** Traits */
+            traits: components["schemas"]["SegmentTrait"][];
+            rules: components["schemas"]["SegmentRules"] | null;
+            /** Membership */
+            membership?: number | null;
+            /**
+             * Grouped
+             * @default true
+             */
+            grouped: boolean;
+        };
+        /** SegmentProfileCell */
+        SegmentProfileCell: {
+            /** Value */
+            value: number | string | null;
+            /** Share */
+            share: number | null;
+            /** Effect */
+            effect: number | null;
+            /** Strong */
+            strong: boolean;
+        };
+        /** SegmentProfileRow */
+        SegmentProfileRow: {
+            /** Column */
+            column: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "number" | "category";
+            overall: components["schemas"]["SegmentProfileCell"];
+            /** Cells */
+            cells: components["schemas"]["SegmentProfileCell"][];
+        };
+        /**
+         * SegmentRequest
+         * @description Everything not given follows the app's rules.
+         */
+        SegmentRequest: {
+            /** Columns */
+            columns?: string[] | null;
+            /**
+             * Method
+             * @default auto
+             * @enum {string}
+             */
+            method: "auto" | "kmeans" | "kprototypes" | "gmm" | "ward" | "hdbscan";
+            /** K */
+            k?: number | null;
+            preparation?: components["schemas"]["Choices"] | null;
+            /**
+             * Seed
+             * @default 42
+             */
+            seed: number;
+        };
+        /** SegmentRule */
+        SegmentRule: {
+            /** Parts */
+            parts: components["schemas"]["SegmentRulePart"][];
+            /** Text */
+            text: string;
+            /** Rows */
+            rows: number;
+            /** Precision */
+            precision: number;
+        };
+        /** SegmentRulePart */
+        SegmentRulePart: {
+            /** Column */
+            column: string;
+            /**
+             * Op
+             * @enum {string}
+             */
+            op: "<=" | ">" | "=" | "!=";
+            /** Value */
+            value: number | string;
+            /** Text */
+            text: string;
+        };
+        /** SegmentRules */
+        SegmentRules: {
+            /** Rules */
+            rules: components["schemas"]["SegmentRule"][];
+            /** Recall */
+            recall: number;
+            /** Precision */
+            precision: number;
+            /** Text */
+            text: string;
+        };
+        /** SegmentRun */
+        SegmentRun: {
+            /** Id */
+            id: string;
+            /** Dataset Id */
+            dataset_id: string;
+            /** Created At */
+            created_at: string;
+            request: components["schemas"]["SegmentRequest"];
+            /** Conditions */
+            conditions: components["schemas"]["Condition"][];
+            result: components["schemas"]["Segmentation"];
+            /** Created Dataset Id */
+            created_dataset_id?: string | null;
+        };
+        /** SegmentRunSummary */
+        SegmentRunSummary: {
+            /** Id */
+            id: string;
+            /** Created At */
+            created_at: string;
+            /** Method */
+            method: string;
+            /** Method Label */
+            method_label: string;
+            /** K */
+            k: number;
+            /** Forced */
+            forced: boolean;
+            /** Rows */
+            rows: number;
+            /** Seconds */
+            seconds: number;
+            /** Silhouette */
+            silhouette: number | null;
+            /** Stability */
+            stability: number | null;
+            /** Columns */
+            columns: string[];
+            /** Names */
+            names: string[];
+            /** Filtered */
+            filtered: boolean;
+            /** Created Dataset Id */
+            created_dataset_id?: string | null;
+        };
+        /**
+         * SegmentScore
+         * @description How well k groups separate (higher silhouette and Calinski–Harabasz, lower Davies–Bouldin,
+         *     inertia and BIC are better).
+         */
+        SegmentScore: {
+            /** K */
+            k: number;
+            /** Silhouette */
+            silhouette: number | null;
+            /** Calinski Harabasz */
+            calinski_harabasz: number | null;
+            /** Davies Bouldin */
+            davies_bouldin: number | null;
+            /** Inertia */
+            inertia: number | null;
+            /** Bic */
+            bic?: number | null;
+        };
+        /**
+         * SegmentStability
+         * @description Mean adjusted Rand index between the segmentation and the same method refitted on 10
+         *     subsamples of 80 % of the rows.
+         */
+        SegmentStability: {
+            /** Ari */
+            ari: number;
+            /** Runs */
+            runs: number[];
+            /** Rows */
+            rows: number;
+            /** Stable */
+            stable: boolean;
+            /** Warning */
+            warning: string | null;
+        };
+        /** SegmentTrait */
+        SegmentTrait: {
+            /** Column */
+            column: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "number" | "category";
+            /** Text */
+            text: string;
+            /** Effect */
+            effect: number;
+            /** Value */
+            value: string | null;
+            /** Segment */
+            segment: number | null;
+            /** Overall */
+            overall: number | null;
+        };
+        /** Segmentation */
+        Segmentation: {
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "kmeans" | "kprototypes" | "gmm" | "ward" | "hdbscan";
+            /** Method Label */
+            method_label: string;
+            /** Method Why */
+            method_why: string;
+            /** K */
+            k: number;
+            choice: components["schemas"]["SegmentKChoice"];
+            /** Scores */
+            scores: components["schemas"]["SegmentScore"][];
+            chosen: components["schemas"]["SegmentScore"];
+            stability: components["schemas"]["SegmentStability"] | null;
+            /** Segments */
+            segments: components["schemas"]["SegmentPortrait"][];
+            /** Profiles */
+            profiles: components["schemas"]["SegmentProfileRow"][];
+            map: components["schemas"]["SegmentMap"];
+            dendrogram: components["schemas"]["SegmentDendrogram"] | null;
+            preparation: components["schemas"]["Preparation"];
+            /** Inputs */
+            inputs: number;
+            /** Categorical Share */
+            categorical_share: number;
+            /** Rows */
+            rows: number;
+            /** Fit Rows */
+            fit_rows: number;
+            /** Sampled */
+            sampled: boolean;
+            /** Seconds */
+            seconds: number;
+            /** Warnings */
+            warnings?: string[];
+            tsne?: components["schemas"]["SegmentMap"] | null;
         };
         /** SelectionChoice */
         SelectionChoice: {
@@ -5126,6 +9407,78 @@ export interface components {
             /** Message */
             message?: string | null;
         };
+        /**
+         * SeriesConfig
+         * @description A time series analysis as the Time series page keeps it (Save analysis).
+         */
+        SeriesConfig: {
+            /** Time */
+            time?: string | null;
+            /** Value */
+            value?: string | null;
+            /** Group */
+            group?: string | null;
+            /** Series */
+            series?: string | null;
+            /**
+             * Period
+             * @default auto
+             */
+            period: ("hour" | "day" | "week" | "month" | "quarter" | "year") | "auto";
+            /**
+             * Aggregate
+             * @default auto
+             */
+            aggregate: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
+            /** Window */
+            window?: number | null;
+            /**
+             * Align
+             * @default trailing
+             * @enum {string}
+             */
+            align: "trailing" | "centered";
+            /**
+             * Gaps
+             * @default leave
+             * @enum {string}
+             */
+            gaps: "leave" | "interpolate" | "zero" | "carry";
+            /** Season */
+            season?: number | null;
+            /** Models */
+            models?: string[] | null;
+            /** Horizon */
+            horizon?: number | null;
+            /** Drivers */
+            drivers?: components["schemas"]["RecipeDriver"][] | null;
+            /**
+             * Order
+             * @default [
+             *       1,
+             *       1,
+             *       1
+             *     ]
+             */
+            order: [
+                number,
+                number,
+                number
+            ];
+            /**
+             * Seasonal Order
+             * @default [
+             *       0,
+             *       0,
+             *       0
+             *     ]
+             */
+            seasonal_order: [
+                number,
+                number,
+                number
+            ];
+        };
         /** SeriesDecomposition */
         SeriesDecomposition: {
             setup: components["schemas"]["SeriesSetup"];
@@ -5138,6 +9491,19 @@ export interface components {
             filled: number;
             /** Message */
             message?: string | null;
+        };
+        /**
+         * SeriesDrivers
+         * @description The columns that could explain the series (028 A4), most correlated first.
+         */
+        SeriesDrivers: {
+            setup: components["schemas"]["SeriesSetup"];
+            /** Horizon */
+            horizon: number;
+            /** Candidates */
+            candidates: components["schemas"]["DriverCandidate"][];
+            /** Calendar */
+            calendar: string[];
         };
         /** SeriesFigures */
         SeriesFigures: {
@@ -5171,6 +9537,10 @@ export interface components {
             /** Best */
             best: string | null;
             demand?: components["schemas"]["DemandPattern"] | null;
+            /** Drivers */
+            drivers?: components["schemas"]["DriverInfo"][];
+            /** Driver Notes */
+            driver_notes?: string[];
         };
         /** SeriesLine */
         SeriesLine: {
@@ -5444,6 +9814,110 @@ export interface components {
             /** Synthetic */
             synthetic: number[];
         };
+        /** Shift */
+        Shift: {
+            /** Column */
+            column: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "numeric_continuous" | "numeric_discrete" | "categorical_nominal" | "categorical_ordinal" | "boolean" | "datetime" | "text" | "identifier" | "ignored";
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "numeric" | "categorical";
+            /** Psi */
+            psi: number | null;
+            /** Drift */
+            drift: ("stable" | "moderate" | "strong") | null;
+            /** Rows Before */
+            rows_before: number;
+            /** Rows After */
+            rows_after: number;
+            /** Wasserstein */
+            wasserstein?: number | null;
+            /** Ks */
+            ks?: number | null;
+            /** Ks P */
+            ks_p?: number | null;
+            /** Chi2 */
+            chi2?: number | null;
+            /** Chi2 P */
+            chi2_p?: number | null;
+            /** Dof */
+            dof?: number | null;
+            before?: components["schemas"]["Moments"] | null;
+            after?: components["schemas"]["Moments"] | null;
+            histogram?: components["schemas"]["Histogram"] | null;
+            /** Levels */
+            levels?: components["schemas"]["LevelShift"][];
+            /** Moves */
+            moves?: components["schemas"]["LevelShift"][];
+            /** Appeared */
+            appeared?: components["schemas"]["LevelShift"][];
+            /** Disappeared */
+            disappeared?: components["schemas"]["LevelShift"][];
+            /** Used By */
+            used_by?: string[];
+            /**
+             * Focus
+             * @default false
+             */
+            focus: boolean;
+            /**
+             * Long Tail
+             * @default false
+             */
+            long_tail: boolean;
+        };
+        /** Side */
+        Side: {
+            /** Label */
+            label: string;
+            /** Taken At */
+            taken_at: string;
+            /** Rows */
+            rows: number;
+            /** Duplicates */
+            duplicates: number;
+        };
+        /**
+         * Slice
+         * @description A subgroup where the model is notably worse than on average.
+         */
+        Slice: {
+            /** Where */
+            where: string;
+            /** Conditions */
+            conditions: components["schemas"]["Condition"][];
+            /** Columns */
+            columns: string[];
+            /** Rows */
+            rows: number;
+            /** Share */
+            share: number;
+            /** Error */
+            error: number;
+            /** Ratio */
+            ratio: number;
+            /** Excess */
+            excess: number;
+            /** P Value */
+            p_value: number;
+            /** Q Value */
+            q_value: number;
+            /**
+             * Found By
+             * @enum {string}
+             */
+            found_by: "groups" | "tree";
+            /** Sentence */
+            sentence: string;
+            /** Examples */
+            examples: components["schemas"]["ErrorPrediction"][];
+        };
         /**
          * SourceOptions
          * @description How to read a source. `None` fields mean "detect" or "everything".
@@ -5485,6 +9959,45 @@ export interface components {
             /** Delta Share */
             delta_share: number | null;
         };
+        /**
+         * StepLink
+         * @description A page of the app the step filled (the library leaves it empty).
+         */
+        StepLink: {
+            /** Page */
+            page: string;
+            /** Params */
+            params?: {
+                [key: string]: string;
+            };
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+        };
+        /** StepResult */
+        StepResult: {
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Sentence */
+            sentence: string;
+            /**
+             * Status
+             * @default waiting
+             * @enum {string}
+             */
+            status: "waiting" | "running" | "done" | "warning" | "skipped" | "failed" | "cancelled";
+            /** Message */
+            message?: string | null;
+            /** Warnings */
+            warnings?: string[];
+            link?: components["schemas"]["StepLink"] | null;
+            /** Files */
+            files?: string[];
+        };
         /** StorageInfo */
         StorageInfo: {
             /** Workspace */
@@ -5493,6 +10006,16 @@ export interface components {
             total_bytes: number;
             /** Datasets */
             datasets: components["schemas"]["DatasetUsage"][];
+            /**
+             * Versions Bytes
+             * @default 0
+             */
+            versions_bytes: number;
+            /**
+             * Keep Limit Bytes
+             * @default 0
+             */
+            keep_limit_bytes: number;
         };
         /** SuggestedKpi */
         SuggestedKpi: {
@@ -5761,6 +10284,11 @@ export interface components {
             /** Words */
             words?: components["schemas"]["Bar"][];
         };
+        /** Threshold */
+        Threshold: {
+            /** Threshold */
+            threshold?: number | null;
+        };
         /** Tile */
         Tile: {
             /** Measure */
@@ -5800,6 +10328,31 @@ export interface components {
              * @default true
              */
             page_filters: boolean;
+        };
+        /** TimeSeriesStep */
+        TimeSeriesStep: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "timeseries";
+            /** Name */
+            name: string;
+            analysis: components["schemas"]["SeriesConfig"];
+            /**
+             * Forecast
+             * @default true
+             */
+            forecast: boolean;
+            /** Filter */
+            filter?: string | null;
         };
         /**
          * TimeView
@@ -5981,6 +10534,8 @@ export interface components {
              * @default 0
              */
             seconds: number;
+            /** Criterion */
+            criterion?: string | null;
         };
         /** TuneStart */
         TuneStart: {
@@ -6012,6 +10567,156 @@ export interface components {
                 [key: string]: unknown;
             };
             preparation?: components["schemas"]["Choices"] | null;
+        };
+        /**
+         * UnusualCurve
+         * @description Scores sorted from the most unusual row down: every listed rank, then a sampled tail.
+         */
+        UnusualCurve: {
+            /** Ranks */
+            ranks: number[];
+            /** Scores */
+            scores: number[];
+        };
+        /** UnusualMark */
+        UnusualMark: {
+            /** Key */
+            key: string;
+            /**
+             * Mark
+             * @enum {string}
+             */
+            mark: "expected" | "error";
+            /** Created At */
+            created_at: string;
+        };
+        /** UnusualReason */
+        UnusualReason: {
+            /** Column */
+            column: string;
+            /** Contribution */
+            contribution: number;
+            /** Text */
+            text: string;
+        };
+        /** UnusualRow */
+        UnusualRow: {
+            /** Row */
+            row: number;
+            /** Key */
+            key: string;
+            /** Rank */
+            rank: number;
+            /** Score */
+            score: number;
+            /** Reasons */
+            reasons: components["schemas"]["UnusualReason"][];
+            /** Combination */
+            combination: string | null;
+            /** Values */
+            values: {
+                [key: string]: unknown;
+            };
+            /** Segment */
+            segment?: string | null;
+        };
+        /** UnusualRows */
+        UnusualRows: {
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "isolation_forest" | "mahalanobis" | "lof" | "segment";
+            /** Method Label */
+            method_label: string;
+            /** Method Why */
+            method_why: string;
+            /** Rows */
+            rows: number;
+            /** Fit Rows */
+            fit_rows: number;
+            /** Sampled */
+            sampled: boolean;
+            threshold: components["schemas"]["UnusualThreshold"];
+            curve: components["schemas"]["UnusualCurve"];
+            /** Listed */
+            listed: components["schemas"]["UnusualRow"][];
+            /** Columns */
+            columns: string[];
+            /** Used */
+            used: string[];
+            preparation: components["schemas"]["Preparation"];
+            /** Hidden Expected */
+            hidden_expected: number;
+            /** Seconds */
+            seconds: number;
+            /** Warnings */
+            warnings?: string[];
+        };
+        /** UnusualRun */
+        UnusualRun: {
+            /** Id */
+            id: string;
+            /** Dataset Id */
+            dataset_id: string;
+            /** Created At */
+            created_at: string;
+            request: components["schemas"]["UnusualStart"];
+            /** Conditions */
+            conditions: components["schemas"]["Condition"][];
+            result: components["schemas"]["UnusualRows"];
+            /** Marks */
+            marks?: {
+                [key: string]: "expected" | "error";
+            };
+        };
+        /** UnusualRunSummary */
+        UnusualRunSummary: {
+            /** Id */
+            id: string;
+            /** Created At */
+            created_at: string;
+            /** Method Label */
+            method_label: string;
+            /** Rows */
+            rows: number;
+            /** Proposed */
+            proposed: number;
+            /** Seconds */
+            seconds: number;
+        };
+        /** UnusualStart */
+        UnusualStart: {
+            /** Columns */
+            columns?: string[] | null;
+            /**
+             * Method
+             * @default auto
+             * @enum {string}
+             */
+            method: "auto" | "isolation_forest" | "mahalanobis" | "lof" | "segment";
+            preparation?: components["schemas"]["Choices"] | null;
+            /**
+             * Seed
+             * @default 42
+             */
+            seed: number;
+            /** Segments Run */
+            segments_run?: string | null;
+        };
+        /** UnusualThreshold */
+        UnusualThreshold: {
+            /** Value */
+            value: number;
+            /** Rows */
+            rows: number;
+            /**
+             * Rule
+             * @enum {string}
+             */
+            rule: "break" | "top_share";
+            /** Why */
+            why: string;
         };
         /** UpdateKpi */
         UpdateKpi: {
@@ -6077,7 +10782,7 @@ export interface components {
              * @default split
              * @enum {string}
              */
-            method: "split" | "kfold" | "repeated_kfold" | "group_kfold" | "time_split" | "loo";
+            method: "split" | "kfold" | "repeated_kfold" | "group_kfold" | "time_split" | "loo" | "panel_walk_forward";
             /**
              * Test Size
              * @default 0.2
@@ -6115,6 +10820,33 @@ export interface components {
              * @enum {string}
              */
             threshold: "default" | "f1" | "balanced_accuracy";
+            /** Period Column */
+            period_column?: string | null;
+            /** Entity Column */
+            entity_column?: string | null;
+            /**
+             * Embargo
+             * @default 0
+             */
+            embargo: number;
+            /**
+             * Window
+             * @default expanding
+             * @enum {string}
+             */
+            window: "expanding" | "rolling";
+            /** Window Periods */
+            window_periods?: number | null;
+            /** Sample Periods */
+            sample_periods?: number | null;
+            /**
+             * Criterion
+             * @default mean
+             * @enum {string}
+             */
+            criterion: "mean" | "sharpe" | "worst";
+            /** Period Threshold */
+            period_threshold?: number | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -6128,6 +10860,30 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** ValidationSummary */
+        ValidationSummary: {
+            /** Method */
+            method: string;
+            /** Primary */
+            primary: string;
+            /** Score */
+            score: number | null;
+            /** Scores */
+            scores?: {
+                [key: string]: number | null;
+            };
+            /**
+             * Rows
+             * @default 0
+             */
+            rows: number;
+            /** Predicted Quantiles */
+            predicted_quantiles?: number[];
+            /** Predicted Shares */
+            predicted_shares?: {
+                [key: string]: number;
+            };
         };
         /** ValueCount */
         ValueCount: {
@@ -6161,7 +10917,7 @@ export interface components {
             type: string;
             numeric?: components["schemas"]["NumericProfile"] | null;
             categorical?: components["schemas"]["CategoricalProfile"] | null;
-            date?: components["schemas"]["cyfouri_data_explorer__variable__profiles__DateProfile"] | null;
+            date?: components["schemas"]["quantilo__variable__profiles__DateProfile"] | null;
             text?: components["schemas"]["TextProfile"] | null;
             identifier?: components["schemas"]["IdentifierProfile"] | null;
         };
@@ -6175,6 +10931,34 @@ export interface components {
             detection: string;
             /** Privacy */
             privacy: string;
+        };
+        /** VersionInfo */
+        VersionInfo: {
+            /** Version */
+            version: number;
+            /** Imported At */
+            imported_at: string;
+            /** Rows */
+            rows: number;
+            /** Kept */
+            kept: boolean;
+            /** Kept Bytes */
+            kept_bytes: number;
+            /** Current */
+            current: boolean;
+        };
+        /**
+         * VersionSettings
+         * @description Keep the previous version's Parquet copy at a reimport (031), for the row by row
+         *     comparison: always, under the size limit (2 GB, 200 MB in the browser build) or never.
+         */
+        VersionSettings: {
+            /**
+             * Keep
+             * @default under_limit
+             * @enum {string}
+             */
+            keep: "always" | "under_limit" | "never";
         };
         /** View */
         View: {
@@ -6232,7 +11016,7 @@ export interface components {
             parts: string[];
         };
         /** Group */
-        cyfouri_data_explorer__compare__analyze__Group: {
+        quantilo__compare__analyze__Group: {
             /** Label */
             label: string;
             /** N */
@@ -6261,7 +11045,7 @@ export interface components {
             color?: string | null;
         };
         /** Pair */
-        cyfouri_data_explorer__correlations__matrix__Pair: {
+        quantilo__correlations__matrix__Pair: {
             /** A */
             a: string;
             /** B */
@@ -6287,12 +11071,12 @@ export interface components {
             evidence: "strong" | "moderate" | "weak" | "none";
         };
         /** Group */
-        cyfouri_data_explorer__kpi__definition__Group: {
+        quantilo__kpi__definition__Group: {
             /** Column */
             column: string;
         };
         /** Decision */
-        cyfouri_data_explorer__kpi__rules__Decision: {
+        quantilo__kpi__rules__Decision: {
             /** Value */
             value: string;
             /** Rule */
@@ -6305,10 +11089,10 @@ export interface components {
              */
             overridable: boolean;
             /** Options */
-            options?: components["schemas"]["cyfouri_data_explorer__kpi__rules__Option"][];
+            options?: components["schemas"]["quantilo__kpi__rules__Option"][];
         };
         /** Option */
-        cyfouri_data_explorer__kpi__rules__Option: {
+        quantilo__kpi__rules__Option: {
             /** Value */
             value: string;
             /**
@@ -6320,7 +11104,7 @@ export interface components {
             reason?: string | null;
         };
         /** Pair */
-        cyfouri_data_explorer__ml__explain__Pair: {
+        quantilo__ml__explain__Pair: {
             /** First */
             first: string;
             /** Second */
@@ -6331,7 +11115,7 @@ export interface components {
             measure: string;
         };
         /** Decision */
-        cyfouri_data_explorer__ml__preparation__Decision: {
+        quantilo__ml__preparation__Decision: {
             /** Column */
             column: string;
             /** Type */
@@ -6365,7 +11149,7 @@ export interface components {
             manual?: string[];
             /** Options */
             options?: {
-                [key: string]: components["schemas"]["cyfouri_data_explorer__ml__preparation__Option"][];
+                [key: string]: components["schemas"]["quantilo__ml__preparation__Option"][];
             };
             /**
              * Reactivable
@@ -6384,14 +11168,14 @@ export interface components {
             missing: number;
         };
         /** Option */
-        cyfouri_data_explorer__ml__preparation__Option: {
+        quantilo__ml__preparation__Option: {
             /** Value */
             value: string;
             /** Reason */
             reason?: string | null;
         };
         /** Curve */
-        cyfouri_data_explorer__ml__train__Curve: {
+        quantilo__ml__train__Curve: {
             /** X */
             x: number[];
             /** Y */
@@ -6400,14 +11184,14 @@ export interface components {
             thresholds?: number[];
         };
         /** Curve */
-        cyfouri_data_explorer__variable__numeric__Curve: {
+        quantilo__variable__numeric__Curve: {
             /** X */
             x: number[];
             /** Y */
             y: number[];
         };
         /** DateProfile */
-        cyfouri_data_explorer__variable__profiles__DateProfile: {
+        quantilo__variable__profiles__DateProfile: {
             /** Rows */
             rows: number;
             /** Missing */
@@ -7693,6 +12477,209 @@ export interface operations {
             };
         };
     };
+    versions_api_v1_datasets__dataset_id__versions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionInfo"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    changes_api_v1_datasets__dataset_id__changes_get: {
+        parameters: {
+            query?: {
+                /** @description Another dataset to compare with (default: the previous version). */
+                vs?: string | null;
+                /** @description Comma-separated columns to list first. */
+                focus?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Changes"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rows_api_v1_datasets__dataset_id__changes_rows_get: {
+        parameters: {
+            query?: {
+                /** @description Another dataset to compare with (default: the previous version). */
+                vs?: string | null;
+                key?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RowsAnswer"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_rows_api_v1_datasets__dataset_id__changes_rows_export_get: {
+        parameters: {
+            query: {
+                key: string;
+                /** @description Another dataset to compare with (default: the previous version). */
+                vs?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    kpis_api_v1_datasets__dataset_id__changes_kpis_get: {
+        parameters: {
+            query?: {
+                /** @description Another dataset to compare with (default: the previous version). */
+                vs?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KpiChange"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    relations_api_v1_datasets__dataset_id__changes_relations_get: {
+        parameters: {
+            query?: {
+                /** @description Another dataset to compare with (default: the previous version). */
+                vs?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationsAnswer"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_settings_api_v1_settings_get: {
         parameters: {
             query?: never;
@@ -8167,7 +13154,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ForecastOptions"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             202: {
@@ -8176,6 +13167,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ForecastJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    drivers_api_v1_modules_timeseries_datasets__dataset_id__drivers_get: {
+        parameters: {
+            query?: {
+                horizon?: number | null;
+                time?: string | null;
+                value?: string | null;
+                group?: string | null;
+                series?: string | null;
+                period?: ("hour" | "day" | "week" | "month" | "quarter" | "year") | "auto";
+                agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
+                window?: number | null;
+                align?: "trailing" | "centered";
+                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                season?: number | null;
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesDrivers"];
                 };
             };
             /** @description Validation Error */
@@ -8295,6 +13330,338 @@ export interface operations {
             };
         };
     };
+    groups_api_v1_modules_timeseries_datasets__dataset_id__groups_get: {
+        parameters: {
+            query?: {
+                time?: string | null;
+                value?: string | null;
+                group?: string | null;
+                series?: string | null;
+                period?: ("hour" | "day" | "week" | "month" | "quarter" | "year") | "auto";
+                agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
+                window?: number | null;
+                align?: "trailing" | "centered";
+                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                season?: number | null;
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupsSetup"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_group_forecast_api_v1_modules_timeseries_datasets__dataset_id__forecast_groups_post: {
+        parameters: {
+            query?: {
+                horizon?: number | null;
+                /** @description Comma-separated method keys. */
+                methods?: string | null;
+                limit?: number | null;
+                global?: boolean;
+                reconcile?: "none" | "auto" | "bottom_up" | "top_down" | "mint_shrink";
+                /** @description Parent columns, finest first; empty: the total only. */
+                levels?: string | null;
+                time?: string | null;
+                value?: string | null;
+                group?: string | null;
+                series?: string | null;
+                period?: ("hour" | "day" | "week" | "month" | "quarter" | "year") | "auto";
+                agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
+                window?: number | null;
+                align?: "trailing" | "centered";
+                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                season?: number | null;
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    group_forecast_job_api_v1_modules_timeseries_group_forecast_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_group_forecast_api_v1_modules_timeseries_group_forecast_jobs__job_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    group_forecast_csv_api_v1_modules_timeseries_group_forecast_jobs__job_id__forecast_csv_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    scenario_api_v1_modules_timeseries_datasets__dataset_id__scenario_post: {
+        parameters: {
+            query?: {
+                model?: string;
+                horizon?: number | null;
+                time?: string | null;
+                value?: string | null;
+                group?: string | null;
+                series?: string | null;
+                period?: ("hour" | "day" | "week" | "month" | "quarter" | "year") | "auto";
+                agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
+                window?: number | null;
+                align?: "trailing" | "centered";
+                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                season?: number | null;
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScenarioOptions"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverForecast"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_analyses_api_v1_modules_timeseries_datasets__dataset_id__analyses_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedAnalysis"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_analysis_api_v1_modules_timeseries_datasets__dataset_id__analyses_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveAnalysis"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedAnalysis"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_analysis_api_v1_modules_timeseries_datasets__dataset_id__analyses__analysis_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                analysis_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     targets_api_v1_modules_ml_datasets__dataset_id__targets_get: {
         parameters: {
             query?: {
@@ -8315,6 +13682,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Targets"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    panel_api_v1_modules_ml_datasets__dataset_id__panel_get: {
+        parameters: {
+            query?: {
+                target?: string | null;
+                period?: string | null;
+                entity?: string | null;
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PanelCheck"];
                 };
             };
             /** @description Validation Error */
@@ -8452,6 +13855,8 @@ export interface operations {
                 settings?: string | null;
                 /** @description JSON: a number cut into classes. */
                 classes?: string | null;
+                /** @description JSON: how the model is judged. */
+                validation?: string | null;
                 filters?: string | null;
             };
             header?: never;
@@ -8868,6 +14273,74 @@ export interface operations {
             };
         };
     };
+    neutralize_api_v1_modules_ml_datasets__dataset_id__runs__run_id__neutralize_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NeutralizeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Neutralized"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    periods_api_v1_modules_ml_datasets__dataset_id__runs__run_id__periods_csv_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     predictions_api_v1_modules_ml_datasets__dataset_id__runs__run_id__predictions_csv_get: {
         parameters: {
             query?: never;
@@ -8887,6 +14360,1271 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_errors_api_v1_modules_ml_datasets__dataset_id__runs__run_id__errors_get: {
+        parameters: {
+            query?: {
+                measure?: ("absolute_error" | "misclassified" | "log_loss") | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorAnalysis"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_errors_compared_api_v1_modules_ml_datasets__dataset_id__runs__run_id__errors_compare__other_id__get: {
+        parameters: {
+            query?: {
+                measure?: ("absolute_error" | "misclassified" | "log_loss") | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+                other_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorComparison"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_fairness_api_v1_modules_ml_datasets__dataset_id__runs__run_id__errors_fairness_get: {
+        parameters: {
+            query: {
+                column: string;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Fairness"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    card_api_v1_modules_ml_datasets__dataset_id__runs__run_id__card_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelCard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_api_v1_modules_ml_datasets__dataset_id__runs__run_id__check_get: {
+        parameters: {
+            query: {
+                /** @description The dataset to predict. */
+                source: string;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelCheck"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    predictions_api_v1_modules_ml_datasets__dataset_id__runs__run_id__predictions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PredictionSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    predict_api_v1_modules_ml_datasets__dataset_id__runs__run_id__predictions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PredictStart"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PredictionJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prediction_job_api_v1_modules_ml_predict_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PredictionJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_prediction_api_v1_modules_ml_predict_jobs__job_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PredictionJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prediction_api_v1_modules_ml_datasets__dataset_id__predictions__prediction_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                prediction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Prediction"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prediction_rows_api_v1_modules_ml_datasets__dataset_id__predictions__prediction_id__rows_get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+                less_reliable?: boolean;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+                prediction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PredictionRows"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prediction_row_explanation_api_v1_modules_ml_datasets__dataset_id__predictions__prediction_id__rows__row__explanation_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                prediction_id: string;
+                row: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RowExplanation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prediction_csv_api_v1_modules_ml_datasets__dataset_id__predictions__prediction_id__predictions_csv_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                prediction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_as_dataset_api_v1_modules_ml_datasets__dataset_id__predictions__prediction_id__dataset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                prediction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedDataset"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_model_api_v1_modules_ml_datasets__dataset_id__runs__run_id__model_zip_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_api_v1_modules_ml_datasets__dataset_id__auto_post: {
+        parameters: {
+            query: {
+                target: string;
+                /** @description JSON: a number cut into classes. */
+                classes?: string | null;
+                /** @description JSON: how the models are judged. */
+                validation?: string | null;
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutoRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutoJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    follow_api_v1_modules_ml_auto_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutoJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_api_v1_modules_ml_auto_jobs__job_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutoJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    plan_api_v1_modules_segments_datasets__dataset_id__plan_post: {
+        parameters: {
+            query?: {
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SegmentRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    runs_api_v1_modules_segments_datasets__dataset_id__runs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentRunSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    segment_api_v1_modules_segments_datasets__dataset_id__runs_post: {
+        parameters: {
+            query?: {
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SegmentRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    job_api_v1_modules_segments_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_api_v1_modules_segments_jobs__job_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compare_api_v1_modules_segments_datasets__dataset_id__runs_compare_get: {
+        parameters: {
+            query: {
+                /** @description 2 to 5 run ids, comma-separated. */
+                runs: string;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentComparison"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_api_v1_modules_segments_datasets__dataset_id__runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentRun"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_api_v1_modules_segments_datasets__dataset_id__runs__run_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_api_v1_modules_segments_datasets__dataset_id__runs__run_id__names_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Names"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentRun"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    tsne_api_v1_modules_segments_datasets__dataset_id__runs__run_id__tsne_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    profiles_api_v1_modules_segments_datasets__dataset_id__runs__run_id__profiles_csv_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_dataset_api_v1_modules_segments_datasets__dataset_id__runs__run_id__dataset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedDataset"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unusual_runs_api_v1_modules_segments_datasets__dataset_id__unusual_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnusualRunSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    find_unusual_api_v1_modules_segments_datasets__dataset_id__unusual_post: {
+        parameters: {
+            query?: {
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UnusualStart"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unusual_run_api_v1_modules_segments_datasets__dataset_id__unusual__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnusualRun"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unusual_row_api_v1_modules_segments_datasets__dataset_id__unusual__run_id__rows__row__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+                row: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RowValue"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_unusual_api_v1_modules_segments_datasets__dataset_id__unusual__run_id__export_csv_get: {
+        parameters: {
+            query?: {
+                threshold?: number | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_unusual_dataset_api_v1_modules_segments_datasets__dataset_id__unusual__run_id__dataset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["Threshold"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedDataset"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    marks_api_v1_modules_segments_datasets__dataset_id__marks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnusualMark"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_mark_api_v1_modules_segments_datasets__dataset_id__marks_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnusualMark"][];
                 };
             };
             /** @description Validation Error */
@@ -9691,6 +16429,143 @@ export interface operations {
             };
         };
     };
+    candidates_api_v1_modules_experiments_datasets__dataset_id__candidates_get: {
+        parameters: {
+            query?: {
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentCandidates"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analyze_api_v1_modules_experiments_datasets__dataset_id__analyze_post: {
+        parameters: {
+            query?: {
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExperimentDesign"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    baseline_api_v1_modules_experiments_datasets__dataset_id__baseline_get: {
+        parameters: {
+            query: {
+                column: string;
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetricBaseline"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sample_size_api_v1_modules_experiments_sample_size_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SampleSizeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleSize"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_settings_api_v1_modules_agent_settings_get: {
         parameters: {
             query?: never;
@@ -10103,6 +16978,498 @@ export interface operations {
                         [key: string]: boolean;
                     };
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_recipes_api_v1_modules_recipes_recipes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeSummary"][];
+                };
+            };
+        };
+    };
+    create_api_v1_modules_recipes_recipes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRecipe"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    draft_api_v1_modules_recipes_datasets__dataset_id__draft_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeDraft"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compatible_api_v1_modules_recipes_datasets__dataset_id__compatible_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompatibleRecipe"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_recipe_api_v1_modules_recipes_recipes_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportRecipe"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    detail_api_v1_modules_recipes_recipes__recipe_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_api_v1_modules_recipes_recipes__recipe_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_api_v1_modules_recipes_recipes__recipe_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditRecipe"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_file_api_v1_modules_recipes_recipes__recipe_id__export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_python_api_v1_modules_recipes_recipes__recipe_id__python_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    history_csv_api_v1_modules_recipes_recipes__recipe_id__history_csv_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    plan_api_v1_modules_recipes_recipes__recipe_id__plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipeRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipePlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_run_api_v1_modules_recipes_recipes__recipe_id__runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipeRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeRunSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_detail_api_v1_modules_recipes_recipe_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeRunDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_run_api_v1_modules_recipes_recipe_runs__run_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeRunSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_file_api_v1_modules_recipes_recipe_runs__run_id__files__name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

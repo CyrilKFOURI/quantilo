@@ -1,7 +1,7 @@
 services:
   app:
     build: .
-    image: data-explorer:latest
+    image: quantilo:latest
     ports:
       # Only reachable from this machine.
       - "127.0.0.1:8000:8000"

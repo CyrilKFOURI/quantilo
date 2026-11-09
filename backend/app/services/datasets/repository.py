@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass, fields
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from cyfouri_data_explorer.ingestion.sources import SourceFile
+from quantilo.ingestion.sources import SourceFile
 
 DatasetStatus = Literal["importing", "ready", "error"]
 JobStatus = Literal["pending", "running", "done", "failed"]

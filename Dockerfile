@@ -21,7 +21,7 @@ COPY backend/pyproject.toml backend/uv.lock ./
 # Third-party dependencies first (cached layer); the engine package and the app come next.
 RUN uv sync --frozen --no-dev --no-install-project --no-install-local --extra agent
 # The engine is a path dependency (../packages): installed as a regular package, not editable.
-COPY packages/cyfouri-data-explorer/ /packages/cyfouri-data-explorer/
+COPY packages/quantilo/ /packages/quantilo/
 COPY backend/ ./
 # Libraries' own test suites are never run here (~55 MB).
 RUN uv sync --frozen --no-dev --no-editable --extra agent \
@@ -32,10 +32,10 @@ FROM python:3.12-slim
 
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    DATA_EXPLORER_HOME=/workspace \
-    DATA_EXPLORER_STATIC_DIR=/app/static \
-    DATA_EXPLORER_SAMPLES_DIR=/app/samples \
-    DATA_EXPLORER_DATA_DIR=/data
+    QUANTILO_HOME=/workspace \
+    QUANTILO_STATIC_DIR=/app/static \
+    QUANTILO_SAMPLES_DIR=/app/samples \
+    QUANTILO_DATA_DIR=/data
 
 # OpenMP runtime for LightGBM / XGBoost (the only system library the image needs).
 RUN apt-get update     && apt-get install -y --no-install-recommends libgomp1     && rm -rf /var/lib/apt/lists/*

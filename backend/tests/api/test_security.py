@@ -3,9 +3,9 @@ from pathlib import Path
 from urllib.parse import quote
 
 import pytest
-from cyfouri_data_explorer.ingestion.errors import IngestionError
-from cyfouri_data_explorer.ingestion.paths import to_local_path
 from fastapi.testclient import TestClient
+from quantilo.ingestion.errors import IngestionError
+from quantilo.ingestion.paths import to_local_path
 
 from app.api.security import hostname
 from app.config import Settings

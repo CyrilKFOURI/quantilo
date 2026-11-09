@@ -1,21 +1,28 @@
 from typing import Annotated, Literal
 
-from cyfouri_data_explorer.filters.model import Condition, parse_filters
-from cyfouri_data_explorer.timeseries import autocorrelation as ac
-from cyfouri_data_explorer.timeseries import breaks as br
-from cyfouri_data_explorer.timeseries import forecast as fc
-from cyfouri_data_explorer.timeseries import methods
-from cyfouri_data_explorer.timeseries import residuals as rs
-from cyfouri_data_explorer.timeseries import stationarity as st
-from cyfouri_data_explorer.timeseries import volatility as vo
-from cyfouri_data_explorer.timeseries.decomposition import Method
-from cyfouri_data_explorer.timeseries.forecasting import ForecastJob
-from cyfouri_data_explorer.timeseries.series import Aggregate, Align, Gaps, Options, Period
-from cyfouri_data_explorer.timeseries.service import Request as SeriesRequest
-from cyfouri_data_explorer.timeseries.service import (
+from fastapi import APIRouter, Body, Depends, Query, Request
+from fastapi.responses import Response
+from pydantic import BaseModel, Field
+from quantilo.filters.model import Condition, parse_filters
+from quantilo.timeseries import autocorrelation as ac
+from quantilo.timeseries import breaks as br
+from quantilo.timeseries import drivers as dv
+from quantilo.timeseries import forecast as fc
+from quantilo.timeseries import groups as gr
+from quantilo.timeseries import methods
+from quantilo.timeseries import residuals as rs
+from quantilo.timeseries import stationarity as st
+from quantilo.timeseries import volatility as vo
+from quantilo.timeseries.decomposition import Method
+from quantilo.timeseries.forecasting import ForecastJob
+from quantilo.timeseries.series import Aggregate, Align, Gaps, Options, Period
+from quantilo.timeseries.service import (
+    DriverForecast,
+    GroupsSetup,
     SeriesAutocorrelation,
     SeriesBreaks,
     SeriesDecomposition,
+    SeriesDrivers,
     SeriesOverview,
     SeriesResiduals,
     SeriesSeasonality,
@@ -24,7 +31,7 @@ from cyfouri_data_explorer.timeseries.service import (
     TimeSeriesError,
     TimeSeriesService,
 )
-from fastapi import APIRouter, Depends, Query, Request
+from quantilo.timeseries.service import Request as SeriesRequest
 
 router = APIRouter(tags=["module:timeseries"])
 
@@ -179,6 +186,12 @@ def _orders(text: str, name: str) -> tuple[int, int, int]:
     return values  # type: ignore[return-value]
 
 
+class ForecastOptions(BaseModel):
+    """What does not fit in the query string: the drivers (028 A4)."""
+
+    drivers: list[dv.Driver] = Field(default_factory=list, max_length=dv.MAX_DRIVERS)
+
+
 @router.post("/datasets/{dataset_id}/forecast", status_code=202)
 def start_forecast(
     dataset_id: str,
@@ -189,8 +202,10 @@ def start_forecast(
     methods_: Methods = None,
     order: str = "1,1,1",
     sorder: str = "0,0,0",
+    options: Annotated[ForecastOptions | None, Body()] = None,
 ) -> ForecastJob:
-    """Start (or reuse) a forecast job: models scored by rolling origin, then refitted."""
+    """Start (or reuse) a forecast job: models scored by rolling origin, then refitted. The
+    body's drivers are used by SARIMAX, the linear regression and gradient boosting."""
     keys = chosen_methods(methods_, fc.MODELS)
     return service.start_forecast(
         dataset_id,
@@ -200,7 +215,21 @@ def start_forecast(
         keys,
         _orders(order, "order"),
         _orders(sorder, "seasonal order"),
+        options.drivers if options else None,
     )
+
+
+@router.get("/datasets/{dataset_id}/drivers")
+def drivers(
+    dataset_id: str,
+    service: Service,
+    request: Series,
+    filters: Filters,
+    horizon: Annotated[int | None, Query(ge=1, le=500)] = None,
+) -> SeriesDrivers:
+    """Columns that could drive the series (correlation of their changes, future values in the
+    file) and the calendar variables that make sense for the period."""
+    return service.drivers(dataset_id, request, filters, horizon)
 
 
 def _job(service: TimeSeriesService, job_id: str) -> ForecastJob:
@@ -229,3 +258,117 @@ def decomposition(
 ) -> SeriesDecomposition:
     """Trend, seasonal and remainder components."""
     return service.decomposition(dataset_id, request, filters, method)
+
+
+# --- Every group, coherent totals, scenarios (039) ------------------------------------------------
+
+
+@router.get("/datasets/{dataset_id}/groups")
+def groups(dataset_id: str, service: Service, request: Series, filters: Filters) -> GroupsSetup:
+    """How many series the group column holds and the hierarchy recognised above it (columns
+    where each group value goes with a single value: store → region)."""
+    return service.group_setup(dataset_id, request, filters)
+
+
+def _levels(text: str | None) -> list[str] | None:
+    """None: the hierarchy recognised; "": the total only; "region,country": these parents."""
+    if text is None:
+        return None
+    return [name.strip() for name in text.split(",") if name.strip()]
+
+
+@router.post("/datasets/{dataset_id}/forecast-groups", status_code=202)
+def start_group_forecast(
+    dataset_id: str,
+    service: Service,
+    request: Series,
+    filters: Filters,
+    horizon: Annotated[int | None, Query(ge=1, le=500)] = None,
+    methods_: Methods = None,
+    limit: Annotated[int | None, Query(ge=gr.LIMIT_RANGE[0], le=gr.LIMIT_RANGE[1])] = None,
+    global_model: Annotated[bool, Query(alias="global")] = False,
+    reconcile: Literal["none", "auto", "bottom_up", "top_down", "mint_shrink"] = "none",
+    levels: Annotated[
+        str | None, Query(description="Parent columns, finest first; empty: the total only.")
+    ] = None,
+) -> gr.GroupJob:
+    """Start (or reuse) a forecast of every series of the group: the best model per series,
+    optionally a global LightGBM model and coherent totals over the hierarchy."""
+    keys = chosen_methods(methods_, fc.MODELS)
+    return service.start_group_forecast(
+        dataset_id,
+        request,
+        filters,
+        horizon,
+        keys,
+        limit,
+        global_model,
+        None if reconcile == "none" else reconcile,
+        _levels(levels),
+    )
+
+
+def _group_job(service: TimeSeriesService, job_id: str) -> gr.GroupJob:
+    job = service.group_forecasts.get(job_id)
+    if job is None:
+        raise TimeSeriesError("This forecast is no longer available: run it again.", "unknown_job")
+    return job
+
+
+@router.get("/group-forecast-jobs/{job_id}")
+def group_forecast_job(job_id: str, service: Service) -> gr.GroupJob:
+    """Progress (series done), then the result, of a forecast of every group."""
+    return _group_job(service, job_id)
+
+
+@router.delete("/group-forecast-jobs/{job_id}")
+def cancel_group_forecast(job_id: str, service: Service) -> gr.GroupJob:
+    """Stop: the series not started yet are dropped."""
+    _group_job(service, job_id)
+    return service.group_forecasts.cancel(job_id)  # type: ignore[return-value]
+
+
+@router.get("/group-forecast-jobs/{job_id}/forecast.csv")
+def group_forecast_csv(job_id: str, service: Service) -> Response:
+    """Every forecast in long format (group, level, period, forecast, 80 % and 95 % bounds)."""
+    job = _group_job(service, job_id)
+    if job.result is None:
+        raise TimeSeriesError("This forecast has not finished.", "not_finished")
+    return Response(
+        gr.long_csv(job.result),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="forecast-every-group.csv"'},
+    )
+
+
+class ScenarioOptions(BaseModel):
+    """The drivers and what changes in their future values (039 story 6)."""
+
+    drivers: list[dv.Driver] = Field(min_length=1, max_length=dv.MAX_DRIVERS)
+    future: dict[str, list[float]] | None = None
+    changes: list[dv.ScenarioChange] = Field(default_factory=list, max_length=20)
+
+
+@router.post("/datasets/{dataset_id}/scenario")
+def scenario(
+    dataset_id: str,
+    service: Service,
+    request: Series,
+    filters: Filters,
+    options: Annotated[ScenarioOptions, Body()],
+    model: str = "tslm",
+    horizon: Annotated[int | None, Query(ge=1, le=500)] = None,
+) -> DriverForecast:
+    """One driver model's forecast (SARIMAX, linear regression, gradient boosting) with other
+    future values of the known-in-advance drivers: ± x %, a fixed value, over a range of
+    periods. Without changes: the base forecast. Same as `TimeSeries.scenario`."""
+    return service.forecast_with_drivers(
+        dataset_id,
+        request,
+        filters,
+        options.drivers,
+        options.future,
+        model,
+        horizon,
+        options.changes or None,
+    )

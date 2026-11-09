@@ -26,6 +26,7 @@ import type { TableOptions } from "./pivot";
 import { PivotTable } from "./PivotTable";
 import type { KpiSearch } from "./search";
 import { Tiles } from "./Tiles";
+import { Loading } from "../../ui/Loading";
 
 /** Saved KPIs, in a menu of the header: open, rename, duplicate, delete, or start a new one. */
 function SavedMenu({
@@ -185,7 +186,7 @@ export function KpiPage() {
 
   return (
     <div className="flex flex-col">
-      <header className="flex flex-wrap items-start justify-between gap-4 px-8 pt-6 pb-4">
+      <header className="flex flex-wrap items-start justify-between gap-4 px-(--gutter) pt-6 pb-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{t("kpi.title")}</h1>
           <p className="mt-1 max-w-prose text-ink-2">{t("kpi.description")}</p>
@@ -212,7 +213,7 @@ export function KpiPage() {
           }}
         />
       </header>
-      <div className="px-8 pb-10">
+      <div className="px-(--gutter) pb-10">
         <div className="min-w-0 space-y-3">
           {suggestions.data && suggestions.data.kpis.length > 0 && (
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1" role="group" aria-label={t("kpi.suggested")}>
@@ -268,7 +269,7 @@ export function KpiPage() {
               )}
             </div>
           ) : !result || !view || !tableOptions || !applied ? (
-            <div className="h-[420px] animate-pulse border-y border-line bg-surface-1/40" aria-busy="true" />
+            <Loading label={t("loading.kpis")} className="h-[420px]" />
           ) : (
             <div className={`grid gap-6 ${panel ? "xl:grid-cols-[minmax(0,1fr)_300px]" : ""}`}>
               <div className={`min-w-0 space-y-6 ${compute.isFetching ? "opacity-60 transition-opacity" : ""}`} aria-busy={compute.isFetching}>

@@ -9,6 +9,8 @@ type Base = {
   labelKey: MessageKey;
   icon: LucideIcon;
   component: () => ReactElement;
+  /** Shown with a lock: the browser-only build cannot run it (lite/flag.ts). */
+  locked?: boolean;
   /** Parses the page's own URL parameters. */
   validateSearch?: (search: Record<string, unknown>) => Record<string, unknown>;
 };

@@ -23,6 +23,6 @@ def test_startup_creates_workspace(client: TestClient, settings: Settings) -> No
 
 
 def test_home_can_come_from_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("DATA_EXPLORER_HOME", str(tmp_path / "from-env"))
+    monkeypatch.setenv("QUANTILO_HOME", str(tmp_path / "from-env"))
 
     assert Settings().home == tmp_path / "from-env"

@@ -7,6 +7,7 @@ import { useStoredState } from "../../lib/useStoredState";
 import { Button } from "../../ui/Button";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { useFilters } from "../filters/useFilters";
+import { Loading } from "../../ui/Loading";
 
 const METHODS: OutlierMethod[] = ["iqr", "iqr3", "zscore", "robust"];
 
@@ -113,7 +114,7 @@ export function OutliersPanel({ datasetId, column }: { datasetId: string; column
           </section>
         </>
       ) : (
-        <div className="h-40 animate-pulse rounded-md bg-surface-2" aria-busy="true" />
+        <Loading label={t("loading.outliers")} className="h-40 rounded-md" />
       )}
     </div>
   );

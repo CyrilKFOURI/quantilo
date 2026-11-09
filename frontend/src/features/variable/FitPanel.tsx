@@ -10,6 +10,7 @@ import { InfoTip } from "../../ui/InfoTip";
 import { Select } from "../../ui/fields";
 import { lawsFigure, miniHistogram, qqFigure } from "./figures";
 import { formatP } from "./normality";
+import { Loading } from "../../ui/Loading";
 
 const OVERLAID = 3;
 
@@ -22,10 +23,7 @@ export function FitPanel({ datasetId, column, profile }: FitPanelProps) {
   if (fit.isError) return <p className="text-bad">{fit.error.message}</p>;
   if (!fit.data || !chart.data) {
     return (
-      <div className="space-y-3" aria-busy="true">
-        <p className="text-ink-3">{t("fit.loading")}</p>
-        <div className="h-72 animate-pulse rounded-md bg-surface-2" />
-      </div>
+      <Loading label={t("fit.loading")} className="h-72 rounded-md" />
     );
   }
   if (fit.data.reason || !fit.data.laws.length) {

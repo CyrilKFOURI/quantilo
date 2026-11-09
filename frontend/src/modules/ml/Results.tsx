@@ -3,13 +3,14 @@ import { useMemo, useState } from "react";
 import { api, type MlRun } from "../../api/client";
 import { Plot } from "../../charts/Plot";
 import { formatNumber } from "../../charts/figures";
-import type { Metric } from "../../features/variable/Metrics";
 import { pLabel } from "../../features/variable/normality";
 import { t, type MessageKey } from "../../lib/i18n";
 import { Checkbox } from "../../ui/fields";
-import { InfoTip } from "../../ui/InfoTip";
 import { SegmentedControl } from "../../ui/SegmentedControl";
+import { ErrorsTab } from "./Errors";
 import { ExplainTab, RowExplanation } from "./Explain";
+import { periodVerdict, PeriodsTab } from "./PanelResults";
+import { Panel, ScoreBand } from "./ResultParts";
 import {
   coefficientsFigure,
   confusionFigure,
@@ -22,12 +23,15 @@ import {
   learningCurveFigure,
 } from "./figures";
 
-type Tab = "performance" | "features" | "explain" | "predictions";
+type Tab = "performance" | "periods" | "features" | "explain" | "errors" | "predictions";
+const TABS = ["performance", "periods", "features", "explain", "errors", "predictions"] as const;
 const pct = (value: number | null | undefined, digits = 0) =>
   value === null || value === undefined ? "—" : `${(value * 100).toFixed(digits)} %`;
 
 /** The result in one sentence, before any number. */
 export function verdict(run: MlRun): string {
+  // a panel is judged period by period (035), not on all its rows at once
+  if (run.panel) return periodVerdict(run.panel);
   if (run.regression) {
     const r = run.regression;
     // no real gain: under 1 % better than the average, or an R² under 1 %
@@ -72,7 +76,7 @@ export function Results({ run, datasetId }: { run: MlRun; datasetId: string }) {
       <SegmentedControl
         label={t("ml.tabs")}
         value={tab}
-        options={(["performance", "features", "explain", "predictions"] as const).map((value) => ({ value, label: t(`ml.tab.${value}`) }))}
+        options={(run.panel ? TABS : TABS.filter((value) => value !== "periods")).map((value) => ({ value, label: t(`ml.tab.${value}`) }))}
         onChange={setTab}
       />
       {tab === "performance" &&
@@ -91,28 +95,12 @@ export function Results({ run, datasetId }: { run: MlRun; datasetId: string }) {
             <ClassificationPerformance run={run} />
           </div>
         ))}
+      {tab === "periods" && <PeriodsTab run={run} datasetId={datasetId} />}
       {tab === "features" && <Features run={run} />}
       {tab === "explain" && <ExplainTab run={run} datasetId={datasetId} />}
+      {tab === "errors" && <ErrorsTab run={run} datasetId={datasetId} />}
       {tab === "predictions" && <Predictions run={run} datasetId={datasetId} />}
     </div>
-  );
-}
-
-/** Key figures in one band of numbers separated by thin rules (no tiles). */
-function ScoreBand({ items }: { items: Metric[] }) {
-  return (
-    <dl className="flex flex-wrap border-y border-line">
-      {items.map((item, i) => (
-        <div key={item.label} className={`min-w-32 flex-1 px-4 py-2.5 ${i > 0 ? "border-l border-line" : "pl-0"}`}>
-          <dt className="flex items-center gap-1 text-xs text-ink-3">
-            {item.label}
-            {item.explain && <InfoTip label={item.label} text={item.explain} />}
-          </dt>
-          <dd className="text-[22px] leading-tight font-semibold text-ink-1 tabular-nums">{item.value}</dd>
-          {item.note && <dd className="text-xs text-ink-3">{item.note}</dd>}
-        </div>
-      ))}
-    </dl>
   );
 }
 
@@ -153,15 +141,6 @@ function ScoreTiles({ run }: { run: MlRun }) {
         ...(c.log_loss !== null ? [{ label: "Log loss", value: formatNumber(c.log_loss), explain: t("ml.explain.logloss") }] : []),
       ]}
     />
-  );
-}
-
-function Panel({ title, children, wide = false }: { title: string; children: React.ReactNode; wide?: boolean }) {
-  return (
-    <figure className={`min-w-0 border-t border-line pt-2 ${wide ? "@6xl:col-span-2" : ""}`}>
-      <figcaption className="mb-1 text-xs font-medium text-ink-2">{title}</figcaption>
-      {children}
-    </figure>
   );
 }
 

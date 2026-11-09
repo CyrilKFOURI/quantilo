@@ -324,6 +324,21 @@ const modelResult = (
   backtests: [
     { origin: 6, forecast: [1, 2, 3], low95: [0, 1, 2], high95: [2, 3, 4] },
   ],
+  uses_drivers: key === "tslm",
+  mase_without_drivers: key === "tslm" ? 0.95 : null,
+  drivers:
+    key === "tslm"
+      ? [
+          {
+            driver: "visits",
+            coefficient: 2.5,
+            p_value: 0.0001,
+            importance: null,
+            mase_without: 0.95,
+            verdict: "helps",
+          },
+        ]
+      : [],
 });
 const forecastJob = {
   id: "job1",
@@ -341,6 +356,7 @@ const forecastJob = {
     origins: 3,
     results: [
       modelResult("ets_auto", 0.7, 30, "ETS(A,A,A)"),
+      modelResult("tslm", 0.8, 20, "Trend + seasonal dummies + 1 driver"),
       modelResult("seasonal_naive", 1, 0, null),
     ],
     best: "ets_auto",
@@ -351,7 +367,39 @@ const forecastJob = {
       kind: "intermittent",
       intermittent: true,
     },
+    drivers: [],
+    driver_notes: [
+      "visits: its last value (1200) is repeated over the forecast, which assumes it stays flat.",
+    ],
   },
+};
+const drivers = {
+  setup,
+  horizon: 3,
+  candidates: [
+    {
+      column: "visits",
+      flag: false,
+      correlation: 0.72,
+      suggested: true,
+      future_periods: 0,
+    },
+    {
+      column: "price",
+      flag: false,
+      correlation: 0.1,
+      suggested: false,
+      future_periods: 3,
+    },
+    {
+      column: "holiday",
+      flag: true,
+      correlation: null,
+      suggested: false,
+      future_periods: 3,
+    },
+  ],
+  calendar: [],
 };
 
 const columns = [
@@ -379,6 +427,7 @@ function setupApi() {
     "GET /modules/timeseries/datasets/d1/volatility": volatility,
     "GET /modules/timeseries/datasets/d1/residuals": residuals,
     "GET /modules/timeseries/datasets/d1/breaks": breaks,
+    "GET /modules/timeseries/datasets/d1/drivers": drivers,
     "POST /modules/timeseries/datasets/d1/forecast": {
       ...forecastJob,
       status: "running",
@@ -579,6 +628,69 @@ describe("Time series page", () => {
     expect(
       within(section).getByRole("button", { name: "Hide the scoring" }),
     ).toBeInTheDocument();
+  });
+
+  it("adds drivers from the suggestion and the panel, and shows what each brings", async () => {
+    const calls = setupApi();
+    renderAt("/d/d1/timeseries");
+    const section = await screen.findByRole("region", { name: "Forecast" });
+    const panel = within(section).getByRole("button", { name: "Drivers" });
+    expect(panel).toHaveAttribute("aria-expanded", "false"); // collapsed by default
+
+    expect(
+      await within(section).findByText(
+        "units and visits move together (r = 0.72 between their changes): use visits as a driver.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(section).getByRole("button", { name: "Add driver" }));
+    expect(within(section).queryByText(/move together/)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        within(section).getByRole("button", { name: /Drivers/ }),
+      ).toHaveAttribute("aria-expanded", "true"),
+    );
+    // no future values for visits: past only, lagged by the horizon
+    expect(within(section).getByText(/Enters lagged by 3 periods/)).toBeInTheDocument();
+    expect(
+      within(section).getByText("None of the chosen models uses drivers."),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(section).getByRole("button", {
+        name: "Add SARIMAX (ARIMA + drivers)",
+      }),
+    );
+    // price has future rows: known in advance, from the file
+    fireEvent.change(within(section).getByLabelText("Add a column…"), {
+      target: { value: "price" },
+    });
+    expect(
+      within(section).getByRole("option", { name: "From the file (3 of 3)" }),
+    ).toBeInTheDocument();
+    fireEvent.change(
+      within(section).getByLabelText("Add a 0/1 flag (holidays, events)…"),
+      { target: { value: "holiday" } },
+    );
+
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Run forecast" }),
+    );
+
+    expect(
+      await within(section).findByText("Drivers, model by model"),
+    ).toBeInTheDocument();
+    const sent = calls.find((c) => c.key.endsWith("/forecast"));
+    expect(sent?.params.get("methods")).toContain("sarimax");
+    expect(sent?.body).toEqual({
+      drivers: [
+        { column: "visits", kind: "column", known: false, future: "file", value: null },
+        { column: "price", kind: "column", known: true, future: "file", value: null },
+        { column: "holiday", kind: "flag", known: true, future: "file", value: null },
+      ],
+    });
+    expect(within(section).getByText("Without drivers: MASE 0.95")).toBeInTheDocument();
+    expect(within(section).getByText("Helps")).toBeInTheDocument();
+    expect(within(section).getByText("+2.5 per unit")).toBeInTheDocument();
+    expect(within(section).getByText(/its last value \(1200\) is repeated/)).toBeInTheDocument();
   });
 
   it("is a sidebar link once the dataset has a date", async () => {

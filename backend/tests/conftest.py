@@ -12,7 +12,7 @@ from app.main import create_app
 @pytest.fixture(autouse=True)
 def allow_test_host(monkeypatch: pytest.MonkeyPatch) -> None:
     """TestClient sends `Host: testserver`; production only allows localhost names."""
-    monkeypatch.setenv("DATA_EXPLORER_ALLOWED_HOSTS", '["localhost", "127.0.0.1", "testserver"]')
+    monkeypatch.setenv("QUANTILO_ALLOWED_HOSTS", '["localhost", "127.0.0.1", "testserver"]')
 
 
 @pytest.fixture

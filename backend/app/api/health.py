@@ -11,7 +11,7 @@ router = APIRouter(tags=["health"])
 
 def app_version() -> str:
     try:
-        return version("data-explorer")
+        return version("quantilo-app")
     except PackageNotFoundError:
         return "0.0.0"
 

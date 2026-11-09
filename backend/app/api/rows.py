@@ -1,10 +1,10 @@
 from typing import Annotated
 
-from cyfouri_data_explorer.rows.export import Format
-from cyfouri_data_explorer.rows.service import ExportFile, RowService
-from cyfouri_data_explorer.rows.view import MAX_LIMIT, Mode, RowsPage, View
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import FileResponse
+from quantilo.rows.export import Format
+from quantilo.rows.service import ExportFile, RowService
+from quantilo.rows.view import MAX_LIMIT, Mode, RowsPage, View
 from starlette.background import BackgroundTask
 
 from app.api.filters import Filters

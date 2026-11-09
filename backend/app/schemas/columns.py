@@ -1,8 +1,8 @@
 from typing import Literal
 
-from cyfouri_data_explorer.typing.knowledge_base import load
-from cyfouri_data_explorer.typing.types import AnalysisType, Parser
 from pydantic import BaseModel
+from quantilo.typing.knowledge_base import load
+from quantilo.typing.types import AnalysisType, Parser
 
 from app.services.columns.service import ColumnChange, ColumnView
 

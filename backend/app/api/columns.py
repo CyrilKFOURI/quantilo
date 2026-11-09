@@ -1,8 +1,8 @@
 from typing import Annotated
 
-from cyfouri_data_explorer.typing.knowledge_base import load
-from cyfouri_data_explorer.typing.types import AnalysisType
 from fastapi import APIRouter, Depends, Query, Request
+from quantilo.typing.knowledge_base import load
+from quantilo.typing.types import AnalysisType
 
 from app.api.datasets import to_out
 from app.api.deps import Datasets

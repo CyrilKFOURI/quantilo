@@ -6,7 +6,9 @@ import { PAGE_SIZES, readDefaults, TOP_NS } from "../../lib/defaults";
 import type { Alert, AnalysisType, Column, Overview } from "../../api/client";
 import { useColumns, useDataset, useDeleteDataset, useOpenDataset, useOverview, useUpdateColumns } from "../../api/hooks";
 import { ANALYSIS_TYPES, TYPE_META } from "../../features/columns/columnTypes";
+import { ChangesBanner } from "../../features/changes/ChangesBanner";
 import { NoRows } from "../../features/filters/NoRows";
+import { RecipeBanner, SaveRecipeButton } from "../../features/recipes/SaveRecipe";
 import { ReportButton } from "../../features/report/ReportButton";
 import { SummaryStrip } from "../../features/summary-strip/SummaryStrip";
 import { SyntheticOrigin } from "../../features/synthetic-origin/SyntheticOrigin";
@@ -15,6 +17,7 @@ import { t } from "../../lib/i18n";
 import { useStoredState } from "../../lib/useStoredState";
 import { Button } from "../../ui/Button";
 import { ErrorNote, Select, TextInput } from "../../ui/fields";
+import { Loading } from "../../ui/Loading";
 
 type Sort = "file" | "name" | "missing" | "distinct" | "skewness";
 
@@ -99,10 +102,15 @@ export function OverviewPage() {
     setPage(0);
   };
 
-  if (dataset.isPending) return <p className="px-8 py-8 text-ink-3">{t("dataset.loading")}</p>;
+  if (dataset.isPending)
+    return (
+      <div className="px-(--gutter) py-8">
+        <Loading label={t("dataset.loading")} className="h-36 rounded-lg" />
+      </div>
+    );
   if (dataset.isError) {
     return (
-      <div className="px-8 py-8">
+      <div className="px-(--gutter) py-8">
         <ErrorNote>{dataset.error.message}</ErrorNote>
       </div>
     );
@@ -110,7 +118,7 @@ export function OverviewPage() {
   const data = dataset.data;
   if (data.status !== "ready") {
     return (
-      <div className="px-8 py-8">
+      <div className="px-(--gutter) py-8">
         {data.status === "error" ? <ErrorNote>{data.error ?? t("dataset.failed")}</ErrorNote> : <ImportingNote datasetId={datasetId} />}
       </div>
     );
@@ -118,21 +126,22 @@ export function OverviewPage() {
   const error = columns.error ?? overview.error ?? update.error;
 
   return (
-    <div className="flex flex-col gap-5 px-8 py-6">
+    <div className="flex flex-col gap-5 px-(--gutter) py-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0 max-w-full">
           <h1 className="text-xl font-semibold tracking-tight">{t("overview.title")}</h1>
           <p className="mt-0.5 truncate font-mono text-[11px] text-ink-3" title={data.source_path}>
             {data.source_path}
           </p>
           <SyntheticOrigin datasetId={datasetId} />
         </div>
-        <div className="flex items-start gap-2">
+        <div className="flex flex-wrap items-start gap-2">
           <ReportButton datasetId={datasetId} />
+          <SaveRecipeButton datasetId={datasetId} datasetName={data.name} />
           <Link
             to="/d/$datasetId/columns"
             params={{ datasetId }}
-            className="inline-flex h-(--control-h) items-center gap-1.5 rounded-md border border-line bg-surface-1 px-3 text-[13px] text-ink-1 hover:bg-surface-2"
+            className="inline-flex h-(--control-h) items-center gap-1.5 rounded-md border border-line bg-surface-1 px-3 text-[13px] text-ink-1 hover:bg-surface-2 max-sm:whitespace-nowrap"
           >
             <Columns3 size={15} strokeWidth={1.5} aria-hidden />
             {t("overview.reviewTypes")}
@@ -146,12 +155,14 @@ export function OverviewPage() {
           {t("overview.notReviewed")}
         </p>
       )}
+      <RecipeBanner datasetId={datasetId} />
+      <ChangesBanner dataset={data} />
       {error && <ErrorNote>{error.message}</ErrorNote>}
 
       {overview.data ? (
         <SummaryStrip overview={overview.data} />
       ) : (
-        <div className="h-36 animate-pulse rounded-lg bg-surface-1" aria-busy="true" />
+        <Loading label={t("loading.summary")} className="h-36 rounded-lg" />
       )}
       {overview.data && overview.data.rows === 0 && overview.data.total_rows > 0 && <NoRows datasetId={datasetId} />}
       {overview.data && overview.data.alerts.length > 0 && (
@@ -234,15 +245,16 @@ export function OverviewPage() {
       </div>
 
       {columns.isPending ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }, (_, index) => (
-            <div key={index} className="h-72 animate-pulse rounded-lg bg-surface-1" />
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-1 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <Loading label={t("loading.columns")} className="h-72 rounded-lg" compact />
+          {Array.from({ length: 5 }, (_, index) => (
+            <div key={index} aria-hidden className="loading-sheen relative h-72 overflow-hidden rounded-lg border border-line bg-surface-1" />
           ))}
         </div>
       ) : (
         <>
           <Pagination page={current} pages={pages} total={visible.length} pageSize={pageSize} onPage={setPage} />
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-1 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
             {shown.map((column) => (
               <VariableCard
                 key={`${column.name}:${column.type}`}

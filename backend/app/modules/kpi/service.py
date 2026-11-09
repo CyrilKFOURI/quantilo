@@ -7,8 +7,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 
-from cyfouri_data_explorer.kpi.definition import Definition
-from cyfouri_data_explorer.kpi.service import KpiEngine
+from quantilo.kpi.definition import Definition
+from quantilo.kpi.service import KpiEngine
 
 from app.core import db
 from app.core.errors import AppError
@@ -129,3 +129,21 @@ class KpiService(KpiEngine):
             ).rowcount
         if not deleted:
             raise NotFoundError(f"KPI {kpi_id!r}")
+
+    # --- What changed between two versions (031) -------------------------------------------------
+
+    def definitions(self, dataset_id: str) -> list[tuple[str, Definition]]:
+        return [(kpi.name, kpi.definition) for kpi in self.all(dataset_id)]
+
+    def usage(self, dataset_id: str) -> dict[str, list[str]]:
+        """Column → the saved KPIs that read it: such a column disappearing breaks them."""
+        used: dict[str, list[str]] = {}
+        for kpi in self.all(dataset_id):
+            definition = kpi.definition
+            columns = [m.column for m in definition.measures if m.column]
+            columns += [g.column for g in definition.groups]
+            if definition.time is not None:
+                columns.append(definition.time.column)
+            for column in dict.fromkeys(columns):
+                used.setdefault(column, []).append(f"KPI “{kpi.name}”")
+        return used

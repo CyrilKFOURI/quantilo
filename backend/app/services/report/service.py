@@ -7,12 +7,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
-from cyfouri_data_explorer.compare.service import CompareService
-from cyfouri_data_explorer.correlations.service import CorrelationService
-from cyfouri_data_explorer.filters.model import Condition
-from cyfouri_data_explorer.profiling.service import ProfilingService
-from cyfouri_data_explorer.report.generate import ReportServices, generate
-from cyfouri_data_explorer.variable.service import VariableService
+from quantilo.compare.service import CompareService
+from quantilo.correlations.service import CorrelationService
+from quantilo.filters.model import Condition
+from quantilo.profiling.service import ProfilingService
+from quantilo.report.generate import ReportServices, generate
+from quantilo.variable.service import VariableService
 
 from app.core.errors import AppError
 from app.core.jobs import JobRunner

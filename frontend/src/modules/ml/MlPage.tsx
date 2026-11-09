@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { MlCandidate, MlChoicesInput, MlClasses, MlContext, MlRun, MlValidation } from "../../api/client";
+import type { MlCandidate, MlChoicesInput, MlClasses, MlContext, MlPanelCheck, MlRun, MlValidation } from "../../api/client";
 import {
   useDataset,
   useMlCatalog,
@@ -11,6 +11,7 @@ import {
   useMlDistribution,
   useMlEstimate,
   useMlJob,
+  useMlPanel,
   useMlRun,
   useMlRuns,
   useMlTargets,
@@ -23,20 +24,23 @@ import { ErrorNote, Select, TextInput } from "../../ui/fields";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { classCounts, DEFAULT_SETUP, edgesFor, namesFor, type Setup } from "./bins";
 import { ClassesPanel, setupFromRun, type Cut } from "./ClassesPanel";
+import { AutoPanel } from "./AutoPanel";
 import { CompareModels } from "./CompareModels";
 import { ModelPicker } from "./ModelPicker";
 import { incomparable, RunCompare } from "./RunCompare";
 import { TunePanel } from "./TunePanel";
 import { PreparationEditor, preparationSummary } from "./PreparationEditor";
 import { disabledOptions, isVisible, resolveValues, type Values } from "./rules";
-import { DEFAULT_VALIDATION, metricName, SettingField, SettingsDrawer } from "./SettingsDrawer";
+import { DEFAULT_VALIDATION, metricName, PANEL, panelValidation, SettingField, SettingsDrawer } from "./SettingsDrawer";
+import { PredictSection } from "./Predict";
 import { Results } from "./Results";
+import { Loading } from "../../ui/Loading";
 
-export type MlSearch = { target?: string; run?: string };
+export type MlSearch = { target?: string; run?: string; prediction?: string };
 
 export function validateMlSearch(search: Record<string, unknown>): MlSearch {
   const text = (value: unknown) => (typeof value === "string" && value ? value : undefined);
-  return { target: text(search.target), run: text(search.run) };
+  return { target: text(search.target), run: text(search.run), prediction: text(search.prediction) };
 }
 
 const taskName = (task: string) => t(`ml.task.${task}` as MessageKey);
@@ -53,7 +57,7 @@ export function MlPage() {
   const candidate = targets.data?.candidates.find((c) => c.name === search.target && c.task);
 
   return (
-    <div className="flex flex-col gap-5 px-8 py-6">
+    <div className="flex flex-col gap-5 px-(--gutter) py-6">
       <header className="max-w-prose">
         <h1 className="text-xl font-semibold tracking-tight">{t("ml.title")}</h1>
         <p className="mt-1 text-ink-2">{t("ml.description")}</p>
@@ -61,7 +65,7 @@ export function MlPage() {
       {targets.isError ? (
         <ErrorNote>{targets.error.message}</ErrorNote>
       ) : !targets.data ? (
-        <div className="h-72 animate-pulse rounded-lg bg-surface-1" aria-busy="true" />
+        <Loading label={t("loading.targets")} className="h-72 rounded-lg" />
       ) : !candidate ? (
         <TargetPicker candidates={targets.data.candidates} onPick={(name) => set({ target: name, run: undefined })} />
       ) : (
@@ -72,8 +76,10 @@ export function MlPage() {
           candidates={targets.data.candidates}
           rows={targets.data.rows}
           runId={search.run}
-          onTarget={(name) => set({ target: name, run: undefined })}
-          onRun={(run) => set({ run })}
+          predictionId={search.prediction}
+          onTarget={(name) => set({ target: name, run: undefined, prediction: undefined })}
+          onRun={(run) => set({ run, prediction: undefined })}
+          onPrediction={(prediction) => set({ prediction })}
         />
       )}
     </div>
@@ -125,16 +131,20 @@ function Workbench({
   candidates,
   rows,
   runId,
+  predictionId,
   onTarget,
   onRun,
+  onPrediction,
 }: {
   datasetId: string;
   candidate: MlCandidate;
   candidates: MlCandidate[];
   rows: number;
   runId: string | undefined;
+  predictionId: string | undefined;
   onTarget: (name: string) => void;
   onRun: (id: string) => void;
+  onPrediction: (id: string | undefined) => void;
 }) {
   const client = useQueryClient();
   const task = candidate.task ?? "regression";
@@ -170,11 +180,14 @@ function Workbench({
   // Validation: what the user changed, else what the shown run used.
   const [validationEdited, setValidationEdited] = useState<MlValidation | null>(null);
   const validation = validationEdited ?? run.data?.validation ?? DEFAULT_VALIDATION;
+  // Panel data (035): recognised, or checked with the columns the user declared.
+  const panelMode = validation.method === PANEL;
+  const panel = useMlPanel(datasetId, candidate.name, panelMode ? validation.period_column : null, panelMode ? validation.entity_column : null);
   const context = useMemo<MlContext>(() => {
     const others = candidates.filter((c) => c.name !== candidate.name);
     const categorical = others.filter((c) => ["categorical_nominal", "categorical_ordinal", "boolean"].includes(c.type)).length;
     const used = Math.min(rows, validation.max_rows ?? rows);
-    const cross = ["kfold", "repeated_kfold", "group_kfold", "loo"].includes(validation.method);
+    const cross = ["kfold", "repeated_kfold", "group_kfold", "loo", PANEL].includes(validation.method);
     return {
       task: effectiveTask,
       rows: cross ? used : used * (1 - validation.test_size),
@@ -193,6 +206,8 @@ function Workbench({
   const [values, setValues] = useState<Values>({});
   const [drawer, setDrawer] = useState(false);
   const [comparing, setComparing] = useState(false);
+  const [automl, setAutoml] = useState(false);
+  const [autoJob, setAutoJob] = useState<string | null>(null);
   const [tuning, setTuning] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -346,7 +361,7 @@ function Workbench({
             ) : distribution.isError ? (
               <ErrorNote>{distribution.error.message}</ErrorNote>
             ) : (
-              <div className="h-40 animate-pulse rounded-md bg-surface-1" aria-busy="true" />
+              <Loading label={t("loading.distribution")} className="h-40 rounded-md" />
             ))}
         </section>
         {catalog.data && model && (
@@ -389,6 +404,9 @@ function Workbench({
               <Button variant="ghost" onClick={() => setComparing(true)} disabled={training}>
                 {t("ml.compare.button")}
               </Button>
+              <Button variant="ghost" onClick={() => setAutoml(true)} disabled={training} title={t("ml.auto.buttonHint")}>
+                {t("ml.auto.button")}
+              </Button>
             </span>
           </section>
         )}
@@ -402,6 +420,21 @@ function Workbench({
             choices={choices}
             classes={classes}
             validation={validation}
+            onRun={pickRun}
+          />
+        )}
+        {catalog.data && automl && (
+          <AutoPanel
+            open={automl}
+            onOpenChange={setAutoml}
+            datasetId={datasetId}
+            target={candidate.name}
+            catalogue={catalog.data}
+            choices={choices}
+            classes={classes}
+            validation={validation}
+            jobId={autoJob}
+            onJob={setAutoJob}
             onRun={pickRun}
           />
         )}
@@ -467,6 +500,7 @@ function Workbench({
             onTrain={launch}
             training={training}
             error={resolved.error}
+            panel={panel.data}
           />
         )}
         <PreparationEditor
@@ -480,6 +514,7 @@ function Workbench({
           choices={choices}
           onChoices={setEdited}
           classes={classes}
+          validation={panelMode ? validation : null}
         />
         {resolved.error && <ErrorNote>{resolved.error}</ErrorNote>}
         {model && (model.badges.some((b) => b.startsWith("Slow")) || context.rows > 50_000 || validation.method !== "split") && (
@@ -523,8 +558,19 @@ function Workbench({
       </aside>
 
       <div className={`min-w-0 space-y-5 ${training ? "opacity-60" : ""}`} aria-busy={training}>
+        {panel.data?.panel && (
+          <PanelBanner
+            check={panel.data}
+            validation={validation}
+            onUse={() => setValidationEdited(panelValidation(validation, panel.data))}
+            onEdit={() => setDrawer(true)}
+          />
+        )}
         {run.data ? (
-          <Results run={run.data} datasetId={datasetId} />
+          <>
+            <Results run={run.data} datasetId={datasetId} />
+            <PredictSection run={run.data} datasetId={datasetId} predictionId={predictionId} onPrediction={onPrediction} />
+          </>
         ) : (
           <div className="flex h-72 items-center justify-center rounded-lg border border-dashed border-line text-ink-3">
             {training ? t("ml.trainingFirst") : t("ml.noRunYet")}
@@ -547,6 +593,34 @@ function duration(seconds: number): string {
   return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 }
 
+/** "This looks like panel data…" with the way to validate by period; under a random split, why
+ *  its score is too good (the same entities and pairs on both sides). */
+function PanelBanner({ check, validation, onUse, onEdit }: { check: MlPanelCheck; validation: MlValidation; onUse: () => void; onEdit: () => void }) {
+  if (validation.method === PANEL) return null;
+  const random = ["split", "kfold", "repeated_kfold", "loo"].includes(validation.method);
+  const period = check.period ?? "";
+  const entity = check.entity;
+  return (
+    <section className="space-y-1.5 rounded-md border border-warn/40 bg-warn/8 px-3 py-2 text-[13px] text-ink-1" aria-label={t("ml.validation.method.panel_walk_forward")}>
+      <p className="flex flex-wrap items-center gap-2">
+        <span className="min-w-0 flex-1">{check.message}</span>
+        <Button variant="primary" onClick={onUse}>
+          {t("ml.panel.use")}
+        </Button>
+        <Button variant="ghost" onClick={onEdit}>
+          {t("ml.panel.edit")}
+        </Button>
+      </p>
+      {random && entity && (validation.method !== "group_kfold" || validation.group !== entity) && (
+        <p className="text-xs text-ink-2">{t("ml.panel.bothSides", { entities: `${entity}s` })}</p>
+      )}
+      {random && entity && check.duplicates > 0 && (
+        <p className="text-xs text-ink-2">{t("ml.panel.duplicates", { count: check.duplicates.toLocaleString("en-US"), entity, period })}</p>
+      )}
+    </section>
+  );
+}
+
 function validationSummary(validation: MlValidation): string {
   const method = t(`ml.validation.method.${validation.method}` as MessageKey);
   const detail =
@@ -555,8 +629,12 @@ function validationSummary(validation: MlValidation): string {
       : validation.method === "loo"
         ? ""
         : ` · ${validation.folds} folds`;
+  const panel =
+    validation.method === PANEL
+      ? t("ml.validation.panelSummary", { period: validation.period_column ?? "—", embargo: String(validation.embargo) })
+      : "";
   const rows = validation.max_rows === null ? t("ml.rows.all") : t("ml.rows.atMost", { rows: validation.max_rows.toLocaleString("en-US") });
-  return `${t("ml.validationLabel")}: ${method}${detail} · ${rows}${validation.metric ? ` · ${metricName(validation.metric)}` : ""}`;
+  return `${t("ml.validationLabel")}: ${method}${detail}${panel} · ${rows}${validation.metric ? ` · ${metricName(validation.metric)}` : ""}`;
 }
 
 function RunStrip({

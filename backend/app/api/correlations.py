@@ -1,8 +1,8 @@
 from typing import Annotated
 
-from cyfouri_data_explorer.correlations.matrix import Method
-from cyfouri_data_explorer.correlations.service import Correlations, CorrelationService
 from fastapi import APIRouter, Depends, Query, Request
+from quantilo.correlations.matrix import Method
+from quantilo.correlations.service import Correlations, CorrelationService
 
 from app.api.filters import Filters
 

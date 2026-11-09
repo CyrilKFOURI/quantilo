@@ -4,10 +4,10 @@ import json
 from collections.abc import Iterator
 from typing import Annotated, Any
 
-from cyfouri_data_explorer.filters.model import Condition
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from quantilo.filters.model import Condition
 
 from app.modules.agent.engine.budget import TOKEN_LIMIT
 from app.modules.agent.engine.messages import Message

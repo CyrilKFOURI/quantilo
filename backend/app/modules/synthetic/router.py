@@ -1,11 +1,11 @@
 from typing import Annotated, Literal
 
-from cyfouri_data_explorer.synthetic.compare import ColumnDetail, PairDetail
-from cyfouri_data_explorer.synthetic.plan import Plan
-from cyfouri_data_explorer.synthetic.privacy import Disclosure
-from cyfouri_data_explorer.synthetic.utility import Utility
 from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
+from quantilo.synthetic.compare import ColumnDetail, PairDetail
+from quantilo.synthetic.plan import Plan
+from quantilo.synthetic.privacy import Disclosure
+from quantilo.synthetic.utility import Utility
 
 from app.modules.synthetic.service import (
     Origin,

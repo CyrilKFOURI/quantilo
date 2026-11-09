@@ -22,9 +22,11 @@ const DELIMITERS = [
 type ImportDialogProps = {
   path: string;
   onClose: () => void;
+  /** Called with the new dataset instead of opening it (e.g. a recipe run on a new file). */
+  onImported?: (datasetId: string) => void;
 };
 
-export function ImportDialog({ path, onClose }: ImportDialogProps) {
+export function ImportDialog({ path, onClose, onImported }: ImportDialogProps) {
   const navigate = useNavigate();
   const [csv, setCsv] = useState<CsvOptions | null>(null);
   const [sheets, setSheets] = useState<string[] | null>(null);
@@ -46,6 +48,7 @@ export function ImportDialog({ path, onClose }: ImportDialogProps) {
   /** A dataset whose types were never reviewed opens on the Columns page. */
   const openDataset = (datasetId: string, reviewed = false) => {
     onClose();
+    if (onImported) return onImported(datasetId);
     void navigate({ to: reviewed ? "/d/$datasetId" : "/d/$datasetId/columns", params: { datasetId } });
   };
 
@@ -260,6 +263,7 @@ function CsvSettings({ value, onChange }: { value: CsvOptions; onChange: (v: Csv
         >
           <option value="utf-8">UTF-8</option>
           <option value="latin-1">Latin-1</option>
+          <option value="windows-1252">Windows-1252</option>
           <option value="utf-16">UTF-16</option>
         </Select>
       </Field>

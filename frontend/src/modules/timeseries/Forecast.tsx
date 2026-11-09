@@ -1,10 +1,16 @@
 import type { Data } from "plotly.js-dist-min";
 import { useMemo, useState } from "react";
 
-import type { ForecastJob, SeriesParams } from "../../api/client";
+import type {
+  DriverSpec,
+  ForecastJob,
+  SeriesDrivers,
+  SeriesParams,
+} from "../../api/client";
 import {
   useCancelForecast,
   useForecastJob,
+  useSeriesSection,
   useStartForecast,
 } from "../../api/hooks";
 import { Plot, type Figure } from "../../charts/Plot";
@@ -18,12 +24,22 @@ import {
   Select,
   TextInput,
 } from "../../ui/fields";
+import {
+  DriverResults,
+  DriverSuggestion,
+  DriversPanel,
+  usableDrivers,
+} from "./Drivers";
+import { EveryGroup } from "./EveryGroup";
 import { MethodsRow, useMethods } from "./Methods";
+import { ScenariosPanel } from "./Scenarios";
+import type { StoredScenario } from "./search";
 
 type Result = NonNullable<ForecastJob["result"]>;
 type ModelResult = Result["results"][number];
 type Verdict = { text: string; tone: "ok" | "none"; detail?: string } | null;
 
+const NO_SCENARIOS: StoredScenario[] = [];
 const HORIZONS = [3, 6, 8, 12, 24, 30, 52, 90];
 const INTERMITTENT = ["croston", "sba", "tsb", "adida"];
 const modelName = (key: string) => t(`tsm.${key}` as MessageKey);
@@ -223,12 +239,27 @@ export function ForecastSection({
   period,
   what,
   defaultHorizon,
+  scenarios = NO_SCENARIOS,
+  scenarioModel,
+  onScenarios = () => {},
+  onPickSeries = () => {},
+  drivers: chosenDrivers,
+  onDrivers: setDrivers,
 }: {
   datasetId: string;
   params: SeriesParams;
   period: string;
   what: string;
   defaultHorizon: number;
+  /** What-if scenarios kept in the URL (039). */
+  scenarios?: StoredScenario[];
+  scenarioModel?: string;
+  onScenarios?: (scenarios: StoredScenario[] | undefined, model?: string) => void;
+  /** A series picked among every group: it becomes the analysed one (039). */
+  onPickSeries?: (label: string) => void;
+  /** The chosen drivers, kept by the page so a saved analysis keeps them (030). */
+  drivers: DriverSpec[];
+  onDrivers: (drivers: DriverSpec[]) => void;
 }) {
   const [models, setModels] = useMethods("forecast");
   const [horizon, setHorizon] = useState<number | null>(null);
@@ -239,10 +270,22 @@ export function ForecastSection({
   const [overlay, setOverlay] = useState(false);
   const [allMetrics, setAllMetrics] = useState(false);
   const [scoring, setScoring] = useState(false);
+  const [driversOpen, setDriversOpen] = useState(false);
   const start = useStartForecast(datasetId);
   const cancel = useCancelForecast();
   const job = useForecastJob(jobId);
   const h = horizon ?? defaultHorizon;
+  const candidates = useSeriesSection<SeriesDrivers>(
+    datasetId,
+    "drivers",
+    params,
+    { horizon: String(h) },
+  ).data;
+  const drivers = usableDrivers(chosenDrivers, candidates);
+  const addDriver = (driver: DriverSpec) => {
+    setDrivers([...drivers, driver]);
+    setDriversOpen(true);
+  };
 
   const run = () =>
     start.mutate(
@@ -255,6 +298,7 @@ export function ForecastSection({
             ? { order, sorder: seasonalOrder }
             : {}),
         },
+        drivers,
       },
       { onSuccess: (started) => setJobId(started.id) },
     );
@@ -337,6 +381,21 @@ export function ForecastSection({
         </Button>
       </div>
       <MethodsRow section="forecast" chosen={models} onChange={setModels} />
+      <DriverSuggestion
+        candidates={candidates}
+        drivers={drivers}
+        onAdd={addDriver}
+      />
+      <DriversPanel
+        candidates={candidates}
+        drivers={drivers}
+        onChange={setDrivers}
+        open={driversOpen}
+        onOpenChange={setDriversOpen}
+        models={models}
+        onAddModel={(key) => setModels([...models, key])}
+        horizon={h}
+      />
 
       {start.isError && <ErrorNote>{start.error.message}</ErrorNote>}
       {state?.status === "running" && (
@@ -373,6 +432,13 @@ export function ForecastSection({
             <p className="font-medium text-ink-1">
               {forecastVerdict(state)?.text}
             </p>
+          )}
+          {result.driver_notes.length > 0 && (
+            <ul className="space-y-0.5 text-[13px] text-warn">
+              {result.driver_notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
           )}
           {demand && (
             <div className="rounded-md border border-line bg-surface-1 px-3 py-2 text-[13px]">
@@ -563,6 +629,14 @@ export function ForecastSection({
                             {model.error}
                           </span>
                         )}
+                        {model.uses_drivers &&
+                          model.mase_without_drivers !== null && (
+                            <span className="block text-xs text-ink-3">
+                              {t("ts.drivers.without", {
+                                mase: formatNumber(model.mase_without_drivers),
+                              })}
+                            </span>
+                          )}
                       </td>
                       <td className="px-3 py-1.5 text-right">
                         {formatNumber(s?.mase)}
@@ -622,7 +696,33 @@ export function ForecastSection({
             </table>
           </div>
           <p className="text-xs text-ink-3">{t("ts.forecast.reading")}</p>
+          <DriverResults result={result} />
+          {drivers.length > 0 && (
+            <ScenariosPanel
+              datasetId={datasetId}
+              params={params}
+              drivers={drivers}
+              horizon={h}
+              models={models}
+              future={result.future}
+              periods={result.periods}
+              values={result.history}
+              what={what}
+              scenarios={scenarios}
+              model={scenarioModel}
+              onChange={onScenarios}
+            />
+          )}
         </div>
+      )}
+      {params.group && (
+        <EveryGroup
+          datasetId={datasetId}
+          params={params}
+          horizon={h}
+          models={models}
+          onPick={onPickSeries}
+        />
       )}
     </div>
   );

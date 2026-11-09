@@ -3,6 +3,8 @@ import { useRef, useState, type DragEvent } from "react";
 
 import { useSamples, useUpload } from "../../api/hooks";
 import { t } from "../../lib/i18n";
+import { LITE } from "../../lite/flag";
+import { LockBadge } from "../../lite/Locked";
 import { Button } from "../../ui/Button";
 import { ErrorNote } from "../../ui/fields";
 import { BrowseDialog } from "./BrowseDialog";
@@ -11,7 +13,14 @@ import { ImportDialog } from "./ImportDialog";
 const ACCEPT = ".csv,.tsv,.parquet,.pq,.xlsx,.xlsm,.npy";
 
 /** Entry point of every import: drop zone, file picker, folder browser and samples. */
-export function ImportPanel({ compact = false }: { compact?: boolean }) {
+export function ImportPanel({
+  compact = false,
+  onImported,
+}: {
+  compact?: boolean;
+  /** Called with the new dataset instead of opening it. */
+  onImported?: (datasetId: string) => void;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [browsing, setBrowsing] = useState(false);
@@ -60,11 +69,22 @@ export function ImportPanel({ compact = false }: { compact?: boolean }) {
             {t("import.chooseFile")}
           </Button>
           <span className="text-xs text-ink-3">{t("import.or")}</span>
-          <Button icon={FolderOpen} onClick={() => setBrowsing(true)}>
-            {t("import.browse")}
-          </Button>
+          {LITE ? (
+            // The browser cannot read folders on disk: the file picker is the way in.
+            <span title={t("lite.locked")}>
+              <Button icon={FolderOpen} disabled>
+                {t("import.browse")}
+                <LockBadge className="ml-1" />
+              </Button>
+            </span>
+          ) : (
+            <Button icon={FolderOpen} onClick={() => setBrowsing(true)}>
+              {t("import.browse")}
+            </Button>
+          )}
         </div>
         <p className="text-xs text-ink-3">{t("import.local")}</p>
+        <p className="text-xs text-ink-3">{t("import.clouds")}</p>
         <input
           ref={inputRef}
           type="file"
@@ -100,7 +120,14 @@ export function ImportPanel({ compact = false }: { compact?: boolean }) {
       )}
 
       <BrowseDialog open={browsing} onOpenChange={setBrowsing} onSelect={setSource} />
-      {source && <ImportDialog key={source} path={source} onClose={() => setSource(null)} />}
+      {source && (
+        <ImportDialog
+          key={source}
+          path={source}
+          onClose={() => setSource(null)}
+          onImported={onImported}
+        />
+      )}
     </section>
   );
 }

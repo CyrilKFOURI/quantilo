@@ -13,6 +13,8 @@ from pathlib import Path
 
 import uvicorn
 
+from app.config import adopt_legacy_environment
+
 HERE = Path(__file__).resolve().parent
 
 
@@ -31,16 +33,17 @@ def open_when_ready(url: str) -> None:
             break
         except OSError:
             time.sleep(0.5)
-    if os.environ.get("DATA_EXPLORER_NO_BROWSER") != "1":
+    if os.environ.get("QUANTILO_NO_BROWSER") != "1":
         webbrowser.open(url)
 
 
 def main() -> None:
-    os.environ.setdefault("DATA_EXPLORER_STATIC_DIR", str(HERE / "static"))
-    os.environ.setdefault("DATA_EXPLORER_SAMPLES_DIR", str(HERE.parent / "samples"))
-    port = int(os.environ.get("DATA_EXPLORER_PORT") or free_port())
+    adopt_legacy_environment()  # DATA_EXPLORER_PORT… from before the rename (043)
+    os.environ.setdefault("QUANTILO_STATIC_DIR", str(HERE / "static"))
+    os.environ.setdefault("QUANTILO_SAMPLES_DIR", str(HERE.parent / "samples"))
+    port = int(os.environ.get("QUANTILO_PORT") or free_port())
     url = f"http://localhost:{port}"
-    print(f"\n  Data Explorer: {url}  (Ctrl+C to stop)\n")
+    print(f"\n  Quantilo: {url}  (Ctrl+C to stop)\n")
     threading.Thread(target=open_when_ready, args=(url,), daemon=True).start()
     uvicorn.run("app.main:app", host="127.0.0.1", port=port, app_dir=str(HERE), log_level="warning")
 

@@ -4,7 +4,7 @@ import sqlite3
 from dataclasses import asdict, fields
 from typing import Any
 
-from cyfouri_data_explorer.catalog import USER_FIELDS, ColumnRecord
+from quantilo.catalog import USER_FIELDS, ColumnRecord
 
 __all__ = ["USER_FIELDS", "ColumnRecord"]
 

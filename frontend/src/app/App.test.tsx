@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { dataset, health, mockApi } from "../test/mockApi";
@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 describe("App shell", () => {
-  it("renders the home page with backend status", async () => {
+  it("renders the home page, silent about a working backend", async () => {
     mockApi(baseRoutes);
     renderAt("/");
 
@@ -25,9 +25,8 @@ describe("App shell", () => {
     expect(
       screen.getByText("Drop a CSV, Parquet or Excel file"),
     ).toBeInTheDocument();
-    expect(
-      await screen.findByText("Backend connected · v0.1.0"),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+    expect(screen.queryByText(/Backend connected/)).not.toBeInTheDocument();
   });
 
   it("explains when the backend is unreachable", async () => {
@@ -101,5 +100,26 @@ describe("App shell", () => {
 
     await screen.findByRole("heading", { name: "Datasets" });
     expect(screen.queryByText("Time series")).not.toBeInTheDocument();
+  });
+
+  it("on a phone, opens the navigation in a drawer that a link closes (041)", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width"),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    mockApi(baseRoutes);
+    renderAt("/");
+
+    await screen.findByRole("heading", { name: "Datasets" });
+    expect(screen.queryByRole("navigation", { name: "Main navigation" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open the menu" }));
+    const nav = await screen.findByRole("navigation", { name: "Main navigation" });
+    fireEvent.click(within(nav).getByRole("link", { name: "Recipes" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("navigation", { name: "Main navigation" })).not.toBeInTheDocument(),
+    );
   });
 });

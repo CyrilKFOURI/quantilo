@@ -6,6 +6,7 @@ import type { MlRun } from "../../api/client";
 import { column, roles } from "../../test/columns";
 import { dataset, health, mockApi } from "../../test/mockApi";
 import { renderAt } from "../../test/render";
+import { cumulativeFigure, periodScoresFigure } from "./figures";
 import { verdict } from "./Results";
 
 vi.mock("../../charts/Plot", () => ({
@@ -107,7 +108,25 @@ const regressionRun = {
   scores: { r2: 0.82, mae: 10 },
   cross_validation: null,
   importances: [],
-  validation: { method: "split", test_size: 0.2, folds: 5, repeats: 3, group: null, time_column: null, metric: null, seed: 42, max_rows: 200000 },
+  validation: {
+    method: "split",
+    test_size: 0.2,
+    folds: 5,
+    repeats: 3,
+    group: null,
+    time_column: null,
+    metric: null,
+    seed: 42,
+    max_rows: 200000,
+    period_column: null,
+    entity_column: null,
+    embargo: 0,
+    window: "expanding",
+    window_periods: null,
+    sample_periods: null,
+    criterion: "mean",
+    period_threshold: null,
+  },
 };
 
 function setup() {
@@ -504,6 +523,94 @@ describe("Comparing and tuning", () => {
     expect(posted?.body).toMatchObject({ models: ["linear_regression", "random_forest"] });
   });
 
+  it("runs the Auto within a budget: steps, journal and leaderboard, the kept model as a run", async () => {
+    const entry = (id: string, label: string, score: number | null, extra: Record<string, unknown> = {}) => ({
+      id,
+      model: id.split(":")[0],
+      label,
+      family: "Linear models",
+      step: "families",
+      settings: {},
+      status: "done",
+      score,
+      std: 0.01,
+      seconds: 1.5,
+      rows: 80,
+      share: 1,
+      note: null,
+      estimate: null,
+      ...extra,
+    });
+    const step = (key: string, status: string, note = "") => ({ key, title: key, status, seconds: 2, note });
+    const progress = {
+      budget_seconds: 600,
+      metric: "r2",
+      greater_is_better: true,
+      criterion: null,
+      compared_on: "Your validation is a train / test split: every model is compared on 5 folds of the training rows.",
+      step: null,
+      steps: [step("baselines", "done"), step("families", "done"), step("reduction", "done"), step("tuning", "done"), step("ensemble", "done", "kept")],
+      entries: [
+        entry("constant", "Constant", -0.01, { family: "Baseline" }),
+        entry("linear_regression", "Linear regression", 0.6),
+        entry("random_forest", "Random forest", 0.8, { family: "Bagging ensembles" }),
+        entry("knn", "k-nearest neighbours", null, { status: "skipped", note: "Too slow for the budget." }),
+        entry("ensemble", "Ensemble", 0.85, { family: "Ensemble" }),
+      ],
+      log: [{ at: 0.2, step: "baselines", message: "Constant: r2 -0.01." }],
+      ensemble: {
+        method: "greedy",
+        members: [
+          { entry: "random_forest", model: "random_forest", label: "Random forest", weight: 3, settings: {} },
+          { entry: "linear_regression", model: "linear_regression", label: "Linear regression", weight: 1, settings: {} },
+        ],
+        score: 0.85,
+        std: 0.01,
+        best_single: "random_forest",
+        best_score: 0.8,
+        best_std: 0.02,
+        kept: true,
+        reason: "The ensemble scores 0.85 against 0.8 for Random forest alone: kept.",
+        stacking_score: null,
+      },
+      best: "ensemble",
+      gain: "63% lower error than the linear model",
+      test_score: 0.84,
+      seconds: 590,
+      trials: 40,
+      stopped: false,
+      finished: true,
+    };
+    const calls = mockApi(
+      routes({
+        "GET /modules/ml/datasets/d1/runs": [summary("r1")],
+        "POST /modules/ml/datasets/d1/auto": { id: "a1", status: "running", target: "price", progress: null, run_id: null, error: null },
+        "GET /modules/ml/auto-jobs/a1": { id: "a1", status: "done", target: "price", progress, run_id: "r9", error: null },
+        "GET /modules/ml/datasets/d1/runs/r9": { ...regressionRun, id: "r9", model: "ensemble", settings: { method: "greedy" } },
+      }),
+    );
+    const router = renderAt("/d/d1/ml?target=price");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Auto" }));
+    expect(screen.getByText(/compared on 5 folds of the training rows/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "10 min" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start the Auto" }));
+
+    expect(await screen.findByRole("heading", { name: "Kept: Ensemble" })).toBeInTheDocument();
+    const posted = calls.find((c) => c.key === "POST /modules/ml/datasets/d1/auto");
+    expect(posted?.body).toMatchObject({ minutes: 10, stacking: false });
+    expect(JSON.parse(posted?.params.get("validation") ?? "{}")).toMatchObject({ metric: "r2" });
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByText("63% lower error than the linear model.")).toBeInTheDocument();
+    expect(dialog.getByText("On the test rows: R² 0.84")).toBeInTheDocument();
+    expect(dialog.getByText("Constant: r2 -0.01.")).toBeInTheDocument();
+    const rows = dialog.getAllByRole("row").map((r) => r.textContent ?? "");
+    expect(rows.join(" | ")).toMatch(/Ensemblekept.*Random forest.*Linear regression.*Constant.*k-nearest neighbours.*Too slow/);
+    expect(dialog.getByText("Random forest ×3, Linear regression ×1")).toBeInTheDocument();
+    fireEvent.click(dialog.getByRole("button", { name: "Open the run" }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ run: "r9" }));
+  });
+
   it("only lets comparable runs be ticked", async () => {
     mockApi(
       routes({
@@ -639,5 +746,205 @@ describe("ML verdicts", () => {
     expect(verdict(classification)).toBe(
       "The model does no better than always answering “no”: the features may not carry information about the classes. (ROC AUC 0.55: 0.5 is chance.)",
     );
+  });
+});
+
+describe("Panel data", () => {
+  const check = {
+    panel: true,
+    period: "era",
+    entity: "id",
+    periods: 574,
+    per_period: 5000,
+    entities: 5000,
+    duplicates: 12,
+    embargo: 4,
+    embargo_reason: "The target of an id stays correlated with its next ones for 3 periods (r = 0.25 at lag 3): it likely looks 4 periods ahead.",
+    period_candidates: ["era"],
+    entity_candidates: ["id"],
+    message: "This looks like panel data: 574 eras × ~5,000 ids. Random splits would overestimate the score.",
+  };
+  const summary = {
+    metric: "spearman",
+    periods: 3,
+    mean: 0.02,
+    std: 0.01,
+    sharpe: 2,
+    threshold: 0,
+    share_good: 2 / 3,
+    worst: -0.01,
+    worst_period: "0575",
+    longest_bad_streak: 1,
+    lower_is_better: false,
+  };
+  const panelValidationSaved = {
+    ...regressionRun.validation,
+    method: "panel_walk_forward",
+    period_column: "era",
+    entity_column: "id",
+    embargo: 4,
+    window: "expanding",
+    window_periods: null,
+    sample_periods: null,
+    criterion: "mean",
+    period_threshold: null,
+    threshold: "default",
+  };
+  const panelRun = {
+    ...regressionRun,
+    id: "r2",
+    primary: "spearman",
+    score: 0.02,
+    validation: panelValidationSaved,
+    panel: {
+      period_column: "era",
+      entity_column: "id",
+      window: "expanding",
+      embargo: 4,
+      step: 4,
+      criterion: "mean",
+      value: 0.02,
+      periods: [
+        { period: "0575", rank: 574, fold: 1, rows: 5000, score: -0.01, pearson: -0.01, spearman: -0.01 },
+        { period: "0576", rank: 575, fold: 2, rows: 5000, score: 0.03, pearson: 0.02, spearman: 0.03 },
+        { period: "0577", rank: 576, fold: 3, rows: 5000, score: 0.04, pearson: 0.05, spearman: 0.04 },
+      ],
+      summary,
+      folds: [
+        { fold: 1, train_start: 0, train_end: 569, test_start: 574, test_end: 574, train_periods: 143, test_periods: 1, train_rows: 715000, test_rows: 5000, train_from: "0001", train_to: "0570", test_from: "0575", test_to: "0575" },
+      ],
+      exposures: [{ column: "feature_a", mean: 0.42 }],
+      max_exposure: 0.42,
+      exposure_columns: 2,
+      alerts: [{ kind: "future", message: "late_column looks like a column from the future: it follows the next era's target.", column: "late_column" }],
+      suggested_embargo: 4,
+      embargo_reason: null,
+    },
+  };
+  const summaryRun = {
+    id: "r1",
+    target: "price",
+    task: "regression",
+    model: "linear_regression",
+    settings: {},
+    metric: "r2",
+    score: 0.82,
+    seconds: 0.3,
+    created_at: "2026-10-18T10:00:00Z",
+    classes: null,
+    greater_is_better: true,
+    label: "",
+    validation: regressionRun.validation,
+  };
+
+  function panelSetup(runs: unknown[]) {
+    return mockApi({
+      "GET /health": health,
+      "GET /datasets": [dataset()],
+      "GET /datasets/d1": dataset(),
+      "GET /datasets/d1/columns": [column({ name: "price" })],
+      "GET /column-roles": roles,
+      "GET /modules/ml/datasets/d1/targets": {
+        candidates: [candidate("price", "regression"), candidate("era", "regression", { type: "numeric_discrete" }), candidate("id", null, { type: "identifier" })],
+        rows: 100,
+      },
+      "GET /modules/ml/catalog": catalogue([{ key: "linear_regression", label: "Linear regression", tasks: ["regression"] }]),
+      "GET /modules/ml/datasets/d1/panel": check,
+      "GET /modules/ml/datasets/d1/runs": runs,
+      "GET /modules/ml/datasets/d1/runs/r1": regressionRun,
+      "GET /modules/ml/datasets/d1/runs/r2": panelRun,
+      "POST /modules/ml/datasets/d1/runs": { id: "job1", status: "running", stage: "loading", run_id: null, error: null },
+      "GET /modules/ml/jobs/job1": { id: "job1", status: "running", stage: "loading", run_id: null, error: null },
+      "POST /modules/ml/datasets/d1/runs/r2/neutralize": {
+        columns: ["feature_a"],
+        proportion: 1,
+        value: 0.025,
+        periods: panelRun.panel.periods,
+        summary: { ...summary, mean: 0.025, sharpe: 3.1 },
+        before: [{ column: "feature_a", mean: 0.42 }],
+        after: [{ column: "feature_a", mean: 0.001 }],
+      },
+    });
+  }
+
+  it("says the rows look like a panel and switches to walk-forward with the embargo found", async () => {
+    const calls = panelSetup([summaryRun]);
+    renderAt("/d/d1/ml?target=price&run=r1");
+
+    expect(await screen.findByText(check.message)).toBeInTheDocument();
+    expect(screen.getByText(/same ids are in training and test rows/)).toBeInTheDocument();
+    expect(screen.getByText(/12 rows repeat an \(id, era\) pair/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use panel validation" }));
+    expect(await screen.findByText(/Panel walk-forward · 5 folds · era · embargo 4/)).toBeInTheDocument();
+    expect(screen.queryByText(check.message)).not.toBeInTheDocument();
+
+    const train = screen.getAllByRole("button", { name: "Train" });
+    fireEvent.click(train[train.length - 1] as HTMLElement);
+    await waitFor(() => expect(calls.some((c) => c.key === "POST /modules/ml/datasets/d1/runs")).toBe(true));
+    const posted = calls.filter((c) => c.key === "POST /modules/ml/datasets/d1/runs").pop();
+    expect(JSON.parse(posted?.params.get("validation") ?? "{}")).toMatchObject({
+      method: "panel_walk_forward",
+      period_column: "era",
+      entity_column: "id",
+      embargo: 4,
+    });
+  });
+
+  it("proposes the embargo the target calls for, with the reason", async () => {
+    panelSetup([summaryRun]);
+    renderAt("/d/d1/ml?target=price&run=r1");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit validation" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Validation" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Method" }), { target: { value: "panel_walk_forward" } });
+    const embargo = await screen.findByRole("spinbutton", { name: "Embargo (periods)" });
+    expect(embargo).toHaveValue(4);
+    fireEvent.blur(embargo, { target: { value: "0" } });
+    expect(await screen.findByText(check.embargo_reason)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use 4" }));
+    expect(await screen.findByRole("spinbutton", { name: "Embargo (periods)" })).toHaveValue(4);
+    expect(screen.queryByText(check.embargo_reason)).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Primary metric" })).toHaveTextContent("Auto (Spearman ρ)");
+    expect(screen.getByRole("combobox", { name: "Score over the periods" })).toHaveValue("mean");
+  });
+
+  it("shows every period, the folds, the panel checks, and neutralizes on a column", async () => {
+    const calls = panelSetup([{ ...summaryRun, id: "r2", metric: "spearman", score: 0.02, validation: panelValidationSaved }]);
+    renderAt("/d/d1/ml?target=price&run=r2");
+
+    expect(await screen.findByText(/Spearman ρ per era: 0.02 on average over 3 test periods/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "Periods" }));
+    expect(screen.getAllByText("Mean / std").length).toBeGreaterThan(0);
+    expect(screen.getByText("67 %")).toBeInTheDocument();
+    expect(screen.getByText(/late_column looks like a column from the future/)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Spearman ρ per era" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Cumulative Spearman ρ" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Folds on the time axis" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Export the periods (CSV)" })).toHaveAttribute("href", expect.stringContaining("/runs/r2/periods.csv"));
+
+    expect(screen.getByRole("checkbox", { name: "feature_a" })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Neutralize" }));
+    expect(await screen.findByText(/After neutralizing: Spearman ρ 0.03 on average \(was 0.02\), mean \/ std 3.1 \(was 2\)/)).toBeInTheDocument();
+    const posted = calls.find((c) => c.key === "POST /modules/ml/datasets/d1/runs/r2/neutralize");
+    expect(posted?.body).toEqual({ columns: ["feature_a"], proportion: 1 });
+    expect(screen.getByText("Exposure to feature_a")).toBeInTheDocument();
+  });
+});
+
+describe("Panel figures", () => {
+  const tokens = { ink1: "#000", ink2: "#111", ink3: "#222", line: "#333", surface: "#fff", accent: "#a00", numeric: "#00f", categorical: "#f0f", date: "#0f0", bool: "#ff0", text: "#444", id: "#555", font: "sans", palette: ["#2a78d6", "#eb6834"] };
+  const summary = { metric: "spearman", periods: 2, mean: 0, std: 0.1, sharpe: 0, threshold: 0, share_good: 0.5, worst: -0.1, worst_period: "2", longest_bad_streak: 1, lower_is_better: false };
+  const periods = [
+    { period: "1", rank: 0, fold: 1, rows: 3, score: 0.1, pearson: null, spearman: null },
+    { period: "2", rank: 1, fold: 1, rows: 3, score: -0.1, pearson: null, spearman: null },
+  ];
+
+  it("mutes the periods below the threshold and adds the scores up in time", () => {
+    const bars = periodScoresFigure({ periods, summary, period_column: "era" })(tokens);
+    const colors = (bars.data[0] as { marker: { color: string[] } }).marker.color;
+    expect(colors[0]).toBe("#2a78d6");
+    expect(colors[1]).not.toBe("#2a78d6");
+    const line = cumulativeFigure({ periods, summary, period_column: "era" })(tokens);
+    expect((line.data[0] as { y: number[] }).y).toEqual([0.1, 0]);
   });
 });

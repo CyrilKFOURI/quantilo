@@ -8,8 +8,8 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
-from cyfouri_data_explorer.filters.model import Condition
-from cyfouri_data_explorer.report.build import describe_condition
+from quantilo.filters.model import Condition
+from quantilo.report.build import describe_condition
 
 from app.core.errors import AppError
 from app.modules.agent.engine.budget import Budget

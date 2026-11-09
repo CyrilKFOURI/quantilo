@@ -5,9 +5,9 @@ from pathlib import Path
 
 import duckdb
 import pytest
-from cyfouri_data_explorer.rows import export as export_module
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
+from quantilo.rows import export as export_module
 
 from app.config import default_samples_dir
 from tests.api.test_profiling import import_path

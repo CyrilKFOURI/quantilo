@@ -1,7 +1,7 @@
 import { RotateCcw } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
-import type { DetectionSettings } from "../../api/client";
+import type { DetectionSettings, KeepPolicy } from "../../api/client";
 import {
   useClearCaches,
   useGpu,
@@ -20,6 +20,7 @@ import { Button } from "../../ui/Button";
 import { ErrorNote, Select, TextInput } from "../../ui/fields";
 import { PageHeader } from "../../ui/PageHeader";
 import { SegmentedControl } from "../../ui/SegmentedControl";
+import { Loading } from "../../ui/Loading";
 
 const DETECTION_DEFAULTS: DetectionSettings = { parse_rate: 0.95, empty_rate: 0.95, discrete_max: 20, identifier_unique: 0.95 };
 const RATES: { key: keyof DetectionSettings; label: MessageKey; hint: MessageKey }[] = [
@@ -34,7 +35,7 @@ export function SettingsPage() {
   const [defaults, setDefaults] = useAnalysisDefaults();
 
   return (
-    <div className="px-8 py-8">
+    <div className="px-(--gutter) py-8">
       <PageHeader title={t("settings.title")} />
 
       <Section title={t("settings.appearance")}>
@@ -141,7 +142,7 @@ function DetectionSection() {
   return (
     <Section title={t("settings.detection")} intro={t("settings.detectionIntro")}>
       {!values ? (
-        <div className="h-40 animate-pulse rounded-md bg-surface-1" aria-busy="true" />
+        <Loading label={t("loading.default")} className="h-40 rounded-md" />
       ) : (
         <>
           <SettingRow label={t("settings.discreteMax")} hint={t("settings.discreteMaxHint")}>
@@ -224,6 +225,10 @@ function ComputeSection() {
 function StorageSection() {
   const storage = useStorage();
   const clear = useClearCaches();
+  const settings = useSettings();
+  const save = useUpdateSettings();
+  const keep: KeepPolicy = settings.data?.versions?.keep ?? "under_limit";
+  const limit = storage.data ? formatBytes(storage.data.keep_limit_bytes ?? 0).replace(".0 ", " ") : "…";
   return (
     <Section title={t("settings.storage")}>
       <SettingRow label={t("settings.workspace")} hint={t("settings.workspaceHint")}>
@@ -247,6 +252,21 @@ function StorageSection() {
           </tbody>
         </table>
       )}
+      <SettingRow
+        label={t("settings.keepVersion")}
+        hint={t("settings.keepVersionHint", { size: storage.data ? formatBytes(storage.data.versions_bytes ?? 0) : "…" })}
+      >
+        <SegmentedControl
+          label={t("settings.keepVersion")}
+          value={keep}
+          options={[
+            { value: "always", label: t("settings.keepAlways") },
+            { value: "under_limit", label: t("settings.keepUnder", { size: limit }) },
+            { value: "never", label: t("settings.keepNever") },
+          ]}
+          onChange={(value) => settings.data && save.mutate({ versions: { keep: value } })}
+        />
+      </SettingRow>
       <SettingRow label={t("settings.caches")} hint={t("settings.cachesHint")}>
         <Button onClick={() => clear.mutate()} disabled={clear.isPending}>
           {clear.isSuccess ? t("settings.cachesCleared") : t("settings.clearCaches")}

@@ -1,12 +1,12 @@
 [project]
-name = "data-explorer"
+name = "quantilo-app"
 version = "0.1.0"
-description = "Local, offline exploratory data analysis with statistical depth."
+description = "Quantilo, a data analysis app: local, offline exploratory data analysis with statistical depth."
 requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
     # The engine: every calculation, shared with notebooks and scripts (packages/).
-    "cyfouri-data-explorer[ml]",
+    "quantilo[ml]",
     "duckdb>=1.5.6",
     "fastapi>=0.143.0",
     "pydantic-settings>=2.15.0",
@@ -15,7 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # Deep synthetic-data models (023b: CTGAN, TVAE, TimeGAN). Not in the default Docker image.
-deep = ["cyfouri-data-explorer[deep]", "torch>=2.14"]
+deep = ["quantilo[deep]", "torch>=2.14"]
 # AI agent (026): the official Anthropic SDK (Claude) and OpenAI SDK (OpenAI and every
 # OpenAI-compatible API: Gemini, Mistral, Groq, OpenRouter, local models). Optional.
 agent = ["anthropic>=2", "openai>=3"]
@@ -31,7 +31,7 @@ dev = [
 # PyTorch: built for CUDA 13.0 on Windows (driver >= 580), CPU-only on Linux (CI, small), the
 # default wheels on macOS (Apple GPU through MPS).
 [tool.uv.sources]
-cyfouri-data-explorer = { path = "../packages/cyfouri-data-explorer", editable = true }
+quantilo = { path = "../packages/quantilo", editable = true }
 torch = [
     { index = "pytorch-cu130", marker = "sys_platform == 'win32'" },
     { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },

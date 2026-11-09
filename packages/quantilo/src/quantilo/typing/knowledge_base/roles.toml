@@ -1,0 +1,157 @@
+# Semantic roles recognized from column names (FR + EN).
+# `names`: words or word sequences, matched against the normalized column name
+#          ("customerAge", "customer_age", "Customer Age" → customer age).
+# `type`:  analysis type the role forces when the values allow it (optional).
+# `min`/`max`: plausible numeric range; outside it, the role is not applied.
+# `label`: shown in the interface.
+
+[[role]]
+id = "identifier"
+label = "Identifier"
+names = ["id", "uuid", "guid", "identifier", "identifiant", "ref", "reference", "matricule",
+         "siret", "siren", "sku", "ean", "isbn", "order number", "customer number", "invoice number"]
+type = "identifier"
+
+[[role]]
+id = "age"
+label = "Age"
+names = ["age", "ages", "years old", "age years"]
+type = "numeric_continuous"
+min = 0
+max = 130
+
+[[role]]
+id = "amount"
+label = "Amount"
+names = ["price", "prix", "amount", "montant", "cost", "cout", "coût", "revenue", "revenu", "income",
+         "salary", "salaire", "sales", "turnover", "eur", "euro", "euros", "usd", "dollar", "dollars",
+         "total", "fee", "fees", "budget", "spend", "spending", "profit", "margin", "marge", "wage"]
+type = "numeric_continuous"
+
+[[role]]
+id = "percentage"
+label = "Percentage"
+names = ["pct", "percent", "percentage", "pourcentage", "rate", "taux", "ratio", "share", "discount",
+         "remise", "part"]
+
+[[role]]
+id = "quantity"
+label = "Quantity"
+names = ["qty", "quantity", "quantite", "quantité", "nb", "nbr", "nombre", "count", "units", "unit",
+         "number of"]
+
+[[role]]
+id = "rating"
+label = "Rating"
+names = ["rating", "score", "satisfaction", "stars", "grade", "nps", "evaluation", "évaluation"]
+
+[[role]]
+id = "duration"
+label = "Duration"
+names = ["duration", "duree", "durée", "seconds", "minutes", "hours", "delay", "delai", "délai",
+         "elapsed", "tenure", "anciennete", "ancienneté"]
+
+[[role]]
+id = "year"
+label = "Year"
+names = ["year", "years", "annee", "année", "yr", "birth year", "annee naissance", "millesime"]
+type = "datetime"
+min = 1800
+max = 2100
+
+[[role]]
+id = "month"
+label = "Month"
+names = ["month", "mois"]
+
+[[role]]
+id = "weekday"
+label = "Day of week"
+names = ["weekday", "day of week", "jour semaine", "dow"]
+
+[[role]]
+id = "latitude"
+label = "Latitude"
+names = ["lat", "latitude"]
+type = "numeric_continuous"
+min = -90
+max = 90
+
+[[role]]
+id = "longitude"
+label = "Longitude"
+names = ["lon", "lng", "long", "longitude"]
+type = "numeric_continuous"
+min = -180
+max = 180
+
+[[role]]
+id = "country"
+label = "Country"
+names = ["country", "pays", "nation", "country code", "code pays"]
+type = "categorical_nominal"
+
+[[role]]
+id = "city"
+label = "City"
+names = ["city", "ville", "town", "commune", "municipality"]
+type = "categorical_nominal"
+
+[[role]]
+id = "region"
+label = "Region"
+names = ["region", "région", "state", "province", "department", "departement", "département", "county"]
+type = "categorical_nominal"
+
+[[role]]
+id = "entity"
+label = "Entity code"
+# numbered places a dataset is split by (Walmart's "Store" 1-45, 040): categories, not amounts
+names = ["store", "shop", "branch", "agency", "agence", "magasin", "boutique", "warehouse",
+         "entrepot", "entrepôt", "depot", "dépôt", "plant", "usine", "station", "outlet"]
+type = "categorical_nominal"
+
+[[role]]
+id = "postal_code"
+label = "Postal code"
+names = ["zip", "zipcode", "zip code", "postcode", "postal code", "code postal", "cp", "postal"]
+type = "categorical_nominal"
+
+[[role]]
+id = "email"
+label = "Email"
+names = ["email", "mail", "e mail", "courriel", "email address"]
+pattern = "email"
+
+[[role]]
+id = "phone"
+label = "Phone"
+names = ["phone", "telephone", "téléphone", "tel", "mobile", "portable", "gsm", "fax"]
+type = "categorical_nominal"
+pattern = "phone"
+
+[[role]]
+id = "url"
+label = "URL"
+names = ["url", "link", "website", "site", "lien", "href", "uri"]
+pattern = "url"
+
+[[role]]
+id = "gender"
+label = "Gender"
+names = ["gender", "sex", "sexe", "genre", "civilite", "civilité"]
+type = "categorical_nominal"
+
+[[role]]
+id = "status"
+label = "Status"
+names = ["status", "statut", "etat", "état", "stage", "phase"]
+type = "categorical_nominal"
+
+[[role]]
+id = "free_text"
+label = "Free text"
+names = ["comment", "comments", "commentaire", "commentaires", "description", "desc", "notes",
+         "remark", "remarks", "remarque", "feedback", "message", "review", "avis", "summary",
+         "resume", "résumé", "body", "content", "text", "texte"]
+type = "text"

@@ -10,6 +10,7 @@ import { useStoredState } from "../../lib/useStoredState";
 import { Select } from "../../ui/fields";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { boxFromProfile, ecdfFigure, kdeFigure, qqFigure, violinFigure } from "./figures";
+import { Loading } from "../../ui/Loading";
 
 const VIEWS = ["histogram", "kde", "ecdf", "box", "violin", "qq"] as const;
 type View = (typeof VIEWS)[number];
@@ -85,7 +86,7 @@ export function NumericChart({ datasetId, column, type, profile }: NumericChartP
       {figure ? (
         <Plot figure={figure} height={HEIGHT} label={t("chart.label", { name: column })} />
       ) : (
-        <div style={{ height: HEIGHT }} className="animate-pulse rounded-md bg-surface-2" aria-busy="true" />
+        <Loading label={t("loading.chart")} style={{ height: HEIGHT }} className="rounded-md" />
       )}
       {note && <p className="mt-1.5 text-xs text-ink-3">{note}</p>}
     </section>

@@ -4,7 +4,9 @@ import { api, type MlRun, type MlRunSummary } from "../../api/client";
 import { formatNumber } from "../../charts/figures";
 import { Plot } from "../../charts/Plot";
 import { t, type MessageKey } from "../../lib/i18n";
+import { ErrorsCompared } from "./ErrorsCompare";
 import { overlayPredictedFigure, overlayRocFigure } from "./figures";
+import { Loading } from "../../ui/Loading";
 
 /** Why two runs cannot be compared, or null: same target, classes and validation are needed. */
 export function incomparable(first: MlRunSummary, other: MlRunSummary): string | null {
@@ -13,7 +15,8 @@ export function incomparable(first: MlRunSummary, other: MlRunSummary): string |
     return t("ml.runCompare.otherClasses");
   const key = (r: MlRunSummary) => {
     const v = r.validation;
-    return JSON.stringify([v.method, v.test_size, v.folds, v.repeats, v.group, v.time_column, v.seed, v.max_rows]);
+    // a panel run is also judged on its period, embargo, window and criterion (035)
+    return JSON.stringify([v.method, v.test_size, v.folds, v.repeats, v.group, v.time_column, v.seed, v.max_rows, v.period_column, v.embargo, v.window, v.criterion]);
   };
   if (key(first) !== key(other)) return t("ml.runCompare.otherValidation");
   return null;
@@ -29,7 +32,7 @@ export function RunCompare({ datasetId, summaries }: { datasetId: string; summar
     })),
   });
   const runs = results.map((r) => r.data).filter((r): r is MlRun => Boolean(r));
-  if (runs.length < summaries.length) return <div className="h-40 animate-pulse rounded-md bg-surface-1" aria-busy="true" />;
+  if (runs.length < summaries.length) return <Loading label={t("loading.runs")} className="h-40 rounded-md" />;
   const name = (run: MlRun, index: number) => `#${index + 1} ${summaries[index]?.label || run.model}`;
   const metrics = [...new Set(runs.flatMap((r) => Object.keys(r.scores)))].filter((m) => runs.some((r) => r.scores[m] !== null));
   const keys = [...new Set(runs.flatMap((r) => Object.keys(r.settings)))];
@@ -85,6 +88,9 @@ export function RunCompare({ datasetId, summaries }: { datasetId: string; summar
         <figure className="rounded-md border border-line bg-surface-1 p-2">
           <Plot figure={overlayRocFigure(runs.map((r, i) => ({ name: name(r, i), run: r })))} height={300} label={t("ml.roc")} />
         </figure>
+      )}
+      {runs.length === 2 && runs[0] && runs[1] && (
+        <ErrorsCompared datasetId={datasetId} first={runs[0].id} second={runs[1].id} names={[name(runs[0], 0), name(runs[1], 1)]} />
       )}
     </section>
   );

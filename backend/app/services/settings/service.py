@@ -6,11 +6,12 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
-from cyfouri_data_explorer import gpu
-from cyfouri_data_explorer.gpu import GpuStatus
-from cyfouri_data_explorer.typing.engine import DEFAULT_THRESHOLDS, Thresholds
 from pydantic import BaseModel, Field
+from quantilo import gpu
+from quantilo.gpu import GpuStatus
+from quantilo.typing.engine import DEFAULT_THRESHOLDS, Thresholds
 
 from app.core import db
 from app.core.storage import Workspace
@@ -18,6 +19,8 @@ from app.services.datasets.service import DatasetService
 
 DETECTION_KEY = "detection"
 COMPUTE_KEY = "compute"
+VERSIONS_KEY = "versions"
+KeepPolicy = Literal["always", "under_limit", "never"]
 
 
 class DetectionSettings(BaseModel):
@@ -35,9 +38,17 @@ class ComputeSettings(BaseModel):
     use_gpu: bool | None = None
 
 
+class VersionSettings(BaseModel):
+    """Keep the previous version's Parquet copy at a reimport (031), for the row by row
+    comparison: always, under the size limit (2 GB, 200 MB in the browser build) or never."""
+
+    keep: KeepPolicy = "under_limit"
+
+
 class AppSettings(BaseModel):
     detection: DetectionSettings = Field(default_factory=DetectionSettings)
     compute: ComputeSettings = Field(default_factory=ComputeSettings)
+    versions: VersionSettings = Field(default_factory=VersionSettings)
 
 
 @dataclass
@@ -52,6 +63,8 @@ class StorageInfo:
     workspace: str
     total_bytes: int
     datasets: list[DatasetUsage]
+    versions_bytes: int = 0  # previous versions kept for the row by row comparison
+    keep_limit_bytes: int = 0  # the "Under …" of Keep the previous version
 
 
 def folder_size(path: Path) -> int:
@@ -80,12 +93,14 @@ class SettingsService:
     def get(self) -> AppSettings:
         with self._db() as connection:
             rows = connection.execute(
-                "SELECT key, value FROM settings WHERE key IN (?, ?)", (DETECTION_KEY, COMPUTE_KEY)
+                "SELECT key, value FROM settings WHERE key IN (?, ?, ?)",
+                (DETECTION_KEY, COMPUTE_KEY, VERSIONS_KEY),
             ).fetchall()
         stored = {row["key"]: json.loads(row["value"]) for row in rows}
         return AppSettings(
             detection=DetectionSettings.model_validate(stored.get(DETECTION_KEY, {})),
             compute=ComputeSettings.model_validate(stored.get(COMPUTE_KEY, {})),
+            versions=VersionSettings.model_validate(stored.get(VERSIONS_KEY, {})),
         )
 
     def update(self, settings: AppSettings) -> AppSettings:
@@ -93,6 +108,7 @@ class SettingsService:
             for key, value in (
                 (DETECTION_KEY, settings.detection.model_dump_json()),
                 (COMPUTE_KEY, settings.compute.model_dump_json()),
+                (VERSIONS_KEY, settings.versions.model_dump_json()),
             ):
                 connection.execute(
                     "INSERT INTO settings (key, value) VALUES (?, ?) "
@@ -111,13 +127,26 @@ class SettingsService:
     def thresholds(self) -> Thresholds:
         return Thresholds(**self.get().detection.model_dump())
 
+    def keep_policy(self) -> KeepPolicy:
+        return self.get().versions.keep
+
     def storage(self) -> StorageInfo:
         usage = [
             DatasetUsage(d.id, d.name, folder_size(self.workspace.dataset_dir(d.id)))
             for d in self.datasets.list_all()
         ]
         usage.sort(key=lambda item: -item.bytes)
-        return StorageInfo(str(self.workspace.root), folder_size(self.workspace.root), usage)
+        kept = sum(
+            folder_size(self.workspace.dataset_dir(d.id) / "versions")
+            for d in self.datasets.list_all()
+        )
+        return StorageInfo(
+            str(self.workspace.root),
+            folder_size(self.workspace.root),
+            usage,
+            versions_bytes=kept,
+            keep_limit_bytes=self.datasets.settings.keep_version_limit_mb * 1024 * 1024,
+        )
 
     def clear_caches(self) -> None:
         for clear in self.cache_clearers:

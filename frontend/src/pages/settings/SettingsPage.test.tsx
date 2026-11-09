@@ -14,7 +14,7 @@ function setup() {
     "GET /settings": { detection, compute: { use_gpu: null } },
     "GET /settings/gpu": { state: "ready", name: "NVIDIA GeForce RTX 4050 Laptop", memory_mb: 6141, driver: "560.94", torch: false, message: "NVIDIA GeForce RTX 4050 Laptop · 6 GB · ready" },
     "PUT /settings": (body: unknown) => body,
-    "GET /storage": { workspace: "C:\\Users\\me\\DataExplorer", total_bytes: 3_145_728, datasets: [{ id: "d1", name: "sales", bytes: 2_097_152 }] },
+    "GET /storage": { workspace: "C:\\Users\\me\\Quantilo", total_bytes: 3_145_728, datasets: [{ id: "d1", name: "sales", bytes: 2_097_152 }] },
     "POST /storage/clear-caches": null,
   });
 }

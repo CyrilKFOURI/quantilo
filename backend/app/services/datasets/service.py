@@ -11,15 +11,15 @@ from pathlib import Path
 from typing import Literal
 
 import duckdb
-from cyfouri_data_explorer.errors import NotFoundError
-from cyfouri_data_explorer.ingestion.browse import Listing, list_directory
-from cyfouri_data_explorer.ingestion.errors import IngestionError
-from cyfouri_data_explorer.ingestion.importer import ImportCancelled, import_to_parquet
-from cyfouri_data_explorer.ingestion.options import ImportOptions, SourceOptions
-from cyfouri_data_explorer.ingestion.paths import is_within, to_local_path
-from cyfouri_data_explorer.ingestion.preview import ColumnInfo, Preview, preview_source
-from cyfouri_data_explorer.ingestion.sources import SourceFile, fingerprint, list_source_files
-from cyfouri_data_explorer.ingestion.sql import lit
+from quantilo.errors import NotFoundError
+from quantilo.ingestion.browse import Listing, list_directory
+from quantilo.ingestion.errors import IngestionError
+from quantilo.ingestion.importer import ImportCancelled, import_to_parquet
+from quantilo.ingestion.options import ImportOptions, SourceOptions
+from quantilo.ingestion.paths import is_within, to_local_path
+from quantilo.ingestion.preview import ColumnInfo, Preview, preview_source
+from quantilo.ingestion.sources import SourceFile, fingerprint, list_source_files
+from quantilo.ingestion.sql import lit
 
 from app.config import Settings
 from app.core import db
@@ -41,6 +41,9 @@ class DatasetService:
         self.jobs = jobs
         # Steps run after the Parquet copy is written (e.g. type detection), in order.
         self.after_import: list[Callable[[str, str], object]] = []
+        # Steps run at a reimport, before the new copy replaces the current one (e.g.
+        # keeping the previous version, 031).
+        self.before_reimport: list[Callable[[str, str], object]] = []
         # One per running import: deleting the dataset sets it to stop the import.
         self._stops: dict[str, threading.Event] = {}
 
@@ -174,6 +177,14 @@ class DatasetService:
                 repo.update_job(connection, job_id, progress=fraction, message=message)
 
             target = self.workspace.dataset_dir(dataset_id) / "data.parquet"
+            if target.is_file():
+                progress(0.01, "Keeping the previous version")
+                for step in self.before_reimport:
+                    try:
+                        step(dataset_id, str(target))
+                    except Exception:
+                        # Not fatal: the reimport goes on, the comparison has less detail.
+                        logger.exception("Pre-reimport step failed for dataset %s", dataset_id)
             try:
                 result = import_to_parquet(files, options, target, progress, stop)
             except ImportCancelled:

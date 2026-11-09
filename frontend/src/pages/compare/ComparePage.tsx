@@ -32,9 +32,12 @@ import {
 } from "../../features/compare/TimeOptions";
 import { NoRows } from "../../features/filters/NoRows";
 import { t, type MessageKey } from "../../lib/i18n";
+import { PHONE, useMedia } from "../../lib/useMedia";
 import { Button } from "../../ui/Button";
 import { Checkbox, ErrorNote, Field, Select } from "../../ui/fields";
+import { ParamPanel } from "../../ui/ParamPanel";
 import { SegmentedControl } from "../../ui/SegmentedControl";
+import { Loading } from "../../ui/Loading";
 
 export type CompareSearch = {
   x?: string;
@@ -82,12 +85,29 @@ const distinctOf = (column: Column) => {
 const readsAsLevels = (column: Column) =>
   column.type === "numeric_discrete" && (distinctOf(column) ?? Infinity) <= MAX_DISCRETE_CATEGORIES;
 
+const LEVEL_TYPES = new Set<AnalysisType>(["categorical_nominal", "categorical_ordinal", "boolean", "numeric_discrete"]);
+const METRIC_TYPES = new Set<AnalysisType>(["numeric_continuous", "numeric_discrete", "boolean"]);
+
+/** A column of 2 to 5 values against a number or yes/no: it reads as an experiment (034). */
+export function experimentOf(x: Column, y: Column): { variant: string; metric: string } | null {
+  const levels = (c: Column) => LEVEL_TYPES.has(c.type) && (distinctOf(c) ?? 0) >= 2 && (distinctOf(c) ?? 0) <= 5;
+  const pairs = [
+    [x, y],
+    [y, x],
+  ].filter(([variant, metric]) => variant && metric && levels(variant) && METRIC_TYPES.has(metric.type));
+  // a yes/no column is more likely the metric than the variant
+  pairs.sort(([a], [b]) => Number(a?.type === "boolean") - Number(b?.type === "boolean"));
+  const [variant, metric] = pairs[0] ?? [];
+  return variant && metric ? { variant: variant.name, metric: metric.name } : null;
+}
+
 function roleOf(column: Column, numbers: string[]): Role | undefined {
   if (readsAsLevels(column) && !numbers.includes(column.name)) return "cat";
   return ROLE[column.type];
 }
 
 export function ComparePage() {
+  const phone = useMedia(PHONE);
   const { datasetId } = useParams({ from: "/d/$datasetId/compare" });
   const search = useSearch({ from: "/d/$datasetId/compare" });
   const navigate = useNavigate({ from: "/d/$datasetId/compare" });
@@ -135,6 +155,7 @@ export function ComparePage() {
         }
       : null;
   const comparison = useCompare(datasetId, params);
+  const experiment = x && y && x.name !== y.name ? experimentOf(x, y) : null;
 
   const set = (patch: CompareSearch) =>
     void navigate({
@@ -143,7 +164,7 @@ export function ComparePage() {
     });
 
   return (
-    <div className="flex flex-col gap-5 px-8 py-6">
+    <div className="flex flex-col gap-5 px-(--gutter) py-6">
       <header className="max-w-prose">
         <h1 className="text-xl font-semibold tracking-tight">
           {t("compare.title")}
@@ -151,63 +172,122 @@ export function ComparePage() {
         <p className="mt-1 text-ink-2">{t("compare.description")}</p>
       </header>
 
-      <div className="flex flex-wrap items-end gap-x-3 gap-y-6 pb-4">
-        <div className="relative">
+      {phone ? (
+        // 041: on a phone the four pickers fold into one line ("units × revenue"), open while
+        // nothing is chosen.
+        <ParamPanel
+          label={t("compare.settings")}
+          summary={[x && y ? `${x.name} × ${y.name}` : t("compare.pickShort"), z?.name, colorAllowed && color?.name]}
+          defaultOpen={!x || !y}
+          footer={
+            <Button
+              variant="ghost"
+              icon={ArrowLeftRight}
+              disabled={!x || !y}
+              onClick={() => set({ x: search.y, y: search.x })}
+            >
+              {t("compare.swap")}
+            </Button>
+          }
+        >
+          <div className="relative">
+            <ColumnPicker
+              label="X"
+              value={x ? x.name : ""}
+              columns={usable}
+              onChange={(name) => set({ x: name })}
+            />
+            {x && readsAsLevels(x) && (
+              <ReadAs column={x} asNumbers={numbers.includes(x.name)} onToggle={() => toggleNumbers(x.name)} />
+            )}
+          </div>
+          <div className="relative">
+            <ColumnPicker
+              label="Y"
+              value={y ? y.name : ""}
+              columns={usable}
+              onChange={(name) => set({ y: name })}
+            />
+            {y && readsAsLevels(y) && (
+              <ReadAs column={y} asNumbers={numbers.includes(y.name)} onToggle={() => toggleNumbers(y.name)} />
+            )}
+          </div>
           <ColumnPicker
-            label="X"
-            value={x ? x.name : ""}
-            columns={usable}
-            onChange={(name) => set({ x: name })}
+            label={t("compare.z")}
+            value={z?.name ?? ""}
+            columns={usable.filter((c) => role(c) === "num")}
+            optional
+            disabled={!bothNumeric}
+            hint={bothNumeric ? undefined : t("compare.zHint")}
+            onChange={(name) => set({ z: name || undefined })}
           />
-          {x && readsAsLevels(x) && (
-            <ReadAs column={x} asNumbers={numbers.includes(x.name)} onToggle={() => toggleNumbers(x.name)} />
-          )}
-        </div>
-        <Button
-          variant="ghost"
-          icon={ArrowLeftRight}
-          iconOnly
-          aria-label={t("compare.swap")}
-          title={t("compare.swap")}
-          disabled={!x || !y}
-          onClick={() => set({ x: search.y, y: search.x })}
-        />
-        <div className="relative">
           <ColumnPicker
-            label="Y"
-            value={y ? y.name : ""}
-            columns={usable}
-            onChange={(name) => set({ y: name })}
+            label={t("compare.color")}
+            value={colorAllowed ? (color?.name ?? "") : ""}
+            columns={usable.filter((c) => role(c) === "cat")}
+            optional
+            disabled={!colorAllowed}
+            hint={colorAllowed ? undefined : t("compare.colorHint")}
+            onChange={(name) => set({ color: name || undefined })}
           />
-          {y && readsAsLevels(y) && (
-            <ReadAs column={y} asNumbers={numbers.includes(y.name)} onToggle={() => toggleNumbers(y.name)} />
-          )}
+        </ParamPanel>
+      ) : (
+        <div className="flex flex-wrap items-end gap-x-3 gap-y-6 pb-4">
+          <div className="relative">
+            <ColumnPicker
+              label="X"
+              value={x ? x.name : ""}
+              columns={usable}
+              onChange={(name) => set({ x: name })}
+            />
+            {x && readsAsLevels(x) && (
+              <ReadAs column={x} asNumbers={numbers.includes(x.name)} onToggle={() => toggleNumbers(x.name)} />
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            icon={ArrowLeftRight}
+            iconOnly
+            aria-label={t("compare.swap")}
+            title={t("compare.swap")}
+            disabled={!x || !y}
+            onClick={() => set({ x: search.y, y: search.x })}
+          />
+          <div className="relative">
+            <ColumnPicker
+              label="Y"
+              value={y ? y.name : ""}
+              columns={usable}
+              onChange={(name) => set({ y: name })}
+            />
+            {y && readsAsLevels(y) && (
+              <ReadAs column={y} asNumbers={numbers.includes(y.name)} onToggle={() => toggleNumbers(y.name)} />
+            )}
+          </div>
+          <ColumnPicker
+            label={t("compare.z")}
+            value={z?.name ?? ""}
+            columns={usable.filter((c) => role(c) === "num")}
+            optional
+            disabled={!bothNumeric}
+            hint={bothNumeric ? undefined : t("compare.zHint")}
+            onChange={(name) => set({ z: name || undefined })}
+          />
+          <ColumnPicker
+            label={t("compare.color")}
+            value={colorAllowed ? (color?.name ?? "") : ""}
+            columns={usable.filter((c) => role(c) === "cat")}
+            optional
+            disabled={!colorAllowed}
+            hint={colorAllowed ? undefined : t("compare.colorHint")}
+            onChange={(name) => set({ color: name || undefined })}
+          />
         </div>
-        <ColumnPicker
-          label={t("compare.z")}
-          value={z?.name ?? ""}
-          columns={usable.filter((c) => role(c) === "num")}
-          optional
-          disabled={!bothNumeric}
-          hint={bothNumeric ? undefined : t("compare.zHint")}
-          onChange={(name) => set({ z: name || undefined })}
-        />
-        <ColumnPicker
-          label={t("compare.color")}
-          value={colorAllowed ? (color?.name ?? "") : ""}
-          columns={usable.filter((c) => role(c) === "cat")}
-          optional
-          disabled={!colorAllowed}
-          hint={colorAllowed ? undefined : t("compare.colorHint")}
-          onChange={(name) => set({ color: name || undefined })}
-        />
-      </div>
+
+      )}
 
       {columns.isPending ? (
-        <div
-          className="h-[460px] animate-pulse rounded-lg bg-surface-1"
-          aria-busy="true"
-        />
+        <Loading label={t("loading.columns")} className="h-[460px] rounded-lg" />
       ) : !params ? (
         <p className="rounded-lg border border-dashed border-line px-4 py-10 text-center text-ink-2">
           {x && y ? t("compare.differentColumns") : t("compare.pick")}
@@ -215,10 +295,7 @@ export function ComparePage() {
       ) : comparison.isError ? (
         <ErrorNote>{comparison.error.message}</ErrorNote>
       ) : !comparison.data ? (
-        <div
-          className="h-[460px] animate-pulse rounded-lg bg-surface-1"
-          aria-busy="true"
-        />
+        <Loading label={t("loading.comparison")} className="h-[460px] rounded-lg" />
       ) : comparison.data.total === 0 ? (
         <NoRows datasetId={datasetId} />
       ) : (
@@ -233,6 +310,7 @@ export function ComparePage() {
               result={comparison.data}
               time={search}
               onTimeChange={(patch) => set(patch)}
+              experiment={experiment}
             />
           )}
           <TestsPanel result={comparison.data} />
@@ -245,7 +323,7 @@ export function ComparePage() {
 /** "Pclass: 3 values, read as categories · As numbers" under a picker (R-CMP-01/02). */
 function ReadAs({ column, asNumbers, onToggle }: { column: Column; asNumbers: boolean; onToggle: () => void }) {
   return (
-    <p className="absolute top-full left-0 mt-1 text-[11px] whitespace-nowrap text-ink-3">
+    <p className="absolute top-full left-0 mt-1 text-[11px] whitespace-nowrap text-ink-3 max-sm:static max-sm:whitespace-normal">
       {asNumbers
         ? t("compare.readAsNumbers")
         : t("compare.readAsLevels", { count: String(distinctOf(column)) })}{" "}
@@ -339,10 +417,12 @@ function ChartArea({
   result,
   time,
   onTimeChange,
+  experiment,
 }: {
   result: Comparison;
   time: TimeSearch;
   onTimeChange: (patch: TimeSearch) => void;
+  experiment: { variant: string; metric: string } | null;
 }) {
   const [chosen, setChosen] = useState<View | null>(null);
   const [regression, setRegression] = useState(true);
@@ -376,6 +456,7 @@ function ChartArea({
           </span>
         )}
         {result.time && <AnalyzeLink result={result} time={time} />}
+        {experiment && <ExperimentLink {...experiment} />}
         {view === "points" && result.regression && (
           <Checkbox
             label={t("compare.regression", {
@@ -470,6 +551,21 @@ function AnalyzeLink({
       className="text-xs text-accent hover:underline"
     >
       {t("time.analyze")}
+    </Link>
+  );
+}
+
+/** Opens the Experiments module with this column as the variant and the other as the metric. */
+function ExperimentLink({ variant, metric }: { variant: string; metric: string }) {
+  const { datasetId } = useParams({ from: "/d/$datasetId/compare" });
+  return (
+    <Link
+      to={"/d/$datasetId/experiments" as never}
+      params={{ datasetId } as never}
+      search={{ variant, metric } as never}
+      className="text-xs text-accent hover:underline"
+    >
+      {t("compare.analyzeExperiment")}
     </Link>
   );
 }

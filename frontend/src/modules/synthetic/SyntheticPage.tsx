@@ -24,12 +24,14 @@ import {
 import { t, type MessageKey } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
 import { Checkbox, ErrorNote, ProgressBar, Select, TextInput } from "../../ui/fields";
+import { SettingsBar } from "../../ui/ParamPanel";
 import { Popover } from "../../ui/Popover";
 import { pct } from "./format";
 import { Report } from "./Report";
 import { RunCompare } from "./RunCompare";
 import { SequenceSettings, type SequenceDraft } from "./SequencesTab";
 import type { SyntheticSearch, Tab } from "./search";
+import { Loading } from "../../ui/Loading";
 
 const small = "h-7 text-xs";
 const STAGES = ["loading", "generating", "evaluating", "saving"] as const;
@@ -43,8 +45,8 @@ const EMPTY: Draft = { treatments: {}, bounds: {} };
 
 function Group({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={label}>
-      <span className="text-ink-3">{label}</span>
+    <div className="flex flex-wrap items-center gap-1.5 max-sm:w-full" role="group" aria-label={label}>
+      <span className="text-ink-3 max-sm:basis-full">{label}</span>
       {children}
     </div>
   );
@@ -80,7 +82,8 @@ function PlanTable({
     onChange({ ...draft, bounds: { ...draft.bounds, [name]: bound } });
   };
   return (
-    <table className="w-full text-[13px]">
+    // 041: on a phone each column is a stacked block: name and treatment, then bounds, then why.
+    <table className="w-full text-[13px] max-sm:block max-sm:[&_tbody]:block max-sm:[&_thead]:hidden max-sm:[&_td]:p-0 max-sm:[&_td:nth-child(n+3)]:col-span-2 max-sm:[&_tr]:grid max-sm:[&_tr]:grid-cols-[minmax(0,1fr)_auto] max-sm:[&_tr]:items-center max-sm:[&_tr]:gap-x-3 max-sm:[&_tr]:gap-y-1.5 max-sm:[&_tr]:py-2">
       <caption className="sr-only">{t("synthetic.columns")}</caption>
       <thead>
         <tr className="border-b border-line text-left text-xs text-ink-3">
@@ -360,11 +363,11 @@ export function SyntheticPage() {
     });
   };
 
-  if (dataset.data && !ready) return <p className="px-8 py-6 text-ink-3">{t("synthetic.notReady")}</p>;
+  if (dataset.data && !ready) return <p className="px-(--gutter) py-6 text-ink-3">{t("synthetic.notReady")}</p>;
 
   return (
     <div className="flex flex-col">
-      <header className="flex flex-wrap items-start justify-between gap-4 px-8 pt-6 pb-4">
+      <header className="flex flex-wrap items-start justify-between gap-4 px-(--gutter) pt-6 pb-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{t("synthetic.title")}</h1>
           <p className="mt-1 max-w-prose text-ink-2">{t("synthetic.description")}</p>
@@ -385,11 +388,19 @@ export function SyntheticPage() {
         />
       </header>
 
-      <div className="space-y-4 px-8 pb-10">
+      <div className="space-y-4 px-(--gutter) pb-10">
         {plan.error && <ErrorNote>{plan.error.message}</ErrorNote>}
         {p && (
           <>
-            <div className="sticky top-0 z-10 -mx-8 border-y border-line bg-surface-0/95 px-8 py-2 backdrop-blur" role="group" aria-label={t("synthetic.settings")}>
+            <SettingsBar
+              label={t("synthetic.settings")}
+              summary={[option?.label ?? method, !timegan && t("synthetic.rowsCount", { rows: rows.toLocaleString("en") }), t("synthetic.seedShort", { seed: String(seed) })]}
+              phoneAction={
+                <Button variant="primary" icon={Play} onClick={start} disabled={running || generate.isPending || Boolean(p.error) || modelled === 0} className="w-full justify-center">
+                  {t("synthetic.generate")}
+                </Button>
+              }
+            >
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
                 <Group label={t("synthetic.method")}>
                   <Select
@@ -506,13 +517,13 @@ export function SyntheticPage() {
                   {showColumns ? <ChevronDown size={13} aria-hidden /> : <ChevronRight size={13} aria-hidden />}
                   {t("synthetic.modelledOf", { modelled: String(modelled), total: String(p.columns.length) })}
                 </button>
-                <div className="ml-auto">
+                <div className="ml-auto max-sm:hidden">
                   <Button variant="primary" icon={Play} onClick={start} disabled={running || generate.isPending || Boolean(p.error) || modelled === 0}>
                     {t("synthetic.generate")}
                   </Button>
                 </div>
               </div>
-            </div>
+            </SettingsBar>
             <p className="text-xs text-ink-3">
               <span className="font-medium text-ink-2">{t("synthetic.why")} </span>
               {draft.method && draft.method !== p.method
@@ -551,7 +562,7 @@ export function SyntheticPage() {
             onTab={(tab: Tab) => go({ run: runId, tab })}
           />
         )}
-        {!running && runId && run.isLoading && <div className="h-64 animate-pulse border-y border-line bg-surface-1/40" aria-busy="true" />}
+        {!running && runId && run.isLoading && <Loading label={t("loading.report")} className="h-64" />}
         {!running && !runId && p && !p.error && (
           <p className="border-y border-line py-6 text-center text-[13px] text-ink-3">{t("synthetic.empty")}</p>
         )}

@@ -6,6 +6,7 @@ import type { Column, RowsMode, RowsView } from "../../api/client";
 import { useActiveFilters } from "../../api/filters";
 import { useColumnSummaries, useColumns, useDataset, useRowBlocks } from "../../api/hooks";
 import { DataTable, type TableColumn } from "../../features/data/DataTable";
+import { RecordList } from "../../features/data/RecordList";
 import { ExportMenu } from "../../features/data/ExportMenu";
 import { useTableLayout } from "../../features/data/useTableLayout";
 import { ConditionEditor } from "../../features/filters/ConditionEditor";
@@ -13,10 +14,12 @@ import { NoRows } from "../../features/filters/NoRows";
 import { useFilters } from "../../features/filters/useFilters";
 import { formatCount } from "../../lib/format";
 import { t } from "../../lib/i18n";
+import { BELOW_LAPTOP, PHONE, useMedia } from "../../lib/useMedia";
 import { Dialog } from "../../ui/Dialog";
 import { ErrorNote, TextInput } from "../../ui/fields";
 import { Popover } from "../../ui/Popover";
 import { SegmentedControl } from "../../ui/SegmentedControl";
+import { Loading } from "../../ui/Loading";
 
 export type DataSearch = { mode?: RowsMode; q?: string; sort?: string; desc?: boolean };
 
@@ -44,6 +47,9 @@ export function DataPage() {
   const filters = useActiveFilters(datasetId);
   const { add } = useFilters(datasetId);
   const layout = useTableLayout(datasetId);
+  // 041: below a laptop the rows are cards (nothing scrolls sideways): 4 fields on a phone, 6 on a tablet.
+  const phone = useMedia(PHONE);
+  const belowLaptop = useMedia(BELOW_LAPTOP);
   const [draft, setDraft] = useState<{ term: string; for: string | undefined }>({ term: search.q ?? "", for: search.q });
   const [filtering, setFiltering] = useState<Column | null>(null);
 
@@ -77,7 +83,7 @@ export function DataPage() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-4 px-8 py-6">
+    <div className="flex h-full flex-col gap-4 px-(--gutter) py-6">
       <header className="max-w-prose">
         <h1 className="text-xl font-semibold tracking-tight">{t("data.title")}</h1>
         <p className="mt-1 text-ink-2">{t("data.description")}</p>
@@ -133,22 +139,33 @@ export function DataPage() {
 
       {first?.isError && <ErrorNote>{first.error.message}</ErrorNote>}
       {!first?.data ? (
-        <div className="min-h-80 flex-1 animate-pulse rounded-lg bg-surface-1" aria-busy="true" />
+        <Loading label={t("loading.rows")} className="min-h-80 flex-1 rounded-lg" />
       ) : total === 0 ? (
         <Empty datasetId={datasetId} view={view} filtered={filters.length > 0} />
       ) : (
         <div className="min-h-90 flex-1">
-          <DataTable
-            datasetId={datasetId}
-            columns={tableColumns}
-            pinned={layout.pinned}
-            total={total}
-            view={view}
-            onSort={(column, sort) => update({ sort: sort ? column : undefined, desc: sort === "desc" ? true : undefined })}
-            onFilter={setFiltering}
-            onHide={layout.hide}
-            onPin={layout.togglePin}
-          />
+          {belowLaptop ? (
+            <RecordList
+              datasetId={datasetId}
+              fields={phone ? 4 : 6}
+              columns={tableColumns}
+              total={total}
+              view={view}
+              onSort={(column, sort) => update({ sort: sort ? column : undefined, desc: sort === "desc" ? true : undefined })}
+            />
+          ) : (
+            <DataTable
+              datasetId={datasetId}
+              columns={tableColumns}
+              pinned={layout.pinned}
+              total={total}
+              view={view}
+              onSort={(column, sort) => update({ sort: sort ? column : undefined, desc: sort === "desc" ? true : undefined })}
+              onFilter={setFiltering}
+              onHide={layout.hide}
+              onPin={layout.togglePin}
+            />
+          )}
         </div>
       )}
 

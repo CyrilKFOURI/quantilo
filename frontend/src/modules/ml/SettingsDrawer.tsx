@@ -2,7 +2,7 @@ import * as RadixDialog from "@radix-ui/react-dialog";
 import { RotateCcw, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
-import type { MlCandidate, MlModel, MlSetting, MlValidation } from "../../api/client";
+import type { MlCandidate, MlModel, MlPanelCheck, MlSetting, MlValidation } from "../../api/client";
 import { t, type MessageKey } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
 import { Checkbox, Select, TextInput } from "../../ui/fields";
@@ -21,7 +21,49 @@ export const DEFAULT_VALIDATION: MlValidation = {
   seed: 42,
   max_rows: 200_000,
   threshold: "default",
+  period_column: null,
+  entity_column: null,
+  embargo: 0,
+  window: "expanding",
+  window_periods: null,
+  sample_periods: null,
+  criterion: "mean",
+  period_threshold: null,
 };
+
+export const PANEL = "panel_walk_forward";
+
+/** Panel walk-forward filled from what the page recognised (035): period, entity, embargo. */
+export function panelValidation(validation: MlValidation, check: MlPanelCheck | undefined): MlValidation {
+  return {
+    ...validation,
+    method: PANEL,
+    period_column: validation.period_column ?? check?.period ?? null,
+    entity_column: validation.entity_column ?? check?.entity ?? null,
+    embargo: Math.max(validation.embargo, check?.embargo ?? 0),
+    threshold: "default",
+  };
+}
+
+const CRITERIA = ["mean", "sharpe", "worst"] as const;
+
+/** How the scores of the periods make the run's score (mean, mean / std, worst period). */
+export function CriterionSelect({ validation, onValidation }: { validation: MlValidation; onValidation: (next: MlValidation) => void }) {
+  return (
+    <Select
+      aria-label={t("ml.validation.criterion")}
+      value={validation.criterion}
+      onChange={(e) => onValidation({ ...validation, criterion: e.target.value as MlValidation["criterion"] })}
+      className="h-7 max-w-44 text-xs"
+    >
+      {CRITERIA.map((c) => (
+        <option key={c} value={c}>
+          {t(`ml.validation.criterion.${c}` as MessageKey)}
+        </option>
+      ))}
+    </Select>
+  );
+}
 
 export const metricName = (metric: string) => t(`ml.metric.${metric}` as MessageKey);
 
@@ -124,6 +166,7 @@ export function SettingsDrawer({
   onTrain,
   training,
   error,
+  panel,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -141,6 +184,7 @@ export function SettingsDrawer({
   onTrain: () => void;
   training: boolean;
   error: string | null;
+  panel?: MlPanelCheck | undefined;
 }) {
   const [tab, setTab] = useState<Tab>("model");
   const [expert, setExpert] = useState(false);
@@ -215,7 +259,9 @@ export function SettingsDrawer({
                   {optimizer.length ? optimizer.map(field) : <p className="text-xs text-ink-3">{t("ml.settings.noOptimizer")}</p>}
                 </div>
               )}
-              {active === "validation" && <ValidationTab validation={validation} onValidation={onValidation} metrics={metrics} candidates={candidates} task={task} />}
+              {active === "validation" && (
+                <ValidationTab validation={validation} onValidation={onValidation} metrics={metrics} candidates={candidates} task={task} panel={panel} />
+              )}
               {active === "rows" && <RowsTab validation={validation} onValidation={onValidation} />}
             </Tabs>
           </div>
@@ -260,7 +306,8 @@ function NumberBox({ value, min, max, step = 1, label, onChange }: { value: numb
   );
 }
 
-const METHODS = ["split", "kfold", "repeated_kfold", "group_kfold", "time_split", "loo"] as const;
+const METHODS = ["split", "kfold", "repeated_kfold", "group_kfold", "time_split", "loo", PANEL] as const;
+const STEPS = [2, 3, 4, 8] as const;
 
 function ValidationTab({
   validation,
@@ -268,20 +315,26 @@ function ValidationTab({
   metrics,
   candidates,
   task,
+  panel,
 }: {
   validation: MlValidation;
   onValidation: (next: MlValidation) => void;
   metrics: string[];
   candidates: MlCandidate[];
   task: string;
+  panel?: MlPanelCheck | undefined;
 }) {
   const set = (patch: Partial<MlValidation>) => onValidation({ ...validation, ...patch });
   const dates = candidates.filter((c) => c.type === "datetime");
   const method = validation.method;
+  const pick = (next: MlValidation["method"]) =>
+    next === PANEL ? onValidation(panelValidation(validation, panel)) : set({ method: next });
+  // on a panel, numbers are judged by their rank correlation within each period
+  const auto = method === PANEL && task === "regression" ? "spearman" : (metrics[0] ?? "");
   return (
     <div className="space-y-3">
       <Row label={t("ml.validation.method")} hint={t(`ml.validation.methodHint.${method}` as MessageKey)}>
-        <Select aria-label={t("ml.validation.method")} value={method} onChange={(e) => set({ method: e.target.value as MlValidation["method"] })} className="h-7 max-w-48 text-xs">
+        <Select aria-label={t("ml.validation.method")} value={method} onChange={(e) => pick(e.target.value as MlValidation["method"])} className="h-7 max-w-48 text-xs">
           {METHODS.map((m) => (
             <option key={m} value={m} disabled={m === "time_split" && dates.length === 0}>
               {t(`ml.validation.method.${m}` as MessageKey)}
@@ -294,7 +347,8 @@ function ValidationTab({
           <NumberBox label={t("ml.validation.testSize")} value={Math.round(validation.test_size * 100)} min={10} max={40} onChange={(v) => set({ test_size: v / 100 })} />
         </Row>
       )}
-      {(method === "kfold" || method === "repeated_kfold" || method === "group_kfold") && (
+      {method === PANEL && <PanelFields validation={validation} set={set} candidates={candidates} panel={panel} />}
+      {(method === "kfold" || method === "repeated_kfold" || method === "group_kfold" || method === PANEL) && (
         <Row label={t("ml.validation.folds")}>
           <NumberBox label={t("ml.validation.folds")} value={validation.folds} min={3} max={10} onChange={(v) => set({ folds: v })} />
         </Row>
@@ -330,7 +384,7 @@ function ValidationTab({
       )}
       <Row label={t("ml.validation.metric")} hint={t(task === "regression" ? "ml.validation.metricHintRegression" : "ml.validation.metricHintClasses")}>
         <Select aria-label={t("ml.validation.metric")} value={validation.metric ?? ""} onChange={(e) => set({ metric: e.target.value || null })} className="h-7 max-w-44 text-xs">
-          <option value="">{t("ml.validation.metricAuto", { metric: metricName(metrics[0] ?? "") })}</option>
+          <option value="">{t("ml.validation.metricAuto", { metric: metricName(auto) })}</option>
           {metrics.map((m) => (
             <option key={m} value={m}>
               {metricName(m)}
@@ -354,6 +408,11 @@ function ValidationTab({
           </Select>
         </Row>
       )}
+      {method === PANEL && (
+        <Row label={t("ml.validation.criterion")} hint={t("ml.validation.criterionHint")}>
+          <CriterionSelect validation={validation} onValidation={onValidation} />
+        </Row>
+      )}
       <Row label={t("ml.validation.seed")}>
         <NumberBox label={t("ml.validation.seed")} value={validation.seed} min={0} max={2 ** 31 - 1} onChange={(v) => set({ seed: Math.round(v) })} />
       </Row>
@@ -361,11 +420,102 @@ function ValidationTab({
   );
 }
 
+/** Panel walk-forward (035): the period and entity, the embargo (with the one the target calls
+ *  for), the training window and the periods trained on. */
+function PanelFields({
+  validation,
+  set,
+  candidates,
+  panel,
+}: {
+  validation: MlValidation;
+  set: (patch: Partial<MlValidation>) => void;
+  candidates: MlCandidate[];
+  panel?: MlPanelCheck | undefined;
+}) {
+  const found = new Set(panel?.period_candidates ?? []);
+  const periods = [...candidates].sort((a, b) => Number(found.has(b.name)) - Number(found.has(a.name)));
+  const suggested = panel && panel.period === validation.period_column ? panel.embargo : null;
+  const sample = validation.sample_periods === null ? "auto" : String(validation.sample_periods);
+  return (
+    <>
+      <Row label={t("ml.validation.period")} hint={t("ml.validation.periodHint")}>
+        <Select aria-label={t("ml.validation.period")} value={validation.period_column ?? ""} onChange={(e) => set({ period_column: e.target.value || null })} className="h-7 max-w-44 text-xs">
+          <option value="">—</option>
+          {periods.map((c) => (
+            <option key={c.name} value={c.name}>
+              {c.name}
+            </option>
+          ))}
+        </Select>
+      </Row>
+      <Row label={t("ml.validation.entity")} hint={t("ml.validation.entityHint")}>
+        <Select aria-label={t("ml.validation.entity")} value={validation.entity_column ?? ""} onChange={(e) => set({ entity_column: e.target.value || null })} className="h-7 max-w-44 text-xs">
+          <option value="">{t("ml.validation.entityNone")}</option>
+          {candidates
+            .filter((c) => c.name !== validation.period_column)
+            .map((c) => (
+              <option key={c.name} value={c.name}>
+                {c.name}
+              </option>
+            ))}
+        </Select>
+      </Row>
+      <Row label={t("ml.validation.embargo")} hint={t("ml.validation.embargoHint")}>
+        <NumberBox label={t("ml.validation.embargo")} value={validation.embargo} min={0} max={1_000} onChange={(v) => set({ embargo: Math.round(v) })} />
+      </Row>
+      {suggested !== null && suggested > validation.embargo && (
+        <p className="flex flex-wrap items-center gap-2 text-[11px] text-warn" role="status">
+          <span className="min-w-0 flex-1">{panel?.embargo_reason}</span>
+          <Button variant="ghost" onClick={() => set({ embargo: suggested })}>
+            {t("ml.validation.embargoUse", { embargo: String(suggested) })}
+          </Button>
+        </p>
+      )}
+      <Row label={t("ml.validation.window")}>
+        <Select aria-label={t("ml.validation.window")} value={validation.window} onChange={(e) => set({ window: e.target.value as MlValidation["window"] })} className="h-7 max-w-48 text-xs">
+          <option value="expanding">{t("ml.validation.window.expanding")}</option>
+          <option value="rolling">{t("ml.validation.window.rolling")}</option>
+        </Select>
+      </Row>
+      {validation.window === "rolling" && (
+        <Row label={t("ml.validation.windowPeriods")} hint={t("ml.validation.windowPeriodsHint")}>
+          <TextInput
+            key={validation.window_periods ?? "auto"}
+            aria-label={t("ml.validation.windowPeriods")}
+            type="number"
+            min={1}
+            defaultValue={validation.window_periods ?? ""}
+            onBlur={(e) => set({ window_periods: e.target.value === "" ? null : Math.max(1, Math.round(Number(e.target.value))) })}
+            className="h-7 w-24 text-xs"
+          />
+        </Row>
+      )}
+      <Row label={t("ml.validation.samplePeriods")} hint={t("ml.validation.samplePeriodsHint")}>
+        <Select
+          aria-label={t("ml.validation.samplePeriods")}
+          value={sample}
+          onChange={(e) => set({ sample_periods: e.target.value === "auto" ? null : Number(e.target.value) })}
+          className="h-7 max-w-48 text-xs"
+        >
+          <option value="auto">{t("ml.validation.samplePeriods.auto")}</option>
+          <option value="1">{t("ml.validation.samplePeriods.all")}</option>
+          {STEPS.map((n) => (
+            <option key={n} value={String(n)}>
+              {t("ml.validation.samplePeriods.some", { n: String(n) })}
+            </option>
+          ))}
+        </Select>
+      </Row>
+    </>
+  );
+}
+
 function RowsTab({ validation, onValidation }: { validation: MlValidation; onValidation: (next: MlValidation) => void }) {
   const mode = validation.max_rows === null ? "all" : validation.max_rows === 200_000 ? "default" : "fixed";
   return (
     <div className="space-y-3">
-      <Row label={t("ml.rows.training")} hint={t("ml.rows.hint")}>
+      <Row label={t("ml.rows.training")} hint={validation.method === PANEL ? `${t("ml.rows.hint")} ${t("ml.rows.panelHint")}` : t("ml.rows.hint")}>
         <Select
           aria-label={t("ml.rows.training")}
           value={mode}

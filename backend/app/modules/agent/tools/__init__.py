@@ -3,15 +3,16 @@
 from dataclasses import dataclass
 from typing import Any
 
-from cyfouri_data_explorer.compare.service import CompareService
-from cyfouri_data_explorer.correlations.service import CorrelationService
-from cyfouri_data_explorer.profiling.service import ProfilingService
-from cyfouri_data_explorer.variable.service import VariableService
+from quantilo.compare.service import CompareService
+from quantilo.correlations.service import CorrelationService
+from quantilo.profiling.service import ProfilingService
+from quantilo.variable.service import VariableService
 
 from app.modules.agent.engine.tools import Tool, ToolRegistry
 from app.modules.agent.repository import NoteRepository
 from app.services.columns.service import ColumnService
 from app.services.report.service import ReportService
+from app.services.versions.service import VersionService
 
 
 @dataclass(frozen=True)
@@ -24,12 +25,14 @@ class AppServices:
     compare: CompareService
     correlations: CorrelationService
     reports: ReportService
+    versions: VersionService | None = None  # what changed between two versions (031)
 
 
 def default_registry(
     services: AppServices, notes: NoteRepository, extra: list[Tool[Any]] | None = None
 ) -> ToolRegistry:
     """The agent's own tools, then the tools the modules offer."""
+    from app.modules.agent.tools.changes import WhatChanged
     from app.modules.agent.tools.dataset import (
         CountRows,
         GetDatasetOverview,
@@ -54,6 +57,7 @@ def default_registry(
             GetCorrelations(services),
             RankAssociationsWith(services),
             ExportReport(services),
+            WhatChanged(services),
             GetPlaybook(),
             Remember(notes),
             *(extra or []),

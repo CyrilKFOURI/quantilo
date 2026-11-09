@@ -8,6 +8,7 @@ import { categoricalMetrics, dateMetrics } from "./profilePanels";
 import { Metrics } from "./Metrics";
 import { normalitySummary, rejects, testPLabel } from "./normality";
 import { GROUPS, StatTable, statRow } from "./StatTable";
+import { Loading } from "../../ui/Loading";
 
 const ALPHA = 0.05;
 
@@ -32,7 +33,7 @@ export function VariableDetails({ datasetId, column }: { datasetId: string; colu
         profile.isError ? (
           <p className="text-bad">{profile.error.message}</p>
         ) : (
-          <div className="h-40 animate-pulse rounded-md bg-surface-2" aria-busy="true" />
+          <Loading label={t("loading.stats")} className="h-40 rounded-md" />
         )
       ) : (
         <>

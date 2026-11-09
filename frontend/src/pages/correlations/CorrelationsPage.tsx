@@ -17,6 +17,7 @@ import { useStoredState } from "../../lib/useStoredState";
 import { Checkbox, ErrorNote } from "../../ui/fields";
 import { Popover } from "../../ui/Popover";
 import { SegmentedControl } from "../../ui/SegmentedControl";
+import { Loading } from "../../ui/Loading";
 
 const ELIGIBLE = new Set(["numeric_continuous", "numeric_discrete", "categorical_nominal", "categorical_ordinal", "boolean"]);
 const PAIR_ROWS = 15;
@@ -59,7 +60,7 @@ export function CorrelationsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-5 px-8 py-6">
+    <div className="flex flex-col gap-5 px-(--gutter) py-6">
       <header className="max-w-prose">
         <h1 className="text-xl font-semibold tracking-tight">{t("correlations.title")}</h1>
         <p className="mt-1 text-ink-2">{t("correlations.description")}</p>
@@ -90,7 +91,7 @@ export function CorrelationsPage() {
       </div>
 
       {!matrix ? (
-        <div className="h-[520px] animate-pulse rounded-lg bg-surface-1" aria-busy="true" />
+        <Loading label={t("loading.correlations")} className="h-[520px] rounded-lg" />
       ) : matrix.columns.length < 2 ? (
         <p className="rounded-lg border border-dashed border-line px-4 py-10 text-center text-ink-2">{t("correlations.tooFew")}</p>
       ) : (
@@ -211,7 +212,8 @@ function StrongestPairs({
         <span className="text-xs text-ink-3">{t("correlations.pairsHint")}</span>
       </div>
       <div className="overflow-x-auto rounded-md border border-line">
-        <table className="w-full border-collapse text-[13px]">
+        {/* 041: a phone keeps the pair, the value, the evidence and View (measure, adj. p and n hidden). */}
+        <table className="w-full border-collapse text-[13px] max-sm:[&_tr>:nth-child(3)]:hidden max-sm:[&_tr>:nth-child(5)]:hidden max-sm:[&_tr>:nth-child(7)]:hidden">
           <thead className="bg-surface-2 text-left text-xs text-ink-3">
             <tr>
               <th scope="col" className="px-3 py-1.5 font-normal">A</th>

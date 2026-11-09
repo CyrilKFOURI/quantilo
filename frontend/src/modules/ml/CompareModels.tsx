@@ -9,7 +9,7 @@ import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
 import { Checkbox, ErrorNote } from "../../ui/fields";
 import { blocked } from "./ModelPicker";
-import { metricName } from "./SettingsDrawer";
+import { CriterionSelect, metricName, PANEL } from "./SettingsDrawer";
 
 /** Train a selection of models on the same rows and validation, ranked in one table. */
 export function CompareModels({
@@ -36,6 +36,9 @@ export function CompareModels({
   const client = useQueryClient();
   const [picked, setPicked] = useState<string[] | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  // on a panel, the criterion over the periods ranks the models
+  const [judged, setJudged] = useState<MlValidation>(validation);
+  const panel = judged.method === PANEL;
   const start = useMlCompare(datasetId);
   const job = useMlComparison(jobId);
   const chosen = picked ?? catalogue.compare;
@@ -52,7 +55,7 @@ export function CompareModels({
   const running = !job.data || job.data.status === "running" || start.isPending;
   const launch = () =>
     start.mutate(
-      { target, models: chosen, choices, classes, validation },
+      { target, models: chosen, choices, classes, validation: judged },
       { onSuccess: (created) => setJobId(created.id) },
     );
   const finished = job.data?.status === "done";
@@ -88,7 +91,13 @@ export function CompareModels({
               </fieldset>
             );
           })}
-          <div className="flex items-center justify-end gap-3 border-t border-line pt-3">
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line pt-3">
+            {panel && (
+              <label className="mr-auto flex items-center gap-2 text-xs text-ink-2">
+                {t("ml.validation.criterion")}
+                <CriterionSelect validation={judged} onValidation={setJudged} />
+              </label>
+            )}
             <span className="text-xs text-ink-3">{t("ml.compare.selected", { count: String(chosen.length) })}</span>
             <Button variant="primary" onClick={launch} disabled={chosen.length === 0 || start.isPending}>
               {t("ml.compare.start")}
@@ -107,7 +116,11 @@ export function CompareModels({
             <thead className="text-left text-xs text-ink-3">
               <tr>
                 <th className="py-1.5 font-normal">{t("ml.model")}</th>
-                <th className="py-1.5 text-right font-normal">{metricName(metric)}</th>
+                <th className="py-1.5 text-right font-normal">
+                  {panel
+                    ? t("ml.compare.criterion", { metric: metricName(metric), criterion: t(`ml.validation.criterion.${judged.criterion}` as MessageKey).toLowerCase() })
+                    : metricName(metric)}
+                </th>
                 <th className="py-1.5 text-right font-normal">{t("ml.compare.seconds")}</th>
                 <th className="py-1.5 font-normal" />
               </tr>

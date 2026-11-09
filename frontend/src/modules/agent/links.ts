@@ -24,13 +24,25 @@ export function linkTarget(datasetId: string, link: AgentLink): LinkTarget | nul
     case "data":
       return { to: "/d/$datasetId/data", params: { datasetId } };
     case "ml":
-      return { to: "/d/$datasetId/ml", params: { datasetId }, search: pick(p, ["target", "run"]) };
+      return { to: "/d/$datasetId/ml", params: { datasetId }, search: pick(p, ["target", "run", "prediction"]) };
     case "timeseries":
       return { to: "/d/$datasetId/timeseries", params: { datasetId }, search: pick(p, ["time", "value"]) };
     case "kpi":
       return { to: "/d/$datasetId/kpi", params: { datasetId }, search: pick(p, ["kpi"]) };
+    case "experiments":
+      return { to: "/d/$datasetId/experiments", params: { datasetId }, search: pick(p, ["variant", "metric", "unit", "tab"]) };
+    case "segments":
+      return { to: "/d/$datasetId/segments", params: { datasetId }, search: pick(p, ["section", "run", "unusual"]) };
     case "synthetic":
       return { to: "/d/$datasetId/synthetic", params: { datasetId }, search: pick(p, ["run"]) };
+    case "changes":
+      return { to: "/d/$datasetId/changes", params: { datasetId }, search: pick(p, ["vs", "column"]) };
+    case "recipes":
+      return { to: "/recipes", params: {} };
+    case "recipe":
+      return p.recipe && ID.test(p.recipe)
+        ? { to: "/recipes/$recipeId", params: { recipeId: p.recipe }, search: p.run && ID.test(p.run) ? { report: p.run } : {} }
+        : null;
     case "dataset":
       return p.dataset && ID.test(p.dataset) ? { to: "/d/$datasetId", params: { datasetId: p.dataset } } : null;
     case "report_file":
@@ -51,10 +63,13 @@ const PAGES: Record<string, string> = {
   compare: "Compare",
   correlations: "Correlations",
   data: "Data",
+  changes: "Changes",
   timeseries: "Time series",
   ml: "Machine learning",
+  segments: "Segments",
   kpi: "KPI builder",
   synthetic: "Synthetic data",
+  experiments: "Experiments",
 };
 
 /** The page the user is on, in words, so "explain this chart" makes sense to the agent. */
@@ -65,7 +80,7 @@ export function describePage(pathname: string, search: Record<string, unknown>):
   const page = PAGES[section] ?? section;
   const details: string[] = [];
   if (section === "variable" && rest) details.push(`column ${decodeURIComponent(rest)}`);
-  for (const key of ["x", "y", "z", "color", "target", "time", "value"]) {
+  for (const key of ["x", "y", "z", "color", "target", "time", "value", "variant", "metric", "tab"]) {
     const value = search[key];
     if (typeof value === "string" && value) details.push(`${key} = ${value}`);
   }

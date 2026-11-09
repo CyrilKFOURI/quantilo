@@ -1,0 +1,52 @@
+name: Browser version
+
+# Builds the browser-only version (Python runs in the page through Pyodide, no server:
+# frontend/src/lite, lite/) and publishes it on GitHub Pages.
+# Needs Settings > Pages > Source: "GitHub Actions" once.
+on:
+  push:
+    branches: [master]
+    paths:
+      - "frontend/**"
+      - "lite/**"
+      - "backend/app/**"
+      - "packages/quantilo/src/**"
+      - "samples/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci && npm run build:lite
+        working-directory: frontend
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist-lite
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

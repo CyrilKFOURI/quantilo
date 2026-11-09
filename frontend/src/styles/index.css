@@ -61,6 +61,26 @@
     outline-offset: 2px;
   }
 
+  /* 041: on a touch screen every control gets an invisible hit box of at least 44 × 44 px,
+     centred on it; the visible control keeps its size. In the base layer on purpose: any
+     utility (absolute, sticky…) wins. */
+  @media (pointer: coarse) {
+    :where(button, a[href], summary, [role="tab"], [role="menuitem"], [role="switch"], [role="option"], label:has(> input[type="checkbox"], > input[type="radio"])) {
+      position: relative;
+      touch-action: manipulation;
+    }
+
+    :where(button, a[href], summary, [role="tab"], [role="menuitem"], [role="switch"], [role="option"], label:has(> input[type="checkbox"], > input[type="radio"]))::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: max(100%, 44px);
+      height: max(100%, 44px);
+      transform: translate(-50%, -50%);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     :root:not([data-motion="full"]) *,
     :root:not([data-motion="full"]) *::before,
@@ -75,5 +95,164 @@
   :root[data-motion="reduce"] *::after {
     transition-duration: 0ms !important;
     animation-duration: 0ms !important;
+  }
+}
+
+/* 041, outside the layers so they beat the utilities. On a touch screen, text fields are 16 px
+   (below that, iOS zooms in on focus) and at least 32 px tall, compact ones (h-7) included. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+    min-height: 32px;
+  }
+
+  /* Check boxes and radio buttons: 18 px instead of 14; the label around them is the hit box. */
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 18px !important;
+    height: 18px !important;
+  }
+}
+
+/* 041, rule "nothing wider than the screen", phone and tablet: a table takes 100 % of the width
+   and its cells wrap (columns follow their content); it never scrolls sideways (pinch zoom stays
+   available). On a phone, secondary columns are hidden page by page (`max-sm:[&_tr>:nth-child(n)]`).
+   A laptop keeps its tables as they are. */
+@media (max-width: 1023px) {
+  main table {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* The table fits: its wrapper no longer scrolls (the touch hit boxes of the last column
+     would otherwise make it scroll by a few pixels). */
+  main .overflow-x-auto:has(> table) {
+    overflow: clip;
+  }
+
+  main th,
+  main td {
+    overflow-wrap: anywhere;
+    white-space: normal !important;
+  }
+
+  /* Long words, paths and code wrap instead of widening the page. */
+  main :where(p, li, dd, dt, code, pre, h1, h2, h3) {
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 639px) {
+  /* Page titles: 18 px on a phone (20 px from the tablet up). */
+  main h1 {
+    font-size: 18px;
+    line-height: 1.35;
+  }
+
+  main th,
+  main td {
+    padding-inline: 6px !important;
+  }
+}
+
+/* 041: a page's settings opened from their summary on a phone (ui/ParamPanel): two per row, the
+   label above the field, every field as wide as its column. Outside the layers: it overrides
+   the inline label layouts each page uses on a laptop. */
+.params-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.params-grid label:has(select, input:not([type="checkbox"], [type="radio"])) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+
+.params-grid select,
+.params-grid input:not([type="checkbox"], [type="radio"], [type="range"]) {
+  width: 100% !important;
+  min-width: 0;
+}
+
+/* A field that needs the whole row (a long list, a checkbox line). */
+.params-grid .params-wide {
+  grid-column: 1 / -1;
+}
+
+/* 042, loading states. A slow sheen across the surface (no blinking), three small bars at the
+   accent colour, and a 2 px line under the top bar. Reduced motion: the rules above stop them. */
+.loading-sheen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, color-mix(in oklab, var(--surface-2) 70%, transparent) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: loading-sheen 1.8s ease-in-out infinite;
+  pointer-events: none;
+}
+.loading-sheen > * {
+  position: relative;
+}
+@keyframes loading-sheen {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.loading-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+.loading-bars > i {
+  width: 3px;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--accent);
+  transform-origin: bottom;
+  animation: loading-bar 0.9s ease-in-out infinite;
+}
+.loading-bars > i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.loading-bars > i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes loading-bar {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.activity-bar::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 35%;
+  border-radius: 1px;
+  background: var(--accent);
+  animation: activity-bar 1.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes activity-bar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(290%);
   }
 }

@@ -100,12 +100,12 @@ export function ColumnsPage() {
     });
 
   if (dataset.isPending || (ready && columns.isPending)) {
-    return <p className="px-8 py-8 text-ink-3">{t("columns.loading")}</p>;
+    return <p className="px-(--gutter) py-8 text-ink-3">{t("columns.loading")}</p>;
   }
   const error = dataset.error ?? columns.error ?? history.error ?? detect.error ?? review.error;
 
   return (
-    <div className="flex flex-col gap-5 px-8 py-6">
+    <div className="flex flex-col gap-5 px-(--gutter) py-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{t("columns.title")}</h1>
@@ -119,7 +119,7 @@ export function ColumnsPage() {
             <p className="mt-0.5 text-xs text-accent">{t("filters.columnsNote", { rows: formatCount(filteredRows) })}</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="ghost"
             icon={Undo2}
@@ -220,7 +220,8 @@ export function ColumnsPage() {
       )}
 
       <div className="overflow-x-auto rounded-lg border border-line bg-surface-1">
-        <table className="w-full border-collapse text-[13px]">
+        {/* 041: below a laptop, detection and values are hidden; a phone also hides role and distinct. */}
+        <table className="w-full border-collapse text-[13px] max-lg:[&_tr>:nth-child(5)]:hidden max-lg:[&_tr>:nth-child(6)]:hidden max-sm:[&_tr>:nth-child(4)]:hidden max-sm:[&_tr>:nth-child(8)]:hidden">
           <thead>
             <tr className="border-b border-line text-left text-xs text-ink-3">
               <th scope="col" className="w-8 px-3 py-2">
@@ -334,7 +335,7 @@ function ColumnRow({
           </p>
         )}
         {column.type === "datetime" && summary?.date && (
-          <p className="mt-0.5 max-w-64 text-xs text-ink-2" title={summary.date.parts.map(datePartLabel).join(", ")}>
+          <p className="mt-0.5 max-w-64 text-xs text-ink-2 max-sm:hidden" title={summary.date.parts.map(datePartLabel).join(", ")}>
             {summary.date.min?.slice(0, 10)} → {summary.date.max?.slice(0, 10)} · {summary.date.step}
             <span className="block truncate text-ink-3">
               {t("columns.dateParts", { parts: summary.date.parts.map(datePartLabel).join(", ") })}
@@ -342,7 +343,7 @@ function ColumnRow({
           </p>
         )}
         {column.type === "categorical_ordinal" && (
-          <p className="mt-0.5 flex max-w-64 items-baseline gap-1.5 text-xs text-ink-2">
+          <p className="mt-0.5 flex max-w-64 items-baseline gap-1.5 text-xs text-ink-2 max-sm:max-w-[30vw]">
             <span className="truncate" title={(column.order ?? []).join(" < ")}>
               {(column.order ?? []).join(" < ") || t("columns.noOrder")}
             </span>

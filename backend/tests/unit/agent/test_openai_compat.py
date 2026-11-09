@@ -228,7 +228,7 @@ def test_the_default_model_is_the_newest_of_the_preferred_family() -> None:
 
 def test_a_key_saved_under_the_wrong_vendor_is_moved(tmp_path, monkeypatch) -> None:
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("DATA_EXPLORER_GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("QUANTILO_GEMINI_API_KEY", raising=False)
     (tmp_path / "secrets.env").write_text(
         "ANTHROPIC_API_KEY=AIzaSyMisfiled1234\n", encoding="utf-8"
     )

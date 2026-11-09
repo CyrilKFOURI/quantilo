@@ -29,7 +29,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-md text-[13px] transition-[background-color,filter] disabled:pointer-events-none disabled:opacity-50 ${size} ${variants[variant]} ${className}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-md text-[13px] max-sm:whitespace-nowrap transition-[background-color,filter] disabled:pointer-events-none disabled:opacity-50 ${size} ${variants[variant]} ${className}`}
       {...props}
     >
       {Icon && <Icon size={15} strokeWidth={1.5} aria-hidden />}

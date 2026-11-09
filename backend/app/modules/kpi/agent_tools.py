@@ -3,9 +3,9 @@ this module's own service."""
 
 from typing import Any, ClassVar
 
-from cyfouri_data_explorer.kpi.definition import Definition
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
+from quantilo.kpi.definition import Definition
 
 from app.core.errors import AppError
 from app.core.tools import AppLink, Tool, ToolContext, ToolError, ToolOutput, compact

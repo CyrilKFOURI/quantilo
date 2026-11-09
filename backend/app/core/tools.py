@@ -16,8 +16,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Literal
 
-from cyfouri_data_explorer.filters.model import Condition
 from pydantic import BaseModel, ValidationError
+from quantilo.filters.model import Condition
 
 ToolKind = Literal["read", "compute", "write", "rows"]
 # read: no effect · compute: may take long, no lasting effect the user must approve (a trained

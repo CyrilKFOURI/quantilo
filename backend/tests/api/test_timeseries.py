@@ -1,4 +1,5 @@
 import json
+import math
 import time
 from pathlib import Path
 
@@ -179,6 +180,58 @@ def test_forecast_job(client: TestClient, sales: str) -> None:
     assert client.get("/api/v1/modules/timeseries/forecast-jobs/nope").status_code == 422
 
 
+def wait(client: TestClient, job: dict) -> dict:
+    for _ in range(1200):
+        job = client.get(f"/api/v1/modules/timeseries/forecast-jobs/{job['id']}").json()
+        if job["status"] != "running":
+            break
+        time.sleep(0.1)
+    return job
+
+
+@pytest.fixture
+def shop(client: TestClient, tmp_path: Path) -> str:
+    """Monthly sales driven by the price; the last 4 rows are planned prices without sales."""
+    lines = ["month,sales,price"]
+    for i in range(64):
+        price = 20 + (i % 7)
+        sales = "" if i >= 60 else f"{400 - 10 * price + (i % 3):.1f}"
+        lines.append(f"{2020 + i // 12}-{i % 12 + 1:02d}-01,{sales},{price}")
+    path = tmp_path / "shop.csv"
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return import_path(client, path)
+
+
+def test_forecast_with_drivers(client: TestClient, shop: str) -> None:
+    params = {"time": "month", "value": "sales", "period": "month", "horizon": 4}
+    candidates = get(client, shop, "drivers", **params).json()
+    (price,) = candidates["candidates"]
+    assert price["column"] == "price" and price["future_periods"] == 4 and price["suggested"]
+    assert candidates["calendar"] == []
+
+    body = {"drivers": [{"column": "price", "known": True}]}
+    started = client.post(
+        f"{BASE}/{shop}/forecast", params={**params, "methods": "naive,tslm"}, json=body
+    )
+    assert started.status_code == 202, started.text
+    job = wait(client, started.json())
+    assert job["status"] == "done", job
+    result = job["result"]
+    assert result["periods"][-1] == "2024-12" and result["future"][0] == "2025-01"
+    (info,) = result["drivers"]
+    assert info["source"] == "file" and info["future_values"] == [24.0, 25.0, 26.0, 20.0]
+    tslm = next(r for r in result["results"] if r["key"] == "tslm")
+    assert tslm["uses_drivers"] and tslm["drivers"][0]["verdict"] == "helps"
+    assert tslm["drivers"][0]["coefficient"] == pytest.approx(-10, abs=0.5)
+    assert tslm["mase_without_drivers"] > tslm["scores"]["mase"]
+    assert result["best"] == "tslm"
+
+    bad = [{"column": "sales"}], [{"column": "weekday", "kind": "calendar"}], [{"column": "nope"}]
+    for drivers in bad:
+        refused = client.post(f"{BASE}/{shop}/forecast", params=params, json={"drivers": drivers})
+        assert refused.status_code == 422, refused.text
+
+
 def test_ar_order_and_volatility_window(client: TestClient, sales: str) -> None:
     auto = get(client, sales, "autocorrelation", value="revenue").json()["ar"]
     assert auto["chosen_by"] == "AIC" and len(auto["orders"]) >= 5
@@ -210,3 +263,99 @@ def test_five_million_rows(client: TestClient, tmp_path: Path) -> None:
     seconds = time.perf_counter() - start
     assert response.status_code == 200, response.text
     assert seconds < 2, seconds
+
+
+# --- Every group, coherent totals, scenarios (039) ------------------------------------------------
+
+
+@pytest.fixture
+def stores(client: TestClient, tmp_path: Path) -> str:
+    """30 stores in 3 regions, monthly sales over four years."""
+    lines = ["date,montant,magasin,region"]
+    for s in range(30):
+        region = ("North", "South", "East")[s % 3]
+        for m in range(48):
+            amount = 100 + 5 * s + 20 * math.sin(2 * math.pi * m / 12) + (s * m) % 7
+            lines.append(f"{2021 + m // 12}-{m % 12 + 1:02d}-05,{amount:.2f},S{s:02d},{region}")
+    path = tmp_path / "stores.csv"
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return import_path(client, path)
+
+
+def wait_groups(client: TestClient, job: dict) -> dict:
+    for _ in range(1200):
+        job = client.get(f"/api/v1/modules/timeseries/group-forecast-jobs/{job['id']}").json()
+        if job["status"] != "running":
+            break
+        time.sleep(0.1)
+    return job
+
+
+def test_forecast_every_group(client: TestClient, stores: str) -> None:
+    """Spec 039: 30 stores → "Forecast every group" is offered and gives 30 forecasts; with
+    store → region, the hierarchy is recognised and the totals add up at every date."""
+    params = {"time": "date", "value": "montant", "group": "magasin", "period": "month"}
+    setup = get(client, stores, "groups", **params).json()
+    assert setup["groups"] == 30 and setup["levels"] == ["region"] and setup["summable"]
+    assert setup["limit"] == 200 and not setup["browser"]
+
+    started = client.post(
+        f"{BASE}/{stores}/forecast-groups",
+        params={**params, "horizon": 3, "methods": "naive,seasonal_naive", "reconcile": "auto"},
+    )
+    assert started.status_code == 202, started.text
+    job = wait_groups(client, started.json())
+    assert job["status"] == "done", job
+    assert job["done"] == job["total"] == 34  # 30 stores, 3 regions, the total
+    result = job["result"]
+    leaves = [r for r in result["rows"] if r["level"] == "magasin"]
+    assert len(leaves) == 30 and result["kept"] == 30 and result["pooled"] == 0
+    hierarchy = result["hierarchy"]
+    assert hierarchy["levels"] == ["Total", "region", "magasin"] and hierarchy["gap"] < 1e-6
+    for region in (r for r in result["rows"] if r["level"] == "region"):
+        children = [r["forecast"] for r in leaves if r["parent"] == region["label"]]
+        for step in range(3):
+            assert abs(sum(c[step] for c in children) - region["forecast"][step]) < 1e-6
+
+    again = client.post(
+        f"{BASE}/{stores}/forecast-groups",
+        params={**params, "horizon": 3, "methods": "naive,seasonal_naive", "reconcile": "auto"},
+    ).json()
+    assert again["id"] == job["id"]  # reused
+
+    csv = client.get(f"/api/v1/modules/timeseries/group-forecast-jobs/{job['id']}/forecast.csv")
+    assert csv.status_code == 200 and csv.headers["content-type"].startswith("text/csv")
+    lines = csv.text.splitlines()
+    assert lines[0] == "group,level,period,forecast,low80,high80,low95,high95,model"
+    assert len(lines) == 1 + 34 * 3
+
+    refused = client.post(
+        f"{BASE}/{stores}/forecast-groups",
+        params={**params, "reconcile": "bottom_up", "levels": "date"},
+    )
+    assert refused.status_code == 422
+    no_group = client.post(f"{BASE}/{stores}/forecast-groups", params={"value": "montant"})
+    assert no_group.status_code == 422 and no_group.json()["error"]["code"] == "needs_group"
+    unknown = client.get("/api/v1/modules/timeseries/group-forecast-jobs/nope")
+    assert unknown.status_code == 422
+
+
+def test_scenario_route(client: TestClient, shop: str) -> None:
+    """Spec 039: a price cut on one month moves only that month, upwards (sales fall with the
+    price coefficient of about -10)."""
+    params = {"time": "month", "value": "sales", "period": "month", "horizon": 4}
+    body: dict = {"drivers": [{"column": "price", "known": True}]}
+    base = client.post(f"{BASE}/{shop}/scenario", params=params, json=body)
+    assert base.status_code == 200, base.text
+    body["changes"] = [
+        {"column": "price", "how": "percent", "amount": -10, "start": "2025-02", "end": "2025-02"}
+    ]
+    cut = client.post(f"{BASE}/{shop}/scenario", params=params, json=body).json()
+
+    before, after = base.json()["forecast"], cut["forecast"]
+    assert after[1] > before[1] + 10  # 10 % of 25 = 2.5 units, -10 per unit
+    assert [after[i] for i in (0, 2, 3)] == pytest.approx([before[i] for i in (0, 2, 3)])
+    assert cut["drivers"][0]["future_values"][1] == pytest.approx(22.5)
+
+    wrong = client.post(f"{BASE}/{shop}/scenario", params={**params, "model": "naive"}, json=body)
+    assert wrong.status_code == 422

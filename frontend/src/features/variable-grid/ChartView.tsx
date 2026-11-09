@@ -78,7 +78,7 @@ export const ChartView = forwardRef<PlotHandle, ChartViewProps>(function ChartVi
           value={formatCount(chart.duplicates)}
           tone={chart.duplicates ? "text-warn" : "text-ok"}
         />
-        <p className="truncate font-mono text-xs text-ink-3">{chart.examples.join(" · ")}</p>
+        <p className="truncate font-mono text-xs text-ink-3 max-lg:max-w-full">{chart.examples.join(" · ")}</p>
       </div>
     );
   }
@@ -86,7 +86,7 @@ export const ChartView = forwardRef<PlotHandle, ChartViewProps>(function ChartVi
     <div style={{ height }} className="flex flex-col items-center justify-center gap-2 px-4 text-center">
       <p className="text-ink-2">{chart.message ?? t("chart.empty")}</p>
       {chart.kind === "high_cardinality" && (
-        <p className="truncate font-mono text-xs text-ink-3">{chart.examples.join(" · ")}</p>
+        <p className="truncate font-mono text-xs text-ink-3 max-lg:max-w-full">{chart.examples.join(" · ")}</p>
       )}
     </div>
   );

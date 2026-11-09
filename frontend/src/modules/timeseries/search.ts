@@ -37,6 +37,38 @@ export const TRANSFORMS = [
 export type Transform = (typeof TRANSFORMS)[number];
 export const PACF = ["ywm", "ols", "burg"] as const;
 
+/** A named what-if scenario (039): one known-in-advance driver changed over a range. */
+export type StoredScenario = {
+  name: string;
+  column: string;
+  how: "percent" | "value";
+  amount: number;
+  start?: string;
+  end?: string;
+};
+export const MAX_SCENARIOS = 3;
+
+/** Scenarios kept in the URL (until analyses are saved, spec 030). */
+export function parseScenarios(value: unknown): StoredScenario[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const found: StoredScenario[] = [];
+  for (const item of value.slice(0, MAX_SCENARIOS)) {
+    if (!item || typeof item !== "object") continue;
+    const raw = item as Record<string, unknown>;
+    const amount = Number(raw.amount);
+    if (typeof raw.column !== "string" || !Number.isFinite(amount)) continue;
+    found.push({
+      name: typeof raw.name === "string" ? raw.name.slice(0, 60) : "",
+      column: raw.column,
+      how: raw.how === "value" ? "value" : "percent",
+      amount,
+      start: text(raw.start),
+      end: text(raw.end),
+    });
+  }
+  return found.length ? found : undefined;
+}
+
 /** URL of the Time series page: the series parameters, plus display choices. */
 export type TimeSeriesSearch = SeriesParams & {
   method?: Decomposition;
@@ -52,6 +84,8 @@ export type TimeSeriesSearch = SeriesParams & {
   anomaly?: "iqr" | "rolling_z" | "hampel" | "gesd" | "isolation_forest" | "lof" | "autoencoder";
   threshold?: number;
   all?: boolean; // overlay every group on the overview
+  scen?: StoredScenario[]; // what-if scenarios of the forecast (039)
+  smodel?: string; // the driver model the scenarios use
 };
 
 const text = (value: unknown) =>
@@ -99,6 +133,8 @@ export function validateTimeSeriesSearch(
       ? Number(search.threshold)
       : undefined,
     all: search.all === true || search.all === "true" ? true : undefined,
+    scen: parseScenarios(search.scen),
+    smodel: oneOf(search.smodel, ["sarimax", "tslm", "gbm_lags"] as const),
   };
 }
 
@@ -123,5 +159,7 @@ export function seriesParams(search: TimeSeriesSearch): SeriesParams {
   ] as const)
     delete params[key];
   delete params.all;
+  delete params.scen;
+  delete params.smodel;
   return params;
 }

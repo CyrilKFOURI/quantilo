@@ -1,12 +1,14 @@
 {
-  "name": "data-explorer-frontend",
+  "name": "quantilo-frontend",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:lite": "tsc --noEmit && vite build --mode lite && uv run --project ../backend --frozen --no-dev --with pip python ../lite/bundle.py dist-lite",
     "preview": "vite preview",
+    "preview:lite": "vite preview --mode lite --port 4174",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",

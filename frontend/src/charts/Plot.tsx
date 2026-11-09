@@ -1,6 +1,7 @@
 import type { Data, Layout } from "plotly.js-dist-min";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 
+import { PHONE, useMedia } from "../lib/useMedia";
 import { baseLayout, plotConfig, readTokens, type ChartTokens } from "./theme";
 
 type PlotlyModule = typeof import("plotly.js-dist-min");
@@ -100,7 +101,11 @@ type ClickableElement = HTMLDivElement & {
 };
 
 /** A Plotly chart themed with the design tokens. `figure` builds traces from the tokens. */
-export const Plot = forwardRef<PlotHandle, PlotProps>(function Plot({ figure, height, label, onPointClick }, ref) {
+export const Plot = forwardRef<PlotHandle, PlotProps>(function Plot({ figure, height: wanted, label, onPointClick }, ref) {
+  // 041: an ordinary chart is 240 px tall at most on a phone; a chart sized by its data
+  // (a heatmap, a long ranking: taller than 420 px) keeps its height.
+  const phone = useMedia(PHONE);
+  const height = phone && wanted <= 420 ? Math.min(wanted, 240) : wanted;
   const container = useRef<HTMLDivElement>(null);
   const themeVersion = useThemeVersion();
   const clickHandler = useRef(onPointClick);

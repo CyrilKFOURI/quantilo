@@ -1,5 +1,5 @@
-import { Link } from "@tanstack/react-router";
-import { Pencil, RefreshCw, Trash2, X } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { GitCompareArrows, Pencil, RefreshCw, Trash2, X } from "lucide-react";
 import { useState } from "react";
 
 import type { Dataset } from "../../api/client";
@@ -11,8 +11,26 @@ import { Dialog } from "../../ui/Dialog";
 import { ErrorNote, TextInput } from "../../ui/fields";
 import { StatusBadge } from "./StatusBadge";
 
+/** Of two datasets, the one imported last is the new version; the other is the reference. */
+export function versionsOrder(first: Dataset, second: Dataset): [Dataset, Dataset] {
+  const stamp = (d: Dataset) => d.imported_at ?? d.created_at;
+  return stamp(first) >= stamp(second) ? [first, second] : [second, first];
+}
+
 export function DatasetList({ datasets }: { datasets: Dataset[] }) {
   const [deleting, setDeleting] = useState<Dataset | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  const navigate = useNavigate();
+  const chosen = datasets.filter((dataset) => selected.includes(dataset.id) && dataset.status === "ready");
+  // Ticking a third dataset replaces the oldest tick: two are compared at most.
+  const toggle = (id: string) =>
+    setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id].slice(-2)));
+  const compare = () => {
+    const [first, second] = chosen;
+    if (!first || !second) return;
+    const [after, before] = versionsOrder(first, second);
+    void navigate({ to: "/d/$datasetId/changes", params: { datasetId: after.id }, search: { vs: before.id } });
+  };
   const remove = useDeleteDataset();
   const reimport = useReimportDataset();
   const error = remove.error ?? reimport.error;
@@ -21,16 +39,29 @@ export function DatasetList({ datasets }: { datasets: Dataset[] }) {
 
   return (
     <section>
-      <h2 className="mb-2 text-xs text-ink-3">{t("datasets.recent")}</h2>
+      <div className="mb-2 flex min-h-(--control-h) flex-wrap items-center justify-between gap-3">
+        <h2 className="text-xs text-ink-3">{t("datasets.recent")}</h2>
+        {chosen.length === 2 ? (
+          <Button icon={GitCompareArrows} onClick={compare}>
+            {t("changes.compareVersions")}
+          </Button>
+        ) : (
+          datasets.length > 1 && (
+            <span className="text-xs text-ink-3">{t(chosen.length === 1 ? "changes.pickOneMore" : "changes.pickTwo")}</span>
+          )
+        )}
+      </div>
       {error && (
         <div className="mb-2">
           <ErrorNote>{error.message}</ErrorNote>
         </div>
       )}
       <div className="overflow-x-auto rounded-lg border border-line bg-surface-1">
-        <table className="w-full border-collapse text-[13px]">
+        {/* 041: a phone keeps name, shape and status (size and last opened are hidden). */}
+        <table className="w-full border-collapse text-[13px] max-sm:[&_tr>:nth-child(4)]:hidden max-sm:[&_tr>:nth-child(5)]:hidden">
           <thead>
             <tr className="border-b border-line text-left text-xs text-ink-3">
+              <th scope="col" className="w-0 py-2 pl-3"><span className="sr-only">{t("changes.selectToCompare")}</span></th>
               <th scope="col" className="w-full px-3 py-2 font-normal">{t("datasets.col.name")}</th>
               <th scope="col" className="px-3 py-2 text-right font-normal">{t("datasets.col.shape")}</th>
               <th scope="col" className="px-3 py-2 text-right font-normal">{t("datasets.col.size")}</th>
@@ -44,6 +75,8 @@ export function DatasetList({ datasets }: { datasets: Dataset[] }) {
               <DatasetRow
                 key={dataset.id}
                 dataset={dataset}
+                checked={selected.includes(dataset.id)}
+                onToggle={() => toggle(dataset.id)}
                 onDelete={() => setDeleting(dataset)}
                 onReimport={() => reimport.mutate(dataset.id)}
               />
@@ -82,10 +115,14 @@ export function DatasetList({ datasets }: { datasets: Dataset[] }) {
 
 function DatasetRow({
   dataset,
+  checked,
+  onToggle,
   onDelete,
   onReimport,
 }: {
   dataset: Dataset;
+  checked: boolean;
+  onToggle: () => void;
   onDelete: () => void;
   onReimport: () => void;
 }) {
@@ -101,6 +138,16 @@ function DatasetRow({
 
   return (
     <tr className="group border-b border-line last:border-b-0 hover:bg-surface-0">
+      <td className="py-2 pl-3">
+        <input
+          type="checkbox"
+          className="size-3.5 accent-(--accent)"
+          checked={checked}
+          disabled={dataset.status !== "ready"}
+          onChange={onToggle}
+          aria-label={t("changes.selectDataset", { name: dataset.name })}
+        />
+      </td>
       <td className="max-w-0 px-3 py-2">
         {editing ? (
           <form

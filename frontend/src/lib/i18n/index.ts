@@ -1,8 +1,12 @@
 import en from "./en.json";
+// Recipes (030): their texts kept in their own file.
+import recipes from "./recipes.json";
 
-export type MessageKey = keyof typeof en;
+const all = { ...en, ...recipes };
 
-const messages: Partial<Record<string, string>> = en;
+export type MessageKey = keyof typeof all;
+
+const messages: Partial<Record<string, string>> = all;
 
 /** Translate a key, replacing `{name}` placeholders with `vars.name`. A key built at run time
  *  (`ml.option.${value}`) that has no text shows the key itself instead of breaking the page. */

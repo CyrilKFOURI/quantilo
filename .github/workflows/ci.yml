@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: packages/cyfouri-data-explorer
+        working-directory: packages/quantilo
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -73,15 +73,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build the image
-        run: docker build -t data-explorer:ci .
+        run: docker build -t quantilo:ci .
       - name: Image size under 900 MB
         run: |
-          size=$(docker image inspect data-explorer:ci --format '{{.Size}}')
+          size=$(docker image inspect quantilo:ci --format '{{.Size}}')
           echo "Image size: $((size / 1024 / 1024)) MB"
           test "$size" -lt $((900 * 1024 * 1024))
       - name: Smoke test
         run: |
-          docker run -d --name app -p 8000:8000 data-explorer:ci
+          docker run -d --name app -p 8000:8000 quantilo:ci
           for i in $(seq 1 30); do
             if curl -fs http://localhost:8000/api/v1/health | grep -q '"status":"ok"'; then break; fi
             sleep 1

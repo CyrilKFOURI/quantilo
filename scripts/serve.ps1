@@ -15,10 +15,10 @@ finally {
     Pop-Location
 }
 
-$env:DATA_EXPLORER_STATIC_DIR = "$root\frontend\dist"
+$env:QUANTILO_STATIC_DIR = "$root\frontend\dist"
 Push-Location "$root\backend"
 try {
-    Write-Host "Data Explorer: http://127.0.0.1:$Port"
+    Write-Host "Quantilo: http://127.0.0.1:$Port"
     uv run uvicorn app.main:app --host 127.0.0.1 --port $Port
 }
 finally {

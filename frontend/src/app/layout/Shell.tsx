@@ -1,9 +1,12 @@
+import * as RadixDialog from "@radix-ui/react-dialog";
 import { Outlet } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { KeyboardLayer } from "../../features/command/Shortcuts";
 import { t } from "../../lib/i18n";
+import { BELOW_LAPTOP, PHONE, useMedia } from "../../lib/useMedia";
 import type { ModuleManifest, PanelManifest } from "../../modules/types";
+import { ActivityBar } from "../../ui/ActivityBar";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
@@ -19,6 +22,11 @@ function readCollapsed(): boolean {
 
 export function Shell({ modules, panels = [] }: { modules: ModuleManifest[]; panels?: PanelManifest[] }) {
   const [collapsed, setCollapsed] = useState(readCollapsed);
+  const [drawer, setDrawer] = useState(false);
+  // 041: a phone has no sidebar (the menu button opens the drawer); a tablet keeps the icon
+  // rail, whose button opens the drawer with the labels. A laptop is unchanged.
+  const phone = useMedia(PHONE);
+  const belowLaptop = useMedia(BELOW_LAPTOP);
 
   const toggle = () => {
     const next = !collapsed;
@@ -38,9 +46,36 @@ export function Shell({ modules, panels = [] }: { modules: ModuleManifest[]; pan
       >
         {t("nav.skip")}
       </a>
-      <Sidebar collapsed={collapsed} onToggle={toggle} modules={modules} />
+      {!phone && (
+        <Sidebar
+          collapsed={belowLaptop || collapsed}
+          onToggle={belowLaptop ? () => setDrawer(true) : toggle}
+          modules={modules}
+        />
+      )}
+      {belowLaptop && (
+        <RadixDialog.Root open={drawer} onOpenChange={setDrawer}>
+          <RadixDialog.Portal>
+            <RadixDialog.Overlay className="fixed inset-0 z-40 bg-ink-1/30" />
+            <RadixDialog.Content
+              aria-describedby={undefined}
+              className="fixed inset-y-0 left-0 z-50 w-[min(85vw,300px)] border-r border-line bg-surface-1 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] shadow-[0_12px_40px_-12px_rgb(0_0_0/0.35)]"
+            >
+              <RadixDialog.Title className="sr-only">{t("nav.label")}</RadixDialog.Title>
+              <Sidebar
+                drawer
+                collapsed={false}
+                onToggle={() => setDrawer(false)}
+                onNavigate={() => setDrawer(false)}
+                modules={modules}
+              />
+            </RadixDialog.Content>
+          </RadixDialog.Portal>
+        </RadixDialog.Root>
+      )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar />
+        <TopBar onMenu={phone ? () => setDrawer(true) : undefined} />
+        <ActivityBar />
         <main
           id="main"
           tabIndex={-1}

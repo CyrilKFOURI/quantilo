@@ -1,9 +1,9 @@
 from typing import Annotated, Literal
 
-from cyfouri_data_explorer.compare.analyze import Comparison
-from cyfouri_data_explorer.compare.service import CompareService
-from cyfouri_data_explorer.timeseries.series import Aggregate, Align, Options, Period
 from fastapi import APIRouter, Depends, Query, Request
+from quantilo.compare.analyze import Comparison
+from quantilo.compare.service import CompareService
+from quantilo.timeseries.series import Aggregate, Align, Options, Period
 
 from app.api.filters import Filters
 

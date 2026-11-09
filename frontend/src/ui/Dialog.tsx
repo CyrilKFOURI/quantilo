@@ -30,7 +30,8 @@ export function Dialog({
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="fixed inset-0 z-40 bg-ink-1/30" />
         <RadixDialog.Content
-          className={`fixed top-1/2 left-1/2 z-50 flex max-h-[min(88dvh,900px)] w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-line bg-surface-1 shadow-[0_12px_40px_-12px_rgb(0_0_0/0.35)] ${widths[size]}`}
+          // 041: a full-screen sheet on a phone (title bar on top, the action in the foot).
+          className={`fixed top-1/2 left-1/2 z-50 flex max-h-[min(88dvh,900px)] w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-line bg-surface-1 shadow-[0_12px_40px_-12px_rgb(0_0_0/0.35)] max-sm:inset-0 max-sm:h-dvh max-sm:max-h-none max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:border-0 max-sm:pt-[env(safe-area-inset-top)] max-sm:pb-[env(safe-area-inset-bottom)] ${widths[size]}`}
         >
           <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-3.5">
             <div className="min-w-0">

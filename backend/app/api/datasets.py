@@ -1,5 +1,5 @@
-from cyfouri_data_explorer.ingestion.preview import ColumnInfo
 from fastapi import APIRouter, Query, Response
+from quantilo.ingestion.preview import ColumnInfo
 
 from app.api.deps import Datasets
 from app.schemas.datasets import (

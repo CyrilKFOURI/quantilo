@@ -31,6 +31,7 @@ import { useStoredState } from "../../lib/useStoredState";
 import { Button } from "../../ui/Button";
 import { ErrorNote } from "../../ui/fields";
 import { Tabs } from "../../ui/Tabs";
+import { Loading } from "../../ui/Loading";
 
 type NumericTab = "summary" | "tests" | "distribution" | "outliers" | "categories";
 
@@ -68,14 +69,14 @@ export function VariablePage() {
 
   if (dataset.isError || columns.isError) {
     return (
-      <div className="px-8 py-8">
+      <div className="px-(--gutter) py-8">
         <ErrorNote>{(dataset.error ?? columns.error)?.message ?? ""}</ErrorNote>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-5 px-8 py-6">
+    <div className="flex flex-col gap-5 px-(--gutter) py-6">
       <header className="space-y-2">
         <Link
           to="/d/$datasetId"
@@ -134,10 +135,7 @@ export function VariablePage() {
       ) : profile.isError ? (
         <ErrorNote>{profile.error.message}</ErrorNote>
       ) : !profile.data || !column ? (
-        <div className="space-y-3" aria-busy="true">
-          <p className="text-ink-3">{t("variable.loading", { name })}</p>
-          <div className="h-80 animate-pulse rounded-lg bg-surface-1" />
-        </div>
+        <Loading label={t("variable.loading", { name })} className="h-80 rounded-lg" />
       ) : (
         <VariableBody key={name} datasetId={datasetId} column={column} profile={profile.data} />
       )}
@@ -251,7 +249,19 @@ function NumericBody({ datasetId, column, profile }: { datasetId: string; column
         )}
         {tab === "tests" && <NormalityPanel normality={numeric.normality} alpha={alpha} onAlpha={setAlpha} />}
         {tab === "distribution" && <FitPanel datasetId={datasetId} column={column.name} profile={numeric} />}
-        {tab === "outliers" && <OutliersPanel datasetId={datasetId} column={column.name} />}
+        {tab === "outliers" && (
+          <div className="space-y-3">
+            <OutliersPanel datasetId={datasetId} column={column.name} />
+            <Link
+              to="/d/$datasetId/segments"
+              params={{ datasetId }}
+              search={{ section: "unusual" }}
+              className="inline-block text-[13px] text-accent hover:underline"
+            >
+              {t("variable.unusualRows")}
+            </Link>
+          </div>
+        )}
         {tab === "categories" && profile.categorical && (
           <div className="space-y-4">
             <CategoricalPanel profile={profile.categorical} />
@@ -283,7 +293,7 @@ function ChartBlock({ datasetId, column }: { datasetId: string; column: Column }
           <ChartView chart={data} type={column.type} name={column.name} height={height} datasetId={datasetId} />
         </div>
       ) : (
-        <div className="h-80 animate-pulse rounded-md bg-surface-2" aria-busy="true" />
+        <Loading label={t("loading.chart")} className="h-80 rounded-md" />
       )}
     </section>
   );

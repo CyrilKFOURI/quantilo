@@ -1,7 +1,9 @@
 import { Link, useParams } from "@tanstack/react-router";
 import {
   BookOpen,
+  BookMarked,
   Columns3,
+  GitCompareArrows,
   Grid3x3,
   House,
   LayoutGrid,
@@ -15,8 +17,10 @@ import {
 
 import { useColumns, useDataset } from "../../api/hooks";
 import { ThemeSwitcher } from "../../features/theme/ThemeSwitcher";
+import { LockBadge } from "../../lite/Locked";
 import { t, type MessageKey } from "../../lib/i18n";
 import type { ModuleManifest } from "../../modules/types";
+import { CyfouriLogo } from "../../ui/CyfouriLogo";
 import { Logo } from "../../ui/Logo";
 
 /** Pages of the open dataset. */
@@ -28,7 +32,8 @@ const DATASET_PAGES: {
     | "/d/$datasetId/columns"
     | "/d/$datasetId/compare"
     | "/d/$datasetId/correlations"
-    | "/d/$datasetId/data";
+    | "/d/$datasetId/data"
+    | "/d/$datasetId/changes";
 }[] = [
   { labelKey: "nav.overview", icon: LayoutGrid, to: "/d/$datasetId" },
   { labelKey: "nav.columns", icon: Columns3, to: "/d/$datasetId/columns" },
@@ -39,6 +44,7 @@ const DATASET_PAGES: {
     to: "/d/$datasetId/correlations",
   },
   { labelKey: "nav.data", icon: Rows3, to: "/d/$datasetId/data" },
+  { labelKey: "nav.changes", icon: GitCompareArrows, to: "/d/$datasetId/changes" },
 ];
 
 const itemClass =
@@ -48,15 +54,25 @@ type SidebarProps = {
   collapsed: boolean;
   onToggle: () => void;
   modules: ModuleManifest[];
+  /** In the phone and tablet drawer (041): full width of the drawer, a link closes it. */
+  drawer?: boolean;
+  onNavigate?: () => void;
 };
 
-export function Sidebar({ collapsed, onToggle, modules }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, modules, drawer = false, onNavigate }: SidebarProps) {
   const { datasetId } = useParams({ strict: false });
   return (
     <nav
       aria-label={t("nav.label")}
-      className={`flex h-full flex-col border-r border-line bg-surface-1 transition-[width] duration-150 ${
-        collapsed ? "w-(--sidebar-w-collapsed)" : "w-(--sidebar-w)"
+      onClick={(event) => {
+        if (onNavigate && (event.target as Element).closest("a")) onNavigate();
+      }}
+      className={`flex h-full flex-col bg-surface-1 ${
+        drawer
+          ? "w-full"
+          : `border-r border-line transition-[width] duration-150 ${
+              collapsed ? "w-(--sidebar-w-collapsed)" : "w-(--sidebar-w)"
+            }`
       }`}
     >
       <div
@@ -67,16 +83,18 @@ export function Sidebar({ collapsed, onToggle, modules }: SidebarProps) {
           className="flex min-w-0 items-center gap-2.5 rounded-md text-ink-1"
           aria-label={t("app.name")}
         >
-          <span className="flex shrink-0 flex-col items-center gap-0.5">
-            <Logo size={20} />
-            <span className="font-[Georgia,serif] text-[8px] leading-none tracking-[0.18em]">
-              CYFOURI
-            </span>
-          </span>
+          <CyfouriLogo size={18} />
           {!collapsed && (
-            <span className="truncate text-[13px] font-semibold tracking-tight">
-              {t("app.name")}
-            </span>
+            <>
+              <span className="h-7 w-px shrink-0 bg-line" aria-hidden />
+              <Logo size={24} className="shrink-0" />
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate text-sm leading-tight font-semibold tracking-tight">
+                  {t("app.name")}
+                </span>
+                <span className="truncate text-[11px] leading-tight text-ink-3">{t("app.tagline")}</span>
+              </span>
+            </>
           )}
         </Link>
       </div>
@@ -88,6 +106,14 @@ export function Sidebar({ collapsed, onToggle, modules }: SidebarProps) {
               to="/"
               icon={House}
               label={t("nav.home")}
+              collapsed={collapsed}
+            />
+          </li>
+          <li>
+            <NavLink
+              to="/recipes"
+              icon={BookMarked}
+              label={t("nav.recipes")}
               collapsed={collapsed}
             />
           </li>
@@ -171,8 +197,8 @@ export function Sidebar({ collapsed, onToggle, modules }: SidebarProps) {
           <button
             type="button"
             onClick={onToggle}
-            aria-label={collapsed ? t("nav.expand") : t("nav.collapse")}
-            title={collapsed ? t("nav.expand") : t("nav.collapse")}
+            aria-label={drawer ? t("nav.closeMenu") : collapsed ? t("nav.expand") : t("nav.collapse")}
+            title={drawer ? t("nav.closeMenu") : collapsed ? t("nav.expand") : t("nav.collapse")}
             className="inline-flex size-(--control-h) items-center justify-center rounded-md text-ink-2 hover:bg-surface-2 hover:text-ink-1"
           >
             {collapsed ? (
@@ -242,6 +268,7 @@ function DatasetModuleLink({
     >
       <Icon size={16} strokeWidth={1.5} aria-hidden />
       {!collapsed && label}
+      {!collapsed && module.locked && <LockBadge className="ml-auto" />}
     </Link>
   );
 }

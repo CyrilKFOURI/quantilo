@@ -1,0 +1,854 @@
+"""A dataset opened in Python: the same import, typing and analyses as the app, without a server.
+
+`open()` reads the source with the app's reader into a Parquet copy kept in a cache folder, then
+detects the column types with the app's engine. A `Dataset` is its own catalog (in memory) for
+the analysis services the app uses; `where()` gives a filtered view sharing that catalog.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import shutil
+from dataclasses import asdict, dataclass, field, replace
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
+
+import duckdb
+import pandas as pd
+
+from quantilo.catalog import (
+    ColumnChange,
+    ColumnRecord,
+    ColumnView,
+    apply_change,
+    detection_record,
+    summarize_record,
+    to_view,
+)
+from quantilo.changes.compare import Changes, compare_snapshots
+from quantilo.changes.kpis import KpiChange, compare_kpi, compute_value
+from quantilo.changes.relations import RelationChange, relation_changes
+from quantilo.changes.rows import RowChanges, RowKeyError, key_candidates, row_changes
+from quantilo.changes.snapshot import Snapshot, take_snapshot
+from quantilo.charts.prepare import Chart, ChartParams
+from quantilo.compare.analyze import Comparison
+from quantilo.compare.service import CompareService
+from quantilo.correlations.matrix import Method
+from quantilo.correlations.service import Correlations, CorrelationService
+from quantilo.errors import ColumnNotFound, ExplorerError
+from quantilo.experiments.analyze import ExperimentDesign
+from quantilo.experiments.facade import Experiment, MetricLike, metric_of
+from quantilo.experiments.service import ExperimentCandidates, ExperimentEngine
+from quantilo.filters.model import Condition, Operator
+from quantilo.filters.scope import scoped_source, where_for
+from quantilo.ingestion.importer import import_to_parquet
+from quantilo.ingestion.options import CsvOptions, ImportOptions
+from quantilo.ingestion.sources import fingerprint, list_source_files
+from quantilo.ingestion.sql import lit
+from quantilo.kpi.compute import KpiResult
+from quantilo.kpi.definition import Definition
+from quantilo.kpi.service import KpiEngine, Suggestions
+from quantilo.profiling.overview import Overview
+from quantilo.profiling.service import ProfilingService
+from quantilo.report.generate import ReportServices, generate
+from quantilo.rows.export import Format
+from quantilo.rows.service import RowService
+from quantilo.rows.view import Mode, RowsPage, View
+from quantilo.timeseries.facade import TimeSeries
+from quantilo.timeseries.series import Aggregate, Align, Gaps, Period
+from quantilo.timeseries.series import Options as SeriesOptions
+from quantilo.timeseries.service import Request as SeriesRequest
+from quantilo.timeseries.service import TimeSeriesService
+from quantilo.typing.engine import DEFAULT_THRESHOLDS, Thresholds, detect_columns
+from quantilo.typing.knowledge_base import load
+from quantilo.typing.types import AnalysisType
+from quantilo.variable.analyze import VariableProfile
+from quantilo.variable.fitting import Fit
+from quantilo.variable.outliers import OutlierMethod, Outliers
+from quantilo.variable.service import VariableService
+from quantilo.version import __version__
+
+if TYPE_CHECKING:  # machine learning and synthetic data load on first use (scikit-learn, Optuna)
+    from quantilo.ml.classes import Classes
+    from quantilo.ml.engine import Targets
+    from quantilo.ml.evaluate import Validation
+    from quantilo.ml.facade import MachineLearning
+    from quantilo.segments.engine import MethodChoice
+    from quantilo.segments.facade import FittedSegments, FoundUnusualRows, Segments
+    from quantilo.synthetic.facade import Synthesizer
+
+DETECTION_VERSION = 1  # bump when detection changes, to ignore cached detections
+
+
+def default_cache_dir() -> Path:
+    if env := os.environ.get("QUANTILO_CACHE"):
+        return Path(env)
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("XDG_CACHE_HOME")
+    return (Path(base) if base else Path.home() / ".cache") / "quantilo"
+
+
+@dataclass
+class DatasetInfo:
+    """The dataset as the analyses see it (satisfies `catalog.DatasetRef`)."""
+
+    id: str
+    name: str
+    source_path: str
+    storage_path: str
+    imported_at: str | None
+    row_count: int | None
+    size_bytes: int | None
+    types_version: int = 0
+
+
+@dataclass
+class _State:
+    """What every filtered view of one dataset shares: storage, columns, services (and their
+    caches)."""
+
+    info: DatasetInfo
+    records: dict[str, ColumnRecord]
+    _services: dict[str, Any] = field(default_factory=dict)
+
+    # --- Catalog ----------------------------------------------------------------------------
+
+    def ready(self, dataset_id: str) -> DatasetInfo:
+        return self.info
+
+    def columns(self, dataset_id: str) -> list[ColumnView]:
+        return [to_view(record) for record in self.records.values()]
+
+    def service(self, kind: type) -> Any:
+        if kind.__name__ not in self._services:
+            self._services[kind.__name__] = kind(self)
+        return self._services[kind.__name__]
+
+
+class Dataset:
+    """A tabular dataset with typed columns. Build one with `open()`, `from_pandas()` or
+    `from_arrow()`."""
+
+    def __init__(self, state: _State, conditions: tuple[Condition, ...] = ()) -> None:
+        self._state = state
+        self._conditions = conditions
+
+    # --- What it is -------------------------------------------------------------------------
+
+    @property
+    def name(self) -> str:
+        return self._state.info.name
+
+    @property
+    def path(self) -> Path:
+        """The Parquet copy the analyses read."""
+        return Path(self._state.info.storage_path)
+
+    @property
+    def conditions(self) -> list[Condition]:
+        return list(self._conditions)
+
+    @property
+    def types(self) -> list[ColumnView]:
+        """Every column: effective type and role, how it is read, why, and its summary."""
+        return self._state.columns(self._state.info.id)
+
+    @property
+    def columns(self) -> list[str]:
+        return [record.name for record in self._state.records.values()]
+
+    def column(self, name: str) -> ColumnView:
+        return to_view(self._record(name))
+
+    def __len__(self) -> int:
+        if not self._conditions:
+            return self._state.info.row_count or 0
+        source = scoped_source(
+            self._state.info.storage_path, where_for(self.types, self.conditions)
+        )
+        connection = duckdb.connect()
+        try:
+            row = connection.execute(f"SELECT count(*) FROM {source}").fetchone()
+        finally:
+            connection.close()
+        return int(row[0]) if row else 0
+
+    def __repr__(self) -> str:
+        filters = f", {len(self._conditions)} filter(s)" if self._conditions else ""
+        info = self._state.info
+        return (
+            f"<Dataset {info.name!r}: {info.row_count} rows × {len(self.columns)} columns{filters}>"
+        )
+
+    # --- Correcting the types ---------------------------------------------------------------
+
+    def retype(self, column: str, analysis_type: AnalysisType) -> Dataset:
+        """Read a column in another type (same rules as the app's Columns page)."""
+        return self._change(ColumnChange(name=column, type=analysis_type))
+
+    def set_role(self, column: str, role: str | None) -> Dataset:
+        """A semantic role from the knowledge base (`None`: no role)."""
+        return self._change(ColumnChange(name=column, role=role or ""))
+
+    def set_order(self, column: str, order: list[str]) -> Dataset:
+        """The order of an ordinal category's values (empty: back to the detected order)."""
+        return self._change(ColumnChange(name=column, order=order))
+
+    def exclude(self, *columns: str) -> Dataset:
+        """Leave columns out of the analyses (overview, correlations, report)."""
+        for column in columns:
+            self._change(ColumnChange(name=column, excluded=True))
+        return self
+
+    def include(self, *columns: str) -> Dataset:
+        for column in columns:
+            self._change(ColumnChange(name=column, excluded=False))
+        return self
+
+    def reset_types(self, *columns: str) -> Dataset:
+        """Back to the detected type, role and order (every column when none is given)."""
+        for column in columns or tuple(self.columns):
+            self._change(ColumnChange(name=column, reset=True))
+        return self
+
+    def _record(self, name: str) -> ColumnRecord:
+        record = self._state.records.get(name)
+        if record is None:
+            raise ColumnNotFound(name, self.columns)
+        return record
+
+    def _change(self, change: ColumnChange) -> Dataset:
+        """Changes the dataset in place (every filtered view of it sees the change)."""
+        record = self._record(change.name)
+        before = (record.user_type, record.user_parser, record.user_role, record.user_order)
+        updated = replace(record)
+        apply_change(updated, change, {role.id for role in load().roles})
+        after = (updated.user_type, updated.user_parser, updated.user_role, updated.user_order)
+        if before != after:
+            updated.summary = summarize_record(self._state.info.storage_path, updated)
+        if (before[0], before[1]) != (after[0], after[1]):
+            self._state.info.types_version += 1
+        self._state.records[change.name] = updated
+        return self
+
+    # --- Filters ----------------------------------------------------------------------------
+
+    def where(
+        self,
+        column: str | Condition,
+        op: Operator = "eq",
+        value: Any = None,
+        *,
+        negate: bool = False,
+        **options: Any,
+    ) -> Dataset:
+        """A filtered view: `ds.where("Sex", "in", ["female"])`, `ds.where("Age", "between",
+        (18, 30))`, `ds.where("Fare", "gt", 50)`. Conditions add up (AND); the values of an
+        `in` combine with OR. Same operators as the app's filter bar."""
+        if isinstance(column, Condition):
+            condition = column
+        else:
+            self._record(column)
+            fields: dict[str, Any] = {"column": column, "op": op, "negate": negate, **options}
+            if op in ("in", "part_in"):
+                values = value if isinstance(value, list | tuple | set) else [value]
+                fields["values"] = [str(v) for v in values]
+            elif op == "between":
+                fields["low"], fields["high"] = value
+            elif value is not None:
+                fields["value"] = value
+            condition = Condition(**fields)
+        conditions = (*self._conditions, condition)
+        where_for(self.types, list(conditions))  # an invalid filter fails now, not later
+        return Dataset(self._state, conditions)
+
+    def unfiltered(self) -> Dataset:
+        return Dataset(self._state)
+
+    # --- Analyses ---------------------------------------------------------------------------
+
+    @property
+    def _id(self) -> str:
+        return self._state.info.id
+
+    def overview(self) -> Overview:
+        """Rows, columns by type, missing cells, duplicates and quality alerts."""
+        return self._state.service(ProfilingService).overview(self._id, self.conditions)
+
+    def variable(self, column: str) -> VariableProfile:
+        """Descriptive statistics, normality tests and the profile matching the column's type."""
+        self._record(column)
+        return self._state.service(VariableService).profile(self._id, column, self.conditions)
+
+    def fit(self, column: str) -> Fit:
+        """Probability laws fitted to a numeric column, ranked by AIC."""
+        self._record(column)
+        return self._state.service(VariableService).fit(self._id, column, self.conditions)
+
+    def outliers(self, column: str, method: OutlierMethod = "iqr") -> Outliers:
+        """Outliers of a numeric column by every rule, with the rows of `method`."""
+        self._record(column)
+        return self._state.service(VariableService).outliers(
+            self._id, column, method, self.conditions
+        )
+
+    def chart(
+        self, column: str, view: str | None = None, *, top_n: int = 10, bins: int | None = None
+    ) -> Chart:
+        """The data of a column's chart, as on the Overview cards (`view`: one of `.views`)."""
+        self._record(column)
+        params = ChartParams(view=view, top_n=top_n, bins=bins)
+        return self._state.service(ProfilingService).chart(
+            self._id, column, params, self.conditions
+        )
+
+    def plot(
+        self,
+        column: str,
+        view: str | None = None,
+        *,
+        theme: Literal["light", "dark"] = "light",
+        title: str | None = None,
+        height: int | None = None,
+        **options: Any,
+    ) -> Any:
+        """A column drawn as in the app (a plotly Figure, the `plot` extra). `view`: the card's
+        views (histogram, box, pie, timeline, month…), and for a number kde, ecdf, violin, qq or
+        laws (the best fitted laws over the histogram); calendar for a date, words for text."""
+        from quantilo.plots import PlotError, plot
+        from quantilo.results import to_dict
+
+        record = self.column(column)
+        numeric_views = ("kde", "ecdf", "violin", "qq")
+        if view in numeric_views or (view == "box" and record.type.startswith("numeric")):
+            return plot(self.variable(column), view, theme=theme, title=title, height=height)
+        if view in ("calendar", "words"):
+            return plot(self.variable(column), view, theme=theme, title=title, height=height)
+        if view == "laws":
+            if not record.type.startswith("numeric"):
+                raise PlotError(f"{column!r} is not numeric: no law to fit.")
+            histogram = to_dict(self.chart(column, "histogram"))
+            profile = self.variable(column)
+            count = profile.numeric.describe.count if profile.numeric else 0
+            return plot(
+                self.fit(column),
+                "laws",
+                theme=theme,
+                title=title,
+                height=height,
+                bins=histogram["bins"],
+                count=count,
+            )
+        pie = view == "pie"
+        chart = self.chart(column, None if pie else view)
+        return plot(
+            chart,
+            "pie" if pie else None,
+            theme=theme,
+            title=title,
+            height=height,
+            analysis_type=record.type,
+            **options,
+        )
+
+    def compare(
+        self,
+        x: str,
+        y: str,
+        z: str | None = None,
+        *,
+        color: str | None = None,
+        options: SeriesOptions | None = None,
+        numbers: list[str] | None = None,
+    ) -> Comparison:
+        """Two or three variables: the visual and the tests follow their types."""
+        for name in (x, y, z, color):
+            if name is not None:
+                self._record(name)
+        return self._state.service(CompareService).compare(
+            self._id, x, y, z, color, self.conditions, options, numbers
+        )
+
+    def correlations(
+        self, method: Method = "pearson", columns: list[str] | None = None
+    ) -> Correlations:
+        """The mixed association matrix (r or ρ, Cramér's V, η), ranked pairs and insights."""
+        for name in columns or []:
+            self._record(name)
+        return self._state.service(CorrelationService).correlations(
+            self._id, method, columns, self.conditions
+        )
+
+    def rows(
+        self,
+        offset: int = 0,
+        limit: int = 100,
+        *,
+        mode: Mode = "first",
+        search: str = "",
+        sort: str | None = None,
+        desc: bool = False,
+    ) -> RowsPage:
+        """A page of typed rows (`mode`: first, sample, duplicates, missing)."""
+        view = View(mode=mode, search=search, sort=sort, desc=desc)
+        return self._state.service(RowService).rows(self._id, view, offset, limit, self.conditions)
+
+    def to_pandas(self, columns: list[str] | None = None) -> pd.DataFrame:
+        """The (filtered) rows as a pandas DataFrame, each column read in its type."""
+        service: RowService = self._state.service(RowService)
+        exported = service.export(self._id, "parquet", View(), columns, self.conditions)
+        try:
+            return pd.read_parquet(exported.path)
+        finally:
+            exported.remove()
+
+    def export(
+        self,
+        path: str | os.PathLike[str],
+        file_format: Format | None = None,
+        *,
+        columns: list[str] | None = None,
+    ) -> Path:
+        """Write the (filtered) rows to CSV, Parquet or Excel; the format follows the extension."""
+        target = Path(path)
+        chosen = file_format or _format_of(target)
+        service: RowService = self._state.service(RowService)
+        exported = service.export(self._id, chosen, View(), columns, self.conditions)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(exported.path, target)
+        finally:
+            exported.remove()
+        return target
+
+    def timeseries(
+        self,
+        time: str | None = None,
+        value: str | None = None,
+        *,
+        group: str | None = None,
+        series: str | None = None,
+        period: Period | Literal["auto"] = "auto",
+        aggregate: Aggregate | Literal["auto"] = "auto",
+        window: int | None = None,
+        align: Align = "trailing",
+        gaps: Gaps = "leave",
+        season: int | None = None,
+        methods: list[str] | None = None,
+    ) -> TimeSeries:
+        """A value over time; unset choices follow the app's rules (`.setup()` shows them).
+        `value=None` counts rows per period."""
+        for name in (time, value, group):
+            if name is not None:
+                self._record(name)
+        options = SeriesOptions(period=period, aggregate=aggregate, window=window, align=align)
+        request = SeriesRequest(time, value, group, series, options, gaps, season)
+        service = self._state.service(TimeSeriesService)
+        return TimeSeries(service, self._id, request, self.conditions, methods)
+
+    def kpi_suggestions(self) -> Suggestions:
+        """KPIs suggested from the columns, and the best columns to split them by."""
+        return self._state.service(KpiEngine).suggestions(self._id)
+
+    def kpi(self, definition: Definition | dict[str, Any]) -> KpiResult:
+        """Compute a KPI (a suggested `definition`, or one written as a dict): the grain, chart,
+        totals and comparisons are chosen by the app's rules unless set."""
+        chosen = (
+            definition
+            if isinstance(definition, Definition)
+            else Definition.model_validate(definition)
+        )
+        return self._state.service(KpiEngine).compute(self._id, chosen, self.conditions)
+
+    def experiment_candidates(self) -> ExperimentCandidates:
+        """The columns that can describe an experiment: variants (2 to 5 values) with the control
+        guessed, metrics with their kind, units that repeat, dates and subgroups."""
+        return self._state.service(ExperimentEngine).candidates(self._id, self.conditions)
+
+    def experiment(
+        self,
+        variant: str,
+        metrics: MetricLike | list[MetricLike],
+        *,
+        unit: str | None = None,
+        control: str | None = None,
+        primary: str | None = None,
+        expected: dict[str, float] | None = None,
+        segment: str | None = None,
+        time: str | None = None,
+        alpha: float = 0.05,
+    ) -> Experiment:
+        """An A/B test: `variant` names each unit's group, `metrics` are column names (or
+        `{"column": "revenue", "denominator": "orders"}` for a ratio, `"pre": "revenue_before"`
+        for CUPED). `unit`: the column naming a user when one has several rows; `expected`: the
+        planned split (equal by default); `.analyze()` runs it."""
+        chosen = [metric_of(m) for m in (metrics if isinstance(metrics, list) else [metrics])]
+        for name in (variant, unit, segment, time):
+            if name is not None:
+                self._record(name)
+        for metric in chosen:
+            for name in (metric.column, metric.denominator, metric.pre):
+                if name is not None:
+                    self._record(name)
+        design = ExperimentDesign(
+            variant=variant,
+            metrics=chosen,
+            primary=primary,
+            control=control,
+            unit=unit,
+            expected=expected,
+            segment=segment,
+            time=time,
+            alpha=alpha,
+        )
+        engine = self._state.service(ExperimentEngine)
+        return Experiment(engine, self._id, design, self.conditions)
+
+    def ml_targets(self) -> Targets:
+        """Every column as a possible target: the problem it makes (regression, binary,
+        multiclass) or why it cannot be one."""
+        from quantilo.ml.engine import MlEngine
+
+        return self._state.service(MlEngine).targets(self._id, self.conditions)
+
+    def ml(
+        self,
+        target: str,
+        *,
+        classes: Classes | dict[str, Any] | None = None,
+        validation: Validation | dict[str, Any] | None = None,
+    ) -> MachineLearning:
+        """Models predicting `target`: `.train()`, `.compare()`, `.tune()`, `.preview()`.
+        `validation`: e.g. `{"method": "kfold", "folds": 10, "metric": "f1_macro"}`;
+        `classes`: a number cut into classes, e.g. `{"edges": [18, 65], "names": ["young",
+        "adult", "senior"]}`."""
+        from quantilo.ml.engine import MlEngine
+        from quantilo.ml.facade import MachineLearning
+
+        self._record(target)
+        engine = self._state.service(MlEngine)
+        return MachineLearning(engine, self._id, target, self.conditions, classes, validation)
+
+    def segments(
+        self,
+        columns: list[str] | None = None,
+        *,
+        method: MethodChoice = "auto",
+        k: int | Literal["auto"] = "auto",
+        preparation: Any = None,
+        seed: int = 42,
+    ) -> Segments:
+        """Groups of similar rows: `.plan()` (columns and method chosen, with reasons), `.fit()`.
+        `columns=None` lets the app choose; `method`: auto, kmeans, kprototypes, gmm, ward,
+        hdbscan; `preparation`: the ML preparation choices, e.g. `{"columns": {"age": {"scaling":
+        "standard"}}}`."""
+        from quantilo.segments import facade
+        from quantilo.segments.engine import SegmentsEngine
+
+        for name in columns or []:
+            self._record(name)
+        engine = self._state.service(SegmentsEngine)
+        chosen = facade.request(columns, method, k, preparation, seed)
+        return facade.Segments(self, engine, self._id, self.conditions, chosen)
+
+    def unusual_rows(
+        self,
+        columns: list[str] | None = None,
+        *,
+        method: Literal["auto", "isolation_forest", "mahalanobis", "lof", "segment"] = "auto",
+        segments: FittedSegments | None = None,
+        preparation: Any = None,
+        seed: int = 42,
+    ) -> FoundUnusualRows:
+        """Rows unlike the others across several columns: a score per row, a proposed threshold
+        and, for the most unusual rows, the columns that make them so. `method="segment"`
+        measures each row from its own segment's centre (pass `segments=ds.segments().fit()`)."""
+        from quantilo.segments import facade
+        from quantilo.segments.engine import SegmentsEngine
+
+        for name in columns or []:
+            self._record(name)
+        engine = self._state.service(SegmentsEngine)
+        chosen = facade.unusual_request(columns, method, preparation, seed)
+        labels = segments.as_labels() if segments is not None else None
+        return facade.FoundUnusualRows(engine.unusual(self._id, self.conditions, chosen, labels))
+
+    def synthetic(self, use_gpu: bool | None = None) -> Synthesizer:
+        """Synthetic copies of the whole dataset (filters do not apply, as in the app).
+        `use_gpu`: whether the deep methods may use the GPU (`None`: when PyTorch sees one)."""
+        from quantilo.synthetic.engine import SyntheticEngine
+        from quantilo.synthetic.facade import Synthesizer, gpu_compute
+
+        key = f"SyntheticEngine:{use_gpu}"
+        services = self._state._services
+        if key not in services:
+            found: list[tuple[str | None, bool]] = []
+
+            def compute() -> tuple[str | None, bool]:
+                if not found:
+                    found.append(gpu_compute(use_gpu))
+                return found[0]
+
+            services[key] = SyntheticEngine(self._state, compute)
+        return Synthesizer(self.unfiltered(), services[key], self._id)
+
+    # --- Versions (031) ----------------------------------------------------------------------
+
+    def snapshot(self) -> Snapshot:
+        """The statistical photo the app keeps of every version: schema, types, rows, missing
+        values, quantiles, top categories, periods, duplicates. Whole dataset (no filters)."""
+        info = self._state.info
+        key = f"Snapshot:{info.imported_at}:{info.types_version}"
+        services = self._state._services
+        if key not in services:
+            connection = duckdb.connect()
+            try:
+                source = f"read_parquet({lit(info.storage_path)})"
+                services[key] = take_snapshot(
+                    connection, source, self.types, info.imported_at, info.types_version
+                )
+            finally:
+                connection.close()
+        return services[key]
+
+    def changes(
+        self,
+        other: Dataset,
+        *,
+        used: dict[str, list[str]] | None = None,
+        focus: list[str] | None = None,
+    ) -> Changes:
+        """What changed since `other` (the previous version, or a file to compare with): schema
+        with guessed renames, quality, dates, distributions ranked by PSI, and a level (No
+        notable change, Check, Breaking). `used`: column → what depends on it (a column used
+        that disappears is Breaking); `focus`: columns listed first."""
+        return compare_snapshots(
+            other.snapshot(),
+            self.snapshot(),
+            before_label=other.name,
+            after_label=self.name,
+            used=used,
+            focus=focus or [],
+        )
+
+    def row_changes(self, other: Dataset, key: str | None = None) -> RowChanges:
+        """Rows added, removed and modified since `other`, joined on `key` (by default the first
+        column that identifies a row in both)."""
+        chosen = key or next(iter(key_candidates(other.snapshot(), self.snapshot())), None)
+        if chosen is None:
+            raise RowKeyError("No column identifies a row in both versions: give a key.")
+        connection = duckdb.connect()
+        try:
+            return row_changes(
+                connection, str(other.path), other.types, str(self.path), self.types, chosen
+            )
+        finally:
+            connection.close()
+
+    def relation_changes(self, other: Dataset) -> list[RelationChange]:
+        """The 10 strongest relations of each version, with their value in the other."""
+        connection = duckdb.connect()
+        try:
+            return relation_changes(
+                connection, str(other.path), other.types, str(self.path), self.types
+            )
+        finally:
+            connection.close()
+
+    def kpi_changes(
+        self, other: Dataset, kpis: dict[str, Definition | dict[str, Any]]
+    ) -> list[KpiChange]:
+        """KPIs (name → definition) computed on both versions, with the periods they share."""
+        found: list[KpiChange] = []
+        for name, raw in kpis.items():
+            definition = raw if isinstance(raw, Definition) else Definition.model_validate(raw)
+            values = []
+            problem = None
+            for side in (other, self):
+                connection = duckdb.connect()
+                try:
+                    source = f"read_parquet({lit(str(side.path))})"
+                    values.append(compute_value(connection, source, side.types, name, definition))
+                except ExplorerError as error:
+                    values.append(None)
+                    problem = error.message
+                finally:
+                    connection.close()
+            found.append(compare_kpi(name, values[0], values[1], problem, values[1] is None))
+        return found
+
+    def report(self, path: str | os.PathLike[str] | None = None) -> str:
+        """The app's HTML report (one self-contained file); written to `path` when given.
+        Returns the HTML."""
+        state = self._state
+        services = ReportServices(
+            state,
+            state.service(ProfilingService),
+            state.service(VariableService),
+            state.service(CorrelationService),
+            state.service(CompareService),
+        )
+        content, _name = generate(services, self._id, self.conditions, __version__)
+        if path is not None:
+            target = Path(path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+        return content
+
+
+def _format_of(path: Path) -> Format:
+    suffix = path.suffix.lower()
+    formats: dict[str, Format] = {".csv": "csv", ".parquet": "parquet", ".xlsx": "xlsx"}
+    if suffix not in formats:
+        raise ExplorerError(f"Unknown export format {suffix!r}: use .csv, .parquet or .xlsx.")
+    return formats[suffix]
+
+
+# --- Opening ---------------------------------------------------------------------------------
+
+
+def open(
+    path: str | os.PathLike[str],
+    *,
+    name: str | None = None,
+    delimiter: str | None = None,
+    encoding: str | None = None,
+    decimal: str | None = None,
+    header: bool = True,
+    sheets: list[str] | None = None,
+    files: list[str] | None = None,
+    columns: list[str] | None = None,
+    sample_pct: float = 100,
+    cache_dir: str | os.PathLike[str] | None = None,
+    refresh: bool = False,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
+) -> Dataset:
+    """Open a CSV, Parquet or Excel file, or a folder of them, and detect the column types.
+
+    The CSV dialect is detected unless given (`delimiter`, `encoding`, `decimal`). The source is
+    copied once to Parquet in `cache_dir`; opening it again while it is unchanged reuses the copy
+    and the detection (`refresh=True` reads it again).
+    """
+    source = Path(path).expanduser().resolve()
+    csv = None
+    if delimiter or encoding or decimal or not header:
+        csv = CsvOptions.model_validate(
+            {
+                "delimiter": delimiter or ",",
+                "encoding": encoding or "utf-8",
+                "decimal": decimal or ".",
+                "header": header,
+            }
+        )
+    options = ImportOptions(
+        csv=csv, sheets=sheets, files=files, columns=columns, sample_pct=sample_pct
+    )
+    found = list_source_files(source, options.files)
+    key = fingerprint(found, options.model_dump(mode="json"))
+    folder = Path(cache_dir) if cache_dir else default_cache_dir()
+    storage = folder / f"{key[:24]}.parquet"
+    if refresh or not storage.is_file():
+        import_to_parquet(found, options, storage)
+    dataset_name = (name or "").strip() or (source.stem if source.is_file() else source.name)
+    return _load(storage, dataset_name, str(source), thresholds, refresh)
+
+
+def _load(
+    storage: Path, name: str, source_path: str, thresholds: Thresholds, refresh: bool = False
+) -> Dataset:
+    stat = storage.stat()
+    stamp = datetime.fromtimestamp(stat.st_mtime, UTC).isoformat()
+    connection = duckdb.connect()
+    try:
+        parquet = f"read_parquet({lit(str(storage))})"
+        row = connection.execute(f"SELECT count(*) FROM {parquet}").fetchone()
+        info = DatasetInfo(
+            id=storage.stem,
+            name=name,
+            source_path=source_path,
+            storage_path=str(storage),
+            imported_at=stamp,
+            row_count=int(row[0]) if row else 0,
+            size_bytes=stat.st_size,
+        )
+        records = None if refresh else _cached_detection(storage, stamp, thresholds)
+        if records is None:
+            records = []
+            for detection in detect_columns(connection, parquet, thresholds):
+                record = detection_record(info.id, detection)
+                record.summary = summarize_record(str(storage), record, connection)
+                records.append(record)
+            _save_detection(storage, stamp, thresholds, records)
+    finally:
+        connection.close()
+    return Dataset(_State(info, {record.name: record for record in records}))
+
+
+def _detection_file(storage: Path) -> Path:
+    return storage.with_suffix(".columns.json")
+
+
+def _cached_detection(
+    storage: Path, stamp: str, thresholds: Thresholds
+) -> list[ColumnRecord] | None:
+    try:
+        saved = json.loads(_detection_file(storage).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if saved.get("key") != [DETECTION_VERSION, stamp, asdict(thresholds)]:
+        return None
+    return [ColumnRecord(**record) for record in saved["columns"]]
+
+
+def _save_detection(
+    storage: Path, stamp: str, thresholds: Thresholds, records: list[ColumnRecord]
+) -> None:
+    payload = {
+        "key": [DETECTION_VERSION, stamp, asdict(thresholds)],
+        "columns": [asdict(record) for record in records],
+    }
+    _detection_file(storage).write_text(json.dumps(payload), encoding="utf-8")
+
+
+def from_arrow(
+    table: Any,
+    name: str = "dataset",
+    *,
+    cache_dir: str | os.PathLike[str] | None = None,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
+) -> Dataset:
+    """A dataset from a pyarrow Table (or anything DuckDB reads: a pandas or polars frame)."""
+    folder = Path(cache_dir) if cache_dir else default_cache_dir()
+    folder.mkdir(parents=True, exist_ok=True)
+    connection = duckdb.connect()
+    try:
+        connection.register("source_table", table)
+        partial = folder / "from-memory.parquet.partial"
+        connection.execute(
+            f"COPY (SELECT * FROM source_table) TO {lit(str(partial))} "
+            "(FORMAT parquet, COMPRESSION zstd)"
+        )
+    finally:
+        connection.close()
+    digest = hashlib.sha256(partial.read_bytes()).hexdigest()[:24]
+    storage = folder / f"{digest}.parquet"
+    if storage.is_file():
+        partial.unlink()
+    else:
+        partial.replace(storage)
+    return _load(storage, name, "", thresholds)
+
+
+def from_pandas(
+    frame: Any,
+    name: str = "dataset",
+    *,
+    cache_dir: str | os.PathLike[str] | None = None,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
+) -> Dataset:
+    """A dataset from a pandas DataFrame (the index is left out)."""
+    return from_arrow(
+        frame.reset_index(drop=True), name, cache_dir=cache_dir, thresholds=thresholds
+    )

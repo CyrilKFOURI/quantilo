@@ -17,10 +17,11 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 import pandas as pd
-from cyfouri_data_explorer.ingestion.options import ImportOptions
-from cyfouri_data_explorer.synthetic import compare as side_by_side
-from cyfouri_data_explorer.synthetic import plan
-from cyfouri_data_explorer.synthetic.engine import (
+from pydantic import TypeAdapter
+from quantilo.ingestion.options import ImportOptions
+from quantilo.synthetic import compare as side_by_side
+from quantilo.synthetic import plan
+from quantilo.synthetic.engine import (
     Prepared,
     RunColumn,
     RunRequest,
@@ -28,12 +29,11 @@ from cyfouri_data_explorer.synthetic.engine import (
     SyntheticError,
     export_frame,
 )
-from cyfouri_data_explorer.synthetic.methods import Cancelled
-from cyfouri_data_explorer.synthetic.plan import Method
-from cyfouri_data_explorer.synthetic.privacy import Disclosure, PrivacyError, disclosure
-from cyfouri_data_explorer.synthetic.report import Report
-from cyfouri_data_explorer.synthetic.utility import Utility, UtilityError, utility
-from pydantic import TypeAdapter
+from quantilo.synthetic.methods import Cancelled
+from quantilo.synthetic.plan import Method
+from quantilo.synthetic.privacy import Disclosure, PrivacyError, disclosure
+from quantilo.synthetic.report import Report
+from quantilo.synthetic.utility import Utility, UtilityError, utility
 
 from app.core import db
 from app.core.errors import AppError

@@ -515,3 +515,116 @@ export function learningCurveFigure(curve: NonNullable<MlRun["learning_curve"]>)
     return { data, layout: { showlegend: data.length > 1, shapes, xaxis: title("Iteration"), yaxis: title(curve.label) } };
   };
 }
+
+// --- Panel data (035) -------------------------------------------------------------------------
+
+type Panel = NonNullable<MlRun["panel"]>;
+
+/** A period on the good side of the threshold (always, when there is none). */
+export function goodPeriod(summary: Panel["summary"], value: number | null): boolean {
+  if (value === null || summary.threshold === null) return true;
+  return summary.lower_is_better ? value < summary.threshold : value > summary.threshold;
+}
+
+/** The score of every test period; periods on the wrong side of the threshold are muted. */
+export function periodScoresFigure(panel: Pick<Panel, "periods" | "summary" | "period_column">): Figure {
+  return (tokens) => {
+    const threshold = panel.summary.threshold;
+    const shapes =
+      threshold !== null
+        ? [{ type: "line" as const, xref: "paper" as const, x0: 0, x1: 1, y0: threshold, y1: threshold, line: { color: tokens.ink3, dash: "dash" as const, width: 1 } }]
+        : [];
+    return {
+      data: [
+        {
+          type: "bar",
+          x: panel.periods.map((p) => p.period),
+          y: panel.periods.map((p) => p.score),
+          customdata: panel.periods.map((p) => p.fold),
+          marker: { color: panel.periods.map((p) => (goodPeriod(panel.summary, p.score) ? (tokens.palette[0] ?? tokens.numeric) : withAlpha(tokens.ink3, 0.55))) },
+          hovertemplate: "%{x}: %{y:,.4g} (fold %{customdata})<extra></extra>",
+        } as Data,
+      ],
+      layout: { showlegend: false, bargap: 0.15, shapes, xaxis: { ...title(panel.period_column), type: "category" }, yaxis: title(panel.summary.metric) },
+    };
+  };
+}
+
+/** The scores of the periods added up in time: a steady climb is a regular model. */
+export function cumulativeFigure(panel: Pick<Panel, "periods" | "summary" | "period_column">): Figure {
+  return (tokens) => {
+    let total = 0;
+    const running = panel.periods.map((p) => (total += p.score ?? 0));
+    return {
+      data: [
+        {
+          type: "scatter",
+          mode: "lines",
+          x: panel.periods.map((p) => p.period),
+          y: running,
+          line: { color: tokens.palette[0] ?? tokens.numeric, width: 2 },
+          hovertemplate: "%{x}: %{y:,.4g}<extra></extra>",
+        } as Data,
+      ],
+      layout: { showlegend: false, xaxis: { ...title(panel.period_column), type: "category" }, yaxis: { ...title(`Cumulative ${panel.summary.metric}`), zeroline: true } },
+    };
+  };
+}
+
+/** Each fold on the time axis: the periods it trained on, the embargo, the periods tested. */
+export function foldsFigure(panel: Panel): Figure {
+  return (tokens) => {
+    const folds = panel.folds;
+    const names = folds.map((f) => `Fold ${f.fold}`);
+    const plural = (n: number) => `${n} period${n === 1 ? "" : "s"}`;
+    const bar = (name: string, color: string, base: number[], width: number[], text: string[]) =>
+      ({
+        type: "bar",
+        orientation: "h",
+        name,
+        y: names,
+        x: width,
+        base,
+        marker: { color, line: { color: tokens.surface, width: 2 } },
+        text,
+        textposition: "none",
+        hovertemplate: `%{y} · ${name}: %{text}<extra></extra>`,
+      }) as Data;
+    const ticks = new Map<number, string>(panel.periods.map((p) => [p.rank, p.period]));
+    for (const f of folds) if (!ticks.has(f.train_start)) ticks.set(f.train_start, f.train_from);
+    const ranks = [...ticks.keys()].sort((a, b) => a - b);
+    const chosen = ranks.filter((_, i) => i % Math.max(1, Math.floor(ranks.length / 6)) === 0);
+    return {
+      data: [
+        bar(
+          "trained on",
+          tokens.palette[0] ?? tokens.numeric,
+          folds.map((f) => f.train_start),
+          folds.map((f) => f.train_end - f.train_start + 1),
+          folds.map((f) => `${f.train_from} to ${f.train_to} · ${plural(f.train_periods)}, ${f.train_rows.toLocaleString("en-US")} rows`),
+        ),
+        bar(
+          "embargo",
+          withAlpha(tokens.ink3, 0.35),
+          folds.map((f) => f.train_end + 1),
+          folds.map((f) => f.test_start - f.train_end - 1),
+          folds.map((f) => `${plural(f.test_start - f.train_end - 1)} left out`),
+        ),
+        bar(
+          "tested on",
+          tokens.palette[1] ?? tokens.categorical,
+          folds.map((f) => f.test_start),
+          folds.map((f) => f.test_end - f.test_start + 1),
+          folds.map((f) => `${f.test_from} to ${f.test_to} · ${plural(f.test_periods)}, ${f.test_rows.toLocaleString("en-US")} rows`),
+        ),
+      ],
+      layout: {
+        barmode: "overlay",
+        showlegend: true,
+        legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom", entrywidth: 96, font: { size: 11, color: tokens.ink2 } },
+        yaxis: { autorange: "reversed" },
+        xaxis: { ...title(panel.period_column), tickvals: chosen, ticktext: chosen.map((r) => ticks.get(r) ?? String(r)) },
+      },
+    };
+  };
+}

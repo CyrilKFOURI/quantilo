@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from cyfouri_data_explorer.ingestion.browse import Listing
-from cyfouri_data_explorer.ingestion.preview import Preview
-from cyfouri_data_explorer.ingestion.sources import detect_format
 from fastapi import APIRouter, Query, Request
+from quantilo.ingestion.browse import Listing
+from quantilo.ingestion.preview import Preview
+from quantilo.ingestion.sources import detect_format
 
 from app.api.deps import Datasets
 from app.core.errors import AppError

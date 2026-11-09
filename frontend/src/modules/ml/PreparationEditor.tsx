@@ -1,7 +1,7 @@
 import { RotateCcw } from "lucide-react";
 import { useState } from "react";
 
-import type { MlChoicesInput, MlClasses, MlColumnChoice, MlDecision, MlPreparation, MlPreparationPreview, MlTask } from "../../api/client";
+import type { MlChoicesInput, MlClasses, MlColumnChoice, MlDecision, MlPreparation, MlPreparationPreview, MlTask, MlValidation } from "../../api/client";
 import { useMlPreparation } from "../../api/hooks";
 import { t, type MessageKey } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
@@ -10,6 +10,7 @@ import { Checkbox, ErrorNote, Select, TextInput } from "../../ui/fields";
 import { InfoTip } from "../../ui/InfoTip";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Tabs } from "../../ui/Tabs";
+import { Loading } from "../../ui/Loading";
 
 type Key = "impute" | "transform" | "encoding" | "scaling";
 type Tab = "columns" | "selection" | "missing" | "imbalance" | "preview";
@@ -55,8 +56,11 @@ export function PreparationEditor({
   choices,
   onChoices,
   classes = null,
+  validation = null,
 }: {
   classes?: MlClasses | null;
+  /** A panel validation leaves its period and entity out (R-SEL-09): the preview shows it. */
+  validation?: MlValidation | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   datasetId: string;
@@ -68,7 +72,7 @@ export function PreparationEditor({
   onChoices: (next: MlChoicesInput) => void;
 }) {
   const [tab, setTab] = useState<Tab>("columns");
-  const preview = useMlPreparation(datasetId, target, model, settings, choices, open, classes);
+  const preview = useMlPreparation(datasetId, target, model, settings, choices, open, classes, validation);
   const preparation = preview.data?.preparation;
 
   const setColumn = (column: string, key: keyof MlColumnChoice, value: string | boolean | undefined) => {
@@ -133,7 +137,7 @@ export function PreparationEditor({
           </ul>
         )}
         {!preview.data ? (
-          <div className="h-64 animate-pulse rounded-lg bg-surface-2" aria-busy="true" />
+          <Loading label={t("loading.preview")} className="h-64 rounded-lg" />
         ) : (
           <Tabs label={t("ml.prep.title")} value={tab} items={tabs} onChange={setTab}>
             <div className={preview.isFetching ? "opacity-70 transition-opacity" : undefined}>

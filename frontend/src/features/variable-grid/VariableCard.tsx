@@ -7,12 +7,14 @@ import { useChart } from "../../api/hooks";
 import type { PlotHandle } from "../../charts/Plot";
 import { t } from "../../lib/i18n";
 import { useInView } from "../../lib/useInView";
+import { PHONE, useMedia } from "../../lib/useMedia";
 import { Button } from "../../ui/Button";
 import { TypeBadge } from "../columns/TypeBadge";
 import { cardStats } from "./cardStats";
 import { ChartView } from "./ChartView";
 import { FullscreenChart } from "./FullscreenChart";
 import { ViewSwitch } from "./ViewSwitch";
+import { Loading } from "../../ui/Loading";
 
 type VariableCardProps = {
   datasetId: string;
@@ -22,6 +24,8 @@ type VariableCardProps = {
 };
 
 export const CARD_CHART_HEIGHT = 190;
+/** On a phone the cards go two per row (041): a shorter chart. */
+const PHONE_CHART_HEIGHT = 130;
 
 export function VariableCard({ datasetId, column, topN, onChangeType }: VariableCardProps) {
   const { ref, seen } = useInView<HTMLElement>();
@@ -32,10 +36,11 @@ export function VariableCard({ datasetId, column, topN, onChangeType }: Variable
   const chart = useChart(datasetId, column.name, { view, topN, step }, seen);
   const data = chart.data;
   const stats = cardStats(column, data);
+  const height = useMedia(PHONE) ? PHONE_CHART_HEIGHT : CARD_CHART_HEIGHT;
 
   return (
     <article ref={ref} className="flex min-w-0 flex-col rounded-lg border border-line bg-surface-1">
-      <header className="flex items-start gap-2 px-3 pt-2.5">
+      <header className="flex items-start gap-2 px-3 pt-2.5 max-sm:gap-1 max-sm:px-2">
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-mono text-[13px] font-medium text-ink-1" title={column.name}>
             {column.name}
@@ -49,6 +54,7 @@ export function VariableCard({ datasetId, column, topN, onChangeType }: Variable
             variant="ghost"
             icon={Download}
             iconOnly
+            className="max-sm:hidden"
             aria-label={t("card.download")}
             title={t("card.download")}
             disabled={!data}
@@ -76,24 +82,24 @@ export function VariableCard({ datasetId, column, topN, onChangeType }: Variable
       </header>
 
       {data && data.views.length > 1 && (
-        <div className="px-3 pt-1.5">
+        <div className="px-3 pt-1.5 max-sm:px-2">
           <ViewSwitch chart={data} onView={setView} onStep={setStep} />
         </div>
       )}
 
-      <div className="px-2 pt-1">
+      <div className="px-2 pt-1 max-sm:px-1">
         {data ? (
-          <ChartView ref={plot} chart={data} type={column.type} name={column.name} height={CARD_CHART_HEIGHT} datasetId={datasetId} />
+          <ChartView ref={plot} chart={data} type={column.type} name={column.name} height={height} datasetId={datasetId} />
         ) : chart.isError ? (
-          <p style={{ height: CARD_CHART_HEIGHT }} className="flex items-center justify-center px-4 text-center text-xs text-bad">
+          <p style={{ height }} className="flex items-center justify-center px-4 text-center text-xs text-bad">
             {chart.error.message}
           </p>
         ) : (
-          <div style={{ height: CARD_CHART_HEIGHT }} className="m-1 animate-pulse rounded-md bg-surface-2" aria-busy="true" />
+          <Loading label={t("loading.chart")} style={{ height }} className="m-1 rounded-md" compact />
         )}
       </div>
 
-      <dl className="mt-auto flex flex-wrap gap-x-4 gap-y-1 border-t border-line px-3 py-2 text-xs">
+      <dl className="mt-auto flex flex-wrap gap-x-4 gap-y-1 border-t border-line px-3 py-2 text-xs max-sm:gap-x-3 max-sm:px-2">
         {stats.map((stat) => (
           <div key={stat.label} className="flex min-w-0 items-baseline gap-1.5">
             <dt className="truncate text-ink-3">{stat.label}</dt>

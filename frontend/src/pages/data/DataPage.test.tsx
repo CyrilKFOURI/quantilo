@@ -160,4 +160,25 @@ describe("Data page", () => {
       "/api/v1/datasets/d1/export/summary?",
     );
   });
+
+  it("on a phone, shows each row as a card and the whole row in a sheet (041)", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width"),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    const calls = setup();
+    renderAt("/d/d1/data");
+
+    const cards = await screen.findByRole("list", { name: "Rows of the dataset" });
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+    fireEvent.click(await within(cards).findByRole("button", { name: "Row 1: show every column" }));
+    const sheet = await screen.findByRole("dialog", { name: "Row 1" });
+    expect(within(sheet).getByText("City 1")).toBeInTheDocument();
+    expect(within(sheet).getByText("2024-02-01")).toBeInTheDocument();
+
+    fireEvent.click(within(sheet).getByRole("button", { name: /close/i }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Sort the rows" }), { target: { value: "price" } });
+    await waitFor(() => expect(rowCalls(calls).some((c) => c.params?.get("sort") === "price")).toBe(true));
+  });
 });

@@ -1,8 +1,8 @@
 from typing import Annotated
 
-from cyfouri_data_explorer.filters.model import Condition, parse_filters
 from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
+from quantilo.filters.model import Condition, parse_filters
 
 from app.services.filters.saved import SavedFilter, SavedFilterService
 

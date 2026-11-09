@@ -12,6 +12,7 @@ __pycache__/
 # Node
 node_modules/
 frontend/dist/
+frontend/dist-lite/
 
 # Local data mounted into Docker
 data/*

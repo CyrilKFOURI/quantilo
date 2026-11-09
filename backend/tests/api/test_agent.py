@@ -19,7 +19,7 @@ def no_key_in_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """No real key reaches a test: every vendor's variable is cleared."""
     for vendor in VENDORS:
         monkeypatch.delenv(vendor.secret, raising=False)
-        monkeypatch.delenv(f"DATA_EXPLORER_{vendor.secret}", raising=False)
+        monkeypatch.delenv(f"QUANTILO_{vendor.secret}", raising=False)
 
 
 @pytest.fixture

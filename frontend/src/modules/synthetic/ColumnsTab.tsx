@@ -10,6 +10,7 @@ import { SegmentedControl } from "../../ui/SegmentedControl";
 import { ecdfFigure, histogramFigure, levelsFigure, targetFigure } from "./figures";
 import { count, num, pct, signedPct, tone, toneText } from "./format";
 import { Table } from "./Report";
+import { Loading } from "../../ui/Loading";
 
 type Line = SyntheticRun["report"]["columns"][number];
 
@@ -75,7 +76,7 @@ function Detail({ run, datasetId, line, target }: { run: SyntheticRun; datasetId
   const [view, setView] = useState<"histogram" | "ecdf">("histogram");
   const detail = useSyntheticColumn(datasetId, run.id, line.column, bins === "auto" ? null : Number(bins), target);
   const d = detail.data;
-  if (!d) return <div className="h-48 animate-pulse bg-surface-1/40" aria-busy="true" />;
+  if (!d) return <Loading label={t("loading.chart")} className="h-48" />;
   const dates = d.kind === "date";
   const categorical = d.kind === "category";
   return (

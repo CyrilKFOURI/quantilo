@@ -7,8 +7,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 
-from cyfouri_data_explorer.filters.model import Condition, Conditions
-from cyfouri_data_explorer.filters.scope import where_for
+from quantilo.filters.model import Condition, Conditions
+from quantilo.filters.scope import where_for
 
 from app.core import db
 from app.core.errors import AppError

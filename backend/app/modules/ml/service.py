@@ -1,4 +1,5 @@
-"""Machine learning page: target candidates, training jobs, saved runs."""
+"""Machine learning page: target candidates, training jobs, saved runs, panel data (035), and
+every held-out prediction kept for the error analysis (036, `errors.py`)."""
 
 import csv
 import io
@@ -17,23 +18,28 @@ from typing import Any, Literal, cast
 
 import duckdb
 import joblib
-from cyfouri_data_explorer.filters.model import Condition
-from cyfouri_data_explorer.ml import classes as binning
-from cyfouri_data_explorer.ml import evaluate
-from cyfouri_data_explorer.ml import explain as explainer
-from cyfouri_data_explorer.ml import models as catalogue
-from cyfouri_data_explorer.ml import preparation as prep
-from cyfouri_data_explorer.ml import train as trainer
-from cyfouri_data_explorer.ml import tune as tuner
-from cyfouri_data_explorer.ml.data import NUMERIC, Field
-from cyfouri_data_explorer.ml.engine import (
+import numpy as np
+from pydantic import TypeAdapter
+from quantilo.filters.model import Condition
+from quantilo.ml import auto as automl
+from quantilo.ml import classes as binning
+from quantilo.ml import error_analysis as mistakes
+from quantilo.ml import evaluate
+from quantilo.ml import explain as explainer
+from quantilo.ml import models as catalogue
+from quantilo.ml import panel as panels
+from quantilo.ml import preparation as prep
+from quantilo.ml import train as trainer
+from quantilo.ml import tune as tuner
+from quantilo.ml.data import NUMERIC, Field
+from quantilo.ml.engine import (
     CompareRequest,
     MlEngine,
     MlError,
+    NeutralizeRequest,
     TuneStart,
 )
-from cyfouri_data_explorer.ml.target import Task
-from pydantic import TypeAdapter
+from quantilo.ml.target import Task
 
 from app.core import db
 from app.core.storage import Workspace
@@ -72,6 +78,8 @@ class Run:
     validation: evaluate.Validation = field(default_factory=evaluate.Validation)
     evaluation_rows: list[int] = field(default_factory=list)
     learning_curve: trainer.LearningCurve | None = None
+    panel: panels.PanelResult | None = None  # walk-forward by period (035)
+    auto: automl.AutoProgress | None = None  # found by the Auto (038): its journal and leaderboard
 
 
 @dataclass
@@ -140,6 +148,8 @@ class ExplanationState:
 RUN = TypeAdapter(Run)
 EXPLANATION = TypeAdapter(explainer.Explanation)
 KEPT_JOBS = 32
+# kept beside the run's JSON, in their own files; the Auto's fold predictions are not kept
+NOT_SAVED = {"pipeline", "out_of_fold", "held_out", "fold_predictions"}
 
 
 FORMULA_STARTS = ("=", "+", "-", "@", "\t", "\r")
@@ -153,6 +163,72 @@ def _cell(text: str) -> str:
         return text
     except ValueError:
         return f"'{text}" if text.startswith(FORMULA_STARTS) else text
+
+
+def _save_out_of_fold(found: panels.OutOfFold, path: Path) -> None:
+    """Plain arrays, no pickle: numbers, and class labels as text."""
+    with path.open("wb") as handle:
+        np.savez(
+            handle,
+            rows=found.rows,
+            ranks=found.ranks,
+            folds=found.folds,
+            scores=found.scores,
+            actual=found.actual.astype(float if found.positive is None else str),
+            labels=np.array([found.positive or "", found.negative or ""]),
+            threshold=np.array([found.threshold]),
+        )
+
+
+def _load_out_of_fold(path: Path) -> panels.OutOfFold:
+    with np.load(path, allow_pickle=False) as saved:
+        positive, negative = (str(v) or None for v in saved["labels"])
+        return panels.OutOfFold(
+            saved["rows"],
+            saved["ranks"],
+            saved["folds"],
+            saved["scores"],
+            saved["actual"],
+            positive,
+            negative,
+            float(saved["threshold"][0]),
+        )
+
+
+def save_held_out(found: mistakes.HeldOut, path: Path) -> None:
+    """Plain arrays, no pickle: numbers, and class labels as text."""
+    regression = found.probabilities is None
+    with path.open("wb") as handle:
+        np.savez(
+            handle,
+            rows=found.rows,
+            actual=found.actual.astype(float if regression else str),
+            predicted=found.predicted.astype(float if regression else str),
+            probabilities=(
+                np.zeros((0, 0)) if regression else np.asarray(found.probabilities, np.float32)
+            ),
+            classes=np.array(found.classes, dtype=str),
+        )
+
+
+def load_held_out(path: Path) -> mistakes.HeldOut:
+    with np.load(path, allow_pickle=False) as saved:
+        probabilities = saved["probabilities"]
+        return mistakes.HeldOut(
+            saved["rows"],
+            saved["actual"],
+            saved["predicted"],
+            probabilities.astype(float) if probabilities.size else None,
+            [str(c) for c in saved["classes"]],
+        )
+
+
+def _label(model: str) -> str:
+    """The model's name in the catalogue (the Auto's ensemble is not in it)."""
+    if model == automl.ENSEMBLE:
+        return automl.ENSEMBLE_LABEL
+    spec = catalogue.CATALOGUE.get(model)
+    return spec.label if spec else model
 
 
 def _now() -> str:
@@ -279,15 +355,28 @@ class MlService(MlEngine):
             job.status, job.error = "failed", f"Training failed: {error}"
 
     def _save(
-        self, dataset_id: str, target: str, trained: trainer.Trained, conditions: list[Condition]
+        self,
+        dataset_id: str,
+        target: str,
+        trained: trainer.Trained,
+        conditions: list[Condition],
+        auto: automl.AutoProgress | None = None,
     ) -> str:
         run_id = uuid.uuid4().hex[:12]
-        values = {f.name: getattr(trained, f.name) for f in fields(trained) if f.name != "pipeline"}
-        run = Run(id=run_id, dataset_id=dataset_id, target=target, created_at=_now(), **values)
+        values = {
+            f.name: getattr(trained, f.name) for f in fields(trained) if f.name not in NOT_SAVED
+        }
+        run = Run(
+            id=run_id, dataset_id=dataset_id, target=target, created_at=_now(), auto=auto, **values
+        )
         folder = self._folder(dataset_id)
         folder.mkdir(parents=True, exist_ok=True)
         (folder / f"{run_id}.json").write_bytes(RUN.dump_json(run))
         joblib.dump(trained.pipeline, folder / f"{run_id}.joblib")
+        if trained.out_of_fold is not None:  # a panel run's held-out predictions (neutralization)
+            _save_out_of_fold(trained.out_of_fold, folder / f"{run_id}.oof.npz")
+        if trained.held_out is not None:  # every held-out prediction (036: where it is wrong)
+            save_held_out(trained.held_out, folder / f"{run_id}.heldout.npz")
         with self._db() as connection, connection:
             connection.execute(
                 "INSERT INTO ml_runs (id, dataset_id, target, task, model, settings, conditions,"
@@ -335,7 +424,7 @@ class MlService(MlEngine):
                 r["created_at"],
                 binning.Classes.model_validate_json(r["classes"]) if r["classes"] else None,
                 r["metric"] not in evaluate.LOWER_IS_BETTER,
-                spec.label if (spec := catalogue.CATALOGUE.get(r["model"])) else r["model"],
+                _label(r["model"]),
                 evaluate.Validation.model_validate_json(r["validation"])
                 if r["validation"]
                 else evaluate.Validation(),
@@ -600,16 +689,54 @@ class MlService(MlEngine):
         folder = self._folder(dataset_id)
         # a file this app wrote itself in its own local workspace, never one received from outside
         pipeline = joblib.load(folder / f"{run.id}.joblib")
-        with self._db() as connection:
-            row = connection.execute(
-                "SELECT conditions FROM ml_runs WHERE id = ?", (run.id,)
-            ).fetchone()
-        conditions = (
-            [Condition.model_validate(c) for c in json.loads(row["conditions"])] if row else []
-        )
-        found = self._explanation(dataset_id, pipeline, run, conditions)
+        held = folder / f"{run.id}.heldout.npz"
+        if held.is_file():  # the worst predictions get their waterfall too (036)
+            found = self._explanation(
+                dataset_id, pipeline, run, self._conditions(run.id), load_held_out(held)
+            )
+        else:
+            found = self._explanation(dataset_id, pipeline, run, self._conditions(run.id))
         (folder / f"{run.id}.explain.json").write_bytes(EXPLANATION.dump_json(found))
         return found
+
+    def _conditions(self, run_id: str) -> list[Condition]:
+        with self._db() as connection:
+            row = connection.execute(
+                "SELECT conditions FROM ml_runs WHERE id = ?", (run_id,)
+            ).fetchone()
+        return [Condition.model_validate(c) for c in json.loads(row["conditions"])] if row else []
+
+    # --- Panel data (035) ----------------------------------------------------------------------
+
+    def neutralize(
+        self, dataset_id: str, run_id: str, request: NeutralizeRequest
+    ) -> panels.Neutralized:
+        """The run's held-out predictions without the part some columns explain, every period
+        scored again (on the rows and filters the run was trained on)."""
+        run = self.run(dataset_id, run_id)
+        path = self._folder(dataset_id) / f"{run_id}.oof.npz"
+        if run.panel is None or not path.is_file():
+            raise MlError(
+                "Neutralization needs a run validated by period (panel walk-forward).",
+                "not_panel",
+            )
+        return self._neutralize(
+            dataset_id, run, _load_out_of_fold(path), request, self._conditions(run_id)
+        )
+
+    def periods_csv(self, dataset_id: str, run_id: str) -> str:
+        """A panel run's score per period, as CSV."""
+        run = self.run(dataset_id, run_id)
+        if run.panel is None:
+            raise MlError("This run was not validated by period.", "not_panel")
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        # the period's column name comes from the file: a spreadsheet must not run it either
+        header = [run.panel.period_column, "fold", "rows", run.primary, "pearson", "spearman"]
+        writer.writerow([_cell(name) for name in header])
+        for p in run.panel.periods:
+            writer.writerow([_cell(p.period), p.fold, p.rows, p.score, p.pearson, p.spearman])
+        return buffer.getvalue()
 
     def predictions_csv(self, dataset_id: str, run_id: str) -> str:
         run = self.run(dataset_id, run_id)

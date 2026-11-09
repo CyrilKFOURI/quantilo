@@ -1,18 +1,20 @@
 import json
 from typing import Annotated, Any
 
-from cyfouri_data_explorer.filters.model import Condition, parse_filters
-from cyfouri_data_explorer.ml import catalog
-from cyfouri_data_explorer.ml.classes import Classes, TargetDistribution
-from cyfouri_data_explorer.ml.engine import Catalogue, Targets
-from cyfouri_data_explorer.ml.evaluate import Validation
-from cyfouri_data_explorer.ml.preparation import Choices
-from cyfouri_data_explorer.ml.target import Task
-from cyfouri_data_explorer.ml.train import Estimate, PreparationPreview
 from fastapi import APIRouter, Body, Depends, Query, Request
 from fastapi.responses import Response
 from pydantic import TypeAdapter, ValidationError
+from quantilo.filters.model import Condition, parse_filters
+from quantilo.ml import catalog
+from quantilo.ml.classes import Classes, TargetDistribution
+from quantilo.ml.engine import Catalogue, NeutralizeRequest, Targets
+from quantilo.ml.evaluate import Validation
+from quantilo.ml.panel import Neutralized, PanelCheck
+from quantilo.ml.preparation import Choices
+from quantilo.ml.target import Task
+from quantilo.ml.train import Estimate, PreparationPreview
 
+from app.modules.ml import errors
 from app.modules.ml.service import (
     CompareJob,
     CompareRequest,
@@ -47,6 +49,20 @@ Filters = Annotated[list[Condition], Depends(active_filters)]
 def targets(dataset_id: str, service: Service, filters: Filters) -> Targets:
     """Every column as a possible target: the problem it defines, or why it cannot be one."""
     return service.targets(dataset_id, filters)
+
+
+@router.get("/datasets/{dataset_id}/panel")
+def panel(
+    dataset_id: str,
+    service: Service,
+    filters: Filters,
+    target: str | None = None,
+    period: str | None = None,
+    entity: str | None = None,
+) -> PanelCheck:
+    """Whether the rows look like a panel (entities by periods): its period and entity, found or
+    as given, and the embargo the target calls for."""
+    return service.panel(dataset_id, filters, target, period, entity)
 
 
 @router.get("/catalog")
@@ -100,10 +116,18 @@ def preparation(
     settings: Annotated[str | None, Query(description="JSON object of settings.")] = None,
     choices: Annotated[Choices | None, Body(description="Preparation choices.")] = None,
     classes: Annotated[str | None, Query(description="JSON: a number cut into classes.")] = None,
+    validation: Annotated[str | None, Query(description="JSON: how the model is judged.")] = None,
 ) -> PreparationPreview:
     """The decisions the next training would take, and its first 20 training rows prepared."""
     return service.preview(
-        dataset_id, target, model, _settings(settings), filters, choices, _classes(classes)
+        dataset_id,
+        target,
+        model,
+        _settings(settings),
+        filters,
+        choices,
+        _classes(classes),
+        _validation(validation),
     )
 
 
@@ -251,6 +275,25 @@ def explanation(dataset_id: str, run_id: str, service: Service) -> ExplanationSt
     return service.explanation(dataset_id, run_id)
 
 
+@router.post("/datasets/{dataset_id}/runs/{run_id}/neutralize")
+def neutralize(
+    dataset_id: str, run_id: str, request: NeutralizeRequest, service: Service
+) -> Neutralized:
+    """A panel run's held-out predictions without the part some columns explain linearly,
+    period by period, and every period scored again."""
+    return service.neutralize(dataset_id, run_id, request)
+
+
+@router.get("/datasets/{dataset_id}/runs/{run_id}/periods.csv")
+def periods(dataset_id: str, run_id: str, service: Service) -> Response:
+    """A panel run's score per period, as CSV."""
+    return Response(
+        service.periods_csv(dataset_id, run_id),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="periods-{run_id}.csv"'},
+    )
+
+
 @router.get("/datasets/{dataset_id}/runs/{run_id}/predictions.csv")
 def predictions(dataset_id: str, run_id: str, service: Service) -> Response:
     """Predictions on the test rows (sample), as CSV."""
@@ -259,3 +302,6 @@ def predictions(dataset_id: str, run_id: str, service: Service) -> Response:
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="predictions-{run_id}.csv"'},
     )
+
+
+router.include_router(errors.router)  # where a model is wrong (036)

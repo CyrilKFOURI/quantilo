@@ -6,6 +6,8 @@ import { formatNumber } from "../../charts/figures";
 import { pLabel } from "../../features/variable/normality";
 import { t, type MessageKey } from "../../lib/i18n";
 import { useStoredState } from "../../lib/useStoredState";
+import { LITE } from "../../lite/flag";
+import { LockBadge } from "../../lite/Locked";
 import { Popover } from "../../ui/Popover";
 
 /** Methods of a section (docs/TIMESERIES_METHODS.md), the defaults first. */
@@ -76,6 +78,7 @@ export const CATALOGUE = {
       "holt_winters",
       "theta",
       "sarima",
+      "sarimax",
       "tslm",
       "gbm_lags",
       "mlp_lags",
@@ -121,6 +124,7 @@ const GROUPS: Partial<
         "theta",
         "arima_auto",
         "sarima",
+        "sarimax",
         "tslm",
       ],
     },
@@ -132,6 +136,10 @@ const GROUPS: Partial<
     { label: "ts.group.combination", keys: ["combination"] },
   ],
 };
+
+/** Too slow without native threads: locked in the browser-only build. SARIMAX runs the
+ * automatic ARIMA search at every origin, then refits once per driver. */
+export const LOCKED = new Set(LITE ? ["arima_auto", "sarima", "sarimax"] : []);
 
 /** Methods whose value is a change per period. */
 const SLOPES = new Set(["sen", "linear_trend"]);
@@ -147,8 +155,8 @@ export function useMethods(
     null,
   );
   const known = CATALOGUE[section].all as readonly string[];
-  const chosen = (stored ?? [...CATALOGUE[section].defaults]).filter((key) =>
-    known.includes(key),
+  const chosen = (stored ?? [...CATALOGUE[section].defaults]).filter(
+    (key) => known.includes(key) && !LOCKED.has(key),
   );
   return [
     chosen.length ? chosen : [...CATALOGUE[section].defaults],
@@ -231,18 +239,22 @@ export function MethodsRow({
                   type="button"
                   role="menuitemcheckbox"
                   aria-checked={on}
-                  onClick={() => toggle(key)}
-                  className="flex w-full items-start gap-2 rounded-md px-2.5 py-1.5 text-left hover:bg-surface-2"
+                  aria-disabled={LOCKED.has(key) || undefined}
+                  onClick={() => !LOCKED.has(key) && toggle(key)}
+                  className={`flex w-full items-start gap-2 rounded-md px-2.5 py-1.5 text-left ${LOCKED.has(key) ? "cursor-not-allowed opacity-60" : "hover:bg-surface-2"}`}
                 >
                   <span className="mt-0.5 size-3.5 shrink-0 text-accent">
                     {on && <Check size={14} strokeWidth={2} aria-hidden />}
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[13px] text-ink-1">
+                    <span className="flex items-center gap-1.5 text-[13px] text-ink-1">
                       {name(key)}
+                      {LOCKED.has(key) && <LockBadge />}
                     </span>
                     <span className="block text-xs text-ink-3">
-                      {t(`tsm.${key}.what` as MessageKey)}
+                      {LOCKED.has(key)
+                        ? t("lite.methodLocked")
+                        : t(`tsm.${key}.what` as MessageKey)}
                     </span>
                   </span>
                 </button>

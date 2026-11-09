@@ -6,7 +6,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 
 import duckdb
-from cyfouri_data_explorer.catalog import (
+from quantilo.catalog import (
     ColumnChange,
     ColumnView,
     apply_change,
@@ -15,10 +15,10 @@ from cyfouri_data_explorer.catalog import (
     summarize_record,
     to_view,
 )
-from cyfouri_data_explorer.ingestion.sql import lit
-from cyfouri_data_explorer.typing.engine import DEFAULT_THRESHOLDS, Thresholds, detect_columns
-from cyfouri_data_explorer.typing.knowledge_base import load
-from cyfouri_data_explorer.typing.types import AnalysisType, Parser
+from quantilo.ingestion.sql import lit
+from quantilo.typing.engine import DEFAULT_THRESHOLDS, Thresholds, detect_columns
+from quantilo.typing.knowledge_base import load
+from quantilo.typing.types import AnalysisType, Parser
 
 from app.core import db
 from app.core.errors import AppError

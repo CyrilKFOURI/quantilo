@@ -2,10 +2,10 @@
 
 from typing import Any, ClassVar, Literal
 
-from cyfouri_data_explorer.compare.analyze import Comparison
-from cyfouri_data_explorer.compare.stats import BivariateTest
-from cyfouri_data_explorer.correlations.matrix import Pair
 from pydantic import BaseModel, Field
+from quantilo.compare.analyze import Comparison
+from quantilo.compare.stats import BivariateTest
+from quantilo.correlations.matrix import Pair
 
 from app.modules.agent.engine.tools import AppLink, Tool, ToolContext, ToolError, ToolOutput
 from app.modules.agent.tools import AppServices

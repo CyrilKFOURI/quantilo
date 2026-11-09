@@ -1,5 +1,5 @@
 @echo off
-rem Data Explorer: start the app on this computer (Windows). Usage: run, or run notebook
+rem Quantilo: start the app on this computer (Windows). Usage: run, or run notebook
 rem Installs uv if needed (no admin rights), which fetches Python and the libraries on first run.
 setlocal
 cd /d "%~dp0"
@@ -16,8 +16,8 @@ if errorlevel 1 (
 if /i "%~1"=="notebook" (
     rem The library in notebooks: the same environment, plus plotly and JupyterLab.
     echo Opening the notebooks, the first run downloads JupyterLab...
-    uv run --project backend --frozen --no-dev --with plotly --with jupyterlab --with ipykernel jupyter lab packages\cyfouri-data-explorer\examples\app_tour.ipynb
+    uv run --project backend --frozen --no-dev --with plotly --with jupyterlab --with ipykernel jupyter lab packages\quantilo\examples\app_tour.ipynb
 ) else (
-    echo Preparing Data Explorer, the first run downloads the libraries ^(a few minutes^)...
+    echo Preparing Quantilo, the first run downloads the libraries ^(a few minutes^)...
     uv run --project backend --frozen --no-dev python backend\launch.py %*
 )

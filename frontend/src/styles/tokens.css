@@ -46,6 +46,29 @@
   --sidebar-w: 216px;
   --sidebar-w-collapsed: 52px;
   --topbar-h: 44px;
+
+  /* Page gutter (041): 16 px on a phone, 24 px on a tablet, 32 px on a laptop. */
+  --gutter: 16px;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --gutter: 24px;
+  }
+}
+
+/* 041: on a touch screen, buttons and fields are 32 px tall (28 px with a mouse); their hit box
+   is 44 px (index.css). */
+@media (pointer: coarse) {
+  :root {
+    --control-h: 32px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --gutter: 32px;
+  }
 }
 
 :root[data-density="comfortable"] {

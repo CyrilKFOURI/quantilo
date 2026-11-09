@@ -10,7 +10,7 @@ export function HelpPage() {
   const sections = blocks.filter((block) => block.kind === "heading" && block.level === 2);
 
   return (
-    <div className="flex gap-10 px-8 py-6">
+    <div className="flex gap-10 px-(--gutter) py-6">
       <nav aria-label={t("help.contents")} className="sticky top-6 hidden w-52 shrink-0 self-start lg:block">
         <p className="mb-2 text-xs text-ink-3">{t("help.contents")}</p>
         <ul className="space-y-0.5 text-[13px]">

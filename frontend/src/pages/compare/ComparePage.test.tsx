@@ -7,6 +7,7 @@ import { verdict } from "../../features/compare/TestsPanel";
 import { column, roles } from "../../test/columns";
 import { dataset, health, mockApi } from "../../test/mockApi";
 import { renderAt } from "../../test/render";
+import { experimentOf } from "./ComparePage";
 
 vi.mock("../../charts/Plot", () => ({
   Plot: forwardRef<HTMLDivElement, { label: string }>(function Plot(
@@ -310,5 +311,22 @@ describe("test verdicts", () => {
     expect(verdict(test({ p_value: null, note: "Too few rows." })).text).toBe(
       "Not run: Too few rows.",
     );
+  });
+});
+
+describe("Analyze as an experiment (034)", () => {
+  const levels = (name: string, type: string, distinct: number) =>
+    column({ name, type, detected_type: type, summary: { rows: 100, null_count: 0, invalid_count: 0, distinct_count: distinct, examples: [], histogram: [] } }) as never;
+
+  it("links a column of 2 to 5 values with a number or a yes/no", () => {
+    const group = levels("group", "categorical_nominal", 3);
+    const converted = levels("converted", "boolean", 2);
+    const revenue = levels("revenue", "numeric_continuous", 90);
+
+    expect(experimentOf(group, revenue)).toEqual({ variant: "group", metric: "revenue" });
+    expect(experimentOf(revenue, group)).toEqual({ variant: "group", metric: "revenue" });
+    expect(experimentOf(converted, group)).toEqual({ variant: "group", metric: "converted" });
+    expect(experimentOf(levels("city", "categorical_nominal", 9), revenue)).toBeNull();
+    expect(experimentOf(group, levels("segment", "categorical_nominal", 3))).toBeNull();
   });
 });

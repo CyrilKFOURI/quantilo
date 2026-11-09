@@ -7,6 +7,7 @@ import { t, type MessageKey } from "../../lib/i18n";
 import { linksFigure, pairFigure } from "./figures";
 import { pct } from "./format";
 import { Table } from "./Report";
+import { Loading } from "../../ui/Loading";
 
 const MEASURES: Record<string, string> = { pearson: "r", spearman: "ρ", cramers_v: "V", eta: "η" };
 
@@ -79,7 +80,7 @@ export function LinksTab({ run, datasetId }: { run: SyntheticRun; datasetId: str
           ) : detail.data ? (
             <Plot figure={pairFigure(detail.data)} height={300} label={pair?.join(" · ") ?? ""} />
           ) : (
-            pair && <div className="h-64 animate-pulse bg-surface-1/40" aria-busy="true" />
+            pair && <Loading label={t("loading.chart")} className="h-64" />
           )}
         </div>
       </div>

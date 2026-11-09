@@ -8,7 +8,7 @@ updates:
       python:
         patterns: ["*"]
   - package-ecosystem: uv
-    directory: /packages/cyfouri-data-explorer
+    directory: /packages/quantilo
     schedule:
       interval: monthly
     groups:

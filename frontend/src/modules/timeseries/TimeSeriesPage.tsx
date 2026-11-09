@@ -2,6 +2,7 @@ import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 
 import type {
+  DriverSpec,
   MethodResult,
   SeriesBreaks,
   SeriesResiduals,
@@ -16,7 +17,9 @@ import { formatNumber } from "../../charts/figures";
 import { NoRows } from "../../features/filters/NoRows";
 import { formatCount } from "../../lib/format";
 import { t, type MessageKey } from "../../lib/i18n";
+import { PHONE, useMedia } from "../../lib/useMedia";
 import { Checkbox, ErrorNote, Select } from "../../ui/fields";
+import { ParamPanel } from "../../ui/ParamPanel";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import {
   decompositionFigure,
@@ -36,6 +39,7 @@ import {
 import { ForecastSection } from "./Forecast";
 import { MethodsRow, MethodsTable, useMethods } from "./Methods";
 import { RollingControls } from "./RollingControls";
+import { SavedAnalyses } from "./SavedAnalyses";
 import { parseWindows, rolling } from "./Windows";
 import {
   BreaksBody,
@@ -53,6 +57,7 @@ import {
   seriesParams,
   type TimeSeriesSearch,
 } from "./search";
+import { Loading } from "../../ui/Loading";
 
 const HORIZON: Record<string, number> = {
   hour: 24,
@@ -107,6 +112,7 @@ export function TimeSeriesPage() {
   const { datasetId } = useParams({ strict: false }) as { datasetId: string };
   const search = useSearch({ strict: false }) as TimeSeriesSearch;
   const navigate = useNavigate();
+  const [drivers, setDrivers] = useState<DriverSpec[]>([]);
   const dataset = useDataset(datasetId);
   const ready = dataset.data?.status === "ready";
   const params = useMemo(() => seriesParams(search), [search]);
@@ -232,30 +238,34 @@ export function TimeSeriesPage() {
 
   return (
     <div className="flex flex-col">
-      <header className="px-8 pt-6 pb-3">
+      <header className="px-(--gutter) pt-6 pb-3">
         <h1 className="text-xl font-semibold tracking-tight">
           {t("ts.title")}
         </h1>
         <p className="mt-1 max-w-prose text-ink-2">{t("ts.description")}</p>
+        <SavedAnalyses
+          datasetId={datasetId}
+          search={search}
+          setup={overview.data?.setup}
+          drivers={drivers}
+          onDrivers={setDrivers}
+        />
       </header>
 
       {overview.isError ? (
-        <div className="px-8">
+        <div className="px-(--gutter)">
           <ErrorNote>{overview.error.message}</ErrorNote>
         </div>
       ) : !overview.data ? (
-        <div
-          className="mx-8 h-[420px] animate-pulse rounded-lg bg-surface-1"
-          aria-busy="true"
-        />
+        <Loading label={t("loading.series")} className="mx-(--gutter) h-[420px] rounded-lg" />
       ) : overview.data.setup.total === 0 ? (
-        <div className="px-8">
+        <div className="px-(--gutter)">
           <NoRows datasetId={datasetId} />
         </div>
       ) : (
         <>
           <ConfigBar data={overview.data} search={search} onChange={set} />
-          <div className="grid gap-6 px-8 py-5 lg:grid-cols-[170px_minmax(0,1fr)]">
+          <div className="grid gap-6 px-(--gutter) py-5 lg:grid-cols-[170px_minmax(0,1fr)]">
             <nav aria-label={t("ts.contents")} className="hidden lg:block">
               <ul className="sticky top-20 space-y-1 text-[13px]">
                 {SECTIONS.map((key) => (
@@ -305,7 +315,7 @@ export function TimeSeriesPage() {
                   chosen={seasonMethods}
                   onChange={setSeasonMethods}
                 />
-                <SectionBody query={seasonality}>
+                <SectionBody query={seasonality} label={sectionLoading("seasonality")}>
                   {(data) => (
                     <SeasonalityBody
                       data={data}
@@ -357,7 +367,7 @@ export function TimeSeriesPage() {
                     </Select>
                   </label>
                 </div>
-                <SectionBody query={decomposition}>
+                <SectionBody query={decomposition} label={sectionLoading("decomposition")}>
                   {(data) => <DecompositionBody data={data} />}
                 </SectionBody>
               </Section>
@@ -378,7 +388,7 @@ export function TimeSeriesPage() {
                   chosen={stationarityMethods}
                   onChange={setStationarityMethods}
                 />
-                <SectionBody query={stationarity}>
+                <SectionBody query={stationarity} label={sectionLoading("stationarity")}>
                   {(data) => <StationarityBody data={data} />}
                 </SectionBody>
               </Section>
@@ -399,7 +409,7 @@ export function TimeSeriesPage() {
                   chosen={memoryMethods}
                   onChange={setMemoryMethods}
                 />
-                <SectionBody query={memory}>
+                <SectionBody query={memory} label={sectionLoading("autocorrelation")}>
                   {(data) => (
                     <AutocorrelationBody
                       data={data}
@@ -428,7 +438,7 @@ export function TimeSeriesPage() {
                   chosen={volatilityMethods}
                   onChange={setVolatilityMethods}
                 />
-                <SectionBody query={volatility}>
+                <SectionBody query={volatility} label={sectionLoading("volatility")}>
                   {(data) => (
                     <VolatilityBody
                       data={data}
@@ -443,7 +453,7 @@ export function TimeSeriesPage() {
                 sectionRef={residualsRef}
                 verdict={verdicts.residuals}
               >
-                <SectionBody query={residuals}>
+                <SectionBody query={residuals} label={sectionLoading("residuals")}>
                   {(data) => (
                     <ResidualsBody
                       data={data}
@@ -463,7 +473,7 @@ export function TimeSeriesPage() {
                   chosen={breakMethods}
                   onChange={setBreakMethods}
                 />
-                <SectionBody query={breaks}>
+                <SectionBody query={breaks} label={sectionLoading("breaks")}>
                   {(data) => (
                     <BreaksBody
                       data={data}
@@ -480,6 +490,17 @@ export function TimeSeriesPage() {
                   params={params}
                   period={overview.data.setup.period}
                   what={valueLabel(overview.data)}
+                  drivers={drivers}
+                  onDrivers={setDrivers}
+                  scenarios={search.scen}
+                  scenarioModel={search.smodel}
+                  onScenarios={(scen, smodel) =>
+                    set({ scen, smodel: smodel as TimeSeriesSearch["smodel"] })
+                  }
+                  onPickSeries={(label) => {
+                    set({ series: label });
+                    document.getElementById("forecast")?.scrollIntoView({ behavior: "smooth" });
+                  }}
                   defaultHorizon={Math.max(
                     1,
                     Math.min(
@@ -513,6 +534,7 @@ function ConfigBar({
   onChange: (patch: Partial<TimeSeriesSearch>) => void;
 }) {
   const setup = data.setup;
+  const phone = useMedia(PHONE);
   const pick = (
     label: string,
     value: string,
@@ -535,95 +557,121 @@ function ConfigBar({
     </label>
   );
   const none = { value: "", label: t("compare.none") };
+  const fields = (
+    <>
+    {pick(
+      t("ts.time"),
+      setup.time,
+      setup.dates.map((n) => ({ value: n, label: n })),
+      (v) => ({ time: v }),
+    )}
+    {pick(
+      t("ts.value"),
+      setup.value,
+      setup.numbers.map((n) => ({ value: n, label: n })),
+      (v) => ({ value: v }),
+    )}
+    {pick(
+      t("time.period"),
+      search.period ?? "",
+      [
+        {
+          value: "",
+          label: t("time.auto", {
+            value: t(`time.periodName.${setup.period}` as MessageKey),
+          }),
+        },
+        ...PERIODS.map((p) => ({
+          value: p,
+          label: t(`time.periodName.${p}` as MessageKey),
+        })),
+      ],
+      (v) => ({ period: (v || undefined) as TimeSeriesSearch["period"] }),
+    )}
+    {pick(
+      t("time.aggregate"),
+      search.agg ?? "",
+      [
+        {
+          value: "",
+          label: t("time.auto", {
+            value: t(`time.agg.${setup.aggregate}` as MessageKey),
+          }),
+        },
+        ...AGGREGATES.map((a) => ({
+          value: a,
+          label: t(`time.agg.${a}` as MessageKey),
+        })),
+      ],
+      (v) => ({ agg: (v || undefined) as TimeSeriesSearch["agg"] }),
+    )}
+    {pick(
+      t("ts.group"),
+      setup.group ?? "",
+      [none, ...setup.categories.map((n) => ({ value: n, label: n }))],
+      (v) => ({ group: v || undefined, series: undefined }),
+    )}
+    {setup.group &&
+      pick(
+        t("ts.series"),
+        setup.series ?? "",
+        setup.groups.map((g) => ({ value: g, label: g })),
+        (v) => ({ series: v }),
+      )}
+    {pick(
+      t("ts.gaps"),
+      setup.gaps,
+      GAPS.map((g) => ({
+        value: g,
+        label: t(`ts.gaps.${g}` as MessageKey),
+      })),
+      (v) => ({
+        gaps: v === "leave" ? undefined : (v as TimeSeriesSearch["gaps"]),
+      }),
+    )}
+    </>
+  );
+  const note = (
+    <p className="mt-1 text-xs text-ink-3">
+      {t("ts.rows", {
+        rows: formatCount(setup.rows),
+        total: formatCount(setup.total),
+        periods: formatCount(setup.periods),
+        period: periodName(setup.period),
+      })}
+      {setup.coarsened
+        ? ` · ${t("time.coarsened", { period: periodName(setup.period) })}`
+        : ""}
+    </p>
+  );
+  if (phone) {
+    // 041: on a phone the settings fold into one line, so the analysis keeps the screen.
+    return (
+      <div className="px-(--gutter) py-2">
+        <ParamPanel
+          label={t("ts.config")}
+          summary={[
+            setup.time,
+            setup.value || t("ts.saved.rows"),
+            periodName(setup.period),
+            t(`time.agg.${setup.aggregate}` as MessageKey),
+            setup.group && (setup.series ?? setup.group),
+          ]}
+          footer={note}
+        >
+          {fields}
+        </ParamPanel>
+      </div>
+    );
+  }
   return (
     <div
-      className="sticky top-0 z-10 border-y border-line bg-surface-0/95 px-8 py-2 backdrop-blur"
+      className="sticky top-0 z-10 border-y border-line bg-surface-0/95 px-(--gutter) py-2 backdrop-blur"
       role="group"
       aria-label={t("ts.config")}
     >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-        {pick(
-          t("ts.time"),
-          setup.time,
-          setup.dates.map((n) => ({ value: n, label: n })),
-          (v) => ({ time: v }),
-        )}
-        {pick(
-          t("ts.value"),
-          setup.value,
-          setup.numbers.map((n) => ({ value: n, label: n })),
-          (v) => ({ value: v }),
-        )}
-        {pick(
-          t("time.period"),
-          search.period ?? "",
-          [
-            {
-              value: "",
-              label: t("time.auto", {
-                value: t(`time.periodName.${setup.period}` as MessageKey),
-              }),
-            },
-            ...PERIODS.map((p) => ({
-              value: p,
-              label: t(`time.periodName.${p}` as MessageKey),
-            })),
-          ],
-          (v) => ({ period: (v || undefined) as TimeSeriesSearch["period"] }),
-        )}
-        {pick(
-          t("time.aggregate"),
-          search.agg ?? "",
-          [
-            {
-              value: "",
-              label: t("time.auto", {
-                value: t(`time.agg.${setup.aggregate}` as MessageKey),
-              }),
-            },
-            ...AGGREGATES.map((a) => ({
-              value: a,
-              label: t(`time.agg.${a}` as MessageKey),
-            })),
-          ],
-          (v) => ({ agg: (v || undefined) as TimeSeriesSearch["agg"] }),
-        )}
-        {pick(
-          t("ts.group"),
-          setup.group ?? "",
-          [none, ...setup.categories.map((n) => ({ value: n, label: n }))],
-          (v) => ({ group: v || undefined, series: undefined }),
-        )}
-        {setup.group &&
-          pick(
-            t("ts.series"),
-            setup.series ?? "",
-            setup.groups.map((g) => ({ value: g, label: g })),
-            (v) => ({ series: v }),
-          )}
-        {pick(
-          t("ts.gaps"),
-          setup.gaps,
-          GAPS.map((g) => ({
-            value: g,
-            label: t(`ts.gaps.${g}` as MessageKey),
-          })),
-          (v) => ({
-            gaps: v === "leave" ? undefined : (v as TimeSeriesSearch["gaps"]),
-          }),
-        )}
-      </div>
-      <p className="mt-1 text-xs text-ink-3">
-        {t("ts.rows", {
-          rows: formatCount(setup.rows),
-          total: formatCount(setup.total),
-          periods: formatCount(setup.periods),
-          period: periodName(setup.period),
-        })}
-        {setup.coarsened
-          ? ` · ${t("time.coarsened", { period: periodName(setup.period) })}`
-          : ""}
-      </p>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">{fields}</div>
+      {note}
     </div>
   );
 }
@@ -671,20 +719,25 @@ function Section({
   );
 }
 
+/** "Computing seasonality…": the section's name, said while it is computed (042). */
+function sectionLoading(id: string): string {
+  return t("loading.section", { what: t(`ts.section.${id}` as MessageKey).toLowerCase() });
+}
+
 function SectionBody<T>({
   query,
+  label,
   children,
 }: {
   query: { data?: T; isError: boolean; error: Error | null };
+  /** What is being computed, said while it runs (042). */
+  label: string;
   children: (data: T) => ReactNode;
 }) {
   if (query.isError) return <ErrorNote>{query.error?.message}</ErrorNote>;
   if (!query.data)
     return (
-      <div
-        className="h-72 animate-pulse rounded-lg bg-surface-1"
-        aria-busy="true"
-      />
+      <Loading label={label} className="h-72 rounded-lg" />
     );
   return <>{children(query.data)}</>;
 }

@@ -32,7 +32,7 @@ export function TypeBadge({ type, onChange, onReset, detectedType, reasons }: Ty
     <Menu.Root>
       <Menu.Trigger
         aria-label={t("columns.changeType")}
-        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-transparent px-1.5 text-[13px] hover:border-line hover:bg-surface-1 data-[state=open]:border-line data-[state=open]:bg-surface-1"
+        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-transparent px-1.5 text-[13px] hover:border-line hover:bg-surface-1 data-[state=open]:border-line data-[state=open]:bg-surface-1 max-sm:whitespace-nowrap"
       >
         {label}
         <ChevronDown size={13} strokeWidth={1.5} className="text-ink-3" aria-hidden />

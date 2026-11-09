@@ -10,11 +10,14 @@ import {
 import { validateFilterSearch, type FilterSearch } from "../api/filters";
 import { modules as registeredModules, panels as registeredPanels } from "../modules/registry";
 import type { ModuleManifest, PanelManifest } from "../modules/types";
+import { ChangesPage, validateChangesSearch } from "../pages/changes/ChangesPage";
 import { ColumnsPage } from "../pages/columns/ColumnsPage";
 import { HelpPage } from "../pages/help/HelpPage";
 import { HomePage } from "../pages/home/HomePage";
 import { NotFoundPage } from "../pages/not-found/NotFoundPage";
 import { OverviewPage } from "../pages/overview/OverviewPage";
+import { RecipePage, validateRecipeSearch } from "../pages/recipes/RecipePage";
+import { RecipesPage } from "../pages/recipes/RecipesPage";
 import { SettingsPage } from "../pages/settings/SettingsPage";
 import {
   ComparePage,
@@ -59,6 +62,17 @@ export function createAppRouter({
     path: "/help",
     component: HelpPage,
   });
+  const recipesRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/recipes",
+    component: RecipesPage,
+  });
+  const recipeRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/recipes/$recipeId",
+    validateSearch: validateRecipeSearch,
+    component: RecipePage,
+  });
   const datasetRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/d/$datasetId",
@@ -91,6 +105,12 @@ export function createAppRouter({
     validateSearch: validateDataSearch,
     component: DataPage,
   });
+  const changesRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/d/$datasetId/changes",
+    validateSearch: validateChangesSearch,
+    component: ChangesPage,
+  });
   const moduleRoutes = modules.map((module) =>
     createRoute({
       getParentRoute: () => rootRoute,
@@ -107,12 +127,15 @@ export function createAppRouter({
       homeRoute,
       settingsRoute,
       helpRoute,
+      recipesRoute,
+      recipeRoute,
       datasetRoute,
       columnsRoute,
       variableRoute,
       compareRoute,
       correlationsRoute,
       dataRoute,
+      changesRoute,
       ...moduleRoutes,
     ]),
     history,

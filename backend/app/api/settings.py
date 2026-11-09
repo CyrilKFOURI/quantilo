@@ -1,7 +1,7 @@
 from typing import Annotated
 
-from cyfouri_data_explorer.gpu import GpuStatus
 from fastapi import APIRouter, Depends, Request, Response
+from quantilo.gpu import GpuStatus
 
 from app.services.settings.service import AppSettings, SettingsService, StorageInfo
 

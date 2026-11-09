@@ -10,7 +10,7 @@ import { Dialog } from "../../ui/Dialog";
 import { Checkbox, ErrorNote, Select, TextInput } from "../../ui/fields";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { importanceBars, trialsFigure } from "./figures";
-import { metricName } from "./SettingsDrawer";
+import { CriterionSelect, metricName, PANEL } from "./SettingsDrawer";
 
 type Budget = "60" | "300" | "900" | "trials";
 const SAMPLERS = ["tpe", "random", "grid", "cmaes", "nsga2"] as const;
@@ -53,6 +53,8 @@ export function TunePanel({
   const [pruner, setPruner] = useState<(typeof PRUNERS)[number]>("median");
   const [space, setSpace] = useState<MlSearchParam[]>(() => initialSpace(model));
   const [jobId, setJobId] = useState<string | null>(null);
+  // on a panel, every trial is judged on the criterion over the test periods
+  const [judged, setJudged] = useState<MlValidation>(validation);
   const start = useMlTune(datasetId);
   const job = useMlTuning(jobId);
   const stop = useMlStopTuning();
@@ -69,7 +71,7 @@ export function TunePanel({
       {
         target,
         classes,
-        validation,
+        validation: judged,
         body: {
           model: model.key,
           budget_seconds: budget === "trials" ? null : Number(budget),
@@ -119,6 +121,13 @@ export function TunePanel({
             )}
             <Checkbox className="ml-auto text-xs text-ink-2" label={t("ml.settings.expert")} checked={expert} onChange={(e) => setExpert(e.target.checked)} />
           </div>
+          {judged.method === PANEL && (
+            <label className="flex items-center gap-2 text-xs text-ink-2">
+              {t("ml.validation.criterion")}
+              <CriterionSelect validation={judged} onValidation={setJudged} />
+              <span className="text-ink-3">{t("ml.validation.criterionHint")}</span>
+            </label>
+          )}
           {expert && (
             <div className="flex flex-wrap gap-4">
               <label className="flex items-center gap-2 text-xs text-ink-2">

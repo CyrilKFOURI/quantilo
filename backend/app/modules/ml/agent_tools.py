@@ -1,14 +1,16 @@
 """What the machine-learning module lets the AI agent do (spec 026b): pick a target, train,
-compare, tune and explain models, through this module's own service."""
+compare, tune and explain models, through this module's own service; on panel data (035), check
+the panel and validate walk-forward by period; see where a model is wrong (036, `errors.py`)."""
 
 from typing import Any, ClassVar
 
-from cyfouri_data_explorer.ml import catalog as catalogue
-from cyfouri_data_explorer.ml import evaluate
 from fastapi import FastAPI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
+from quantilo.ml import catalog as catalogue
+from quantilo.ml import evaluate
 
 from app.core.tools import AppLink, Tool, ToolContext, ToolError, ToolOutput, compact, wait_for
+from app.modules.ml.errors import ModelErrors
 from app.modules.ml.service import CompareRequest, MlError, MlService, Run, TuneStart
 
 TRAIN_TIMEOUT = 600.0
@@ -50,7 +52,41 @@ def run_content(run: Run) -> dict[str, Any]:
         content["coefficients"] = compact(run.coefficients[:10])
     if run.settings:
         content["settings"] = run.settings
+    if run.panel is not None:
+        p = run.panel
+        content["panel"] = {
+            "period": p.period_column,
+            "entity": p.entity_column,
+            "criterion": p.criterion,
+            "score": _r(p.value),
+            "summary": compact(p.summary),
+            "folds": len(p.folds),
+            "embargo": p.embargo,
+            "one_period_in": p.step,
+            "max_exposure": _r(p.max_exposure, 3),
+            "exposures": [{"column": e.column, "mean": _r(e.mean, 3)} for e in p.exposures],
+            "alerts": [a.message for a in p.alerts],
+        }
     return content
+
+
+VALIDATION_HELP = (
+    "How the model is judged; empty for the app's default (80 / 20 split). On panel data (the "
+    "same entities at successive periods, see check_panel) use walk-forward by period, e.g. "
+    '{"method": "panel_walk_forward", "period_column": "era", "entity_column": "id", '
+    '"embargo": 4, "folds": 5, "criterion": "sharpe"}. Other keys: metric, window '
+    '("expanding" or "rolling"), sample_periods, max_rows.'
+)
+
+
+def _validation(given: dict[str, Any] | None) -> evaluate.Validation | None:
+    if not given:
+        return None
+    try:
+        return evaluate.Validation.model_validate(given)
+    except ValidationError as error:
+        message = error.errors()[0].get("msg", "invalid")
+        raise ToolError(f"Validation: {message}.") from None
 
 
 def _finished(job: Any) -> int:
@@ -123,6 +159,7 @@ class TrainInput(BaseModel):
     settings: dict[str, Any] | None = Field(
         None, description="Model settings to change, e.g. tuned values from tune_model."
     )
+    validation: dict[str, Any] | None = Field(None, description=VALIDATION_HELP)
 
 
 class TrainModel(Tool[TrainInput]):
@@ -150,7 +187,12 @@ class TrainModel(Tool[TrainInput]):
     def run(self, ctx: ToolContext, args: TrainInput) -> ToolOutput:
         try:
             job = self.service.start(
-                ctx.dataset_id, args.target, args.model, args.settings, ctx.conditions
+                ctx.dataset_id,
+                args.target,
+                args.model,
+                args.settings,
+                ctx.conditions,
+                validation=_validation(args.validation),
             )
         except MlError as error:
             raise _failed(error) from error
@@ -177,6 +219,7 @@ class CompareInput(BaseModel):
         description="Model keys to compare (2 to 6); empty for the app's recommendation.",
         max_length=6,
     )
+    validation: dict[str, Any] | None = Field(None, description=VALIDATION_HELP)
 
 
 class CompareModels(Tool[CompareInput]):
@@ -215,7 +258,11 @@ class CompareModels(Tool[CompareInput]):
         models = args.models or self._recommended(ctx, args.target)
         try:
             job = self.service.compare(
-                ctx.dataset_id, args.target, CompareRequest(models=models), ctx.conditions
+                ctx.dataset_id,
+                args.target,
+                CompareRequest(models=models),
+                ctx.conditions,
+                validation=_validation(args.validation),
             )
         except MlError as error:
             raise _failed(error) from error
@@ -262,6 +309,7 @@ class TuneInput(BaseModel):
     target: str = Field(description="The column to predict.")
     model: str = Field(description="Model key to tune, usually the best of compare_models.")
     budget_seconds: int = Field(60, ge=10, le=600, description="Time to spend searching.")
+    validation: dict[str, Any] | None = Field(None, description=VALIDATION_HELP)
 
 
 class TuneModel(Tool[TuneInput]):
@@ -287,6 +335,7 @@ class TuneModel(Tool[TuneInput]):
                 args.target,
                 TuneStart(model=args.model, budget_seconds=args.budget_seconds),
                 ctx.conditions,
+                validation=_validation(args.validation),
             )
         except (MlError, ValueError) as error:
             raise _failed(error) from error
@@ -381,6 +430,47 @@ class ExplainModel(Tool[ExplainInput]):
         return ToolOutput(summary, content, _link(run.target, run.id))
 
 
+class PanelInput(BaseModel):
+    target: str | None = Field(None, description="The column to predict, for the embargo.")
+    period: str | None = Field(None, description="The period column, if you know it.")
+    entity: str | None = Field(None, description="The entity column (an id), if you know it.")
+
+
+class CheckPanel(Tool[PanelInput]):
+    name: ClassVar[str] = "check_panel"
+    description: ClassVar[str] = (
+        "Whether the rows are panel data (the same entities at successive periods: ids by eras, "
+        "shops by weeks): the period and entity columns, how many periods, and the embargo the "
+        "target calls for. On a panel, random splits overestimate the score: train with the "
+        "validation it returns (walk-forward by period)."
+    )
+    Input: ClassVar[type[BaseModel]] = PanelInput
+
+    def __init__(self, service: MlService) -> None:
+        self.service = service
+
+    def label(self, args: PanelInput) -> str:
+        return "Checking for panel data"
+
+    def run(self, ctx: ToolContext, args: PanelInput) -> ToolOutput:
+        try:
+            found = self.service.panel(
+                ctx.dataset_id, ctx.conditions, args.target, args.period, args.entity
+            )
+        except MlError as error:
+            raise _failed(error) from error
+        content: dict[str, Any] = compact(found)
+        if found.panel and found.period:
+            content["validation"] = {
+                "method": "panel_walk_forward",
+                "period_column": found.period,
+                "entity_column": found.entity,
+                "embargo": found.embargo or 0,
+            }
+        summary = found.message or "Not panel data"
+        return ToolOutput(summary, content, _link(args.target) if args.target else None)
+
+
 class RunsInput(BaseModel):
     target: str | None = Field(None, description="Only the runs predicting this column.")
 
@@ -417,13 +507,18 @@ class ListRuns(Tool[RunsInput]):
 
 
 def agent_tools(app: FastAPI) -> list[Tool[Any]]:
+    from app.modules.ml.agent_auto import AutoMl  # the Auto (038), which reuses this file's help
+
     service: MlService = app.state.ml
     return [
         ListTargets(service),
         ListModels(),
+        CheckPanel(service),
         TrainModel(service),
         CompareModels(service),
         TuneModel(service),
         ExplainModel(service),
+        ModelErrors(service),
         ListRuns(service),
+        AutoMl(service, app.state.ml_auto),
     ]

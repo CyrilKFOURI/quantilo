@@ -1,7 +1,7 @@
 """The agent's settings and API keys (spec 026, R-AG-P3).
 
 Settings live in `<workspace>/agent/settings.json`. One key per vendor, read from the environment
-(`DATA_EXPLORER_<NAME>` then `<NAME>`, e.g. GEMINI_API_KEY), otherwise from
+(`QUANTILO_<NAME>` then `<NAME>`, e.g. GEMINI_API_KEY), otherwise from
 `<workspace>/agent/secrets.env`, written when the user pastes a key in the app. A pasted key is
 filed under the vendor its shape reveals. Keys never leave the backend: the API only says whether
 one is set and shows its last four characters."""
@@ -124,7 +124,7 @@ class SettingsStore:
             self._write_secrets(secrets)
 
     def key(self, vendor: Vendor) -> tuple[str, KeySource]:
-        for name in (f"DATA_EXPLORER_{vendor.secret}", vendor.secret):
+        for name in (f"QUANTILO_{vendor.secret}", vendor.secret):
             value = os.environ.get(name, "").strip()
             if value:
                 return value, "env"

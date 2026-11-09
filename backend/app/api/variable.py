@@ -1,10 +1,10 @@
 from typing import Annotated
 
-from cyfouri_data_explorer.variable.analyze import VariableProfile
-from cyfouri_data_explorer.variable.fitting import Fit
-from cyfouri_data_explorer.variable.outliers import OutlierMethod, Outliers
-from cyfouri_data_explorer.variable.service import VariableService
 from fastapi import APIRouter, Depends, Query, Request
+from quantilo.variable.analyze import VariableProfile
+from quantilo.variable.fitting import Fit
+from quantilo.variable.outliers import OutlierMethod, Outliers
+from quantilo.variable.service import VariableService
 
 from app.api.filters import Filters
 

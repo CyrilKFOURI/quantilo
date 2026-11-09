@@ -17,7 +17,7 @@ def no_key_in_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """No real key reaches a test: every vendor's variable is cleared."""
     for vendor in VENDORS:
         monkeypatch.delenv(vendor.secret, raising=False)
-        monkeypatch.delenv(f"DATA_EXPLORER_{vendor.secret}", raising=False)
+        monkeypatch.delenv(f"QUANTILO_{vendor.secret}", raising=False)
 
 
 @pytest.fixture
@@ -49,6 +49,7 @@ def test_the_modules_tools_are_collected(client: TestClient) -> None:
     assert {"analyze_time_series", "forecast"} <= names
     assert {"suggest_kpis", "compute_kpi", "save_kpi"} <= names
     assert {"plan_synthetic", "generate_synthetic", "save_synthetic_dataset"} <= names
+    assert {"analyze_experiment", "sample_size"} <= names
     assert "export_report" in names
     kinds = {t.name: t.kind for t in agent(client).registry}
     assert kinds["save_kpi"] == kinds["save_synthetic_dataset"] == "write"
@@ -99,6 +100,52 @@ def test_time_series_analysis_and_forecast(client: TestClient, sales: str) -> No
         {"time": "date", "value": "units", "period": "week", "horizon": 4},
     )
     assert forecast.summary == "Forecast ready" and forecast.content
+
+    # 028 A4: drivers (a yes/no column and the calendar) feed the driver models
+    driven = run_tool(
+        client,
+        sales,
+        "forecast",
+        {
+            "time": "date",
+            "value": "units",
+            "period": "month",
+            "horizon": 3,
+            "models": ["naive", "tslm"],
+            "drivers": [{"column": "promo", "known": True, "future": "last"}],
+        },
+    )
+    tslm = next(r for r in driven.content["results"] if r["key"] == "tslm")
+    assert tslm["uses_drivers"] and tslm["drivers"][0]["driver"] == "promo"
+    with pytest.raises(ToolError):
+        run_tool(client, sales, "forecast", {"time": "date", "models": ["nope"]})
+
+
+def test_forecast_every_group_with_coherent_totals(client: TestClient, sales: str) -> None:
+    """039: the forecasting tool gains every_group and reconcile."""
+    found = run_tool(
+        client,
+        sales,
+        "forecast",
+        {
+            "time": "date",
+            "value": "units",
+            "period": "month",
+            "horizon": 3,
+            "group": "store",
+            "every_group": True,
+            "reconcile": "bottom_up",
+            "models": ["naive", "seasonal_naive"],
+        },
+    )
+
+    stores = [r for r in found.content["rows"] if r["level"] == "store"]
+    assert len(stores) == found.content["series"]["kept"] >= 2
+    assert found.content["hierarchy"]["method"] == "bottom_up"
+    assert found.content["hierarchy"]["gap"] < 1e-6
+    assert found.link.params["group"] == "store"
+    with pytest.raises(ToolError, match="group"):
+        run_tool(client, sales, "forecast", {"time": "date", "every_group": True})
 
 
 def test_kpis_are_suggested_and_computed(client: TestClient, sales: str) -> None:
@@ -188,3 +235,24 @@ def test_an_unknown_confirmation_is_refused(client: TestClient, traps: str) -> N
         f"/api/v1/modules/agent/conversations/{cid}/confirm/nope", json={"approved": True}
     )
     assert response.status_code == 404
+
+
+def test_analyze_an_experiment_and_plan_the_next(client: TestClient) -> None:
+    ab = import_path(client, default_samples_dir() / "ab_test.csv")
+
+    analyzed = run_tool(
+        client,
+        ab,
+        "analyze_experiment",
+        {"variant": "variant", "metrics": ["converted", "revenue"], "unit": "user_id"},
+    )
+    first = analyzed.content["metrics"][0]["comparisons"][0]
+    assert first["sentence"].startswith("new_checkout reaches") and first["verdict"] == "better"
+    assert analyzed.content["correction"] == "p adjusted for 2 comparisons (Holm)"
+    assert analyzed.link.page == "experiments" and analyzed.link.params["unit"] == "user_id"
+    with pytest.raises(ToolError, match="2 to 5 variants"):
+        run_tool(client, ab, "analyze_experiment", {"variant": "user_id", "metrics": ["converted"]})
+
+    planned = run_tool(client, ab, "sample_size", {"baseline": 0.2, "effect": 0.1})
+    assert planned.content["control"] > 1_000
+    assert planned.summary.endswith("in total") and planned.link.params == {"tab": "plan"}

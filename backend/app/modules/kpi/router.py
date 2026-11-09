@@ -1,11 +1,11 @@
 from typing import Annotated
 
-from cyfouri_data_explorer.filters.model import Condition, parse_filters
-from cyfouri_data_explorer.kpi.compute import KpiResult
-from cyfouri_data_explorer.kpi.definition import Definition
-from cyfouri_data_explorer.kpi.service import Suggestions
 from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
+from quantilo.filters.model import Condition, parse_filters
+from quantilo.kpi.compute import KpiResult
+from quantilo.kpi.definition import Definition
+from quantilo.kpi.service import Suggestions
 
 from app.modules.kpi.service import KpiService, SavedKpi
 

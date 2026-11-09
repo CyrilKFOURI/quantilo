@@ -1,7 +1,7 @@
 from typing import Literal
 
-from cyfouri_data_explorer.ingestion.options import ImportOptions, SourceOptions
 from pydantic import BaseModel, Field
+from quantilo.ingestion.options import ImportOptions, SourceOptions
 
 from app.services.datasets.repository import DatasetRecord, JobRecord
 

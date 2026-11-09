@@ -10,6 +10,7 @@ import { CategoryTable } from "../variable/CategoryTable";
 import { VariableDetails } from "../variable/VariableDetails";
 import { ChartView } from "./ChartView";
 import { ViewSwitch } from "./ViewSwitch";
+import { Loading } from "../../ui/Loading";
 
 /** Beyond this many categories, bars stop being readable: the table carries the detail. */
 const MAX_FULL_BARS = 120;
@@ -57,7 +58,7 @@ export function FullscreenChart({ datasetId, column, view: initialView, step: in
           <VariableDetails datasetId={datasetId} column={column.name} />
         </div>
       ) : (
-        <div className="h-96 animate-pulse rounded-md bg-surface-2" aria-busy="true" />
+        <Loading label={t("loading.chart")} className="h-96 rounded-md" />
       )}
     </Dialog>
   );

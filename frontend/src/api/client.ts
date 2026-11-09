@@ -74,6 +74,17 @@ export type SeriesVolatility = Complete<Schemas["SeriesVolatility"]>;
 export type SeriesResiduals = Complete<Schemas["SeriesResiduals"]>;
 export type SeriesBreaks = Complete<Schemas["SeriesBreaks"]>;
 export type ForecastJob = Complete<Schemas["ForecastJob"]>;
+export type SeriesDrivers = Complete<Schemas["SeriesDrivers"]>;
+/** A driver of a forecast (028 A4): a column, a 0/1 flag or a calendar part. */
+export type DriverSpec = Schemas["Driver"];
+/** Every group of a series at once (039): setup, job and result. */
+export type GroupsSetup = Complete<Schemas["GroupsSetup"]>;
+export type GroupJob = Complete<Schemas["GroupJob"]>;
+export type GroupForecast = NonNullable<GroupJob["result"]>;
+export type GroupRow = GroupForecast["rows"][number];
+/** A what-if change of a known-in-advance driver (039). */
+export type ScenarioChange = Schemas["ScenarioChange"];
+export type DriverForecast = Complete<Schemas["DriverForecast"]>;
 export type MlTargets = Complete<Schemas["Targets"]>;
 export type MlCandidate = MlTargets["candidates"][number];
 export type MlModel = Complete<Schemas["ModelView"]>;
@@ -84,6 +95,10 @@ export type MlExplanationState = Complete<Schemas["ExplanationState"]>;
 export type MlExplanation = MlExplanationState["explanation"];
 export type MlCompareJob = Complete<Schemas["CompareJob"]>;
 export type MlTuneJob = Complete<Schemas["TuneJob"]>;
+export type MlAutoJob = Complete<Schemas["AutoJob"]>;
+export type MlAutoProgress = NonNullable<MlAutoJob["progress"]>;
+export type MlAutoEntry = MlAutoProgress["entries"][number];
+export type MlAutoRequest = { minutes: number; models?: string[] | null; trials?: number | null; stacking: boolean; preparation?: MlChoicesInput | null };
 export type MlSearchParam = Complete<Schemas["SearchParam"]>;
 export type MlEstimate = Complete<Schemas["Estimate"]>;
 export type MlTuneRequest = {
@@ -114,6 +129,30 @@ export type MlChoicesInput = Partial<Omit<MlChoices, "columns">> & { columns?: R
 export type MlPreparationPreview = Complete<Schemas["PreparationPreview"]>;
 export type MlDistribution = Complete<Schemas["TargetDistribution"]>;
 export type MlClasses = { method: string; edges: number[]; names: string[] };
+/** Panel data (035): recognition, a run's periods, its neutralization. */
+export type MlPanelCheck = Complete<Schemas["PanelCheck"]>;
+export type MlPanel = NonNullable<MlRun["panel"]>;
+export type MlPeriodScore = MlPanel["periods"][number];
+export type MlPeriodSummary = MlPanel["summary"];
+export type MlNeutralized = Complete<Schemas["Neutralized"]>;
+export type MlErrors = Complete<Schemas["ErrorAnalysis"]>;
+export type MlErrorMeasure = MlErrors["measure"];
+export type MlSlice = MlErrors["slices"][number];
+export type MlColumnErrors = MlErrors["by_column"][number];
+export type MlErrorPrediction = MlErrors["worst"][number];
+export type MlErrorComparison = Complete<Schemas["ErrorComparison"]>;
+export type MlFairness = Complete<Schemas["Fairness"]>;
+// Predict on new data (037)
+export type MlModelCheck = Complete<Schemas["ModelCheck"]>;
+export type MlColumnCheck = MlModelCheck["columns"][number];
+export type MlLevel = MlModelCheck["level"];
+export type MlPredictionJob = Complete<Schemas["PredictionJob"]>;
+export type MlPredictionSummary = Complete<Schemas["PredictionSummary"]>;
+export type MlPrediction = Complete<Schemas["Prediction"]>;
+export type MlPredictionReport = NonNullable<MlPrediction["summary"]>;
+export type MlPredictionDistribution = MlPredictionReport["distribution"];
+export type MlPredictionRows = Complete<Schemas["PredictionRows"]>;
+export type MlRowExplanation = Complete<Schemas["RowExplanation"]>;
 /** A KPI as sent and saved: "auto" (or a missing field) lets the app choose. Fields with a
  *  server default are optional, nested ones included. */
 type KpiFormat = Partial<Schemas["Format"]>;
@@ -148,7 +187,9 @@ export type SeriesSectionKey =
   | "autocorrelation"
   | "volatility"
   | "residuals"
-  | "breaks";
+  | "breaks"
+  | "groups"
+  | "drivers";
 /** Time series page parameters; undefined = automatic. */
 export type SeriesParams = {
   time?: string;
@@ -178,6 +219,23 @@ export type OutlierMethod = Outliers["method"];
 export type AppSettings = Schemas["AppSettings"];
 export type DetectionSettings = Required<Schemas["DetectionSettings"]>;
 export type ComputeSettings = Schemas["ComputeSettings"];
+export type VersionSettings = Required<Schemas["VersionSettings"]>;
+export type KeepPolicy = VersionSettings["keep"];
+export type ServerSettings = { detection: DetectionSettings; compute: ComputeSettings; versions: VersionSettings };
+/** What changed between two versions (031). */
+export type Changes = Complete<Schemas["Changes"]>;
+export type ChangeLevel = Changes["level"];
+export type Shift = Changes["distributions"][number];
+export type LevelShift = Shift["levels"][number];
+export type SchemaChange = Changes["schema"][number];
+export type QualityChange = Changes["quality"][number];
+export type DateChange = Changes["dates"][number];
+export type VersionInfo = Complete<Schemas["VersionInfo"]>;
+export type RowsAnswer = Complete<Schemas["RowsAnswer"]>;
+export type RowChanges = NonNullable<RowsAnswer["result"]>;
+export type KpiChange = Complete<Schemas["KpiChange"]>;
+export type RelationsAnswer = Complete<Schemas["RelationsAnswer"]>;
+export type RelationChange = RelationsAnswer["pairs"][number];
 export type GpuStatus = Complete<Schemas["GpuStatus"]>;
 export type SyntheticPlan = Complete<Schemas["Plan"]>;
 export type SyntheticColumnPlan = SyntheticPlan["columns"][number];
@@ -257,6 +315,18 @@ export function exportUrl(
 
 export function summaryUrl(id: string, filters?: Condition[]) {
   return `/api/v1/datasets/${id}/export/summary?${new URLSearchParams(filtersParam(filters))}`;
+}
+
+function versusQuery(vs: string | null, extra: Record<string, string> = {}): string {
+  const query = new URLSearchParams(extra);
+  if (vs) query.set("vs", vs);
+  const text = query.toString();
+  return text ? `?${text}` : "";
+}
+
+/** Every difference of the row by row comparison, as CSV (031). */
+export function changeRowsUrl(id: string, vs: string | null, key: string) {
+  return `/api/v1/datasets/${id}/changes/rows/export${versusQuery(vs, { key })}`;
 }
 
 export function reportFileUrl(jobId: string) {
@@ -441,6 +511,7 @@ export const api = {
     params: SeriesParams,
     extra: Record<string, string>,
     filters?: Condition[],
+    drivers?: DriverSpec[],
   ) => {
     const query = new URLSearchParams({ ...filtersParam(filters), ...extra });
     for (const [key, value] of Object.entries(params)) {
@@ -449,6 +520,52 @@ export const api = {
     return request<ForecastJob>(
       "POST",
       `/modules/timeseries/datasets/${id}/forecast?${query}`,
+      drivers?.length ? { drivers } : undefined,
+    );
+  },
+  startGroupForecast: (
+    id: string,
+    params: SeriesParams,
+    extra: Record<string, string>,
+    filters?: Condition[],
+  ) => {
+    const query = new URLSearchParams({ ...filtersParam(filters), ...extra });
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== "") query.set(key, String(value));
+    }
+    return request<GroupJob>(
+      "POST",
+      `/modules/timeseries/datasets/${id}/forecast-groups?${query}`,
+    );
+  },
+  groupJob: (jobId: string) =>
+    request<GroupJob>("GET", `/modules/timeseries/group-forecast-jobs/${jobId}`),
+  cancelGroupJob: (jobId: string) =>
+    request<GroupJob>("DELETE", `/modules/timeseries/group-forecast-jobs/${jobId}`),
+  /** The long CSV, read through the API (works in the browser version too). */
+  groupCsv: async (jobId: string) => {
+    const response = await fetch(
+      `/api/v1/modules/timeseries/group-forecast-jobs/${jobId}/forecast.csv`,
+    );
+    if (!response.ok) throw await apiError(response);
+    return response.text();
+  },
+  scenario: (
+    id: string,
+    params: SeriesParams,
+    extra: Record<string, string>,
+    filters: Condition[] | undefined,
+    drivers: DriverSpec[],
+    changes: ScenarioChange[],
+  ) => {
+    const query = new URLSearchParams({ ...filtersParam(filters), ...extra });
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== "") query.set(key, String(value));
+    }
+    return request<DriverForecast>(
+      "POST",
+      `/modules/timeseries/datasets/${id}/scenario?${query}`,
+      { drivers, changes },
     );
   },
   forecastJob: (jobId: string) =>
@@ -493,12 +610,12 @@ export const api = {
     choices: MlChoicesInput,
     filters?: Condition[],
     classes?: MlClasses | null,
-  ) =>
-    request<MlPreparationPreview>(
-      "POST",
-      `/modules/ml/datasets/${id}/preparation?${mlQuery(target, model, settings, filters, classes)}`,
-      choices,
-    ),
+    validation?: MlValidation | null,
+  ) => {
+    const query = mlQuery(target, model, settings, filters, classes);
+    if (validation) query.set("validation", JSON.stringify(validation));
+    return request<MlPreparationPreview>("POST", `/modules/ml/datasets/${id}/preparation?${query}`, choices);
+  },
   mlDistribution: (id: string, column: string, filters?: Condition[]) =>
     request<MlDistribution>(
       "GET",
@@ -525,6 +642,12 @@ export const api = {
   mlRun: (id: string, runId: string) => request<MlRun>("GET", `/modules/ml/datasets/${id}/runs/${runId}`),
   mlExplanation: (id: string, runId: string) =>
     request<MlExplanationState>("GET", `/modules/ml/datasets/${id}/runs/${runId}/explanation`),
+  mlErrors: (id: string, runId: string, measure: string | null) =>
+    request<MlErrors>("GET", `/modules/ml/datasets/${id}/runs/${runId}/errors${measure ? `?${new URLSearchParams({ measure })}` : ""}`),
+  mlErrorsCompared: (id: string, runId: string, otherId: string) =>
+    request<MlErrorComparison>("GET", `/modules/ml/datasets/${id}/runs/${runId}/errors/compare/${otherId}`),
+  mlFairness: (id: string, runId: string, column: string) =>
+    request<MlFairness>("GET", `/modules/ml/datasets/${id}/runs/${runId}/errors/fairness?${new URLSearchParams({ column })}`),
   mlCompare: (
     id: string,
     target: string,
@@ -546,7 +669,46 @@ export const api = {
   },
   mlTuning: (jobId: string) => request<MlTuneJob>("GET", `/modules/ml/tune-jobs/${jobId}`),
   mlStopTuning: (jobId: string) => request<MlTuneJob>("DELETE", `/modules/ml/tune-jobs/${jobId}`),
+  mlAuto: (id: string, target: string, body: MlAutoRequest, classes: MlClasses | null, validation: MlValidation | null, filters?: Condition[]) => {
+    const query = mlQuery(target, null, null, filters, classes);
+    if (validation) query.set("validation", JSON.stringify(validation));
+    return request<MlAutoJob>("POST", `/modules/ml/datasets/${id}/auto?${query}`, body);
+  },
+  mlAutoJob: (jobId: string) => request<MlAutoJob>("GET", `/modules/ml/auto-jobs/${jobId}`),
+  mlStopAuto: (jobId: string) => request<MlAutoJob>("DELETE", `/modules/ml/auto-jobs/${jobId}`),
   mlPredictionsUrl: (id: string, runId: string) => `/api/v1/modules/ml/datasets/${id}/runs/${runId}/predictions.csv`,
+  mlPanel: (id: string, target: string, period: string | null, entity: string | null, filters?: Condition[]) => {
+    const query = new URLSearchParams({ target, ...filtersParam(filters) });
+    if (period) query.set("period", period);
+    if (entity) query.set("entity", entity);
+    return request<MlPanelCheck>("GET", `/modules/ml/datasets/${id}/panel?${query}`);
+  },
+  mlNeutralize: (id: string, runId: string, columns: string[], proportion: number) =>
+    request<MlNeutralized>("POST", `/modules/ml/datasets/${id}/runs/${runId}/neutralize`, { columns, proportion }),
+  mlPeriodsUrl: (id: string, runId: string) => `/api/v1/modules/ml/datasets/${id}/runs/${runId}/periods.csv`,
+  // Predict on new data, export the model (037)
+  mlCheck: (id: string, runId: string, source: string) =>
+    request<MlModelCheck>("GET", `/modules/ml/datasets/${id}/runs/${runId}/check?${new URLSearchParams({ source })}`),
+  mlPredict: (id: string, runId: string, source: string, keep: string[]) =>
+    request<MlPredictionJob>("POST", `/modules/ml/datasets/${id}/runs/${runId}/predictions`, { source, keep }),
+  mlPredictJob: (jobId: string) => request<MlPredictionJob>("GET", `/modules/ml/predict-jobs/${jobId}`),
+  mlCancelPredict: (jobId: string) => request<MlPredictionJob>("DELETE", `/modules/ml/predict-jobs/${jobId}`),
+  mlPredictions: (id: string, runId: string) =>
+    request<MlPredictionSummary[]>("GET", `/modules/ml/datasets/${id}/runs/${runId}/predictions`),
+  mlPrediction: (id: string, predictionId: string) =>
+    request<MlPrediction>("GET", `/modules/ml/datasets/${id}/predictions/${predictionId}`),
+  mlPredictionRows: (id: string, predictionId: string, offset: number, limit: number, lessReliable: boolean) => {
+    const query = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+    if (lessReliable) query.set("less_reliable", "true");
+    return request<MlPredictionRows>("GET", `/modules/ml/datasets/${id}/predictions/${predictionId}/rows?${query}`);
+  },
+  mlPredictionRowExplanation: (id: string, predictionId: string, row: number) =>
+    request<MlRowExplanation>("GET", `/modules/ml/datasets/${id}/predictions/${predictionId}/rows/${row}/explanation`),
+  mlSavePrediction: (id: string, predictionId: string) =>
+    request<{ dataset_id: string }>("POST", `/modules/ml/datasets/${id}/predictions/${predictionId}/dataset`),
+  mlPredictionCsvUrl: (id: string, predictionId: string) =>
+    `/api/v1/modules/ml/datasets/${id}/predictions/${predictionId}/predictions.csv`,
+  mlModelZipUrl: (id: string, runId: string) => `/api/v1/modules/ml/datasets/${id}/runs/${runId}/model.zip`,
   correlations: (
     id: string,
     method: CorrelationMethod,
@@ -599,9 +761,9 @@ export const api = {
   deleteSavedFilter: (id: string, filterId: string) =>
     request<void>("DELETE", `/datasets/${id}/saved-filters/${filterId}`),
 
-  settings: () => request<{ detection: DetectionSettings; compute: ComputeSettings }>("GET", "/settings"),
-  updateSettings: (settings: { detection: DetectionSettings; compute: ComputeSettings }) =>
-    request<{ detection: DetectionSettings; compute: ComputeSettings }>("PUT", "/settings", settings),
+  settings: () => request<ServerSettings>("GET", "/settings"),
+  updateSettings: (settings: ServerSettings) =>
+    request<ServerSettings>("PUT", "/settings", settings),
   gpu: (refresh = false) => request<GpuStatus>("GET", `/settings/gpu${refresh ? "?refresh=true" : ""}`),
   syntheticPlan: (id: string) => request<SyntheticPlan>("GET", `/modules/synthetic/datasets/${id}/plan`),
   syntheticGenerate: (id: string, body: SyntheticRequest) =>
@@ -648,6 +810,15 @@ export const api = {
     request<SyntheticPair>("GET", `/modules/synthetic/datasets/${id}/runs/${runId}/pairs?${new URLSearchParams({ a, b })}`),
   syntheticOrigin: (id: string) => request<SyntheticOrigin | null>("GET", `/modules/synthetic/origin/${id}`),
   storage: () => request<StorageInfo>("GET", "/storage"),
+  versions: (id: string) => request<VersionInfo[]>("GET", `/datasets/${id}/versions`),
+  changes: (id: string, vs: string | null) =>
+    request<Changes>("GET", `/datasets/${id}/changes${versusQuery(vs)}`),
+  changeRows: (id: string, vs: string | null, key: string | null) =>
+    request<RowsAnswer>("GET", `/datasets/${id}/changes/rows${versusQuery(vs, key ? { key } : {})}`),
+  changeKpis: (id: string, vs: string | null) =>
+    request<KpiChange[]>("GET", `/datasets/${id}/changes/kpis${versusQuery(vs)}`),
+  changeRelations: (id: string, vs: string | null) =>
+    request<RelationsAnswer>("GET", `/datasets/${id}/changes/relations${versusQuery(vs)}`),
   clearCaches: () => request<void>("POST", "/storage/clear-caches"),
 
   job: (id: string) => request<Job>("GET", `/jobs/${id}`),

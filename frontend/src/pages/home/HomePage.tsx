@@ -11,7 +11,7 @@ export function HomePage() {
   const hasDatasets = (datasets.data?.length ?? 0) > 0;
 
   return (
-    <div className="mx-auto flex min-h-full max-w-5xl flex-col gap-8 px-8 py-8">
+    <div className="mx-auto flex min-h-full max-w-5xl flex-col gap-8 px-(--gutter) py-8">
       <PageHeader title={t("home.title")} description={t("home.body")} />
       <ImportPanel compact={hasDatasets} />
       {datasets.isError && <ErrorNote>{datasets.error.message}</ErrorNote>}

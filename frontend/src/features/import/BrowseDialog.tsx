@@ -7,6 +7,7 @@ import { t } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
 import { ErrorNote, TextInput } from "../../ui/fields";
+import { Loading } from "../../ui/Loading";
 
 type BrowseDialogProps = {
   open: boolean;
@@ -123,7 +124,7 @@ export function BrowseDialog({ open, onOpenChange, onSelect }: BrowseDialogProps
           </ul>
         </>
       )}
-      {listing.isPending && <p className="py-6 text-center text-ink-3">{t("browse.loading")}</p>}
+      {listing.isPending && <Loading label={t("browse.loading")} className="h-24 rounded-md" compact />}
     </Dialog>
   );
 }

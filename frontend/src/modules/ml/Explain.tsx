@@ -7,6 +7,7 @@ import { Plot } from "../../charts/Plot";
 import { t, type MessageKey } from "../../lib/i18n";
 import { ErrorNote, Select } from "../../ui/fields";
 import { beeswarmFigure, dependenceFigure, permutationFigure, waterfallFigure } from "./figures";
+import { Loading } from "../../ui/Loading";
 
 type Explanation = NonNullable<MlExplanation>;
 type TreeNode = NonNullable<Explanation["tree"]>[number];
@@ -34,11 +35,7 @@ export function WithExplanation({ datasetId, run, children }: { datasetId: strin
   const state = useMlExplanation(datasetId, run.id, true);
   if (state.isError) return <ErrorNote>{state.error.message}</ErrorNote>;
   if (!state.data || state.data.status === "running")
-    return (
-      <div className="flex h-40 items-center justify-center rounded-md border border-dashed border-line text-[13px] text-ink-3" aria-busy="true">
-        {t("ml.explain.computing")}
-      </div>
-    );
+    return <Loading label={t("ml.explain.computing")} className="h-40 rounded-md" />;
   if (state.data.status === "failed" || !state.data.explanation) return <ErrorNote>{state.data.error ?? t("ml.explain.failed")}</ErrorNote>;
   return <>{children(state.data.explanation)}</>;
 }
