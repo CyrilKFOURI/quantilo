@@ -15,15 +15,15 @@ export function LockBadge({ className = "" }: { className?: string }) {
   );
 }
 
-/** The page of a module the browser-only version cannot run. */
-export function LockedPage() {
+/** The page of a module the browser-only version cannot run, named so one knows what is missing. */
+export function LockedPage({ page }: { page: string }) {
   return (
     <div className="mx-auto max-w-xl px-(--gutter) py-16">
       <div className="mb-4 inline-flex size-10 items-center justify-center rounded-full bg-surface-2 text-ink-2">
         <Lock size={18} strokeWidth={1.5} aria-hidden />
       </div>
       <h1 className="text-xl font-semibold tracking-tight">
-        {t("lite.lockedTitle")}
+        {t("lite.lockedTitle", { page })}
       </h1>
       <p className="mt-2 text-ink-2">{t("lite.lockedBody")}</p>
       <p className="mt-4 text-[13px] text-ink-2">{t("lite.lockedHow")}</p>

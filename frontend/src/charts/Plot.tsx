@@ -1,7 +1,10 @@
-import type { Data, Layout } from "plotly.js-dist-min";
+import { Maximize2 } from "lucide-react";
+import type { Config, Data, Layout } from "plotly.js-dist-min";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 
-import { PHONE, useMedia } from "../lib/useMedia";
+import { t } from "../lib/i18n";
+import { PHONE, TOUCH, useMedia } from "../lib/useMedia";
+import { Dialog } from "../ui/Dialog";
 import { baseLayout, plotConfig, readTokens, type ChartTokens } from "./theme";
 
 type PlotlyModule = typeof import("plotly.js-dist-min");
@@ -89,7 +92,38 @@ type PlotProps = {
   height: number;
   label: string;
   onPointClick?: (point: PointClick) => void;
+  /** On a touch screen (044). `button` (default): still, with a button that opens it full screen.
+   *  `none`: still, without the button (its card already opens full screen). `explore`: already
+   *  full screen, so it pans and zooms in place. */
+  zoom?: "button" | "none" | "explore";
 };
+
+/** How a chart answers a finger (044). `fixed`: inside a page, it lets the page scroll (no drag,
+ *  no zoom; a tap still shows the value). `explore`: full screen, one finger pans, the +/- buttons
+ *  zoom. A 3D chart always turns under the finger, as on a laptop. */
+type TouchMode = "none" | "fixed" | "explore";
+
+const THREE_D = new Set(["scatter3d", "surface", "mesh3d", "cone", "streamtube", "volume", "isosurface"]);
+
+export function isThreeD(data: Data[]): boolean {
+  return data.some((trace) => THREE_D.has(String((trace as { type?: string }).type)));
+}
+
+function touchLayout(mode: TouchMode): Partial<Layout> {
+  if (mode === "fixed") return { dragmode: false };
+  if (mode === "explore") return { dragmode: "pan" };
+  return {};
+}
+
+function touchConfig(mode: TouchMode): Partial<Config> {
+  if (mode !== "explore") return plotConfig;
+  return {
+    ...plotConfig,
+    displayModeBar: true,
+    modeBarButtons: [["zoomIn2d", "zoomOut2d", "autoScale2d"]],
+    showTips: false,
+  };
+}
 
 type PlotlyClick = {
   points: { pointIndex?: number; pointNumber?: number; x: unknown; y: unknown; customdata: unknown }[];
@@ -100,12 +134,66 @@ type ClickableElement = HTMLDivElement & {
   removeAllListeners?: (event: string) => void;
 };
 
-/** A Plotly chart themed with the design tokens. `figure` builds traces from the tokens. */
-export const Plot = forwardRef<PlotHandle, PlotProps>(function Plot({ figure, height: wanted, label, onPointClick }, ref) {
+/** A Plotly chart themed with the design tokens. `figure` builds traces from the tokens. On a touch
+ *  screen (044) a 2D chart stays still so the page scrolls, with a button that opens it full screen
+ *  to pan and zoom. */
+export const Plot = forwardRef<PlotHandle, PlotProps>(function Plot(props, ref) {
+  const touch = useMedia(TOUCH);
+  const [expanded, setExpanded] = useState(false);
+  const [threeD, setThreeD] = useState(false);
+  const zoom = props.zoom ?? "button";
+  const mode: TouchMode = !touch || threeD ? "none" : zoom === "explore" ? "explore" : "fixed";
+  return (
+    <div className="relative">
+      <Chart {...props} ref={ref} touchMode={mode} onDrawn={setThreeD} />
+      {mode === "fixed" && zoom === "button" && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          aria-label={t("chart.expand")}
+          title={t("chart.expand")}
+          className="absolute top-0 right-0 z-[1] inline-flex size-7 items-center justify-center rounded-md border border-line bg-surface-1/80 text-ink-3 backdrop-blur"
+        >
+          <Maximize2 size={14} strokeWidth={1.5} aria-hidden />
+        </button>
+      )}
+      {expanded && (
+        <Dialog open onOpenChange={(open) => !open && setExpanded(false)} title={props.label} size="lg">
+          <Chart
+            figure={props.figure}
+            label={props.label}
+            height={Math.max(320, Math.round(window.innerHeight * 0.7))}
+            onPointClick={props.onPointClick}
+            touchMode="explore"
+            full
+          />
+          <p className="mt-2 text-xs text-ink-3">{t("chart.exploreHint")}</p>
+        </Dialog>
+      )}
+    </div>
+  );
+});
+
+type ChartProps = PlotProps & {
+  touchMode: TouchMode;
+  /** Full screen: the height is kept as asked (no phone cap). */
+  full?: boolean;
+  /** After each drawing: whether the figure is 3D. */
+  onDrawn?: (threeD: boolean) => void;
+};
+
+const Chart = forwardRef<PlotHandle, ChartProps>(function Chart(
+  { figure, height: wanted, label, onPointClick, touchMode, full = false, onDrawn },
+  ref,
+) {
   // 041: an ordinary chart is 240 px tall at most on a phone; a chart sized by its data
   // (a heatmap, a long ranking: taller than 420 px) keeps its height.
   const phone = useMedia(PHONE);
-  const height = phone && wanted <= 420 ? Math.min(wanted, 240) : wanted;
+  const height = phone && !full && wanted <= 420 ? Math.min(wanted, 240) : wanted;
+  const drawn = useRef(onDrawn);
+  useEffect(() => {
+    drawn.current = onDrawn;
+  });
   const container = useRef<HTMLDivElement>(null);
   const themeVersion = useThemeVersion();
   const clickHandler = useRef(onPointClick);
@@ -133,18 +221,23 @@ export const Plot = forwardRef<PlotHandle, PlotProps>(function Plot({ figure, he
       const tokens = readTokens();
       const { data, layout } = figure(tokens);
       const base = baseLayout(tokens);
+      const threeD = isThreeD(data);
+      const mode = threeD ? "none" : touchMode;
+      const still = mode === "fixed" ? { fixedrange: true } : {};
       await Plotly.react(
         element,
         data,
         {
           ...base,
           ...layout,
-          xaxis: { ...base.xaxis, ...layout?.xaxis },
-          yaxis: { ...base.yaxis, ...layout?.yaxis },
+          ...touchLayout(mode),
+          xaxis: { ...base.xaxis, ...layout?.xaxis, ...still },
+          yaxis: { ...base.yaxis, ...layout?.yaxis, ...still },
           height,
         },
-        plotConfig,
+        touchConfig(mode),
       ).then(() => {
+        drawn.current?.(threeD);
         const plot = element as ClickableElement;
         plot.removeAllListeners?.("plotly_click");
         if (!clickable) return;
@@ -166,7 +259,7 @@ export const Plot = forwardRef<PlotHandle, PlotProps>(function Plot({ figure, he
     return () => {
       cancelled = true;
     };
-  }, [figure, height, themeVersion, clickable]);
+  }, [figure, height, themeVersion, clickable, touchMode]);
 
   useEffect(() => {
     const element = container.current;
@@ -184,7 +277,7 @@ export const Plot = forwardRef<PlotHandle, PlotProps>(function Plot({ figure, he
       role="img"
       aria-label={label}
       style={{ height }}
-      className={`w-full ${clickable ? "[&_.cursor-crosshair]:cursor-pointer [&_.nsewdrag]:cursor-pointer" : ""}`}
+      className={`w-full ${touchMode === "fixed" ? "touch-pan-y" : ""} ${clickable ? "[&_.cursor-crosshair]:cursor-pointer [&_.nsewdrag]:cursor-pointer" : ""}`}
     />
   );
 });

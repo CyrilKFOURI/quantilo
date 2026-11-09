@@ -1,3 +1,5 @@
+import { createElement } from "react";
+
 import { agentPanel } from "./agent/manifest";
 import { experimentsModule } from "./experiments/manifest";
 import { kpiModule } from "./kpi/manifest";
@@ -7,11 +9,15 @@ import { syntheticModule } from "./synthetic/manifest";
 import { timeseriesModule } from "./timeseries/manifest";
 import { LITE } from "../lite/flag";
 import { LockedPage } from "../lite/Locked";
+import { t } from "../lib/i18n";
 import type { ModuleManifest, PanelManifest } from "./types";
 
-/** In the browser-only build, heavy modules stay listed but open a page that explains why not. */
+/** In the browser-only build, heavy modules stay listed but open a page that names them and
+ *  explains why not ("Machine learning needs the full app"). */
 const lockedInLite = (module: ModuleManifest): ModuleManifest =>
-  LITE ? { ...module, locked: true, component: LockedPage } : module;
+  LITE
+    ? { ...module, locked: true, component: () => createElement(LockedPage, { page: t(module.labelKey) }) }
+    : module;
 
 /** Active modules. Adding a module = creating its folder and listing its manifest here. */
 export const modules: ModuleManifest[] = [

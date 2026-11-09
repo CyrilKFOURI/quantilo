@@ -51,7 +51,7 @@ export function FullscreenChart({ datasetId, column, view: initialView, step: in
         <div className="space-y-5">
           {!(categorical && barCount > MAX_FULL_BARS) && (
             <div className="overflow-y-auto" style={{ maxHeight: categorical ? VISIBLE_CHART_HEIGHT : undefined }}>
-              <ChartView chart={data} type={column.type} name={column.name} height={height} />
+              <ChartView chart={data} type={column.type} name={column.name} height={height} zoom="explore" />
             </div>
           )}
           {categorical && <CategoryTable chart={data} />}

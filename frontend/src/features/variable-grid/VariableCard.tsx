@@ -89,7 +89,7 @@ export function VariableCard({ datasetId, column, topN, onChangeType }: Variable
 
       <div className="px-2 pt-1 max-sm:px-1">
         {data ? (
-          <ChartView ref={plot} chart={data} type={column.type} name={column.name} height={height} datasetId={datasetId} />
+          <ChartView ref={plot} chart={data} type={column.type} name={column.name} height={height} datasetId={datasetId} zoom="none" />
         ) : chart.isError ? (
           <p style={{ height }} className="flex items-center justify-center px-4 text-center text-xs text-bad">
             {chart.error.message}

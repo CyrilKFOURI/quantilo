@@ -3,6 +3,8 @@ import { useSyncExternalStore } from "react";
 /** Widths of the layout (041): phone below 640 px, tablet below 1024 px, laptop above. */
 export const PHONE = "(max-width: 639px)";
 export const BELOW_LAPTOP = "(max-width: 1023px)";
+/** A finger rather than a mouse (044: charts let the page scroll, zoom happens full screen). */
+export const TOUCH = "(pointer: coarse)";
 
 /** Whether a media query matches, following its changes. False where matchMedia is missing (tests). */
 export function useMedia(query: string): boolean {

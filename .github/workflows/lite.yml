@@ -1,8 +1,7 @@
 name: Browser version
 
-# Builds the browser-only version (Python runs in the page through Pyodide, no server:
-# frontend/src/lite, lite/) and publishes it on GitHub Pages.
-# Needs Settings > Pages > Source: "GitHub Actions" once.
+# Checks that the browser-only version builds (Python runs in the page through Pyodide, no server:
+# frontend/src/lite, lite/). It is published on Vercel only (quantilo-app.vercel.app), one link.
 on:
   push:
     branches: [master]
@@ -18,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: pages
+  group: lite
   cancel-in-progress: true
 
 jobs:
@@ -34,19 +33,3 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci && npm run build:lite
         working-directory: frontend
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: frontend/dist-lite
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4

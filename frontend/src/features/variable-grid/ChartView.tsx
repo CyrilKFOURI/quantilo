@@ -16,11 +16,13 @@ type ChartViewProps = {
   height: number;
   /** Set to let a click on a bar or bin filter the dataset. */
   datasetId?: string;
+  /** On a touch screen (044): the card opens its own full screen; the full screen pans and zooms. */
+  zoom?: "none" | "explore";
 };
 
 /** Draws prepared chart data; non-chart kinds (identifier, high cardinality) get a short summary. */
 export const ChartView = forwardRef<PlotHandle, ChartViewProps>(function ChartView(
-  { chart, type, name, height, datasetId },
+  { chart, type, name, height, datasetId, zoom },
   ref,
 ) {
   const [menu, setMenu] = useState<{ x: number; y: number; actions: ChartAction[] } | null>(null);
@@ -52,6 +54,7 @@ export const ChartView = forwardRef<PlotHandle, ChartViewProps>(function ChartVi
           height={height}
           label={t("chart.label", { name })}
           onPointClick={datasetId ? onPointClick : undefined}
+          zoom={zoom}
         />
         {menu && (
           <ChartFilterMenu
