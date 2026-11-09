@@ -108,9 +108,10 @@ export function ConditionEditor({ datasetId, columns, others = columns, initial,
         submit();
       }}
     >
-      <div className="grid grid-cols-[1.3fr_1fr] gap-2">
+      <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] gap-2">
         <Select
           aria-label={t("filters.column")}
+          className="w-full min-w-0"
           value={draft.column}
           onChange={(event) => {
             const next = columns.find((c) => c.name === event.target.value);
@@ -130,7 +131,7 @@ export function ConditionEditor({ datasetId, columns, others = columns, initial,
             </option>
           ))}
         </Select>
-        <Select aria-label={t("filters.condition")} value={choice?.id ?? ""} onChange={(event) => update({ choice: event.target.value })}>
+        <Select aria-label={t("filters.condition")} className="w-full min-w-0" value={choice?.id ?? ""} onChange={(event) => update({ choice: event.target.value })}>
           {choices.map((item) => (
             <option key={item.id} value={item.id}>
               {item.label}
@@ -151,8 +152,8 @@ export function ConditionEditor({ datasetId, columns, others = columns, initial,
       )}
       {choice?.input === "range" && (
         <div className="grid grid-cols-2 gap-2">
-          <TextInput aria-label={t("filters.from")} placeholder={t("filters.from")} type={inputType} step="any" value={draft.low} onChange={(event) => update({ low: event.target.value })} />
-          <TextInput aria-label={t("filters.to")} placeholder={t("filters.to")} type={inputType} step="any" value={draft.high} onChange={(event) => update({ high: event.target.value })} />
+          <TextInput aria-label={t("filters.from")} placeholder={t("filters.from")} className="w-full min-w-0" type={inputType} step="any" value={draft.low} onChange={(event) => update({ low: event.target.value })} />
+          <TextInput aria-label={t("filters.to")} placeholder={t("filters.to")} className="w-full min-w-0" type={inputType} step="any" value={draft.high} onChange={(event) => update({ high: event.target.value })} />
         </div>
       )}
       {choice?.input === "values" && column && (
@@ -261,7 +262,7 @@ function RowsOptions({
     onChange({ extra: draft.extra.includes(name) ? draft.extra.filter((item) => item !== name) : [...draft.extra, name] });
   return (
     <div className="space-y-2.5 rounded-md border border-line p-2.5">
-      <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
         <span className="text-xs text-ink-3">{t("filters.basedOn")}</span>
         <SegmentedControl
           label={t("filters.basedOn")}
@@ -302,7 +303,7 @@ function RowsOptions({
         </div>
       )}
       {unique && (
-        <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
           <span className="text-xs text-ink-3">{t("filters.keep")}</span>
           <SegmentedControl
             label={t("filters.keep")}
@@ -314,7 +315,7 @@ function RowsOptions({
             onChange={(keep) => onChange({ keep })}
           />
           <span className="text-xs text-ink-3">{t("filters.orderedBy")}</span>
-          <Select aria-label={t("filters.orderedBy")} value={draft.orderBy} onChange={(event) => onChange({ orderBy: event.target.value })}>
+          <Select aria-label={t("filters.orderedBy")} className="w-full min-w-0" value={draft.orderBy} onChange={(event) => onChange({ orderBy: event.target.value })}>
             <option value="">{t("filters.fileOrder")}</option>
             {columns.map((c) => (
               <option key={c.name} value={c.name}>
