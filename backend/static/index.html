@@ -18,10 +18,12 @@
         if (density === "comfortable") document.documentElement.dataset.density = density;
         var motion = localStorage.getItem("de.motion");
         if (motion === "reduce" || motion === "full") document.documentElement.dataset.motion = motion;
+        var palette = localStorage.getItem("de.palette");
+        if (palette && /^[a-z0-9-]+$/.test(palette) && palette !== "quantilo") document.documentElement.dataset.palette = palette;
       } catch (e) {}
     </script>
-    <script type="module" crossorigin src="/assets/index-h8Cty0FS.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CL1BRnU8.css">
+    <script type="module" crossorigin src="/assets/index-BlqrcB-n.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BX-k9VH4.css">
   </head>
   <body>
     <div id="root"></div>
