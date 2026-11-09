@@ -57,16 +57,17 @@ export function DatasetList({ datasets }: { datasets: Dataset[] }) {
         </div>
       )}
       <div className="overflow-x-auto rounded-lg border border-line bg-surface-1">
-        {/* 041: a phone keeps name, shape and status (size and last opened are hidden). */}
-        <table className="w-full border-collapse text-[13px] max-sm:[&_tr>:nth-child(4)]:hidden max-sm:[&_tr>:nth-child(5)]:hidden">
+        {/* Under 768 px the name and the actions stay; shape, size, last opened and status go
+            on a line under the name. Short values never break letter by letter (`data-keep-line`). */}
+        <table className="w-full border-collapse text-[13px] max-md:[&_tr>:nth-child(n+3):nth-child(-n+6)]:hidden">
           <thead>
             <tr className="border-b border-line text-left text-xs text-ink-3">
               <th scope="col" className="w-0 py-2 pl-3"><span className="sr-only">{t("changes.selectToCompare")}</span></th>
               <th scope="col" className="w-full px-3 py-2 font-normal">{t("datasets.col.name")}</th>
-              <th scope="col" className="px-3 py-2 text-right font-normal">{t("datasets.col.shape")}</th>
-              <th scope="col" className="px-3 py-2 text-right font-normal">{t("datasets.col.size")}</th>
-              <th scope="col" className="px-3 py-2 font-normal">{t("datasets.col.opened")}</th>
-              <th scope="col" className="px-3 py-2 font-normal">{t("datasets.col.status")}</th>
+              <th scope="col" data-keep-line className="px-3 py-2 text-right font-normal whitespace-nowrap">{t("datasets.col.shape")}</th>
+              <th scope="col" data-keep-line className="px-3 py-2 text-right font-normal whitespace-nowrap">{t("datasets.col.size")}</th>
+              <th scope="col" data-keep-line className="px-3 py-2 font-normal whitespace-nowrap">{t("datasets.col.opened")}</th>
+              <th scope="col" data-keep-line className="px-3 py-2 font-normal whitespace-nowrap">{t("datasets.col.status")}</th>
               <th scope="col" className="w-0 px-2 py-2"><span className="sr-only">{t("datasets.actions")}</span></th>
             </tr>
           </thead>
@@ -182,22 +183,30 @@ function DatasetRow({
             <span className="block truncate font-mono text-[11px] text-ink-3" title={dataset.source_path}>
               {dataset.source_path}
             </span>
+            <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-ink-2 tabular-nums md:hidden">
+              <span>
+                {formatCount(dataset.row_count)} × {formatCount(dataset.col_count)}
+              </span>
+              <span className="text-ink-3">{formatBytes(dataset.size_bytes)}</span>
+              <span className="text-ink-3">{formatRelativeTime(dataset.last_opened_at ?? dataset.created_at)}</span>
+              <StatusBadge dataset={dataset} />
+            </span>
           </div>
         )}
       </td>
-      <td className="px-3 py-2 text-right whitespace-nowrap text-ink-2 tabular-nums">
+      <td data-keep-line className="px-3 py-2 text-right whitespace-nowrap text-ink-2 tabular-nums">
         {formatCount(dataset.row_count)} × {formatCount(dataset.col_count)}
       </td>
-      <td className="px-3 py-2 text-right whitespace-nowrap text-ink-2 tabular-nums">
+      <td data-keep-line className="px-3 py-2 text-right whitespace-nowrap text-ink-2 tabular-nums">
         {formatBytes(dataset.size_bytes)}
       </td>
-      <td className="px-3 py-2 whitespace-nowrap text-ink-2">
+      <td data-keep-line className="px-3 py-2 whitespace-nowrap text-ink-2">
         {formatRelativeTime(dataset.last_opened_at ?? dataset.created_at)}
       </td>
-      <td className="px-3 py-2 whitespace-nowrap">
+      <td data-keep-line className="px-3 py-2 whitespace-nowrap">
         <StatusBadge dataset={dataset} />
       </td>
-      <td className="px-2 py-2">
+      <td data-keep-line className="px-2 py-2">
         <div className="flex justify-end gap-0.5 opacity-60 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
           <Button
             variant="ghost"

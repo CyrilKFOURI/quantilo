@@ -132,10 +132,19 @@
     overflow: clip;
   }
 
-  main th,
-  main td {
+  /* `data-keep-line`: a short value (a count, a date, a status) stays on one line; the
+     table's wide column (a name, a path) gives way instead of the value breaking letter by letter. */
+  main th:not([data-keep-line]),
+  main td:not([data-keep-line]) {
     overflow-wrap: anywhere;
     white-space: normal !important;
+  }
+
+  /* A column set to the full width (the name on a laptop) would leave the others one letter
+     wide once cells can break anywhere: below 1024 px every column follows its content. A table
+     whose short columns keep their line (`data-keep-line`) lets its wide column fill the rest. */
+  main table:not(:has([data-keep-line])) :is(th, td).w-full {
+    width: auto !important;
   }
 
   /* Long words, paths and code wrap instead of widening the page. */

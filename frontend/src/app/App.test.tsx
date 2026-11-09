@@ -59,9 +59,10 @@ describe("App shell", () => {
     expect(
       await screen.findByRole("link", { name: "sales" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Source changed")).toBeInTheDocument();
-    expect(screen.getByText("Failed")).toHaveAttribute("title", "Bad file");
-    expect(screen.getAllByText("1,200 × 3")).toHaveLength(3);
+    // Each value twice: in its column (laptop) and on the line under the name (phone), one hidden by CSS.
+    expect(screen.getAllByText("Source changed")).toHaveLength(2);
+    for (const failed of screen.getAllByText("Failed")) expect(failed).toHaveAttribute("title", "Bad file");
+    expect(screen.getAllByText("1,200 × 3")).toHaveLength(6);
   });
 
   it("renders the settings page", async () => {

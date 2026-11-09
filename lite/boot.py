@@ -7,9 +7,17 @@ WebAssembly has no threads: background jobs and sync routes run inline.
 
 import concurrent.futures
 import json
+import os
 import sys
+from pathlib import Path
 
 sys.path[:0] = ["/lite/engine", "/lite/backend"]
+
+# The bundle is unpacked again on every visit, stamping the samples with that moment: a fixed
+# date keeps an imported sample "Ready" instead of "Source changed" on the next visit.
+SAMPLES_MTIME = 1_767_225_600  # 2026-01-01
+for _sample in Path("/lite/samples").glob("*"):
+    os.utime(_sample, (SAMPLES_MTIME, SAMPLES_MTIME))
 
 
 class InlineExecutor:
