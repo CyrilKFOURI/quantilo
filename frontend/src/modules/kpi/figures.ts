@@ -26,7 +26,7 @@ export type ChartInput = {
   custom: Format;
   labels: "auto" | "on" | "off";
   hideOther: boolean;
-  /** 045: a line over bars over time (the total per period when the bars are split). */
+  /** 045: a line over bars over time, one per category when the bars are split. */
   line?: boolean;
   /** 045: room between the periods' bars. */
   spacing?: "narrow" | "normal" | "wide";
@@ -184,6 +184,7 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
       input.labels === "on" || (input.labels === "auto" && !many && periods.length <= BAR_LABELS_MAX);
     const data: Data[] = traces.map((trace, i) => {
       const common = {
+        legendgroup: many ? trace.name : undefined,
         name: trace.name || undefined,
         x,
         y: scaled(input, trace.values),
@@ -200,6 +201,7 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
             // incomplete periods hatched (R-TIME-05)
             pattern: { shape: partial.map((p) => (p ? "/" : "")), fgcolor: tokens.surface, solidity: 0.4 },
           },
+          offsetgroup: chart === "grouped_bars" ? String(i) : undefined,
           text: barLabels ? common.customdata : undefined,
           textposition: chart === "stacked_bars" ? "inside" : "outside",
           cliponaxis: false,
@@ -226,9 +228,8 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
         textfont: { color: tokens.ink2, size: 11 },
       } as Data;
     });
-    // 045: a line over the bars, through each bar, or through the total of the period when split.
-    const overlay = input.line && BARS.has(chart) ? lineOver(input, tokens, traces, x) : null;
-    if (overlay) data.push(overlay);
+    // 045: a line over the bars, one per category through its own bars.
+    if (input.line && BARS.has(chart)) data.push(...linesOver(input, tokens, traces, x, chart === "grouped_bars"));
     const zero = chart !== "line"; // R-VIS-31: bars and areas start at 0, lines fit the data
     const spacing = input.spacing ?? "normal";
     return {
@@ -237,6 +238,9 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
         barmode: chart === "stacked_bars" ? "stack" : chart === "grouped_bars" ? "group" : undefined,
         bargap: chart === "grouped_bars" ? GROUP_SPACING[spacing] : SPACING[spacing],
         bargroupgap: chart === "grouped_bars" ? 0.06 : undefined,
+        // Lines over grouped bars sit on their own bar of the group, not between the groups.
+        scattermode: chart === "grouped_bars" ? "group" : undefined,
+        scattergap: chart === "grouped_bars" ? GROUP_SPACING[spacing] : undefined,
         hovermode: "x unified",
         xaxis: { type: "category", showgrid: false, automargin: true },
         yaxis: {
@@ -251,38 +255,32 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
   };
 }
 
-/** Whether a line can go over these bars: one series, or a total that means something (sums). */
-export function lineAllowed(mode: ShowAs, series: number): boolean {
-  return series <= 1 || mode === "value" || mode === "running";
-}
-
-function lineOver(
+/** One line per category, in its bars' colour, through its own bars (no second hover: the bars carry it). */
+function linesOver(
   input: ChartInput,
   tokens: ChartTokens,
-  traces: { name: string; values: (number | null)[] }[],
+  traces: { name: string; color: string; values: (number | null)[] }[],
   x: string[],
-): Data | null {
-  if (!lineAllowed(input.mode, traces.length)) return null;
-  const values =
-    traces.length <= 1
-      ? (traces[0]?.values ?? [])
-      : x.map((_, j) => {
-          const parts = traces.map((t) => t.values[j]).filter((v): v is number => v !== null && v !== undefined);
-          return parts.length ? parts.reduce((a, b) => a + b, 0) : null;
-        });
-  const name = traces.length <= 1 ? "" : "Total";
-  return {
-    type: "scatter",
-    mode: "lines+markers",
-    name: name || undefined,
-    x,
-    y: scaled(input, values),
-    customdata: text(input, values),
-    hovertemplate: name ? `${name}: %{customdata}<extra></extra>` : `%{customdata}<extra></extra>`,
-    line: { color: tokens.ink1, width: 2 },
-    marker: { size: 6, color: tokens.ink1, line: { color: tokens.surface, width: 1.5 } },
-    showlegend: Boolean(name),
-  } as Data;
+  grouped: boolean,
+): Data[] {
+  const single = traces.length <= 1;
+  return traces.map((trace, i) => {
+    const color = single ? tokens.ink1 : trace.color;
+    return {
+      type: "scatter",
+      mode: "lines+markers",
+      name: trace.name || undefined,
+      legendgroup: single ? undefined : trace.name,
+      showlegend: false,
+      offsetgroup: grouped ? String(i) : undefined,
+      x,
+      y: scaled(input, trace.values),
+      hoverinfo: "skip",
+      connectgaps: true,
+      line: { color, width: 2 },
+      marker: { size: 7, color, line: { color: tokens.surface, width: 1.5 } },
+    } as Data;
+  });
 }
 
 function heatmap(

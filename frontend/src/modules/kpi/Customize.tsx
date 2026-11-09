@@ -17,8 +17,7 @@ import {
   withView,
   type ShowAs,
 } from "./definition";
-import { lineAllowed } from "./figures";
-import { ADDITIVE_MODES, effectiveMode, TIME_MODES } from "./pivot";
+import { ADDITIVE_MODES, TIME_MODES } from "./pivot";
 
 const SHOW_AS: ShowAs[] = ["value", "share_total", "share_row", "share_column", "change", "change_pct", "change_yoy", "running"];
 const BARS = new Set(["bars", "stacked_bars", "grouped_bars"]);
@@ -114,8 +113,6 @@ export function Customize({
   const drawn = main ? chartFor(main, view.chart) : "none";
   const bars = Boolean(time) && BARS.has(drawn);
   const series = grouped ? (result.splits[result.splits.length === 2 ? 1 : 0]?.levels.length ?? 1) : 1;
-  const mode = main ? effectiveMode(view.show_as, main.additive, time) : view.show_as;
-  const canLine = lineAllowed(mode, series);
   const reasonFor = (m: ShowAs): string | null => {
     if (TIME_MODES.has(m) && !time) return t("kpi.reason.needsTime");
     if (ADDITIVE_MODES.has(m) && main && !main.additive) return t("kpi.reason.notAdditive", { measure: main.label });
@@ -202,15 +199,13 @@ export function Customize({
             {bars && (
               <Cell
                 label={t("kpi.line")}
-                why={canLine ? t("kpi.lineWhy") : t("kpi.lineNotAllowed")}
+                why={t("kpi.lineWhy")}
                 changed={view.line}
                 onReset={() => onView(withView(definition, { line: false }))}
               >
                 <Checkbox
-                  label={series > 1 ? t("kpi.lineTotal") : t("kpi.lineOn")}
-                  checked={view.line && canLine}
-                  disabled={!canLine}
-                  title={canLine ? undefined : t("kpi.lineNotAllowed")}
+                  label={series > 1 ? t("kpi.linePerCategory") : t("kpi.lineOn")}
+                  checked={view.line}
                   onChange={(e) => onView(withView(definition, { line: e.target.checked }))}
                   className="h-8 text-[13px]"
                 />

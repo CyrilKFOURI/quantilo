@@ -130,7 +130,7 @@ class View(Strict):
     chart: Chart | Literal["auto"] = "auto"
     share: bool = False
     labels: Switch = "auto"
-    # Display only (045): a line over bars over time (the total when they are split), and the
+    # Display only (045): a line over bars over time (one per category when they are split), and the
     # room between the periods' bars.
     line: bool = False
     spacing: Literal["narrow", "normal", "wide"] = "normal"

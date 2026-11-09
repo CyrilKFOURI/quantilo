@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ChartTokens } from "../../charts/theme";
-import { levelColor, lineAllowed } from "./figures";
+import { levelColor } from "./figures";
 
 const tokens = {
   ink2: "#555",
@@ -21,13 +21,5 @@ describe("KPI chart colours and lines (045)", () => {
     const colors = levels.map((l) => levelColor(levels, l, true, tokens));
     expect(new Set(colors).size).toBe(3);
     expect(colors.every((c) => c.startsWith("rgba(42, 120, 214"))).toBe(true);
-  });
-
-  it("allows a line over one series, and a total line only where a total means something", () => {
-    expect(lineAllowed("share_total", 1)).toBe(true);
-    expect(lineAllowed("value", 3)).toBe(true);
-    expect(lineAllowed("running", 3)).toBe(true);
-    expect(lineAllowed("share_total", 3)).toBe(false);
-    expect(lineAllowed("change_pct", 2)).toBe(false);
   });
 });
