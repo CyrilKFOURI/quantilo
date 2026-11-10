@@ -254,6 +254,10 @@ function NumericBody({ datasetId, column, profile }: { datasetId: string; column
               ))}
             </div>
             {robust && <RobustBlock robust={robust} />}
+            {/* 093, R-TAIL-8: a withheld Tail tab says why (a code, a coordinate, a few levels). */}
+            {numeric.tail_rule?.code && (
+              <p className="text-xs text-ink-3">{t("variable.tail.withheld", { reason: numeric.tail_rule.reason })}</p>
+            )}
           </div>
         )}
         {tab === "tail" && <TailPanel datasetId={datasetId} column={column.name} />}

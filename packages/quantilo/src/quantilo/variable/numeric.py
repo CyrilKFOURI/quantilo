@@ -4,6 +4,7 @@ import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
+import duckdb
 import numpy as np
 from scipy import stats
 
@@ -16,6 +17,18 @@ EXACT_QUANTILES = 200_000  # beyond, curve quantiles come from a t-digest (error
 MIN_TEST_VALUES = 8
 EXACT_DISTINCT = 200_000
 PERCENTILES = (0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99)
+DIRECT = {
+    "mean": "avg(x)",
+    "std": "stddev_samp(x)",
+    "skew": "skewness(x)",
+    "kurt": "kurtosis(x)",
+}
+SCALED = {
+    "mean": "avg(x / s) * any_value(s)",
+    "std": "stddev_samp(x / s) * any_value(s)",
+    "skew": "skewness(x / s)",
+    "kurt": "kurtosis(x / s)",
+}
 
 
 @dataclass
@@ -95,11 +108,20 @@ def describe(source: VariableSource) -> Describe:
     else:
         (distinct,) = source.one(f"SELECT count(DISTINCT t) FROM {values}")
     probabilities = ", ".join(str(p) for p in PERCENTILES)
-    row = source.one(
-        f"SELECT count(x), count(*) FILTER (WHERE x = 0), count(*) FILTER (WHERE x < 0), "
-        f"avg(x), stddev_samp(x), min(x), max(x), mad(x), skewness(x), kurtosis(x), sum(x), "
-        f"quantile_cont(x, [{probabilities}]) FROM {numbers}"
-    )
+
+    def query(moments: dict[str, str]) -> str:
+        return (
+            "SELECT count(x), count(*) FILTER (WHERE x = 0), count(*) FILTER (WHERE x < 0), "
+            f"{moments['mean']}, {moments['std']}, min(x), max(x), mad(x), {moments['skew']}, "
+            f"{moments['kurt']}, sum(x), quantile_cont(x, [{probabilities}]) FROM {numbers}"
+        )
+
+    try:
+        row = source.one(query(DIRECT))
+    except duckdb.OutOfRangeException:
+        # R-OV-01 (093): powers of values like 1e150 overflow; the moments do not depend on the
+        # scale, so they are computed on the values divided by the largest absolute one.
+        row = source.one(query(SCALED) + f", (SELECT nullif(max(abs(x)), 0) AS s FROM {numbers})")
     count, zeros, negatives, mean, std, low, high, mad, skew, kurt, total, quantiles = row
     q = [clean(v) for v in quantiles] if quantiles else [None] * len(PERCENTILES)
     mean, std = clean(mean), clean(std)

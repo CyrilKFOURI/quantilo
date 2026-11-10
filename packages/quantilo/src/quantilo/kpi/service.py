@@ -2,7 +2,7 @@
 
 import json
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import duckdb
@@ -13,7 +13,15 @@ from quantilo.filters.scope import scoped_source, where_for
 from quantilo.kpi.compute import KpiResult, compute
 from quantilo.kpi.definition import Definition
 from quantilo.kpi.probe import measure
-from quantilo.kpi.suggest import Hierarchy, hierarchies, probe_targets, split_candidates, suggest
+from quantilo.kpi.suggest import (
+    Hierarchy,
+    hierarchies,
+    notes,
+    probe_keys,
+    probe_targets,
+    split_candidates,
+    suggest,
+)
 
 CACHE_SIZE = 16
 
@@ -32,6 +40,8 @@ class Suggestions:
     kpis: list[SuggestedKpi]  # best first, 12 at most
     splits: list[str]  # the best columns to split by, best first
     hierarchies: list[Hierarchy]  # parent then child splits (048, R-SUG-18)
+    # 093: columns the rules read differently from their role (R-SUG-25 to 27), with the reason
+    notes: list[str] = field(default_factory=list)
 
 
 class KpiEngine:
@@ -62,11 +72,16 @@ class KpiEngine:
             return self._suggested[key]
         by_name = {v.name: v for v in views}
         labels, numbers = probe_targets(views)
+        keys = probe_keys(views)
         connection = duckdb.connect()
         try:
             source = scoped_source(dataset.storage_path, where_for(views, []), numbered=True)
             facts = measure(
-                connection, source, [by_name[n] for n in labels], [by_name[n] for n in numbers]
+                connection,
+                source,
+                [by_name[n] for n in labels],
+                [by_name[n] for n in numbers],
+                [by_name[n] for n in keys],
             )
         finally:
             connection.close()
@@ -75,6 +90,7 @@ class KpiEngine:
             [SuggestedKpi(s.rule, s.name, s.definition, s.score, s.reasons) for s in found],
             split_candidates(views, facts),
             hierarchies(views, facts),
+            notes(views),
         )
         self._suggested[key] = result
         if len(self._suggested) > CACHE_SIZE:

@@ -32,12 +32,14 @@ def measure(
     source: str,
     labels: Sequence[Typed],
     numbers: Sequence[Typed],
+    keys: Sequence[Typed] = (),
 ) -> Facts:
     """`source` keeps `file_row_number`. `labels` are read as categories (A → B shares),
-    `numbers` as numbers (Pearson r of each pair)."""
-    if len(labels) < 2 and len(numbers) < 2:
+    `numbers` as numbers (Pearson r of each pair); 093: each key → number share (R-SUG-29)."""
+    if len(labels) < 2 and len(numbers) < 2 and not (keys and numbers):
         return Facts()
     expressions = [f"{label_sql(c)} AS l{i}" for i, c in enumerate(labels)]
+    expressions += [f"{label_sql(c)} AS k{i}" for i, c in enumerate(keys)]
     for i, column in enumerate(numbers):
         value = number_sql(column)
         expressions.append(f"(CASE WHEN isfinite({value}) THEN {value} END) AS n{i}")
@@ -64,6 +66,29 @@ def measure(
                 continue
             facts.dependency[(a.name, b.name)] = float(a_fixes) / float(both)
             facts.dependency[(b.name, a.name)] = float(b_fixes) / float(both)
+        for i, key in enumerate(keys):
+            for j, number in enumerate(numbers):
+                both, fixes = connection.execute(
+                    f"WITH g AS (SELECT k{i} AS a, n{j} AS b, count(*) AS n FROM {TABLE} "
+                    f"WHERE k{i} IS NOT NULL AND n{j} IS NOT NULL GROUP BY ALL) "
+                    "SELECT (SELECT sum(n) FROM g), "
+                    "(SELECT sum(m) FROM (SELECT max(n) AS m FROM g GROUP BY a))"
+                ).fetchone() or (None, None)
+                if both and both >= MIN_ROWS and fixes is not None:
+                    facts.dependency[(key.name, number.name)] = float(fixes) / float(both)
+        if numbers:
+            parts = [
+                f"min(n{i}), max(n{i}), count(*) FILTER (WHERE n{i} <> trunc(n{i}))"
+                for i in range(len(numbers))
+            ]
+            row = connection.execute(f"SELECT {', '.join(parts)} FROM {TABLE}").fetchone() or ()
+            for i, column in enumerate(numbers):
+                low, high, fractional = row[3 * i : 3 * i + 3] if row else (None, None, 1)
+                facts.ranges[column.name] = (
+                    None if low is None else float(low),
+                    None if high is None else float(high),
+                    int(fractional or 0) == 0,
+                )
         pairs = list(combinations(range(len(numbers)), 2))
         if pairs:
             row = connection.execute(

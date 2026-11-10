@@ -43224,6 +43224,13 @@
           "total": {
             "type": "integer",
             "title": "Total"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
           }
         },
         "type": "object",
@@ -45106,6 +45113,13 @@
             },
             "type": "array",
             "title": "Hierarchies"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
           }
         },
         "type": "object",
@@ -45808,6 +45822,17 @@
               }
             ],
             "title": "Xi"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
           }
         },
         "type": "object",

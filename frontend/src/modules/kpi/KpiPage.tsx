@@ -24,6 +24,7 @@ import { KpiCharts } from "./KpiCharts";
 import type { TableOptions } from "./pivot";
 import { PivotTable } from "./PivotTable";
 import { HierarchyChip, SuggestionChips } from "./SuggestionChips";
+import { ReadingNotes } from "../../features/readings/ReadingNotes";
 import type { KpiSearch } from "./search";
 import { Tiles } from "./Tiles";
 import { Loading } from "../../ui/Loading";
@@ -228,6 +229,10 @@ export function KpiPage() {
                 setEdit(null);
               }}
             />
+          )}
+
+          {suggestions.data && (suggestions.data.notes ?? []).length > 0 && (
+            <ReadingNotes datasetId={datasetId} notes={suggestions.data.notes ?? []} label={t("kpi.notes")} />
           )}
 
           {columns.data && draft && (

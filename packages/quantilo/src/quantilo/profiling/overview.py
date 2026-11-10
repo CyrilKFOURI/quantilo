@@ -88,14 +88,30 @@ def skewness(
     numeric = [c for c in columns if c.type == "numeric_continuous"]
     if not numeric:
         return {}
-    expressions = ", ".join(
-        f"skewness(CAST({typed_sql(c.name, c.parser)} AS DOUBLE))" for c in numeric
-    )
-    row = connection.execute(f"SELECT {expressions} FROM {source}").fetchone() or ()
+    values = [f"CAST({typed_sql(c.name, c.parser)} AS DOUBLE)" for c in numeric]
+    try:
+        expressions = ", ".join(f"skewness({value})" for value in values)
+        row = connection.execute(f"SELECT {expressions} FROM {source}").fetchone() or ()
+    except duckdb.OutOfRangeException:
+        row = tuple(_scaled_skewness(connection, source, value) for value in values)
     return {
         column.name: (float(value) if value is not None and value == value else None)
         for column, value in zip(numeric, row, strict=True)
     }
+
+
+def _scaled_skewness(connection: duckdb.DuckDBPyConnection, source: str, value: str) -> Any:
+    """R-OV-01 (093): the cube of 1e150 overflows; skewness does not depend on the scale, so it is
+    computed on the finite values divided by the largest absolute one. None if even that fails."""
+    finite = f"(SELECT {value} AS x FROM {source} WHERE isfinite({value}))"
+    try:
+        row = connection.execute(
+            f"SELECT skewness(x / s) FROM {finite}, "
+            f"(SELECT nullif(max(abs(x)), 0) AS s FROM {finite})"
+        ).fetchone()
+    except duckdb.Error:
+        return None
+    return row[0] if row else None
 
 
 def alerts_for(

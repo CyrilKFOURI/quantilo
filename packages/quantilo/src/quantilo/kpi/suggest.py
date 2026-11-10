@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from quantilo import semantics
 from quantilo.kpi.definition import Definition, Group, Measure, Ratio, Time
 from quantilo.kpi.rules import measure_label, ratio_label
 from quantilo.typing.knowledge_base import load, name_tokens
@@ -123,6 +124,15 @@ WEIGHTS = {
     "R-SUG-07": 50,
 }
 SECOND_AMOUNT, COST = 84, 75
+WEIGHTS["R-SUG-28"] = 52  # 093: a measure without a role, averaged
+MEASURES = 2  # R-SUG-28: measures without a role suggested at most
+MIN_MEASURE_LEVELS = 20  # R-SUG-28: fewer distinct values look like levels or codes
+MEASURE_ROLES = frozenset(["amount", "cost", "quantity", "unit_price", "target", *LEVEL_ROLES])
+NOT_MEASURES = frozenset(["year", "month", "weekday", "hour", "latitude", "longitude", "angle"])
+PERCENT_WORDS: frozenset[str] = frozenset(
+    ["pct", "percent", "percentage", "pourcentage", "rate", "taux", "ratio"]
+)
+COUNT_WORDS: frozenset[str] = frozenset(["number", "nb", "nbr", "num", "count", "nombre"])
 
 
 class Column(Protocol):
@@ -140,6 +150,8 @@ class Facts:
     dependency: dict[tuple[str, str], float] = field(default_factory=dict)
     # frozenset({a, b}) → Pearson r of two numeric columns
     correlation: dict[frozenset[str], float] = field(default_factory=dict)
+    # 093: name → (min, max, whole numbers only) on the sample (S-02 codes and sequences)
+    ranges: dict[str, tuple[float | None, float | None, bool]] = field(default_factory=dict)
     rows: int = 0  # rows in the sample
 
     def fixes(self, a: str, b: str) -> float | None:
@@ -203,16 +215,54 @@ def _tokens(column: Column) -> set[str]:
     return set(name_tokens(column.name))
 
 
+def code_of(column: Column) -> semantics.Code | None:
+    """R-SUG-25 (093): an identifier or a code by its name (`patient_nbr`), whatever its role."""
+    if column.role in ("customer_key", "order_key"):
+        return None  # keys have their own rules (R-SUG-10 to 15)
+    return semantics.code_by_name(column.name, None, column.type)
+
+
 def repeated(column: Column) -> bool:
-    """An identifier whose values repeat (customer_id), unlike a row id (R-SUG-04)."""
+    """An identifier whose values repeat (customer_id), unlike a row id (R-SUG-04); 093: a number
+    given a measure role whose name says it names something (`patient_nbr`, R-SUG-25) too."""
     valid = _valid(column)
-    return column.type == "identifier" and valid > 0 and _distinct(column) < REPEATED * valid
+    code = code_of(column)
+    named = (
+        column.type in NUMBERS
+        and column.role in MEASURE_ROLES
+        and code is not None
+        and code.kind == "identifier"
+    )
+    return (
+        (column.type == "identifier" or named)
+        and valid > 0
+        and _distinct(column) < (REPEATED * valid)
+    )
+
+
+def is_ratio(column: Column) -> bool:
+    """R-SUG-26 (093): 'co2_per_capita', 'cost per unit': an intensity, averaged, never summed."""
+    return column.role != "unit_price" and semantics.is_ratio(column.name)
+
+
+def is_money(column: Column, columns: Sequence[Column] = ()) -> bool:
+    """R-SUG-27 (093): an amount whose name says money; 'Total Bsmt SF' is a total of a surface.
+    With a currency column, a 'total' is money (`CompTotal` beside `Currency`)."""
+    if column.role != "amount" or semantics.is_money(column.name):
+        return True
+    return any(c.role == "currency" and _distinct(c) >= 1 for c in columns)
+
+
+def is_count_flag(column: Column) -> bool:
+    """R-SUG-06 (093): 'number_of_cyclist_killed' is a count even when its values are 0 and 1."""
+    words = semantics.tokens(column.name)
+    return column.type == "boolean" and len(words) > 1 and words[0] in COUNT_WORDS
 
 
 def is_level(column: Column) -> bool:
     """A price, a salary, an average: averaged, never summed (P1, R-SUG-09)."""
     return column.role == "unit_price" or (
-        column.role == "amount" and bool(_tokens(column) & LEVEL_WORDS)
+        column.role == "amount" and bool(_tokens(column) & (LEVEL_WORDS | PERCENT_WORDS))
     )
 
 
@@ -339,7 +389,84 @@ def _keys(columns: Sequence[Column], role: str) -> list[Column]:
 
 
 def _numbers(columns: Sequence[Column], roles: tuple[str, ...]) -> list[Column]:
-    return [c for c in columns if c.type in NUMBERS and c.role in roles]
+    """Numbers of these roles that are measures: never a code (R-SUG-25), a coordinate, a ratio
+    summed (R-SUG-26) or a 'total' that is no money (R-SUG-27)."""
+    return [
+        c
+        for c in columns
+        if c.type in NUMBERS
+        and c.role in roles
+        and code_of(c) is None
+        and not semantics.is_coordinate(c.name, c.role)
+        and (c.role not in ("amount", "cost", "quantity", "target") or not is_ratio(c))
+        and is_money(c, columns)
+    ]
+
+
+def _by_values(column: Column, facts: Facts | None) -> semantics.Code | None:
+    """S-02 on the probe's sample: a fixed-length code (`bbl`) or a sequence number."""
+    found = facts.ranges.get(column.name) if facts else None
+    if found is None:
+        return None
+    low, high, integer = found
+    return semantics.code_by_values(low, high, integer) or semantics.sequence(
+        low, high, integer, _distinct(column)
+    )
+
+
+def _plain_measures(
+    columns: Sequence[Column], used: set[str], facts: Facts | None = None, size: int = MEASURES
+) -> list[Column]:
+    """R-SUG-28 (093): numbers without a measure role (or a 'total' that is no money), which are
+    neither codes, coordinates nor parts of a date: averaged."""
+    found = [
+        c
+        for c in columns
+        if c.type in NUMBERS
+        and c.name not in used
+        and (c.role is None or (c.role == "amount" and not is_money(c, columns)))
+        and c.role not in NOT_MEASURES
+        and not semantics.is_date_part(c.name)
+        and code_of(c) is None
+        and not semantics.is_coordinate(c.name, c.role)
+        and (c.summary is None or _distinct(c) >= MIN_MEASURE_LEVELS)
+        and _by_values(c, facts) is None
+    ]
+    found.sort(key=lambda c: c.type != "numeric_continuous")
+    return found[:size]
+
+
+def notes(columns: Sequence[Column]) -> list[str]:
+    """What the rules read differently from the column's role (093, owner rule: no silent
+    correction), shown under the suggestions with a link to the Columns page."""
+    said: list[str] = []
+    check = "Check that your data was read correctly on the Columns page."
+    for column in columns:
+        if column.type in NUMBERS and column.role in MEASURE_ROLES:
+            code = code_of(column)
+            if code is not None:
+                said.append(
+                    f"R-SUG-25 · {column.name} is never summed or averaged: {code.reason}, so it "
+                    f"names or codes things rather than measuring them. {check}"
+                )
+                continue
+            if column.role in ("amount", "cost", "quantity", "target") and is_ratio(column):
+                said.append(
+                    f"R-SUG-26 · {column.name} is a ratio (its name says 'per'): averaged, "
+                    f"never summed. {check}"
+                )
+                continue
+            if not is_money(column, columns):
+                said.append(
+                    f"R-SUG-27 · {column.name} says 'total' but no money word: read as a measure, "
+                    f"not an amount (no basket, no unit price, no split by currency). {check}"
+                )
+        if is_count_flag(column):
+            said.append(
+                f"R-SUG-25 · {column.name} is a count read as yes or no (only 0 and 1 here): no "
+                f"share of yes is suggested. {check}"
+            )
+    return said
 
 
 def probe_targets(columns: Sequence[Column]) -> tuple[list[str], list[str]]:
@@ -350,7 +477,26 @@ def probe_targets(columns: Sequence[Column]) -> tuple[list[str], list[str]]:
     for role in ("customer_key", "order_key"):
         labels += [c.name for c in _keys(columns, role)[:1]]
     numbers = [c.name for c in _numbers(columns, ("amount", "cost", "unit_price", "quantity"))]
+    numbers += [c.name for c in _plain_measures(columns, set(numbers), size=8)]
     return labels, numbers[:8]
+
+
+def repeated_keys(columns: Sequence[Column]) -> list[Column]:
+    """R-SUG-29 (093): identifiers that repeat (`id_mutation`): by type, or a category whose name
+    says an identifier."""
+    found = []
+    for column in columns:
+        code = code_of(column)
+        named = column.type in KEY_TYPES and code is not None and code.kind == "identifier"
+        valid = _valid(column)
+        if (repeated(column) or named) and valid and 2 <= _distinct(column) < REPEATED * valid:
+            found.append(column)
+    return found[:2]
+
+
+def probe_keys(columns: Sequence[Column]) -> list[str]:
+    """R-SUG-29 (093): repeated identifiers whose dependency on each measure is measured."""
+    return [c.name for c in repeated_keys([c for c in columns if readable(c)])]
 
 
 def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candidate]:
@@ -385,11 +531,13 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
         )
     quantities = _numbers(columns, ("quantity",))[:1]
     for column in [c for c in _numbers(columns, ("amount", "unit_price")) if is_level(c)][:1]:
-        what = (
-            "a unit price"
-            if column.role == "unit_price"
-            else f"a price or level (its name says {sorted(_tokens(column) & LEVEL_WORDS)[0]})"
-        )
+        percent = sorted(_tokens(column) & PERCENT_WORDS)
+        if column.role == "unit_price":
+            what = "a unit price"
+        elif percent:
+            what = f"a percentage (its name says {percent[0]})"  # KPI-7
+        else:
+            what = f"a price or level (its name says {sorted(_tokens(column) & LEVEL_WORDS)[0]})"
         reason = f"R-SUG-09 · {column.name} is {what}: averaged, as a sum of prices means nothing"
         measure, more = _averaged(column, quantities)
         found.append(
@@ -569,7 +717,9 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
             )
     found += _shares(columns, orders)
     found += _delays(columns)
-    booleans = [c for c in columns if c.type == "boolean" and c.name not in used]
+    booleans = [
+        c for c in columns if c.type == "boolean" and c.name not in used and not is_count_flag(c)
+    ]
     outcomes = load().outcome_names
     booleans.sort(key=lambda c: not (_tokens(c) & outcomes))  # 053: "Churn" before "Partner"
     if booleans:
@@ -590,9 +740,22 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
                 WEIGHTS["R-SUG-06"],
             )
         )
-    levels = [c for c in _numbers(columns, LEVEL_ROLES) if c.name not in used][:1]
+    ratios = [
+        c
+        for c in columns
+        if c.type in NUMBERS
+        and c.role in (None, "amount", "cost", "quantity", "target")
+        and is_ratio(c)
+        and code_of(c) is None
+    ]
+    levels = [c for c in [*_numbers(columns, LEVEL_ROLES), *ratios] if c.name not in used][:1]
     for column in levels:
-        reason = f"R-SUG-07 · {column.name} is a {column.role}: averaged"
+        what = "a ratio (its name says 'per')" if is_ratio(column) else _article(column.role)
+        reason = (
+            f"R-SUG-07 · {column.name}: averaged, as for any {column.role}"
+            if _tokens(column) == {column.role}
+            else f"R-SUG-07 · {column.name} is {what}: averaged"
+        )
         measure, more = _averaged(column, quantities if column.role in WEIGHTED_ROLES else [])
         found.append(
             _Candidate(
@@ -602,6 +765,60 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
                 reason,
                 [column],
                 WEIGHTS["R-SUG-07"],
+                single=column,
+                more=more,
+            )
+        )
+    used.update(c.name for c in levels)
+    found += _plain(columns, used, facts)
+    return found
+
+
+def _article(word: str | None) -> str:
+    """'an age', 'a duration' (KPI-6)."""
+    text = (word or "level").replace("_", " ")
+    return f"{'an' if text[:1] in 'aeiou' else 'a'} {text}"
+
+
+def _plain(columns: Sequence[Column], used: set[str], facts: Facts | None) -> list[_Candidate]:
+    """R-SUG-28 and R-SUG-29 (093): measures without a role, averaged; the median when a repeated
+    identifier fixes the value (the same value on every row of one key)."""
+    found: list[_Candidate] = []
+    keys = repeated_keys(columns)
+    for column in _plain_measures(columns, used, facts):
+        reason = (
+            f"R-SUG-28 · {column.name} is a measure without a role (no amount, quantity or "
+            "price): averaged, as its sum rarely means anything"
+        )
+        agg = "mean"
+        more: list[str] = []
+        key = next(
+            (
+                k
+                for k in keys
+                if facts is not None and (facts.fixes(k.name, column.name) or 0.0) >= DEPENDS
+            ),
+            None,
+        )
+        if key is not None and facts is not None:
+            agg = "median"
+            reason = (
+                f"R-SUG-28 · {column.name} is a measure without a role (no amount, quantity or "
+                "price): its median, as its sum rarely means anything"
+            )
+            share = facts.fixes(key.name, column.name) or 0.0
+            more.append(
+                f"R-SUG-29 · {column.name} repeats on every row of one {key.name} ({share:.0%} of "
+                "rows): a sum would count it several times, the median reads each value as it is"
+            )
+        found.append(
+            _Candidate(
+                "R-SUG-28",
+                "",
+                [Measure(id="m1", agg=agg, column=column.name)],
+                reason,
+                [column],
+                WEIGHTS["R-SUG-28"],
                 single=column,
                 more=more,
             )

@@ -5,6 +5,8 @@ the previous rules left (C-06): invisible characters, then spaces, encoding, HTM
 tokens, then case. Number, date and row rules are one SQL query each.
 """
 
+import contextlib
+import math
 import re
 from collections import defaultdict
 from collections.abc import Callable
@@ -14,6 +16,7 @@ from typing import Any
 
 import duckdb
 
+from quantilo import semantics
 from quantilo.catalog import ColumnView
 from quantilo.cleaning import model as m
 from quantilo.cleaning import text as tx
@@ -42,6 +45,31 @@ DATE_COVERAGE = 0.95  # B-11: share of values the chosen formats must read
 SURE_TOKENS = {"", "n/a", "#n/a", "#na", "na", "nan", "null", "nil", "#value!", "#ref!"}
 SURE_TOKENS |= {"#div/0!", "#null!", "#num!", "#name?", "(blank)", "not available", "missing"}
 WEAK_TOKENS = {"none", "unknown", "-", "--", "?", "tbd", "n.a.", "undefined", "not applicable"}
+# 093 (CLN-8): words for "not given" that can also be a real answer.
+WEAK_TOKENS |= {"unspecified", "not specified", "not stated", "inconnu", "non renseigne"}
+WEAK_TOKENS |= {"non renseigné"}
+REAL_NA = {"na", "n/a"}  # 093 (CLN-4): the most frequent of few levels may mean "none"
+REAL_NA_LEVELS = 12
+NUMBER_SHARE = 0.8  # 093 (CLN-8): a column at least this numeric, with a few short words
+SUPPRESSED_LENGTH = 3
+NUMBER_TEXT = re.compile(r"^\s*-?\d+(?:[.,]\d+)?\s*$")
+PEAK_CANDIDATES = 5  # 093 (CLN-1): most frequent values checked for a round isolated peak
+LEADING_ZERO_SHARE = 0.01  # 093 (CLN-6): values like '00928' keep a code as text
+# 093 (CLN-5): columns of people's names, whose spellings may be two people.
+PERSON_WORDS = {"nom", "prenom", "surname", "firstname", "lastname", "forename", "givenname"}
+PERSON_PAIRS = {"first", "last", "given", "family", "middle", "maiden"}
+# 093 (CLN-9): "Less than 1 year", "More than 50 years": read as their bound.
+BOUND_BELOW = re.compile(
+    r"^\s*(?:less than|under|below|fewer than|<)\s*(\d+(?:[.,]\d+)?)\s*[a-z ]*$", re.I
+)
+BOUND_ABOVE = re.compile(
+    r"^\s*(?:more than|over|above|greater than|>)\s*(\d+(?:[.,]\d+)?)\s*[a-z ]*$", re.I
+)
+BOUND_AFTER = re.compile(
+    r"^\s*(\d+(?:[.,]\d+)?)\s*[a-z ]*?(?:or more|or older|and over|and above|or less|"
+    r"or fewer|and under|\+)\s*$",
+    re.I,
+)
 SENTINELS = (-1, -9, -99, -999, -9999, -99999, 99, 999, 9999, 99999, 999999, 9999999)
 SENTINEL_DATES = {"1900-01-01": "A", "0001-01-01": "A", "9999-12-31": "A", "1970-01-01": "S"}
 CATEGORY_TYPES = ("categorical_nominal", "categorical_ordinal", "boolean")
@@ -397,6 +425,21 @@ def b04_tokens(context: Context) -> None:
                 sure[value] = count
             elif token in WEAK_TOKENS:
                 weak[value] = count
+        notes: list[str] = []
+        real = _real_na(stages, sure)
+        if real is not None:
+            weak[real] = sure.pop(real)
+            notes.append(
+                f" {q(real)} is the most frequent value of only {len(stages.final) - 1} others: "
+                "it may mean 'none' (nothing of the kind, as 'no pool'), a real category (CLN-4)."
+            )
+        suppressed = _suppressed(stages, {**sure, **weak})
+        if suppressed:
+            weak.update(suppressed)
+            notes.append(
+                " They sit in a column of numbers: likely suppressed or hidden values, which "
+                "become empty so the numbers can be read."
+            )
         levels: list[tuple[Mode, dict[str, int]]] = [("A", sure), ("S", weak)]
         for mode, found in levels:
             if not found:
@@ -410,7 +453,7 @@ def b04_tokens(context: Context) -> None:
                 else f"{n(cells)} values are words for 'missing' ({shown}): read as empty."
             )
             if mode == "S":
-                reason += " Check they are not a real category."
+                reason += "".join(notes) + " Check they are not a real category."
             context.add(
                 "B-04",
                 mode,
@@ -430,6 +473,31 @@ def b04_tokens(context: Context) -> None:
             context.stages[column.name].final = [(v, c) for v, c in stages.final if v not in found]
 
 
+def _real_na(stages: TextStages, sure: dict[str, int]) -> str | None:
+    """CLN-4: 'NA' as the most frequent value of a column with few levels often means 'none'
+    (no alley, no pool): suggested, not automatic."""
+    values = [(v, c) for v, c in stages.final if v.strip()]
+    if not values or len(values) - 1 > REAL_NA_LEVELS:
+        return None
+    top = values[0][0]
+    return top if top in sure and top.strip().lower() in REAL_NA else None
+
+
+def _suppressed(stages: TextStages, tokens: dict[str, int]) -> dict[str, int]:
+    """CLN-8: in a column of numbers, one to three short words ('s', 'x', '*') stand for a value
+    that is hidden or suppressed."""
+    values = [(v, c) for v, c in stages.final if v.strip() and v not in tokens]
+    total = sum(c for _, c in values)
+    words = {v: c for v, c in values if not NUMBER_TEXT.match(v)}
+    if not total or not 1 <= len(words) <= 3:
+        return {}
+    if (total - sum(words.values())) < NUMBER_SHARE * total:
+        return {}
+    if any(len(v.strip()) > SUPPRESSED_LENGTH or DIGIT.search(v) for v in words):
+        return {}
+    return words
+
+
 def _is_code(stages: TextStages) -> bool:
     """Values that are mostly codes ('85123A'): their case can carry meaning (A-04, M4)."""
     values = [v for v, _ in stages.final[:2_000]]
@@ -442,6 +510,24 @@ def _is_category(column: Column) -> bool:
     if column.view.type in CATEGORY_TYPES:
         return True
     return column.view.type == "text" and column.distinct <= 0.2 * max(column.nonnull, 1)
+
+
+def _accent_first(spellings: list[tuple[str, int]]) -> list[tuple[str, int]]:
+    """CLN-5: the accented spelling is kept unless the plain one has twice its rows: folding
+    accents loses information ('MÜLLER' → 'MULLER'), restoring them cannot."""
+    accented = [item for item in spellings if not item[0].isascii()]
+    if not accented or not spellings[0][0].isascii():
+        return spellings
+    best = accented[0]
+    if spellings[0][1] >= 2 * best[1]:
+        return spellings
+    return [best, *[item for item in spellings if item is not best]]
+
+
+def _person_names(column: Column) -> bool:
+    """CLN-5: 'nom', 'prénom', 'last_name', 'owner first name': names of people."""
+    words = set(semantics.tokens(column.name))
+    return bool(words & PERSON_WORDS) or ("name" in words and bool(words & PERSON_PAIRS))
 
 
 def b03_case(context: Context) -> None:
@@ -458,6 +544,7 @@ def b03_case(context: Context) -> None:
         for spellings in groups.values():
             if len(spellings) < 2:
                 continue
+            spellings = _accent_first(spellings)
             target = spellings[0][0]  # most frequent (stages.final is sorted by rows)
             merged.append(spellings)
             for value, count in spellings[1:]:
@@ -473,13 +560,22 @@ def b03_case(context: Context) -> None:
             if len(merged) == 1
             else f"Merge spellings in {column.name} ({len(merged)} groups)"
         )
+        person = _person_names(column)
+        accented = not biggest[0][0].isascii() and any(v.isascii() for v, _ in biggest)
+        kept = "the accented spelling, kept (CLN-5)" if accented else "most frequent"
         context.add(
             "B-03",
-            "A",
+            "S" if person else "A",
             column,
             title,
-            f"{others} → {q(biggest[0][0])} (most frequent): same value up to case or accents. "
-            f"{n(cells)} cells in {len(merged)} groups.",
+            f"{others} → {q(biggest[0][0])} ({kept}): same value up to case or accents. "
+            f"{n(cells)} cells in {len(merged)} groups."
+            + (
+                " Names of people: two spellings may be two people, so the merge is suggested, "
+                "not applied (CLN-5)."
+                if person
+                else ""
+            ),
             m.MapValues(id=_id(), column=column.name, map=_capped(mapping, weights)),
             cells=cells,
             examples=[(b, a) for b, a in sorted(mapping.items(), key=lambda i: -weights[i[0]])],
@@ -605,6 +701,9 @@ def b07_numbers(context: Context) -> None:
             continue
         if view.type not in ("numeric_continuous", "numeric_discrete"):
             continue
+        code = semantics.code_by_name(column.name)
+        if _leading_zeros(context, column) or (code is not None and code.kind == "identifier"):
+            continue  # CLN-6: a code ('00928', 'PID') is not a number (B-13 says so)
         cleaned = clean_text(column.name)
         number = number_sql(cleaned, view.parser.decimal)
         shown = (
@@ -636,6 +735,27 @@ def b07_numbers(context: Context) -> None:
         integer = fractional == 0 and view.type == "numeric_discrete"
         how = "decimal comma" if view.parser.decimal == "," else "decimal point"
         reason = f"{n(read)} values are numbers stored as text ({how})."
+        bounds = _bounds(context, column, cleaned, number) if unreadable else {}
+        if bounds:
+            shown = ", ".join(f"{q(k)} → {v}" for k, v in list(bounds.items())[:3])
+            context.add(
+                "B-07",
+                "S",
+                column,
+                f"Read the bounds in {column.name} as numbers",
+                f"Values written in words are read as their bound: {shown}. 'Less than 1' "
+                "becomes 0.5; the bound keeps the order and an approximate value (CLN-9).",
+                m.MapValues(id=_id(), column=column.name, map=dict(bounds)),
+                cells=int(
+                    context.one(
+                        f"SELECT count(*) FROM {context.source} WHERE {ident(column.name)} IN "
+                        f"({', '.join(lit(v) for v in bounds)})"
+                    )[0]
+                ),
+                examples=list(bounds.items()),
+                key="bounds",
+            )
+            reason += " Apply the bounds suggestion first to keep the values written in words."
         if tokens:
             reason += f" {n(tokens)} blank or 'missing' values become empty."
         if unreadable:
@@ -658,6 +778,71 @@ def b07_numbers(context: Context) -> None:
             ),
             cells=rewritten + tokens + unreadable,
             examples=[*((str(b), f"{a:g}") for b, a in good), *((v, None) for v in bad)],
+        )
+
+
+def _bound(text: str) -> str | None:
+    """CLN-9: 'Less than 1 year' → '0.5', 'More than 50 years' → '50', '65 or more' → '65'."""
+    for pattern in (BOUND_BELOW, BOUND_ABOVE, BOUND_AFTER):
+        match = pattern.match(text)
+        if match:
+            value = float(match.group(1).replace(",", "."))
+            if pattern is BOUND_BELOW and value == 1:
+                value = 0.5
+            return f"{value:g}"
+    return None
+
+
+def _bounds(context: Context, column: Column, cleaned: str, number: str) -> dict[str, str]:
+    """The unreadable values, when every one of them is a bound written in words."""
+    raw = [
+        str(v)
+        for (v,) in context.connection.execute(
+            f"SELECT DISTINCT {ident(column.name)} FROM {context.source} WHERE {cleaned} IS NOT "
+            f"NULL AND {number} IS NULL LIMIT 21"
+        ).fetchall()
+    ]
+    if not raw or len(raw) > 20:
+        return {}
+    found = {value: _bound(value) for value in raw}
+    if any(v is None for v in found.values()):
+        return {}
+    return {k: v for k, v in sorted(found.items()) if v is not None}
+
+
+def _leading_zeros(context: Context, column: Column) -> int:
+    """CLN-6: rows of a text column of digits that start with a zero ('00928')."""
+    stages = context.stages.get(column.name)
+    if stages is None or not is_text(column.dtype) or semantics.is_date_part(column.name):
+        return 0  # '01' for January is a month number, not a code
+    values = [(v.strip(), c) for v, c in stages.final if v.strip()]
+    if not values or not all(v.isdigit() for v, _ in values):
+        return 0
+    zeros = sum(c for v, c in values if len(v) > 1 and v.startswith("0"))
+    return zeros if zeros >= LEADING_ZERO_SHARE * sum(c for _, c in values) else 0
+
+
+def b13_keep_text(context: Context) -> None:
+    """CLN-6: digits with leading zeros are a code: kept as text, never read as numbers."""
+    done = {s.columns[0] for s in context.found if s.rule == "B-13" and s.columns}
+    for column in context.columns:
+        if column.name in done or not column.view or column.view.parser.kind != "number":
+            continue
+        zeros = _leading_zeros(context, column)
+        if not zeros:
+            continue
+        sample = next(v for v, _ in context.stages[column.name].final if v.startswith("0"))
+        context.add(
+            "B-13",
+            "S",
+            column,
+            f"Keep {column.name} as text",
+            f"{n(zeros)} values start with a leading zero ({q(sample)}): a code, which stored as "
+            f"a number would lose it ({q(sample)} → {q(sample.lstrip('0') or '0')}). Kept as "
+            "text (CLN-6).",
+            m.ChangeType(id=_id(), column=column.name, to="text"),
+            cells=zeros,
+            examples=[(sample, sample)],
         )
 
 
@@ -841,27 +1026,68 @@ def _numbers(context: Context) -> list[Column]:
     ]
 
 
+def _round(value: float) -> bool:
+    """CLN-1: -200, -100000, 99999: a negative number with one significant digit, or nines only
+    (at least 2 digits). A positive round maximum (100 %, 100 points) is a cap, not a code."""
+    if value != int(value) or value == 0:
+        return False
+    digits = str(abs(int(value)))
+    if len(digits) < 2:
+        return False
+    return set(digits) == {"9"} or (value < 0 and len(digits.rstrip("0")) == 1)
+
+
+def _number(value: float) -> str:
+    return str(int(value)) if value == int(value) else repr(float(value))
+
+
+def _peaks(context: Context, columns: list[Column]) -> dict[str, list[float]]:
+    """CLN-1: the round values among each column's most frequent ones (one query) and its two
+    extremes."""
+    if not columns:
+        return {}
+    parts = ", ".join(f"approx_top_k({ident(c.name)}, {PEAK_CANDIDATES})" for c in columns)
+    row = context.one(f"SELECT {parts} FROM {context.source}")
+    found: dict[str, list[float]] = {}
+    for column, tops in zip(columns, row, strict=True):
+        values = [float(v) for v in tops or [] if v is not None and math.isfinite(float(v))]
+        for end in (column.low, column.high):  # a code for "missing" is the extreme itself
+            if end is not None:
+                with contextlib.suppress(ValueError):
+                    values.append(float(end))
+        kept = {v for v in values if math.isfinite(v) and _round(v) and v not in SENTINELS}
+        found[column.name] = sorted(kept)
+    return found
+
+
 def b09_sentinels(context: Context) -> dict[str, list[float]]:
     """-999, 9999…: frequent, and either far from the other values (beyond 3 IQR) or a peak
-    (repeated ten times more than a typical value) beyond the whiskers (FAHES)."""
+    (repeated ten times more than a typical value) beyond the whiskers (FAHES). 093 (CLN-1, CLN-2):
+    any round value among the five most frequent ones (-200, -100000) is a candidate too when it is
+    the column's extreme and far from the rest; (0, 0) positions are read as missing (CLN-3)."""
     found: dict[str, list[float]] = {}
-    for column in _numbers(context):
+    columns = _numbers(context)
+    peaks = _peaks(context, columns)
+    for column in columns:
         name = ident(column.name)
-        candidates = ", ".join(str(v) for v in SENTINELS)
+        extra = peaks.get(column.name, [])
+        values = [*(float(v) for v in SENTINELS), *extra]
+        candidates = ", ".join(_number(v) for v in values)
         others = f"{name} NOT IN ({candidates})"
         row = context.one(
             f"SELECT approx_quantile({name}, 0.25) FILTER (WHERE {others}), "
             f"approx_quantile({name}, 0.75) FILTER (WHERE {others}), "
-            + ", ".join(f"count(*) FILTER (WHERE {name} = {v})" for v in SENTINELS)
+            f"min({name}) FILTER (WHERE {others}), max({name}) FILTER (WHERE {others}), "
+            + ", ".join(f"count(*) FILTER (WHERE {name} = {_number(v)})" for v in values)
             + f" FROM {context.source}"
         )
-        q1, q3 = row[0], row[1]
+        q1, q3, low, high = row[0], row[1], row[2], row[3]
         if q1 is None or q3 is None:
             continue
         iqr = float(q3) - float(q1)
         repeat = column.nonnull / max(column.distinct, 1)  # rows per distinct value
         role = column.role
-        for value, count in zip(SENTINELS, row[2:], strict=True):
+        for index, (value, count) in enumerate(zip(values, row[4:], strict=True)):
             share = int(count) / column.nonnull
             if share < SENTINEL_SHARE:
                 continue
@@ -869,16 +1095,29 @@ def b09_sentinels(context: Context) -> dict[str, list[float]]:
             peak = int(count) >= max(5, 10 * repeat) and not (
                 float(q1) - 1.5 * iqr <= value <= float(q3) + 1.5 * iqr
             )
-            if not (far or peak):
+            listed = index < len(SENTINELS)
+            if listed and not (far or peak):
                 continue
+            alone = value < float(low) or value > float(high)
+            # the only negatives of a column of positives (refunds are negatives of an amount)
+            flows = role is not None and role.id in ("amount", "quantity", "cost")
+            below = value < 0 <= float(low) and not flows
+            if not listed and not (alone and (far or below)):
+                continue  # CLN-1: a round value counts only as the isolated extreme
             outside_role = role is not None and not role.accepts_range(value, value)
-            text = str(value)
+            text = _number(value)
             found.setdefault(column.name, []).append(float(value))
             why = (
                 "far from the other values"
                 if far
                 else f"{int(count) / repeat:,.0f} times as frequent as a typical value"
             )
+            if not listed:
+                why = (
+                    "a round number beyond every other value"
+                    + (", the only negatives of the column" if below else " and far from them")
+                    + ": the shape of a code for 'no measure' (CLN-1)"
+                )
             context.add(
                 "B-09",
                 "A" if outside_role else "S",
@@ -891,7 +1130,46 @@ def b09_sentinels(context: Context) -> dict[str, list[float]]:
                 examples=[(text, None)],
                 key=text,
             )
+    _zero_positions(context, columns, found)
     return found
+
+
+def _zero_positions(context: Context, columns: list[Column], found: dict[str, list[float]]) -> None:
+    """CLN-3: latitude = longitude = 0 is a geocoder's default ("null island"), not a place,
+    when 0 is far from the other positions."""
+    latitude = next((c for c in columns if c.role is not None and c.role.id == "latitude"), None)
+    longitude = next((c for c in columns if c.role is not None and c.role.id == "longitude"), None)
+    if latitude is None or longitude is None:
+        return
+    lat, lon = ident(latitude.name), ident(longitude.name)
+    zero = f"{lat} = 0 AND {lon} = 0"
+    count, q1, q3 = context.one(
+        f"SELECT count(*) FILTER (WHERE {zero}), "
+        f"approx_quantile({lat}, 0.25) FILTER (WHERE NOT ({zero})), "
+        f"approx_quantile({lat}, 0.75) FILTER (WHERE NOT ({zero})) FROM {context.source}"
+    )
+    if not count or q1 is None or q3 is None:
+        return
+    iqr = float(q3) - float(q1)
+    if float(q1) - 3 * iqr <= 0 <= float(q3) + 3 * iqr:
+        return  # positions around the equator and Greenwich: 0 can be real
+    share = int(count) / max(latitude.nonnull, 1)
+    for column in (latitude, longitude):
+        found.setdefault(column.name, []).append(0.0)
+        context.add(
+            "B-09",
+            "S",
+            column,
+            f"Read 0 as missing in {column.name}",
+            f"{n(int(count))} rows ({share:.1%}) sit at (0, 0), the default point of geocoders "
+            f"in the ocean, far from the other positions (middle half of {latitude.name} "
+            f"{float(q1):,.4g} to {float(q3):,.4g}): latitude and longitude 0 read as missing "
+            "(CLN-3).",
+            m.NullValues(id=_id(), column=column.name, values=["0"], match="exact"),
+            cells=int(count),
+            examples=[("0", None)],
+            key="0,0",
+        )
 
 
 def b10_ranges(context: Context, sentinels: dict[str, list[float]]) -> None:
@@ -932,18 +1210,28 @@ def b10_ranges(context: Context, sentinels: dict[str, list[float]]) -> None:
                 continue
         if role is None or role.id not in ("amount", "quantity"):
             continue
+        if semantics.is_ratio(column.name):
+            continue  # CLN-7: an intensity (per unit) can be negative by nature
         negatives = int(
             context.one(f"SELECT count(*) FROM {context.source} WHERE {name} < 0{kept}")[0]
         )
         if negatives and negatives / column.nonnull < NEGATIVE_SHARE:
+            share = f"{negatives / column.nonnull:.1%}"
+            sales = role.id == "quantity" or semantics.is_money(column.name)
             what = "quantities" if role.id == "quantity" else "amounts"
+            reason = (
+                f"Refunds or cancellations? {n(negatives)} negative {what} ({share}). Remove them "
+                "only if they are errors."
+                if sales
+                else f"{n(negatives)} negative values ({share}): errors, or real values (net "
+                "emissions, losses, balances)? Remove them only if they are errors (CLN-7)."
+            )
             context.add(
                 "B-10",
                 "S",
                 column,
                 f"Remove the rows with a negative {column.name}",
-                f"Refunds or cancellations? {n(negatives)} negative {what} "
-                f"({negatives / column.nonnull:.1%}). Remove them only if they are errors.",
+                reason,
                 m.FilterRows(
                     id=_id(),
                     conditions=[m.RowCondition(column=column.name, op="lt", value="0")],
@@ -1092,6 +1380,7 @@ def run(context: Context) -> list[CleanSuggestion]:
     b03_case(context)
     b12_decimal_zero(context)
     b13_leading_zeros(context)
+    b13_keep_text(context)
     b07_numbers(context)
     b11_dates(context)
     b18_booleans(context)

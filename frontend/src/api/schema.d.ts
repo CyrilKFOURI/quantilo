@@ -12026,6 +12026,8 @@ export interface components {
             rows: number;
             /** Total */
             total: number;
+            /** Reasons */
+            reasons?: string[];
         };
         /**
          * SeriesSmoothing
@@ -12603,6 +12605,8 @@ export interface components {
             splits: string[];
             /** Hierarchies */
             hierarchies: components["schemas"]["Hierarchy"][];
+            /** Notes */
+            notes?: string[];
         };
         /** Synthesis */
         Synthesis: {
@@ -12813,6 +12817,8 @@ export interface components {
             kurtosis?: number | null;
             /** Xi */
             xi?: number | null;
+            /** Code */
+            code?: string | null;
         };
         /**
          * TargetDistribution

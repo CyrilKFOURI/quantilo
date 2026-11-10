@@ -2,7 +2,7 @@
 
 from collections import OrderedDict
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 import duckdb
@@ -21,7 +21,7 @@ from quantilo.filters.scope import scoped_source, where_for
 from quantilo.ingestion.sql import lit
 from quantilo.timeseries import autocorrelation as ac
 from quantilo.timeseries import breaks as br
-from quantilo.timeseries import builder, methods
+from quantilo.timeseries import builder, choice, methods
 from quantilo.timeseries import drivers as dv
 from quantilo.timeseries import forecast as fc
 from quantilo.timeseries import groups as gr
@@ -102,6 +102,8 @@ class SeriesSetup:
     periods: int
     rows: int  # rows with a date and a value
     total: int  # rows after the filters
+    # 093: why this date, value and aggregate (R-TS-01 to R-TS-06), shown under the chart
+    reasons: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -334,11 +336,13 @@ class TimeSeriesService:
     def __init__(self, columns: Catalog) -> None:
         self.columns = columns
         self._cache: OrderedDict[tuple[Any, ...], _Prepared] = OrderedDict()
+        self._stats: OrderedDict[tuple[Any, ...], dict[str, choice.Stats]] = OrderedDict()
         self.forecasts = ForecastJobs()
         self.group_forecasts = gr.GroupJobs()
 
     def clear(self) -> None:
         self._cache.clear()
+        self._stats.clear()
         self.forecasts.clear()
         self.group_forecasts.clear()
 
@@ -355,12 +359,19 @@ class TimeSeriesService:
             raise TimeSeriesError("This dataset has no date column.", "needs_date")
         if not numbers:
             raise TimeSeriesError("This dataset has no numeric column.", "needs_number")
-        summed = next((n for n in numbers if by_name[n].role in SUM_ROLES), numbers[0])
-        time = _choose(request.time, dates, dates[0])
-        value = _choose(request.value, numbers, summed)
+        found = self._numbers_stats(dataset_id, dataset, [by_name[n] for n in [*numbers, *dates]])
+        chosen_by = choice.choose(
+            [by_name[n] for n in dates],
+            [by_name[n] for n in numbers],
+            request.time,
+            request.value,
+            found,
+        )
+        time, value = chosen_by.time, chosen_by.value
         group = _choose(request.group, categories, None)
-        assert time is not None and value is not None
         options = request.options
+        if options.aggregate == "auto":
+            options = replace(options, aggregate=chosen_by.aggregate)
         key = (
             dataset_id,
             dataset.imported_at,
@@ -414,6 +425,7 @@ class TimeSeriesService:
                 if found:
                     labels.append(request.series)
             built = builder.aggregate(connection, relation, by_name[value].role, options, labels)
+            built.aggregate_auto = request.options.aggregate == "auto"
         finally:
             connection.close()
 
@@ -469,6 +481,11 @@ class TimeSeriesService:
             len(built.periods),
             int(rows),
             total,
+            [
+                *chosen_by.reasons[:1],
+                *([chosen_by.aggregate_reason] if request.options.aggregate == "auto" else []),
+                *chosen_by.reasons[1:],
+            ],
         )
         summed = built.aggregate in ("sum", "count")
         start = 1 if built.first_partial and summed else 0
@@ -486,6 +503,23 @@ class TimeSeriesService:
         if len(self._cache) > CACHE_SIZE:
             self._cache.popitem(last=False)
         return prepared
+
+    def _numbers_stats(
+        self, dataset_id: str, dataset: Any, views: list[Any]
+    ) -> dict[str, choice.Stats]:
+        """Min, max and whole-number flag of each numeric column, whole-minute flag of each date
+        column, on every row (R-TS-04, R-TS-06)."""
+        key = (dataset_id, dataset.imported_at, tuple((v.name, v.type) for v in views))
+        if key not in self._stats:
+            connection = duckdb.connect()
+            try:
+                source = scoped_source(dataset.storage_path, where_for(views, []))
+                self._stats[key] = choice.stats(connection, source, views)
+            finally:
+                connection.close()
+            if len(self._stats) > CACHE_SIZE:
+                self._stats.popitem(last=False)
+        return self._stats[key]
 
     # --- Sections ------------------------------------------------------------------------------
 

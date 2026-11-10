@@ -14,6 +14,8 @@ from typing import Any
 import numpy as np
 from scipy import optimize, stats
 
+from quantilo import semantics
+from quantilo.typing.knowledge_base import load
 from quantilo.variable.numeric import Describe
 from quantilo.variable.source import VariableSource, clean
 
@@ -41,6 +43,7 @@ XI_BOUNDS = (-0.95, 3.0)
 UNBOUNDED = 4_096  # profile search stops at this many times the return level's excess
 ZERO_XI = 1e-6
 CURVE_POINTS = 60
+MIN_LEVELS = 30  # R-TAIL-8: whole numbers with fewer distinct values are levels or codes
 
 
 @dataclass
@@ -51,6 +54,7 @@ class TailRule:
     reason: str
     kurtosis: float | None = None
     xi: float | None = None  # GPD shape on the profile's sample, when the kurtosis is not enough
+    code: str | None = None  # "R-TAIL-8" when the column is a code or a coordinate (093)
 
 
 @dataclass
@@ -337,10 +341,44 @@ def _blocked(n: int, negatives: int, u: float, above: int) -> str | None:
     return None
 
 
+def withheld(source: VariableSource, summary: Describe, ordered: np.ndarray) -> str | None:
+    """R-TAIL-8 (093): the extremes of a code, an identifier or a coordinate are not a tail."""
+    column = source.column
+    role = load().match_role(column.name)
+    code = semantics.code_by_name(column.name, role.id if role else None, column.type)
+    if code is not None:
+        return (
+            f"{column.name} is an identifier or a code ({code.reason}): its extremes are not a "
+            "tail."
+        )
+    if semantics.is_coordinate(column.name, role.id if role else None):
+        return f"{column.name} is a coordinate: its extremes are places, not a tail."
+    whole = len(ordered) > 0 and bool(np.all(ordered == np.floor(ordered)))
+    code = semantics.code_by_values(summary.min, summary.max, whole) or semantics.sequence(
+        summary.min, summary.max, whole, summary.distinct
+    )
+    if code is not None:
+        return f"{column.name} looks like a code ({code.reason}): its extremes are not a tail."
+    if whole and summary.distinct < MIN_LEVELS:
+        return (
+            f"Only {summary.distinct} distinct values, all whole numbers: levels or codes, "
+            "not a continuous tail."
+        )
+    return None
+
+
 def tail_rule(source: VariableSource, summary: Describe) -> TailRule:
     """R-TAIL-1, on the profile's sample: cheap enough to decide whether the tab is shown."""
     kurtosis = summary.kurtosis
     ordered = np.sort(source.sample(RULE_SAMPLE))
+    reason = withheld(source, summary, ordered)
+    if reason is not None:
+        return TailRule(
+            False,
+            f"R-TAIL-8 · {reason} Check its type on the Columns page.",
+            kurtosis,
+            code="R-TAIL-8",
+        )
     u, above = _threshold_at(ordered, LEVEL) if len(ordered) else (0.0, 0)
     blocked = _blocked(summary.count, summary.negatives, u, above)
     if blocked:

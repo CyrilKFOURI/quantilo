@@ -61,6 +61,7 @@ import {
   type TimeSeriesSearch,
 } from "./search";
 import { Loading } from "../../ui/Loading";
+import { ReadingNotes } from "../../features/readings/ReadingNotes";
 
 const HORIZON: Record<string, number> = {
   hour: 24,
@@ -281,6 +282,11 @@ export function TimeSeriesPage() {
       ) : (
         <>
           <ConfigBar data={overview.data} search={search} onChange={set} />
+          {(overview.data.setup.reasons ?? []).length > 0 && (
+            <div className="px-(--gutter) pt-3">
+              <ReadingNotes datasetId={datasetId} notes={overview.data.setup.reasons ?? []} label={t("ts.reasons")} />
+            </div>
+          )}
           <div className="grid gap-6 px-(--gutter) py-5 lg:grid-cols-[170px_minmax(0,1fr)]">
             <nav aria-label={t("ts.contents")} className="hidden lg:block">
               <ul className="sticky top-20 space-y-1 text-[13px]">
