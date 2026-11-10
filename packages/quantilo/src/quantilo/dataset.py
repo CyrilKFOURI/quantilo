@@ -31,7 +31,14 @@ from quantilo.catalog import (
 from quantilo.changes.compare import Changes, compare_snapshots
 from quantilo.changes.kpis import KpiChange, compare_kpi, compute_value
 from quantilo.changes.relations import RelationChange, relation_changes
-from quantilo.changes.rows import RowChanges, RowKeyError, key_candidates, row_changes
+from quantilo.changes.rows import (
+    ROW_KEY,
+    RowAlignment,
+    RowChanges,
+    RowKeyError,
+    key_candidates,
+    row_changes,
+)
 from quantilo.changes.snapshot import Snapshot, take_snapshot
 from quantilo.charts.prepare import Chart, ChartParams
 from quantilo.compare.analyze import Comparison
@@ -806,16 +813,27 @@ class Dataset:
             focus=focus or [],
         )
 
-    def row_changes(self, other: Dataset, key: str | None = None) -> RowChanges:
+    def row_changes(
+        self, other: Dataset, key: str | None = None, alignment: RowAlignment | None = None
+    ) -> RowChanges:
         """Rows added, removed and modified since `other`, joined on `key` (by default the first
-        column that identifies a row in both)."""
-        chosen = key or next(iter(key_candidates(other.snapshot(), self.snapshot())), None)
+        column that identifies a row in both), or paired by a cleaning's row map (`alignment`,
+        e.g. `RowAlignment(None, cleaning.rowmap)` for a cleaned version against its original)."""
+        chosen = key or ROW_KEY
+        if alignment is None and key is None:
+            chosen = next(iter(key_candidates(other.snapshot(), self.snapshot())), None)
         if chosen is None:
             raise RowKeyError("No column identifies a row in both versions: give a key.")
         connection = duckdb.connect()
         try:
             return row_changes(
-                connection, str(other.path), other.types, str(self.path), self.types, chosen
+                connection,
+                str(other.path),
+                other.types,
+                str(self.path),
+                self.types,
+                chosen,
+                alignment,
             )
         finally:
             connection.close()

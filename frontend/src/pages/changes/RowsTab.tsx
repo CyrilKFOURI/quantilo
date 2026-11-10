@@ -11,6 +11,7 @@ import { Loading } from "../../ui/Loading";
 
 const head = "px-3 py-1.5 font-normal";
 const cell = "px-3 py-1.5";
+const ROWMAP = "__rowmap"; // the key list's entry for the cleaning's row map (095)
 
 /** Shown when a tab needs both versions' rows and the previous one was not kept. */
 export function NotKept({ reason }: { reason: string }) {
@@ -40,13 +41,25 @@ export function RowsTab({ dataset, vs }: { dataset: Dataset; vs: string | null }
   if (!rows.data) return <Loading label={t("loading.changedRows")} className="h-40 rounded-lg" />;
   const answer = rows.data;
   const result = answer.result;
-  if (!answer.available || !result) return <NotKept reason={answer.reason ?? ""} />;
+  if (!answer.available || !result) {
+    return (
+      <div className="flex flex-col gap-3">
+        {answer.alignment_note && <p className="max-w-prose text-[13px] text-ink-2">{answer.alignment_note}</p>}
+        <NotKept reason={answer.reason ?? ""} />
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-[13px] text-ink-2">
+        <label className="flex min-w-0 items-center gap-2 text-[13px] text-ink-2">
           {t("changes.rows.key")}
-          <Select value={result.key} onChange={(event) => setKey(event.target.value)}>
+          <Select
+            value={result.aligned ? ROWMAP : result.key}
+            onChange={(event) => setKey(event.target.value === ROWMAP ? null : event.target.value)}
+            className="min-w-0"
+          >
+            {answer.rowmap && <option value={ROWMAP}>{t("changes.rows.rowmapOption")}</option>}
             {answer.candidates.map((name) => (
               <option key={name} value={name}>
                 {name}
@@ -55,7 +68,7 @@ export function RowsTab({ dataset, vs }: { dataset: Dataset; vs: string | null }
           </Select>
         </label>
         <a
-          href={changeRowsUrl(dataset.id, vs, result.key)}
+          href={changeRowsUrl(dataset.id, vs, result.aligned ? null : result.key)}
           download
           className="inline-flex h-(--control-h) items-center gap-1.5 rounded-md border border-line bg-surface-1 px-3 text-[13px] text-ink-1 hover:bg-surface-2"
         >
@@ -63,6 +76,7 @@ export function RowsTab({ dataset, vs }: { dataset: Dataset; vs: string | null }
           {t("changes.rows.export")}
         </a>
       </div>
+      <Pairing aligned={result.aligned} rowmap={answer.rowmap} note={answer.alignment_note} />
 
       <dl className="grid max-w-2xl grid-cols-2 gap-4 sm:grid-cols-4">
         <Count label={t("changes.rows.added")} value={result.added} />
@@ -142,4 +156,11 @@ export function RowsTab({ dataset, vs }: { dataset: Dataset; vs: string | null }
       )}
     </div>
   );
+}
+
+/** R-095-06: how the rows were paired, said where the counts are read. */
+function Pairing({ aligned, rowmap, note }: { aligned: boolean; rowmap: boolean; note: string | null }) {
+  const text = aligned ? t("changes.rows.byRowmap") : rowmap ? t("changes.rows.rowmapAvailable") : note;
+  if (!text) return null;
+  return <p className="-mt-2 max-w-prose text-xs text-ink-2">{text}</p>;
 }

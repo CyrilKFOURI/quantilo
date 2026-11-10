@@ -24,7 +24,13 @@ from quantilo.changes.metrics import (
     psi_on_deciles,
     wasserstein,
 )
-from quantilo.changes.rows import RowKeyError, write_differences
+from quantilo.changes.rows import (
+    RowAlignment,
+    RowKeyError,
+    row_changes,
+    rowmap_matches,
+    write_differences,
+)
 from quantilo.changes.snapshot import (
     LEVELS,
     KpiPoint,
@@ -326,6 +332,92 @@ def test_rows_need_a_unique_key(tmp_path: Path) -> None:
         after.row_changes(before, key="k")
     with pytest.raises(RowKeyError, match="No column identifies"):
         after.row_changes(before)
+
+
+# --- Rows paired by a cleaning's row map (095) -------------------------------------------------
+
+
+def repeated(rows: int = 12) -> pd.DataFrame:
+    """No column identifies a row (cities repeat, a row is there twice): only the row map can
+    pair the rows of the original with those of its cleaned version."""
+    city = ["Paris", "lyon", "LYON", "Nice"] * (rows // 4)
+    data = pd.DataFrame({"city": city, "amount": [float(i) for i in range(rows)]})
+    return pd.concat([data, data.iloc[[0]]], ignore_index=True)  # row 13 = row 1
+
+
+def cleaned(parent: dx.Dataset, tmp_path: Path, name: str, steps: list[dict]) -> tuple:
+    cleaning = parent.clean(steps=steps)
+    child = cleaning.apply(name=name, cache_dir=tmp_path / name)
+    assert cleaning.rowmap is not None
+    return child, str(cleaning.rowmap)
+
+
+LOWER = {"id": "s1", "op": "change_case", "columns": ["city"], "case": "lower"}
+DEDUPE = {"id": "s2", "op": "drop_duplicates"}
+
+
+def test_rows_paired_by_the_rowmap_exactly(tmp_path: Path) -> None:
+    parent = open_frame(repeated(), tmp_path, "original")
+    child, rowmap = cleaned(parent, tmp_path, "v1", [LOWER, DEDUPE])
+    assert rowmap_matches(duckdb.connect(), str(child.path), rowmap)
+    found = child.row_changes(parent, alignment=RowAlignment(None, rowmap))
+    assert found.aligned and found.key == "row"
+    # Paris, LYON and Nice lowered on 9 of the 12 rows kept; row 13 (= row 1) removed.
+    assert (found.rows_before, found.rows_after) == (13, 12)
+    assert (found.modified, found.removed, found.added, found.unchanged) == (9, 1, 0, 3)
+    assert found.removed_keys == ["13"]
+    assert [(c.column, c.modified) for c in found.columns] == [("city", 9)]
+    first = found.examples[0]
+    assert (first.key, first.before, first.after) == ("1", "Paris", "paris")
+    assert [e.key for e in found.examples] == sorted((e.key for e in found.examples), key=int)
+
+    # From the original's side: the same rows, read backwards.
+    back = parent.row_changes(child, alignment=RowAlignment(rowmap, None))
+    assert (back.modified, back.added, back.removed) == (9, 1, 0)
+
+
+def test_two_cleanings_of_one_original_pair_through_both_rowmaps(tmp_path: Path) -> None:
+    parent = open_frame(repeated(), tmp_path, "original")
+    first, first_map = cleaned(parent, tmp_path, "v1", [LOWER])
+    second, second_map = cleaned(parent, tmp_path, "v2", [LOWER, DEDUPE])
+    found = row_changes(
+        duckdb.connect(),
+        str(first.path),
+        first.types,
+        str(second.path),
+        second.types,
+        "ignored",
+        RowAlignment(first_map, second_map),
+    )
+    assert (found.modified, found.added, found.removed, found.unchanged) == (0, 0, 1, 12)
+    assert found.removed_keys == ["13"]
+
+
+def test_a_rowmap_of_other_rows_does_not_match(tmp_path: Path) -> None:
+    parent = open_frame(repeated(), tmp_path, "original")
+    _child, rowmap = cleaned(parent, tmp_path, "v1", [LOWER, DEDUPE])
+    other = open_frame(repeated(24), tmp_path, "bigger")
+    assert not rowmap_matches(duckdb.connect(), str(other.path), rowmap)
+
+
+def test_differences_csv_by_row_number(tmp_path: Path) -> None:
+    parent = open_frame(repeated(), tmp_path, "original")
+    child, rowmap = cleaned(parent, tmp_path, "v1", [LOWER, DEDUPE])
+    target = write_differences(
+        duckdb.connect(),
+        str(parent.path),
+        parent.types,
+        str(child.path),
+        child.types,
+        "ignored",
+        tmp_path / "diff.csv",
+        RowAlignment(None, rowmap),
+    )
+    written = pd.read_csv(target)
+    assert list(written.columns) == ["change", "row", "column", "before", "after"]
+    modified = written[written["change"] == "modified"]["row"].tolist()
+    assert modified == [1, 3, 4, 5, 7, 8, 9, 11, 12]  # in number order: 11 after 9
+    assert written[written["change"] == "removed"]["row"].tolist() == [13]
 
 
 # --- KPIs and relations -------------------------------------------------------------------------

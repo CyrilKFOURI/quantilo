@@ -4035,6 +4035,25 @@
               "title": "Focus"
             },
             "description": "Comma-separated columns to list first."
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`.",
+              "title": "Version"
+            },
+            "description": "An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`."
           }
         ],
         "responses": {
@@ -4067,7 +4086,7 @@
           "changes"
         ],
         "summary": "Rows",
-        "description": "Rows added, removed and modified, joined on `key` (default: the first identifier).",
+        "description": "Rows added, removed and modified, joined on `key` (default: the cleaning's row map between\nan original and its cleaned versions, otherwise the first identifier).",
         "operationId": "rows_api_v1_datasets__dataset_id__changes_rows_get",
         "parameters": [
           {
@@ -4113,6 +4132,25 @@
               ],
               "title": "Key"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`.",
+              "title": "Version"
+            },
+            "description": "An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`."
           }
         ],
         "responses": {
@@ -4159,10 +4197,17 @@
           {
             "name": "key",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": "string",
-              "minLength": 1,
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Key"
             }
           },
@@ -4183,6 +4228,25 @@
               "title": "Vs"
             },
             "description": "Another dataset to compare with (default: the previous version)."
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`.",
+              "title": "Version"
+            },
+            "description": "An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`."
           }
         ],
         "responses": {
@@ -4236,6 +4300,25 @@
               "title": "Vs"
             },
             "description": "Another dataset to compare with (default: the previous version)."
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`.",
+              "title": "Version"
+            },
+            "description": "An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`."
           }
         ],
         "responses": {
@@ -4300,6 +4383,25 @@
               "title": "Vs"
             },
             "description": "Another dataset to compare with (default: the previous version)."
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`.",
+              "title": "Version"
+            },
+            "description": "An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`."
           }
         ],
         "responses": {
@@ -39582,6 +39684,11 @@
             },
             "type": "array",
             "title": "Compared"
+          },
+          "aligned": {
+            "type": "boolean",
+            "title": "Aligned",
+            "default": false
           }
         },
         "type": "object",
@@ -39896,6 +40003,37 @@
                 "type": "null"
               }
             ]
+          },
+          "alignment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "rowmap",
+                  "key"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alignment"
+          },
+          "rowmap": {
+            "type": "boolean",
+            "title": "Rowmap",
+            "default": false
+          },
+          "alignment_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alignment Note"
           }
         },
         "type": "object",

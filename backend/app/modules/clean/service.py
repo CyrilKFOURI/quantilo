@@ -46,6 +46,7 @@ from app.services.columns import repository as columns_repo
 from app.services.columns.service import ColumnService
 from app.services.datasets import repository as datasets_repo
 from app.services.datasets.repository import DatasetRecord
+from app.services.versions.service import RowLink
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +156,11 @@ def _now() -> str:
 
 def _stamp(record: DatasetRecord) -> str:
     return f"{record.imported_at}|{record.size_bytes}|{record.types_version}"
+
+
+def _rows_state(stamp: str) -> str:
+    """The part of a stamp that changes with the rows (a reimport), not with a type correction."""
+    return "|".join(stamp.split("|")[:2])
 
 
 def _safe_name(name: str) -> str:
@@ -551,6 +557,31 @@ class CleanService:
             )
             for row in rows
         ]
+
+    def row_link(self, dataset_id: str) -> RowLink | None:
+        """For Changes (095): a cleaned version's original and row map, to pair their rows. The
+        row map holds while the original's rows are those it was made from (a type correction
+        keeps them; a reimport does not)."""
+        with self._db() as connection:
+            row = connection.execute(
+                "SELECT parent_id, seq, parent_stamp FROM clean_versions WHERE dataset_id = ?",
+                (dataset_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            parent = self.datasets.get(row["parent_id"])
+        except AppError:
+            return None
+        made_from = _rows_state(row["parent_stamp"])
+        path = self.rowmap(dataset_id)
+        return RowLink(
+            parent_id=row["parent_id"],
+            name=f"Cleaned v{row['seq']}",
+            rowmap=str(path) if path else None,
+            made_from=made_from,
+            stale=_rows_state(_stamp(parent)) != made_from,
+        )
 
     def rowmap(self, dataset_id: str) -> Path | None:
         path = self._folder(dataset_id) / "rowmap.parquet"

@@ -859,7 +859,8 @@ export interface paths {
         };
         /**
          * Rows
-         * @description Rows added, removed and modified, joined on `key` (default: the first identifier).
+         * @description Rows added, removed and modified, joined on `key` (default: the cleaning's row map between
+         *     an original and its cleaned versions, otherwise the first identifier).
          */
         get: operations["rows_api_v1_datasets__dataset_id__changes_rows_get"];
         put?: never;
@@ -10828,6 +10829,11 @@ export interface components {
             removed_keys?: string[];
             /** Compared */
             compared?: string[];
+            /**
+             * Aligned
+             * @default false
+             */
+            aligned: boolean;
         };
         /**
          * RowCondition
@@ -10921,6 +10927,15 @@ export interface components {
             /** Candidates */
             candidates: string[];
             result?: components["schemas"]["RowChanges"] | null;
+            /** Alignment */
+            alignment?: ("rowmap" | "key") | null;
+            /**
+             * Rowmap
+             * @default false
+             */
+            rowmap: boolean;
+            /** Alignment Note */
+            alignment_note?: string | null;
         };
         /** RowsColumn */
         RowsColumn: {
@@ -16222,6 +16237,8 @@ export interface operations {
                 vs?: string | null;
                 /** @description Comma-separated columns to list first. */
                 focus?: string | null;
+                /** @description An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`. */
+                version?: number | null;
             };
             header?: never;
             path: {
@@ -16257,6 +16274,8 @@ export interface operations {
                 /** @description Another dataset to compare with (default: the previous version). */
                 vs?: string | null;
                 key?: string | null;
+                /** @description An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`. */
+                version?: number | null;
             };
             header?: never;
             path: {
@@ -16288,10 +16307,12 @@ export interface operations {
     };
     export_rows_api_v1_datasets__dataset_id__changes_rows_export_get: {
         parameters: {
-            query: {
-                key: string;
+            query?: {
+                key?: string | null;
                 /** @description Another dataset to compare with (default: the previous version). */
                 vs?: string | null;
+                /** @description An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`. */
+                version?: number | null;
             };
             header?: never;
             path: {
@@ -16324,6 +16345,8 @@ export interface operations {
             query?: {
                 /** @description Another dataset to compare with (default: the previous version). */
                 vs?: string | null;
+                /** @description An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`. */
+                version?: number | null;
             };
             header?: never;
             path: {
@@ -16358,6 +16381,8 @@ export interface operations {
             query?: {
                 /** @description Another dataset to compare with (default: the previous version). */
                 vs?: string | null;
+                /** @description An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`. */
+                version?: number | null;
             };
             header?: never;
             path: {

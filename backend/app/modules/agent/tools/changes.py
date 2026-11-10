@@ -87,8 +87,9 @@ def changes_content(c: Changes) -> dict[str, Any]:
 class WhatChanged(Tool[ChangesInput]):
     name: ClassVar[str] = "what_changed"
     description: ClassVar[str] = (
-        "What changed in this dataset since its previous version (after a reimport), or "
-        "against another dataset (e.g. last month's file): columns added, removed, probably "
+        "What changed in this dataset since its previous version (after a reimport; for a "
+        "cleaned version, against its original), or against another dataset (e.g. last "
+        "month's file, or another cleaned version): columns added, removed, probably "
         "renamed or retyped, missing values, dates, distributions ranked by PSI (< 0.1 stable, "
         "0.1-0.25 moderate, > 0.25 strong), new categories, and a level: No notable change, "
         "Check, Breaking. Use it before trusting numbers on a new file."
@@ -119,7 +120,7 @@ class WhatChanged(Tool[ChangesInput]):
         versions = self.services.versions
         if versions is None:
             raise ToolError("Version comparison is not available in this app.")
-        other = self._other(ctx, args.versus)
+        other = self._other(ctx, args.versus) or versions.original_of(ctx.dataset_id)
         try:
             found = versions.changes(ctx.dataset_id, other)
         except AppError as error:

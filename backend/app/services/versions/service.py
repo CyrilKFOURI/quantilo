@@ -7,6 +7,10 @@ version); at a reimport it keeps the previous Parquet copy too, unless the user 
 
 Entry points for the features that compare automatically (030 recipes, 037 predictions):
 `changes(dataset_id)` (with its previous version) and `changes(dataset_id, vs=other_id)`.
+
+095: `version=n` compares with an earlier import than the previous one (from its photo), and the
+rows of an original and its cleaned versions (065) are paired by the cleaning's row map when it
+still applies. The link comes from `lineages`, filled by the Clean module (never imported here).
 """
 
 import logging
@@ -19,7 +23,7 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import duckdb
 from quantilo.catalog import ColumnView, to_view
@@ -27,9 +31,11 @@ from quantilo.changes.compare import Changes, compare_snapshots
 from quantilo.changes.kpis import KpiChange, KpiValue, compare_kpi, compute_value
 from quantilo.changes.relations import RelationChange, relation_changes
 from quantilo.changes.rows import (
+    RowAlignment,
     RowChanges,
     key_candidates,
     row_changes,
+    rowmap_matches,
     write_differences,
 )
 from quantilo.changes.snapshot import Snapshot, take_snapshot, views_of
@@ -54,6 +60,20 @@ CACHE_SIZE = 32
 
 Usage = Callable[[str], dict[str, list[str]]]  # dataset → column → what uses it
 SavedKpis = Callable[[str], list[tuple[str, Definition]]]  # dataset → (name, definition)
+
+
+@dataclass
+class RowLink:
+    """A cleaned version's link to its original (065), to pair their rows (095)."""
+
+    parent_id: str
+    name: str  # "Cleaned v1"
+    rowmap: str | None  # its rowmap.parquet (child row → original row), when it is there
+    made_from: str  # the state of the original's rows it was made from
+    stale: bool  # the original's rows were replaced since (a reimport)
+
+
+Lineage = Callable[[str], RowLink | None]  # dataset → its link, when it is a cleaned version
 
 
 @dataclass
@@ -82,6 +102,10 @@ class RowsAnswer:
     reason: str | None
     candidates: list[str]
     result: RowChanges | None = None
+    # How the rows were paired: by the cleaning's row map (exact) or on a key column (095).
+    alignment: Literal["rowmap", "key"] | None = None
+    rowmap: bool = False  # the cleaning's row map can pair these two versions
+    alignment_note: str | None = None  # why two related versions are matched on a key
 
 
 @dataclass
@@ -121,6 +145,8 @@ class VersionService:
         # (a used column that disappears is Breaking) and the KPIs to compare.
         self.usages: list[Usage] = []
         self.saved_kpis: list[SavedKpis] = []
+        # Filled by the Clean module (065): a cleaned version's link to its original (095).
+        self.lineages: list[Lineage] = []
         self._cache: OrderedDict[tuple[Any, ...], Changes] = OrderedDict()
 
     @contextmanager
@@ -251,7 +277,9 @@ class VersionService:
             for v in reversed(found)
         ]
 
-    def _sides(self, dataset_id: str, vs: str | None) -> tuple[VersionSide, VersionSide]:
+    def _sides(
+        self, dataset_id: str, vs: str | None, version: int | None = None
+    ) -> tuple[VersionSide, VersionSide]:
         record = self.datasets.get(dataset_id)
         current = self._current(dataset_id)
         after = VersionSide(
@@ -276,6 +304,15 @@ class VersionService:
                 status_code=404,
             )
         last = older[-1]
+        if version is not None:
+            chosen = next((v for v in older if v.version == version), None)
+            if chosen is None:
+                raise AppError(
+                    f"This dataset has no earlier import number {version}.",
+                    code="no_such_version",
+                    status_code=404,
+                )
+            last = chosen
         kept = (
             last.parquet_path if last.parquet_path and Path(last.parquet_path).is_file() else None
         )
@@ -290,9 +327,16 @@ class VersionService:
                 used.setdefault(column, []).extend(users)
         return used
 
-    def changes(self, dataset_id: str, vs: str | None = None, focus: Sequence[str] = ()) -> Changes:
-        """What changed in `dataset_id` since its previous version, or since dataset `vs`."""
-        before, after = self._sides(dataset_id, vs)
+    def changes(
+        self,
+        dataset_id: str,
+        vs: str | None = None,
+        focus: Sequence[str] = (),
+        version: int | None = None,
+    ) -> Changes:
+        """What changed in `dataset_id` since its previous version (or import `version`), or
+        since dataset `vs`."""
+        before, after = self._sides(dataset_id, vs, version)
         used = self._used(dataset_id)
         key = (
             dataset_id,
@@ -320,17 +364,81 @@ class VersionService:
             self._cache.popitem(last=False)
         return result
 
-    def rows(self, dataset_id: str, vs: str | None = None, key: str | None = None) -> RowsAnswer:
-        before, after = self._sides(dataset_id, vs)
+    def _link(self, dataset_id: str) -> RowLink | None:
+        for provider in self.lineages:
+            found = provider(dataset_id)
+            if found is not None:
+                return found
+        return None
+
+    def original_of(self, dataset_id: str) -> str | None:
+        """The original of a cleaned version (065), what it compares with by default (095)."""
+        link = self._link(dataset_id)
+        return link.parent_id if link else None
+
+    def _alignment(
+        self, dataset_id: str, vs: str | None, before: VersionSide, after: VersionSide
+    ) -> tuple[RowAlignment | None, str | None]:
+        """The cleaning's row map pairing `vs` (before) and `dataset_id` (after), or why it
+        can't (None, None: the two datasets are not an original and its versions)."""
+        if vs is None or vs == dataset_id or before.storage_path is None:
+            return None, None
+        old, new = self._link(vs), self._link(dataset_id)
+        if new is not None and new.parent_id == vs:
+            sides, maps = [(new, after)], (None, new.rowmap)
+        elif old is not None and old.parent_id == dataset_id:
+            sides, maps = [(old, before)], (old.rowmap, None)
+        elif old is not None and new is not None and old.parent_id == new.parent_id:
+            sides, maps = [(old, before), (new, after)], (old.rowmap, new.rowmap)
+            if old.made_from != new.made_from:
+                return None, (
+                    f"{old.name} and {new.name} were made from different imports of the "
+                    "original: their row maps don't pair their rows, so rows are matched on a key."
+                )
+        else:
+            return None, None
+        for link, side in sides:
+            if len(sides) == 1 and link.stale:
+                return None, (
+                    f"The original was reimported since {link.name} was made: its row map no "
+                    "longer pairs the right rows, so rows are matched on a key."
+                )
+            if link.rowmap is None or not Path(link.rowmap).is_file():
+                return None, f"{link.name} has no row map: rows are matched on a key."
+            connection = duckdb.connect()
+            try:
+                matches = rowmap_matches(connection, side.storage_path or "", link.rowmap)
+            finally:
+                connection.close()
+            if not matches:
+                return None, (
+                    f"{link.name}'s rows no longer match its row map: rows are matched on a key."
+                )
+        return RowAlignment(*maps), None
+
+    def rows(
+        self,
+        dataset_id: str,
+        vs: str | None = None,
+        key: str | None = None,
+        version: int | None = None,
+    ) -> RowsAnswer:
+        """Rows added, removed and modified. Between an original and its cleaned versions, paired
+        by the cleaning's row map unless a `key` is asked for (095)."""
+        before, after = self._sides(dataset_id, vs, version)
         candidates = key_candidates(before.snapshot, after.snapshot)
         if before.storage_path is None or after.storage_path is None:
             return RowsAnswer(False, NOT_KEPT, candidates)
+        alignment, note = self._alignment(dataset_id, vs, before, after)
+        paired = alignment is not None
         chosen = key or next(iter(candidates), None)
-        if chosen is None:
-            reason = (
-                "No column identifies a row in both versions (one value per row, none missing)."
-            )
-            return RowsAnswer(False, reason, candidates)
+        if alignment is None or key is not None:
+            alignment = None
+            if chosen is None:
+                reason = (
+                    "No column identifies a row in both versions (one value per row, none missing)."
+                )
+                return RowsAnswer(False, reason, candidates, rowmap=paired, alignment_note=note)
         connection = duckdb.connect()
         try:
             result = row_changes(
@@ -339,16 +447,32 @@ class VersionService:
                 before.views,
                 after.storage_path,
                 after.views,
-                chosen,
+                chosen or "",
+                alignment,
             )
         finally:
             connection.close()
-        return RowsAnswer(True, None, candidates, result)
+        how = "rowmap" if alignment is not None else "key"
+        return RowsAnswer(True, None, candidates, result, how, paired, note)
 
-    def export_rows(self, dataset_id: str, vs: str | None, key: str) -> ExportFile:
-        before, after = self._sides(dataset_id, vs)
+    def export_rows(
+        self, dataset_id: str, vs: str | None, key: str | None, version: int | None = None
+    ) -> ExportFile:
+        """Every difference as CSV; without `key`, paired as `rows` pairs them by default."""
+        before, after = self._sides(dataset_id, vs, version)
         if before.storage_path is None or after.storage_path is None:
             raise AppError(NOT_KEPT, code="previous_not_kept", status_code=409)
+        alignment = None
+        if key is None:
+            alignment, _note = self._alignment(dataset_id, vs, before, after)
+            if alignment is None:
+                key = next(iter(key_candidates(before.snapshot, after.snapshot)), None)
+                if key is None:
+                    raise AppError(
+                        "No column identifies a row in both versions: pick a key.",
+                        code="row_key",
+                        status_code=422,
+                    )
         folder = Path(tempfile.mkdtemp(prefix="changes-"))
         target = folder / "differences.csv"
         connection = duckdb.connect()
@@ -359,8 +483,9 @@ class VersionService:
                 before.views,
                 after.storage_path,
                 after.views,
-                key,
+                key or "",
                 target,
+                alignment,
             )
         except Exception:
             shutil.rmtree(folder, ignore_errors=True)
@@ -370,10 +495,12 @@ class VersionService:
         name = self.datasets.get(dataset_id).name
         return ExportFile(target, f"{name} - differences.csv")
 
-    def kpis(self, dataset_id: str, vs: str | None = None) -> list[KpiChange]:
+    def kpis(
+        self, dataset_id: str, vs: str | None = None, version: int | None = None
+    ) -> list[KpiChange]:
         """Each saved KPI on both versions: recomputed when the rows are at hand, otherwise read
         from the previous version's photo (KPIs saved since then cannot be compared)."""
-        before, after = self._sides(dataset_id, vs)
+        before, after = self._sides(dataset_id, vs, version)
         found: list[KpiChange] = []
         for name, definition in self._kpis(dataset_id):
             values: list[KpiValue | None] = []
@@ -401,8 +528,10 @@ class VersionService:
             found.append(compare_kpi(name, values[0], values[1], problem, values[1] is None))
         return found
 
-    def relations(self, dataset_id: str, vs: str | None = None) -> RelationsAnswer:
-        before, after = self._sides(dataset_id, vs)
+    def relations(
+        self, dataset_id: str, vs: str | None = None, version: int | None = None
+    ) -> RelationsAnswer:
+        before, after = self._sides(dataset_id, vs, version)
         if before.storage_path is None or after.storage_path is None:
             return RelationsAnswer(False, NOT_KEPT, [])
         connection = duckdb.connect()

@@ -373,16 +373,19 @@ export function summaryUrl(id: string, filters?: Condition[]) {
   return `/api/v1/datasets/${id}/export/summary?${new URLSearchParams(filtersParam(filters))}`;
 }
 
+/** `vs`: another dataset's id, or `@n` for an earlier import n of this dataset (095). */
 function versusQuery(vs: string | null, extra: Record<string, string> = {}): string {
   const query = new URLSearchParams(extra);
-  if (vs) query.set("vs", vs);
+  if (vs?.startsWith("@")) query.set("version", vs.slice(1));
+  else if (vs) query.set("vs", vs);
   const text = query.toString();
   return text ? `?${text}` : "";
 }
 
-/** Every difference of the row by row comparison, as CSV (031). */
-export function changeRowsUrl(id: string, vs: string | null, key: string) {
-  return `/api/v1/datasets/${id}/changes/rows/export${versusQuery(vs, { key })}`;
+/** Every difference of the row by row comparison, as CSV (031); without a key, paired as the
+ *  Rows tab pairs them by default (the cleaning's row map, 095). */
+export function changeRowsUrl(id: string, vs: string | null, key: string | null) {
+  return `/api/v1/datasets/${id}/changes/rows/export${versusQuery(vs, key ? { key } : {})}`;
 }
 
 export function reportFileUrl(jobId: string) {

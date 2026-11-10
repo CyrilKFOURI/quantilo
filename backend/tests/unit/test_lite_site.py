@@ -90,7 +90,7 @@ def test_write_site(tmp_path: Path):
     notice = (tmp_path / "legal.html").read_text(encoding="utf-8")
     assert "Vercel Inc." in notice and "440 N Barranca Avenue" in notice
     assert "Mentions légales" in notice
-    assert notice.count("[À COMPLÉTER: adresse postale") == 2
+    assert notice.count("LCEN, art. 1-1 II") == 2  # anonymity option: no postal address published
     assert 'aria-current="page"' in notice
     privacy = (tmp_path / "privacy.html").read_text(encoding="utf-8")
     assert "Whole rows are never sent" in privacy

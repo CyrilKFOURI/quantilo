@@ -1,6 +1,9 @@
 import { t, type MessageKey } from "../../lib/i18n";
 import type { Op, Step, Suggestion } from "./api";
 
+// One line per step lives in features/ (the Changes page lists a version's steps too, 095).
+export { describeStep, opLabel, stepColumns } from "../../features/lineage/steps";
+
 /** The M3 batch of transformations (study § 3), as the "+ Add step" catalogue shows them. */
 export type CatalogGroup = "columns" | "text" | "values" | "rows";
 
@@ -25,7 +28,6 @@ export const CATALOG: { op: Op; group: CatalogGroup }[] = [
   { op: "drop_header_rows", group: "rows" },
 ];
 
-export const opLabel = (op: Op) => t(`clean.op.${op}` as MessageKey);
 export const opHint = (op: Op) => t(`clean.opHint.${op}` as MessageKey);
 
 /** Ops reading one column (`column`) or several (`columns`). */
@@ -81,32 +83,12 @@ export function newStep(op: Op, id: string, column: string): Step {
   }
 }
 
-/** The columns a step reads. */
-export function stepColumns(step: Step): string[] {
-  if ("column" in step) return [step.column];
-  if ("columns" in step) return step.columns;
-  if (step.op === "filter_rows") return step.conditions.map((condition) => condition.column);
-  if (step.op === "drop_duplicates") return step.keys ?? [];
-  return [];
-}
-
 export function isSingle(op: Op) {
   return SINGLE.includes(op);
 }
 
 export function isMany(op: Op) {
   return MANY.includes(op);
-}
-
-/** One line for the list: "Trim extra spaces · description". */
-export function describeStep(step: Step): string {
-  const columns = stepColumns(step);
-  const label = opLabel(step.op);
-  if (step.op === "rename_column") return t("clean.describe.rename", { from: step.column, to: step.to });
-  if (step.op === "change_type") return `${label} · ${step.column} → ${t(`clean.type.${step.to}` as MessageKey)}`;
-  if (step.op === "filter_rows") return `${t(step.action === "keep" ? "clean.action.keep" : "clean.action.remove")} · ${columns.join(", ")}`;
-  if (step.op === "drop_duplicates") return step.keys?.length ? `${label} · ${step.keys.join(", ")}` : label;
-  return columns.length ? `${label} · ${columns.join(", ")}` : label;
 }
 
 /** The draft with a suggestion's step at its place (C-06): before the first suggested step that
