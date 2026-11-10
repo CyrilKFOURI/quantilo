@@ -47,6 +47,17 @@ ds = dx.from_pandas(frame, "customers")     # or dx.from_arrow(table)
 
 The CSV dialect is detected (separator, decimal comma, encoding). The source is copied once to Parquet in a cache folder (`~/.cache/quantilo`, `%LOCALAPPDATA%` on Windows, or `QUANTILO_CACHE`); opening an unchanged file again reuses the copy and the detected types.
 
+### Images
+
+```python
+info = dx.inspect_image("IMG_0042.jpg")     # a path, or the file's bytes
+info.sentence   # 'JPEG image, 4,032 × 3,024 pixels (12 megapixels, 4:3), RGB at 8 bits per channel, ...'
+info.width, info.height, info.color_mode, info.frames, info.dpi
+info.exif       # make, model, date_taken, orientation, has_location
+```
+
+PNG, JPEG, GIF, WebP, BMP, TIFF, HEIC and AVIF are recognised by their first bytes, not their name, and read from their headers only: no pixel is decoded and Pillow is not needed. GPS coordinates are never read, only whether the photo has some (`has_location`). An SVG is refused (`is_image=False`, with the reason): it can carry scripts. At most 1 MiB is read, whatever the file size; a damaged header gives `None` and a note, never an exception. `info.vision` lists the computer-vision analyses that will come later (nothing is computed yet).
+
 ## Types
 
 Every column gets a type: `numeric_continuous`, `numeric_discrete`, `categorical_nominal`, `categorical_ordinal`, `boolean`, `datetime`, `text`, `identifier` or `ignored`. The type is read from a knowledge base of names and value checks: French decimals, `oui/non`, `21/02/2019`, `5%`, ZIP codes. Each detection says why it chose that type.

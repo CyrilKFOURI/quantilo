@@ -13,6 +13,7 @@
     dx.plot(ds.compare("Age", "Survived"))   # the app's chart (the plot extra)
     model = dx.load_model("churn_lightgbm.zip")   # a model exported by the app (037)
     layout = dx.detect_tables("report.xlsx")       # the real tables of a laid-out sheet (080)
+    dx.inspect_image("photo.jpg")    # format, size, EXIF from the headers; GPS only "present" (084)
 
 The engine of the Quantilo app: the same code computes the app's results.
 """
@@ -25,6 +26,7 @@ from quantilo.dataset import Dataset, DatasetInfo, from_arrow, from_pandas, open
 from quantilo.errors import ColumnNotFound, ExplorerError, NotFoundError
 from quantilo.experiments.facade import bandit_simulation, sample_size
 from quantilo.filters.model import Condition
+from quantilo.ingestion.images import ImageInfo, inspect_image
 from quantilo.results import to_dict, to_pandas
 from quantilo.timeseries.drivers import Driver, ScenarioChange
 from quantilo.typing.engine import DEFAULT_THRESHOLDS, Thresholds
@@ -80,6 +82,7 @@ __all__ = [
     "DatasetInfo",
     "Driver",
     "ExplorerError",
+    "ImageInfo",
     "NotFoundError",
     "Recipe",
     "ScenarioChange",
@@ -89,6 +92,7 @@ __all__ = [
     "detect_tables",
     "from_arrow",
     "from_pandas",
+    "inspect_image",
     "load_model",
     "open",
     "plot",

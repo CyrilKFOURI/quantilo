@@ -120,6 +120,9 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 "src/quantilo/ingestion/layout/*" = ["RUF001", "RUF002", "RUF003"]
 "tests/test_layout_*.py" = ["RUF001", "RUF002", "RUF003"]
 "tests/layout_fixtures.py" = ["RUF001", "RUF002", "RUF003"]
+# Image sizes and orientations are written 640 × 480 and "rotated 90° clockwise" (084).
+"src/quantilo/ingestion/images.py" = ["RUF001", "RUF002", "RUF003"]
+"tests/test_images.py" = ["RUF001", "RUF002", "RUF003"]
 
 [tool.pyright]
 pythonVersion = "3.12"
