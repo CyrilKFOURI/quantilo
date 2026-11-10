@@ -24,8 +24,9 @@ describe("Legal pages (081)", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Legal notice" })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/legal/notice");
     expect(screen.getAllByText(/Vercel Inc\./).length).toBeGreaterThan(0);
-    // the publisher's details given by the owner, in English and French
-    expect(screen.getAllByText(/92160 Antony/).length).toBe(2);
+    // anonymity option (LCEN art. 1-1 II): no postal address or phone on the page
+    expect(screen.queryByText(/Antony/)).toBeNull();
+    expect(screen.getAllByText(/LCEN, art\. 1-1 II/).length).toBe(2);
   });
 
   it("an unknown legal page is a not-found page", async () => {
