@@ -121,6 +121,11 @@ def test_experiments_are_the_same(client: TestClient, tmp_path: Path) -> None:
         dx.to_dict(dx.sample_size(0.2, 0.1, daily=400)),
         "sample size",
     )
+    same(
+        client.post("/api/v1/modules/experiments/bandit-simulation", json=plan).json(),
+        dx.to_dict(dx.bandit_simulation(0.2, 0.1, daily=400)),
+        "bandit simulation",
+    )
 
 
 def _without_timings(value: Any) -> Any:

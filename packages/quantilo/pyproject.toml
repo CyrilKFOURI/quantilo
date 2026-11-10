@@ -87,7 +87,10 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 # Statistical notation (×, ρ, η², en dashes) is intended in these messages.
-"src/quantilo/compare/*" = ["RUF001", "RUF003"]
+# Benjamini–Hochberg, Welch–Satterthwaite, α and σ in the inference texts (051).
+"src/quantilo/compare/*" = ["RUF001", "RUF002", "RUF003"]
+"tests/test_inference.py" = ["RUF001", "RUF003"]
+"tests/test_correlations.py" = ["RUF001"]
 "src/quantilo/changes/*" = ["RUF001", "RUF002", "RUF003"]
 "tests/test_changes.py" = ["RUF003"]
 "src/quantilo/correlations/*" = ["RUF001", "RUF003"]

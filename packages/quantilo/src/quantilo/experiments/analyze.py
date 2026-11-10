@@ -16,7 +16,9 @@ import pandas as pd
 from pydantic import BaseModel, Field
 from scipy import stats
 
+from quantilo.compare.multiple import MultipleTesting, correct
 from quantilo.errors import ExplorerError
+from quantilo.experiments import bandit as bd
 from quantilo.experiments import stats as st
 
 MetricKind = Literal["rate", "mean", "count", "ratio"]
@@ -186,6 +188,7 @@ class ExperimentSegments:
     levels: list[ExperimentSegment]
     skipped: int  # levels left out (too small or beyond the first ten)
     warning: str
+    correction: MultipleTesting | None = None  # over every subgroup comparison (051, R-MT-01/02)
 
 
 @dataclass
@@ -222,6 +225,8 @@ class ExperimentResult:
     suggested_unit: str | None
     segments: ExperimentSegments | None = None
     cumulative: ExperimentCumulative | None = None
+    bandit: bd.ExperimentBandit | None = None  # the primary metric's bandit view (049)
+    bandit_reason: str | None = None  # why there is none
 
 
 # --- Columns as the service read them ------------------------------------------------------------
@@ -829,6 +834,7 @@ def analyze(
         if design.time
         else None
     )
+    bandit, bandit_reason = _bandit(data, design, by_column[primary], main.kind, order, shares)
     resolved = design.model_copy(
         update={
             "control": control,
@@ -852,6 +858,8 @@ def analyze(
         suggested_unit,
         segments,
         cumulative,
+        bandit,
+        bandit_reason,
     )
 
 
@@ -895,13 +903,19 @@ def _segments(
             continue
         prepared = _prepare(part, metric, kind, "")
         comparisons = _comparisons(prepared, metric, control, others, design.alpha)
-        for c in comparisons:
-            _decide(c, kind, design.alpha, 1)
         levels.append(ExperimentSegment(str(level), int(size), comparisons))
+    every = [c for segment in levels for c in segment.comparisons]
+    adjusted, correction = correct(
+        [c.p_value for c in every], alpha=design.alpha, noun="subgroup differences"
+    )
+    corrected = correction.method != "none"
+    for c, value in zip(every, adjusted, strict=True):
+        c.p_adjusted = value if corrected else None
+        _decide(c, kind, design.alpha, correction.tests if corrected else 1)
     hypotheses = len(levels) * len(others)
     warning = "Subgroups are hypotheses to confirm, not results: " + (
-        f"with {hypotheses} comparisons, about {hypotheses * design.alpha:.1f} may look "
-        "significant by chance alone (no correction here)."
+        f"with {hypotheses} comparisons, about {hypotheses * design.alpha:.1f} would look "
+        "significant by chance alone without a correction."
         if hypotheses
         else "none is large enough to compare."
     )
@@ -910,7 +924,9 @@ def _segments(
             f" {skipped} level{'s' if skipped > 1 else ''} left out (fewer than "
             f"{MIN_SEGMENT_UNITS} units in a variant, or beyond the {SEGMENT_LEVELS} largest)."
         )
-    return ExperimentSegments(design.segment or "", _label(metric.spec), levels, skipped, warning)
+    return ExperimentSegments(
+        design.segment or "", _label(metric.spec), levels, skipped, warning, correction
+    )
 
 
 # --- Over time ----------------------------------------------------------------------------------
@@ -1013,3 +1029,46 @@ def _cumulative(
         "positives: decide the sample size first (Plan), then read the result once."
     )
     return ExperimentCumulative(design.time or "", _label(metric.spec), kind, grain, lines, warning)
+
+
+# --- Bandit view (049) --------------------------------------------------------------------------
+
+
+def _bandit(
+    data: Frame,
+    design: ExperimentDesign,
+    metric: MetricInput,
+    kind: MetricKind,
+    order: list[str],
+    shares: list[float],
+) -> tuple[bd.ExperimentBandit | None, str | None]:
+    """The primary metric's posteriors, P(best) and expected loss, and with a date the replay of
+    a bandit, on the raw values (not CUPED-adjusted) of the units the test compared."""
+    if kind == "ratio":
+        return None, (
+            "A ratio of sums has no simple posterior: the bandit view needs a rate, a mean or a "
+            "count as the primary metric."
+        )
+    rows = data.dropna(subset=[metric.value])
+    parts = [rows[rows[VARIANT] == label] for label in order]
+    if any(len(part) < 2 for part in parts):
+        return None, "Too few units in a variant for the bandit view."
+    values = [part[metric.value].to_numpy(float) for part in parts]
+    timeline = None
+    dates: Frame = pd.to_datetime(rows[TIME]) if design.time and TIME in rows else None
+    if dates is not None and dates.notna().any():
+        # units without a date are left out of the replay only
+        known = dates.notna()
+        grain = _grain(dates[known])
+        labels: Frame = _period(dates[known], grain)
+        periods = sorted(str(p) for p in labels.unique())
+        position = {p: i for i, p in enumerate(periods)}
+        timed = [rows[known & (rows[VARIANT] == label)] for label in order]
+        timeline = bd.Timeline(
+            design.time or "",
+            grain,
+            periods,
+            [part[metric.value].to_numpy(float) for part in timed],
+            [labels[part.index].map(position).to_numpy(int) for part in timed],
+        )
+    return bd.view(_label(metric.spec), kind, order, values, shares, timeline), None

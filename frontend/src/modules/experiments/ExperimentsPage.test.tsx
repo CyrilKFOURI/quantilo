@@ -9,8 +9,8 @@ import { dataset, health, mockApi } from "../../test/mockApi";
 import { renderAt } from "../../test/render";
 import { linkTarget } from "../agent/links";
 import { modules } from "../registry";
-import type { ExperimentMetricResult, SampleSize } from "./api";
-import { intervalsFigure, sampleSizeFigure } from "./figures";
+import type { BanditReplay, BanditSimulation, ExperimentMetricResult, SampleSize } from "./api";
+import { banditRegretFigure, banditSharesFigure, banditSimulationFigure, intervalsFigure, sampleSizeFigure } from "./figures";
 import { validateExperimentsSearch } from "./search";
 
 vi.mock("../../charts/Plot", () => ({
@@ -20,7 +20,7 @@ vi.mock("../../charts/Plot", () => ({
 }));
 
 /* Responses written by the real engine on samples/ab_test.csv (src/test/experiments.json). */
-const { candidates, loose, byUser, srm, plan } = fixtures;
+const { candidates, loose, byUser, srm, plan, simulation } = fixtures;
 
 function setup(analyze: (body: { unit?: string | null; expected?: unknown }) => unknown = (body) => (body.unit ? byUser : loose)) {
   return mockApi({
@@ -33,6 +33,7 @@ function setup(analyze: (body: { unit?: string | null; expected?: unknown }) => 
     "POST /modules/experiments/datasets/d1/analyze": analyze,
     "GET /modules/experiments/datasets/d1/baseline": { column: "converted", kind: "rate", value: 0.1, sd: 0.3, rows: 4023 },
     "POST /modules/experiments/sample-size": plan,
+    "POST /modules/experiments/bandit-simulation": simulation,
   });
 }
 
@@ -55,6 +56,33 @@ describe("Experiments page", () => {
     expect(screen.getByText(/Subgroups are hypotheses to confirm/)).toBeInTheDocument();
     const sent = calls.find((c) => c.key === "POST /modules/experiments/datasets/d1/analyze");
     expect(sent?.body).toMatchObject({ variant: "variant", unit: "user_id", metrics: [{ column: "converted" }] });
+  });
+
+  it("adds the bandit view: P(best) and expected loss per variant, the guardrail, the replay on demand", async () => {
+    setup();
+    renderAt("/d/d1/experiments");
+
+    const section = (await screen.findByRole("heading", { name: "Bandit view" })).closest("section") as HTMLElement;
+    expect(within(section).getByText(byUser.bandit.sentence)).toBeInTheDocument();
+    const list = within(section).getByRole("list", { name: "P(best) and expected loss of each variant" });
+    expect(within(list).getByText("P(best) 99.7 % · expected loss < 0.01 pt")).toBeInTheDocument();
+    expect(within(section).getByText(/complements the A\/B test above, it does not replace it/)).toBeInTheDocument();
+    expect(within(section).queryByText(/reinforcement/i)).toBeNull();
+    expect(within(section).queryByRole("img")).toBeNull();
+
+    const details = within(section).getByText("What a bandit would have done").closest("details") as HTMLDetailsElement;
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+    expect(await within(section).findByRole("img", { name: "Cumulative regret of the fixed split and of the bandit over time" })).toBeInTheDocument();
+    expect(within(section).getByText(byUser.bandit.replay.sentence)).toBeInTheDocument();
+  });
+
+  it("says why there is no replay without a date", async () => {
+    setup(() => loose);
+    renderAt("/d/d1/experiments?variant=variant&metric=converted");
+
+    const section = (await screen.findByRole("heading", { name: "Bandit view" })).closest("section") as HTMLElement;
+    expect(within(section).getByText(/Choose a date under More/)).toBeInTheDocument();
   });
 
   it("warns when an identifier repeats and switches to it as the unit", async () => {
@@ -90,6 +118,23 @@ describe("Experiments page", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Read from" }), { target: { value: "converted" } });
     expect(await screen.findByDisplayValue("10")).toBeInTheDocument();
   });
+
+  it("simulates fixed split vs bandit only once its section is opened", async () => {
+    const calls = setup();
+    renderAt("/d/d1/experiments?tab=plan");
+
+    const summary = await screen.findByText("Fixed split vs bandit");
+    expect(calls.some((c) => c.key === "POST /modules/experiments/bandit-simulation")).toBe(false);
+    const details = summary.closest("details") as HTMLDetailsElement;
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+
+    expect(await screen.findByText(simulation.sentence)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Cumulative regret of the fixed split and of a bandit over the simulated test" })).toBeInTheDocument();
+    expect(screen.getByText(simulation.guardrail)).toBeInTheDocument();
+    const sent = calls.find((c) => c.key === "POST /modules/experiments/bandit-simulation");
+    expect(sent?.body).toMatchObject({ kind: "rate", baseline: 0.1, effect: 0.05 });
+  });
 });
 
 describe("Experiments module", () => {
@@ -123,6 +168,17 @@ describe("Experiments module", () => {
     expect(line?.line?.color).toBe("#111111");
     expect(line?.x[0]).toBeCloseTo((metric.comparisons[0]?.diff_low ?? 0) * 100);
     expect(point?.text?.[0]).toBe("+5.22 pts (+26.4 %)");
+
+    const replay = byUser.bandit.replay as unknown as BanditReplay;
+    const shares = banditSharesFigure(replay)(tokens).data as { name: string; line: { color: string } }[];
+    expect(shares.map((d) => d.name)).toEqual(["control", "new_checkout"]);
+    expect(shares[0]?.line.color).toBe("#777777");
+    expect(shares[1]?.line.color).toBe("#111111");
+    const regret = banditRegretFigure(replay, "rate")(tokens);
+    expect((regret.data as { name: string }[]).map((d) => d.name)).toEqual(["Fixed split", "Bandit"]);
+    expect(regret.layout?.yaxis?.title).toMatchObject({ text: "Cumulative regret (conversions)" });
+    const simulated = banditSimulationFigure(simulation as unknown as BanditSimulation)(tokens);
+    expect((simulated.data[1] as { fill: string }).fill).toBe("tonexty");
 
     const curve = sampleSizeFigure(plan as unknown as SampleSize)(tokens);
     const marker = curve.data[1] as { x: number[]; y: number[] };

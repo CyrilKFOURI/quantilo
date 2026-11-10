@@ -143,4 +143,37 @@ describe("Columns page", () => {
     );
     expect(await screen.findByRole("heading", { name: "Overview" })).toBeInTheDocument();
   });
+
+  it("tells free text, short text and address apart, with the language (050)", async () => {
+    const text = (name: string, role: string, language: Record<string, unknown>) =>
+      column({
+        name,
+        type: "text",
+        detected_type: "text",
+        role,
+        detected_role: role,
+        reasons: [`reasons of ${name}`],
+        summary: { ...column().summary, text: { median_words: 4, ...language } },
+      });
+    mockApi({
+      "GET /health": health,
+      "GET /datasets/d1": dataset(),
+      "GET /column-roles": roles,
+      "GET /datasets/d1/columns": [
+        text("review", "free_text", { language: "fr", language_label: "French", language_share: 0.9, median_words: 14 }),
+        text("item", "label", { language: null, language_label: null, language_share: null }),
+        text("ship_to", "address", { language: "mixed", language_label: "Mixed", language_share: 0.6 }),
+      ],
+    });
+    renderAt("/d/d1/columns");
+
+    const row = async (name: string) => (await screen.findByText(name)).closest("tr") as HTMLElement;
+    const badge = (tr: HTMLElement) => within(tr).getByRole("button", { name: "Change type" });
+    expect(badge(await row("review"))).toHaveTextContent("Free text");
+    expect(within(await row("review")).getByText("French · median 14 words")).toBeInTheDocument();
+    expect(badge(await row("item"))).toHaveTextContent("Short text");
+    expect(within(await row("item")).getByText("Median 4 words")).toBeInTheDocument();
+    expect(badge(await row("ship_to"))).toHaveTextContent("Address");
+    expect(within(await row("ship_to")).getByText("Mixed languages · median 4 words")).toBeInTheDocument();
+  });
 });

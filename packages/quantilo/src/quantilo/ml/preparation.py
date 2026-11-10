@@ -33,6 +33,7 @@ from sklearn.preprocessing import (
     TargetEncoder,
 )
 
+from quantilo.ml import text as textual
 from quantilo.ml.data import CATEGORICAL, NUMERIC
 from quantilo.ml.data import Field as DataField
 from quantilo.ml.steps import Clipper, JointImputer, RobustScale, Selector
@@ -119,6 +120,7 @@ class ColumnProfile:
     outlier_share: float | None  # beyond 1.5 IQR
     all_nonnegative: bool | None
     distinct_share: float  # distinct values / non-missing rows
+    text: textual.TextProfile | None = None  # free text: its texts and words (052)
 
 
 @dataclass
@@ -228,6 +230,7 @@ def profile(series: pd.Series, fld: DataField) -> ColumnProfile:
         outliers,
         nonnegative,
         distinct / len(present) if len(present) else 0.0,
+        textual.profile(series) if fld.type == "text" else None,
     )
 
 
@@ -420,7 +423,11 @@ def _distance_exclusion(decision: Decision, fld: DataField, prof: ColumnProfile)
     ):
         return out("R-SEL-02", f"Behaves like an identifier ({prof.distinct:,} distinct values).")
     if fld.type == "text":
-        return out("R-SEL-03", "Free text is left out.", reactivable=False)
+        return out(
+            "R-SEL-03",
+            "Free text is left out: a distance between rows does not read text.",
+            reactivable=False,
+        )
     if fld.type == "datetime":
         return out("R-DIST-03", "Raw date: it says when, not what kind of row.")
     if fld.type not in USABLE:
@@ -444,8 +451,9 @@ def _exclusion(
     source_numeric: bool = False,
     panel_role: str | None = None,
 ) -> None:
-    """R-SEL-01 to R-SEL-06, R-SEL-08 and R-SEL-09: is the column left out, and may it come
-    back? With a number predicted as classes (018), leakage is measured against the number."""
+    """R-SEL-01 to R-SEL-06, R-SEL-08 and R-SEL-09 (R-SEL-03: too few texts, 052): is the
+    column left out, and may it come back? With a number predicted as classes (018), leakage
+    is measured against the number."""
 
     def out(rule: str, sentence: str, reactivable: bool = True, leak: bool = False) -> None:
         decision.use, decision.reactivable, decision.leak = False, reactivable, leak
@@ -477,11 +485,14 @@ def _exclusion(
         (prof.distinct_share > 0.5 and prof.distinct > 20) or prof.distinct > TARGET_ENCODING_LIMIT
     ):
         return out("R-SEL-02", f"Behaves like an identifier ({prof.distinct:,} distinct values).")
-    if fld.type == "text":
+    if fld.type == "text" and prof.text is not None and prof.text.texts < textual.MIN_TEXTS:
         return out(
-            "R-SEL-03", "Free text is left out (text features come later).", reactivable=False
+            "R-SEL-03",
+            f"Only {prof.text.texts} non-empty texts (at least {textual.MIN_TEXTS} needed): "
+            "no vocabulary emerges.",
+            reactivable=False,
         )
-    if fld.type not in USABLE:
+    if fld.type not in USABLE | {"text"}:
         return out("R-SEL-03", "This type is not used by models yet.", reactivable=False)
     if prof.distinct <= 1 or prof.dominant_share > 0.99:
         return out("R-SEL-04", f"Almost always the same value ({prof.dominant_share:.1%}).")
@@ -528,6 +539,8 @@ def _type_rules(
         _nominal(decision, prof, model, choices)
     elif fld.type == "datetime":
         _date(decision, model)
+    elif fld.type == "text":
+        _text(decision, fld, prof, model)
 
 
 def _numeric(
@@ -725,6 +738,48 @@ def _date(decision: Decision, model: ModelProfile) -> None:
         decision.apply("R-DATE-02", "Parts as integers for trees.")
 
 
+def _text(decision: Decision, fld: DataField, prof: ColumnProfile, model: ModelProfile) -> None:
+    """R-TEXT-01 to R-TEXT-05: free text read through TF-IDF then a truncated SVD (052)."""
+    text = prof.text or textual.TextProfile(0, 0.0)
+    decision.impute = "empty_text"
+    decision.transform = "tfidf_svd"
+    decision.apply(
+        "R-TEXT-01",
+        f"Free text used as an input ({text.texts:,} texts): the model reads it as a few "
+        "numbers; empty values count as an empty text.",
+    )
+    decision.encoding = textual.analyzer_for(text, fld.role)
+    words = f"median {text.median_words:g} word{'s' if text.median_words != 1 else ''}"
+    if decision.encoding == "chars":
+        why = "a short label" if fld.role == "label" else f"short labels ({words})"
+        decision.apply(
+            "R-TEXT-02",
+            f"Cut into pieces of 3 to 5 characters: {why} share few whole words, and pieces "
+            "bring spelling variants together.",
+        )
+    else:
+        decision.apply("R-TEXT-02", f"Cut into words and pairs of words ({words}).")
+    decision.apply(
+        "R-TEXT-03",
+        f"TF-IDF on at most {textual.TERMS:,} terms seen in at least {textual.MIN_ROWS} rows and "
+        f"fewer than {textual.MAX_SHARE:.0%} of them, learnt on at most "
+        f"{textual.FIT_ROWS:,} training rows.",
+    )
+    decision.apply(
+        "R-TEXT-04",
+        f"Reduced to at most {textual.COMPONENTS} numbers by a truncated SVD: the main themes "
+        "of the vocabulary, a bounded width for every model.",
+    )
+    if model.nonnegative_inputs:
+        decision.scaling = "minmax"
+        decision.apply("R-TEXT-05", "Themes scaled to [0, 1]: this model needs inputs ≥ 0.")
+    elif model.needs_scaling:
+        decision.scaling = "standard"
+        decision.apply("R-TEXT-05", "Themes standardised (mean 0, standard deviation 1).")
+    elif model.tree_based:
+        decision.apply("R-TEXT-05", "Themes kept as they are for trees.")
+
+
 # --- Choices on top of the rules -----------------------------------------------------------------
 
 NO_MISSING = "This model cannot handle missing values: they must be filled."
@@ -776,6 +831,9 @@ def _options(
         }
     elif decision.type == "datetime":
         options["scaling"] = [Option(v) for v in ("none", "standard", "minmax")]
+    elif decision.type == "text":
+        options["encoding"] = [Option("words"), Option("chars")]
+        options["scaling"] = [Option(v) for v in ("none", "standard", "minmax")]
     elif decision.type in CATEGORICAL:
         options["impute"] = [
             Option("missing_category"),
@@ -824,7 +882,7 @@ def _set(decision: Decision, key: str, value: str) -> None:
             decision.indicator = False
     elif key == "encoding":
         decision.encoding = value
-        if value != "ordinal":
+        if value != "ordinal" and decision.type != "text":
             decision.scaling = None
 
 
@@ -1008,6 +1066,9 @@ def build(
                 ("impute", SimpleImputer(strategy="median")),
                 ("scale", _scaler(d.scaling)),
             ]
+        elif d.type == "text":
+            analyzer = cast(textual.Analyzer, "chars" if d.encoding == "chars" else "words")
+            steps += [("text", textual.TextFeatures(analyzer)), ("scale", _scaler(d.scaling))]
         else:
             if d.impute == "missing_category":
                 steps.append(("impute", SimpleImputer(strategy="constant", fill_value=MISSING)))

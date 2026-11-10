@@ -35,6 +35,7 @@ from quantilo.changes.rows import RowChanges, RowKeyError, key_candidates, row_c
 from quantilo.changes.snapshot import Snapshot, take_snapshot
 from quantilo.charts.prepare import Chart, ChartParams
 from quantilo.compare.analyze import Comparison
+from quantilo.compare.multiple import Correction
 from quantilo.compare.service import CompareService
 from quantilo.correlations.matrix import Method
 from quantilo.correlations.service import Correlations, CorrelationService
@@ -80,7 +81,7 @@ if TYPE_CHECKING:  # machine learning and synthetic data load on first use (scik
     from quantilo.segments.facade import FittedSegments, FoundUnusualRows, Segments
     from quantilo.synthetic.facade import Synthesizer
 
-DETECTION_VERSION = 1  # bump when detection changes, to ignore cached detections
+DETECTION_VERSION = 2  # bump when detection changes, to ignore cached detections
 
 
 def default_cache_dir() -> Path:
@@ -362,23 +363,29 @@ class Dataset:
         color: str | None = None,
         options: SeriesOptions | None = None,
         numbers: list[str] | None = None,
+        correction: Correction = "auto",
     ) -> Comparison:
-        """Two or three variables: the visual and the tests follow their types."""
+        """Two or three variables: the visual and the tests follow their types; groups get
+        bootstrap intervals by rule and pairwise differences adjusted by `correction`."""
         for name in (x, y, z, color):
             if name is not None:
                 self._record(name)
         return self._state.service(CompareService).compare(
-            self._id, x, y, z, color, self.conditions, options, numbers
+            self._id, x, y, z, color, self.conditions, options, numbers, correction
         )
 
     def correlations(
-        self, method: Method = "pearson", columns: list[str] | None = None
+        self,
+        method: Method = "pearson",
+        columns: list[str] | None = None,
+        correction: Correction = "auto",
     ) -> Correlations:
-        """The mixed association matrix (r or ρ, Cramér's V, η), ranked pairs and insights."""
+        """The mixed association matrix (r or ρ, Cramér's V, η), ranked pairs and insights;
+        p-values adjusted over the pairs (`correction`: auto, bh, holm, bonferroni)."""
         for name in columns or []:
             self._record(name)
         return self._state.service(CorrelationService).correlations(
-            self._id, method, columns, self.conditions
+            self._id, method, columns, self.conditions, correction
         )
 
     def rows(

@@ -15,7 +15,7 @@ import {
   type ExperimentDesign,
   type ExperimentMetric,
 } from "./api";
-import { CumulativeSection, MetricSection, SegmentsSection } from "./Results";
+import { BanditSection, CumulativeSection, MetricSection, SegmentsSection } from "./Results";
 import type { ExperimentsSearch } from "./search";
 import { Loading } from "../../ui/Loading";
 
@@ -440,6 +440,7 @@ export function Analyze({
           {result.metrics.map((metric, i) => (
             <MetricSection key={`${metric.label}-${i}`} metric={metric} result={result} />
           ))}
+          {result.bandit && <BanditSection bandit={result.bandit} />}
           {result.segments && <SegmentsSection segments={result.segments} />}
           {result.cumulative && <CumulativeSection cumulative={result.cumulative} />}
         </div>

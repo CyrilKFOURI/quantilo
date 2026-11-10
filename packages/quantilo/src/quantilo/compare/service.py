@@ -14,6 +14,7 @@ from quantilo.compare.analyze import (
     NotComparableError,
     compare,
 )
+from quantilo.compare.multiple import Correction
 from quantilo.filters.model import Condition, filters_key
 from quantilo.filters.scope import scoped_source, where_for
 from quantilo.timeseries.series import Options
@@ -36,6 +37,7 @@ class CompareService:
         conditions: list[Condition] | None = None,
         options: Options | None = None,
         numbers: list[str] | None = None,
+        correction: Correction = "auto",
     ) -> Comparison:
         """`numbers`: whole-number columns to keep as numbers (R-CMP-02)."""
         conditions = conditions or []
@@ -70,6 +72,7 @@ class CompareService:
             (options.period, options.aggregate, options.window, options.align),
             tuple(c.semantic_role if c else None for c in chosen),
             tuple(c.as_category if c else None for c in chosen),
+            correction,
         )
         if key in self._cache:
             self._cache.move_to_end(key)
@@ -87,6 +90,7 @@ class CompareService:
                 third,
                 fourth,
                 options,
+                correction,
             )
         finally:
             connection.close()

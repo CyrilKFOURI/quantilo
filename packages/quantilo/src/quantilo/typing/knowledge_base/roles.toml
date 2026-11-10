@@ -9,7 +9,7 @@
 id = "identifier"
 label = "Identifier"
 names = ["id", "uuid", "guid", "identifier", "identifiant", "ref", "reference", "matricule",
-         "siret", "siren", "sku", "ean", "isbn", "order number", "customer number", "invoice number"]
+         "siret", "siren", "sku", "ean", "isbn"]
 type = "identifier"
 
 [[role]]
@@ -23,9 +23,9 @@ max = 130
 [[role]]
 id = "amount"
 label = "Amount"
-names = ["price", "prix", "amount", "montant", "cost", "cout", "coût", "revenue", "revenu", "income",
+names = ["price", "prix", "amount", "montant", "revenue", "revenu", "income",
          "salary", "salaire", "sales", "turnover", "eur", "euro", "euros", "usd", "dollar", "dollars",
-         "total", "fee", "fees", "budget", "spend", "spending", "profit", "margin", "marge", "wage"]
+         "total", "fee", "fees", "spend", "spending", "profit", "margin", "marge", "wage"]
 type = "numeric_continuous"
 
 [[role]]
@@ -155,3 +155,67 @@ names = ["comment", "comments", "commentaire", "commentaires", "description", "d
          "remark", "remarks", "remarque", "feedback", "message", "review", "avis", "summary",
          "resume", "résumé", "body", "content", "text", "texte"]
 type = "text"
+
+# --- 048: business keys and measures (spec 048, P2) ----------------------------------------------
+# `key = true`: detected like an identifier (unique → identifier, repeated → categories), and the
+# role only applies when its word is the whole column name, alone or with one of `suffixes` before
+# or after it ("Customer ID", "order_no", "InvoiceNo", "id_client"): "InvoiceDate" is no key.
+
+[[role]]
+id = "customer_key"
+label = "Customer key"
+names = ["customer", "customers", "client", "clients", "user", "users", "account", "member",
+         "patient", "subscriber", "buyer", "shopper", "cust"]
+suffixes = ["id", "ids", "no", "nr", "num", "number", "numero", "code", "key", "ref", "reference",
+            "identifier", "uuid", "guid"]
+key = true
+
+[[role]]
+id = "order_key"
+label = "Order key"
+names = ["order", "invoice", "transaction", "basket", "cart", "receipt", "commande", "facture"]
+suffixes = ["id", "ids", "no", "nr", "num", "number", "numero", "code", "key", "ref", "reference",
+            "identifier", "uuid", "guid"]
+key = true
+
+[[role]]
+id = "cost"
+label = "Cost"
+names = ["cost", "costs", "cout", "couts", "coût", "coûts", "cogs", "expense", "expenses", "charge",
+         "charges", "depense", "dépense", "depenses", "dépenses"]
+type = "numeric_continuous"
+
+[[role]]
+id = "target"
+label = "Target"
+# no forced type: a machine-learning "target" column keeps the type its values give
+names = ["target", "targets", "budget", "forecast", "quota", "goal", "objective", "objectif",
+         "objectifs"]
+
+[[role]]
+id = "unit_price"
+label = "Unit price"
+names = ["unit price", "unitprice", "price per unit", "unit cost", "cost per unit", "price each",
+         "prix unitaire", "tarif", "tarif unitaire"]
+type = "numeric_continuous"
+
+[[role]]
+id = "currency"
+label = "Currency"
+names = ["currency", "currencies", "currency code", "ccy", "devise", "monnaie"]
+type = "categorical_nominal"
+
+[[role]]
+id = "label"
+label = "Short text"
+# short texts that name things (050): product names, titles. No forced type: the values decide.
+names = ["label", "labels", "libelle", "libellé", "title", "titre", "product name", "item name",
+         "product title", "designation", "désignation", "headline", "subject", "objet", "intitule",
+         "intitulé"]
+
+[[role]]
+id = "address"
+label = "Address"
+names = ["address", "addresses", "adresse", "addr", "street", "street address", "address line",
+         "adresse postale", "rue", "direccion", "dirección", "indirizzo", "anschrift", "strasse",
+         "straße"]

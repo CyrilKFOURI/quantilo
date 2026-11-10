@@ -114,6 +114,18 @@ def _experiment(result: ExperimentResult) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _bandit_simulation(simulation: Any) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "units": simulation.cumulative_units,
+            "regret_fixed": simulation.regret_fixed,
+            "regret_bandit": simulation.regret_bandit,
+            "regret_bandit_low": simulation.regret_bandit_low,
+            "regret_bandit_high": simulation.regret_bandit_high,
+        }
+    )
+
+
 def _tables() -> list[tuple[type, Callable[[Any], pd.DataFrame], str]]:
     """Each tabular result and its table (imported here: machine learning loads on demand)."""
     from quantilo.changes.compare import Changes
@@ -122,6 +134,7 @@ def _tables() -> list[tuple[type, Callable[[Any], pd.DataFrame], str]]:
     from quantilo.correlations.matrix import Matrix
     from quantilo.correlations.service import Correlations
     from quantilo.experiments.analyze import ExperimentResult
+    from quantilo.experiments.bandit import BanditSimulation, ExperimentBandit
     from quantilo.experiments.plan import SampleSize
     from quantilo.kpi.compute import KpiResult
     from quantilo.ml.engine import Catalogue, Targets
@@ -193,6 +206,8 @@ def _tables() -> list[tuple[type, Callable[[Any], pd.DataFrame], str]]:
         (RowChanges, lambda r: _rows(r.examples), "examples of modified values"),
         (ExperimentResult, _experiment, "each metric and variant against the control"),
         (SampleSize, lambda r: _rows(r.curve), "units per group and the detectable lift"),
+        (ExperimentBandit, lambda r: _rows(r.arms), "P(best) and expected loss per variant"),
+        (BanditSimulation, _bandit_simulation, "the cumulative regret of each policy"),
         (FittedSegments, lambda r: profile_table(r.result), "the profile of each segment"),
         (Segmentation, profile_table, "the profile of each segment"),
         (FoundUnusualRows, lambda r: unusual_table(r.result), "the most unusual rows"),

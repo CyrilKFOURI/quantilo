@@ -19,6 +19,7 @@ from quantilo.typing.parsers import (
     clean_text,
     number_sql,
 )
+from quantilo.typing.text import TextMeasures, language_reason, measure
 from quantilo.typing.types import (
     NUMERIC_TYPES,
     AnalysisType,
@@ -43,6 +44,18 @@ class Thresholds:
 
 DEFAULT_THRESHOLDS = Thresholds()
 TOP_VALUES = 30
+
+# Text verdicts (050: docs/features/050-texte-detection-fiche/spec.md, R-TXT-1 to R-TXT-11).
+CATEGORY_MAX_DISTINCT = 50  # at most this many distinct texts: categories
+CATEGORY_TOP_COVERAGE = 0.8  # the 20 most frequent texts cover this share: categories
+CATEGORY_MAX_UNIQUE = 0.2  # fewer unique texts than this share: categories
+SHORT_WORDS = (2, 8)  # median words of a short text (a label)
+STOPWORDS_SENTENCE = 0.15  # stop words of a language among the words: sentences
+PUNCTUATION_SENTENCE = 0.3  # texts with sentence punctuation: sentences
+FREE_MEDIAN_WORDS = 5
+FREE_MEAN_LENGTH = 50
+ADDRESS_SHARE = 0.5  # texts with a number and a street word: addresses
+TEXT_NAME_ROLES = ("free_text", "label", "address")
 
 TEXT_PARSER = Parser(kind="text")
 RAW_PARSER = Parser(kind="raw")
@@ -288,6 +301,9 @@ class ColumnDetector:
         # Decimal values are measures: a categorical name ("..._country_score") does not win.
         if role and role.type == "categorical_nominal" and not profile.integer:
             role = None
+        # A customer or order key is a whole number or a code: "basket" in decimals is a value.
+        if role and role.suffixes and not profile.integer:
+            role = None
         role_reason = [f"name suggests {role.label.lower()}"] if role else []
 
         if role and role.id == "year" and profile.integer:
@@ -298,7 +314,7 @@ class ColumnDetector:
             )  # fmt: skip
         if role and role.type == "categorical_nominal":
             return make(role.type, "high", role_reason, TEXT_PARSER, role.id, candidates=candidates)
-        if role and role.id == "identifier":
+        if role and role.key:
             unique = f"{percent(profile.unique_ratio)} unique values"
             if profile.unique_ratio >= 0.9:
                 return make("identifier", "high", [*role_reason, unique], TEXT_PARSER, role.id,
@@ -342,10 +358,7 @@ class ColumnDetector:
         role_reason = [f"name suggests {role.label.lower()}"] if role else []
 
         if role and role.type == "text":
-            confidence: Confidence = "high" if profile.avg_length > 20 else "medium"
-            return make(
-                "text", confidence, role_reason, TEXT_PARSER, role.id, candidates=candidates
-            )
+            return self.named_text(name, role, profile, make, candidates)
         if pair:
             reason = f"two values: {' / '.join(value for value, _ in profile.top)}"
             return make("boolean", "high", [reason], candidates["boolean"], candidates=candidates)
@@ -360,7 +373,16 @@ class ColumnDetector:
         codes = profile.pattern_matches["code"]
         coded = codes > 0 and profile.rate(profile.number_matches[best_decimal] + codes) >= 0.999
         # A quoted "0007200179" named id is a key: as a number it loses its zeros (040).
-        identifier = role is not None and role.id == "identifier"
+        identifier = role is not None and role.key
+        # A customer or order key in decimals is a value ("basket"), not a key (048).
+        if (
+            identifier
+            and role
+            and role.suffixes
+            and number_rate >= self.thresholds.parse_rate
+            and not self.parsed_number_profile(name, best_decimal)[3]
+        ):
+            role, identifier = None, False
         if number_rate >= self.thresholds.parse_rate and not coded and not identifier:
             return self.text_number(
                 name, role, profile, best_decimal, number_rate, make, candidates
@@ -395,17 +417,12 @@ class ColumnDetector:
                 return make(analysis_type, "high", reasons, TEXT_PARSER, pattern_role,
                             candidates=candidates)  # fmt: skip
 
-        if role and role.id == "identifier" and profile.unique_ratio >= 0.9:
+        if role and role.key and profile.unique_ratio >= 0.9:
             reasons = [*role_reason, f"{percent(profile.unique_ratio)} unique values"]
             return make("identifier", "high", reasons, TEXT_PARSER, role.id, candidates=candidates)
 
         spaced_rate = profile.rate(profile.spaced)
-        if profile.avg_length > 50 or (
-            profile.unique_ratio > 0.5 and spaced_rate > 0.5 and profile.avg_length > 20
-        ):
-            reasons = [f"long values (average {profile.avg_length:.0f} characters)"]
-            return make("text", "medium", reasons, TEXT_PARSER, candidates=candidates)
-
+        # R-TXT-1: unique single words are keys, however long (hashes, tokens).
         if (
             profile.unique_ratio >= self.thresholds.identifier_unique
             and profile.present >= 20
@@ -414,14 +431,157 @@ class ColumnDetector:
             reasons = [f"{percent(profile.unique_ratio)} unique values, e.g. {examples(profile)}"]
             return make("identifier", "medium", reasons, TEXT_PARSER,
                         role.id if role else None, candidates=candidates)  # fmt: skip
+        return self.text_verdict(name, role, profile, make, candidates)
 
-        if role and role.type == "categorical_nominal":
-            return make("categorical_nominal", "high", role_reason, TEXT_PARSER, role.id,
+    # --- Text verdicts (050) -------------------------------------------------------------------
+
+    def text_values(self, column: str) -> list[tuple[str, int]]:
+        rows = self.connection.execute(
+            f"SELECT v, count(*) FROM (SELECT {clean_text(column)} AS v FROM {SAMPLE_TABLE}) "
+            "WHERE v IS NOT NULL GROUP BY v"
+        ).fetchall()
+        return [(str(value), int(count)) for value, count in rows]
+
+    def categories_by_count(self, profile: Profile, named_text: bool) -> str | None:
+        """R-TXT-2: why the texts are categories ("" when obvious), None when they are not."""
+        if profile.distinct <= CATEGORY_MAX_DISTINCT:
+            return ""
+        coverage = profile.rate(sum(count for _, count in profile.top[:20]))
+        if coverage >= CATEGORY_TOP_COVERAGE:
+            return f"the 20 most frequent values cover {percent(coverage)} of rows"
+        if profile.unique_ratio < CATEGORY_MAX_UNIQUE and not named_text:
+            return f"only {percent(profile.unique_ratio)} unique values"
+        return None
+
+    @staticmethod
+    def words_reason(measures: TextMeasures) -> str:
+        return f"median {measures.median_words:.0f} words (P90 {measures.p90_words:.0f})"
+
+    @staticmethod
+    def is_short_label(measures: TextMeasures) -> bool:
+        low, high = SHORT_WORDS
+        return (
+            low <= measures.median_words <= high
+            and measures.stopword_share < STOPWORDS_SENTENCE
+            and measures.sentence_share < PUNCTUATION_SENTENCE
+        )
+
+    def label_reasons(self, measures: TextMeasures) -> list[str]:
+        return [
+            self.words_reason(measures),
+            f"few stop words ({percent(measures.stopword_share)}) and little sentence "
+            f"punctuation ({percent(measures.sentence_share)}): short labels",
+        ]
+
+    def sentence_reasons(self, measures: TextMeasures) -> list[str]:
+        reasons = [
+            self.words_reason(measures),
+            f"{percent(measures.stopword_share)} stop words",
+            f"{percent(measures.sentence_share)} with sentence punctuation",
+        ]
+        language = language_reason(measures, self.kb)
+        return [*reasons, language] if language else reasons
+
+    def named_text(
+        self, name: str, role: Role, profile: Profile, make, candidates: dict[str, Parser]
+    ) -> ColumnDetection:
+        """R-TXT-9: a free-text name keeps the text type; the values choose the role."""
+        role_reason = f"name suggests {role.label.lower()}"
+        measures = measure(self.text_values(name), self.kb)
+        categories = self.categories_by_count(profile, named_text=True)
+        if categories is None and self.is_short_label(measures):
+            reasons = [f"{role_reason}, but values are short labels", *self.label_reasons(measures)]
+            return make("text", "medium", reasons, TEXT_PARSER, "label", candidates=candidates)
+        confidence: Confidence = "high" if profile.avg_length > 20 else "medium"
+        reasons = [role_reason, self.words_reason(measures)]
+        if language := language_reason(measures, self.kb):
+            reasons.append(language)
+        return make("text", confidence, reasons, TEXT_PARSER, role.id, candidates=candidates)
+
+    def text_verdict(
+        self, name: str, role: Role | None, profile: Profile, make, candidates: dict[str, Parser]
+    ) -> ColumnDetection:
+        """R-TXT-2 to R-TXT-8: categories, address, free text, short text, in this order."""
+        role_reason = [f"name suggests {role.label.lower()}"] if role else []
+        role_id = role.id if role else None
+
+        def categories(reason: str = "") -> ColumnDetection:
+            if role and role.type == "categorical_nominal":
+                return make("categorical_nominal", "high", role_reason, TEXT_PARSER, role.id,
+                            candidates=candidates)  # fmt: skip
+            confidence: Confidence = (
+                "medium" if profile.distinct <= CATEGORY_MAX_DISTINCT else "low"
+            )
+            reasons = [f"{profile.distinct} distinct values, e.g. {examples(profile)}"]
+            kept = role_id if role_id != "label" else None  # R-TXT-11
+            if reason:
+                reasons.append(reason)
+            return make("categorical_nominal", confidence, reasons, TEXT_PARSER, kept,
                         candidates=candidates)  # fmt: skip
-        confidence = "medium" if profile.distinct <= 50 else "low"
-        reasons = [f"{profile.distinct} distinct values, e.g. {examples(profile)}"]
-        return make("categorical_nominal", confidence, reasons, TEXT_PARSER,
-                    role.id if role else None, candidates=candidates)  # fmt: skip
+
+        reason = self.categories_by_count(profile, named_text=role_id in TEXT_NAME_ROLES)
+        if reason is not None:
+            return categories(reason)
+        # A repeated id ("CA-2017-100111") is a reference, never a sentence nor a label.
+        if role_id == "identifier":
+            return categories()
+
+        measures = measure(self.text_values(name), self.kb)
+        words = self.words_reason(measures)
+        # R-TXT-3, before short text: an address is also 3 to 8 words without stop words.
+        by_name = role_id == "address" and measures.median_words >= 2
+        by_values = (
+            measures.address_share >= ADDRESS_SHARE
+            and measures.sentence_share < PUNCTUATION_SENTENCE
+        )
+        if by_name or by_values:
+            reasons = [*role_reason] if by_name else []
+            if measures.address_share:
+                reasons.append(
+                    f"{percent(measures.address_share)} look like street addresses "
+                    "(a number and a street word)"
+                )
+            if measures.postal_share >= 0.1:
+                reasons.append(f"{percent(measures.postal_share)} with a postal code")
+            sure = (by_name and by_values) or measures.address_share >= 0.8
+            return make("text", "high" if sure else "medium", [*reasons, words], TEXT_PARSER,
+                        "address", candidates=candidates)  # fmt: skip
+
+        # R-TXT-4: sentences hold grammatical words or end with punctuation.
+        long_enough = (
+            measures.median_words >= FREE_MEDIAN_WORDS
+            or profile.avg_length > FREE_MEAN_LENGTH
+            or (measures.median_words >= 2 and profile.unique_ratio >= 0.5)
+        )
+        sentences = (
+            measures.stopword_share >= STOPWORDS_SENTENCE
+            or measures.sentence_share >= PUNCTUATION_SENTENCE
+        )
+        if long_enough and sentences:
+            clear = measures.stopword_share >= 0.25 or measures.sentence_share >= 0.5
+            return make("text", "high" if clear else "medium",
+                        [*role_reason, *self.sentence_reasons(measures)], TEXT_PARSER,
+                        "free_text", candidates=candidates)  # fmt: skip
+
+        # R-TXT-5: a categorical name (city, status...) wins over a short-text reading.
+        if role and role.type == "categorical_nominal":
+            return categories()
+
+        # R-TXT-6: short texts that name things (product names, titles).
+        if self.is_short_label(measures):
+            confidence = "high" if role_id in TEXT_NAME_ROLES else "medium"
+            return make("text", confidence, [*role_reason, *self.label_reasons(measures)],
+                        TEXT_PARSER, "label", candidates=candidates)  # fmt: skip
+
+        # R-TXT-7: long values, the former rule (keyword lists, text without known stop words).
+        spaced_rate = profile.rate(profile.spaced)
+        if profile.avg_length > FREE_MEAN_LENGTH or (
+            profile.unique_ratio > 0.5 and spaced_rate > 0.5 and profile.avg_length > 20
+        ):
+            reasons = [f"long values (average {profile.avg_length:.0f} characters)", words]
+            return make("text", "medium", reasons, TEXT_PARSER, "free_text",
+                        candidates=candidates)  # fmt: skip
+        return categories()
 
     def text_number(
         self,

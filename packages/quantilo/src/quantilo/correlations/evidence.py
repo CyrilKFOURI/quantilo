@@ -2,8 +2,7 @@
 
 from typing import Literal
 
-import numpy as np
-from scipy import stats
+from quantilo.compare.multiple import adjust
 
 Size = Literal["negligible", "small", "medium", "large"]
 Evidence = Literal["strong", "moderate", "weak", "none"]
@@ -31,14 +30,9 @@ def effect_size(metric: str, value: float) -> Size:
 
 
 def adjusted(p_values: list[float | None]) -> list[float | None]:
-    """Benjamini-Hochberg: with hundreds of pairs, about 5 % pass p < 0.05 by chance alone."""
-    known = [k for k, p in enumerate(p_values) if p is not None]
-    result: list[float | None] = [None] * len(p_values)
-    if known:
-        q = stats.false_discovery_control(np.array([p_values[k] for k in known], dtype=float))
-        for k, value in zip(known, q, strict=True):
-            result[k] = float(value)
-    return result
+    """Benjamini-Hochberg: with hundreds of pairs, about 5 % pass p < 0.05 by chance alone.
+    The matrix itself picks its method by rule (compare/multiple.py, 051)."""
+    return adjust(p_values, "bh")
 
 
 def grade(size: Size, q: float | None) -> Evidence:

@@ -61,6 +61,10 @@ export type SavedFilter = Schemas["SavedFilter"];
 export type Comparison = Complete<Schemas["Comparison"]>;
 export type BivariateTest = Comparison["tests"][number];
 export type CompareGroup = Comparison["groups"][number];
+export type GroupDifference = Comparison["differences"][number];
+export type MultipleTesting = NonNullable<Comparison["multiple"]>;
+/** How the p-values of a view are adjusted (051): auto follows the rule, the others force it. */
+export type Correction = "auto" | "bh" | "holm" | "bonferroni";
 export type Correlations = Complete<Schemas["Correlations"]>;
 export type AssociationMatrix = Correlations["matrix"];
 export type Insight = Correlations["insights"][number];
@@ -714,9 +718,11 @@ export const api = {
     method: CorrelationMethod,
     columns: string[] | null,
     filters?: Condition[],
+    correction: Correction = "auto",
   ) => {
     const query = new URLSearchParams({ method, ...filtersParam(filters) });
     if (columns) query.set("columns", columns.join(","));
+    if (correction !== "auto") query.set("correction", correction);
     return request<Correlations>(
       "GET",
       `/datasets/${id}/correlations?${query}`,

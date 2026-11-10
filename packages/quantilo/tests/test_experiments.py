@@ -325,6 +325,37 @@ def test_segments_warn_and_cumulative_ends_on_the_overall_difference(tmp_path: P
     assert "inflates false positives" in result.cumulative.warning
 
 
+def test_ten_subgroups_are_adjusted_by_benjamini_hochberg(tmp_path: Path) -> None:
+    rng = np.random.default_rng(12)
+    n = 12_000
+    group = rng.choice(["A", "B"], n)
+    frame = pd.DataFrame(
+        {
+            "group": group,
+            "country": rng.choice([f"c{k}" for k in range(10)], n),
+            "converted": rng.random(n) < np.where(group == "B", 0.13, 0.11),
+        }
+    )
+
+    result = load(frame, tmp_path).experiment("group", "converted", segment="country").analyze()
+
+    segments = result.segments
+    assert segments is not None and len(segments.levels) == 10
+    assert segments.correction is not None and segments.correction.method == "bh"
+    raw = [c.p_value for level in segments.levels for c in level.comparisons]
+    expected = multipletests(raw, method="fdr_bh")[1]
+    found = [c.p_adjusted for level in segments.levels for c in level.comparisons]
+    assert found == pytest.approx(list(expected))
+    assert "no correction here" not in segments.warning
+    assert all(
+        "adjusted for 10 comparisons" in c.sentence
+        for lv in segments.levels
+        for c in lv.comparisons
+    )
+    # the main comparison keeps Holm (R-MT-05)
+    assert result.correction == "One comparison: no adjustment needed."
+
+
 def test_wrong_variant_columns_are_refused(tmp_path: Path) -> None:
     frame = pd.DataFrame({"g": [str(i % 7) for i in range(70)], "y": np.arange(70.0)})
     with pytest.raises(ExperimentError, match="2 to 5 variants"):

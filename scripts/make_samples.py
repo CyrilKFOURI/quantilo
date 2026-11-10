@@ -31,6 +31,54 @@ COMMENTS = [
     "",
 ]
 
+# Text traps (050): a product label, a street address and a free answer, none named as such.
+ITEM_ADJECTIVES = ["Organic", "Wireless", "Stainless", "Vintage", "Compact", "Premium", "Bamboo",
+                   "Ceramic", "Recycled", "Classic"]  # fmt: skip
+ITEM_PRODUCTS = ["Green Tea", "Coffee Mug", "Desk Lamp", "Water Bottle", "Notebook", "Phone Case",
+                 "Yoga Mat", "Backpack", "Kitchen Knife", "Picture Frame", "Scented Candle",
+                 "Wall Clock"]  # fmt: skip
+ITEM_VARIANTS = ["Black", "White", "Large", "Small", "500 g", "Set 4", "Blue", "Red"]
+ADDRESSES = [
+    ("{n} rue {s}, {p} {c}", ["de la Paix", "Victor Hugo", "des Lilas", "Nationale"],
+     ["Paris", "Lyon", "Nantes", "Lille"], "{:05d}"),
+    ("{n} {s} Street, {c} {p}", ["Baker", "High", "Church", "Station"],
+     ["London", "Leeds", "Bristol"], "NW{} 6XE"),
+    ("{s} {n}, {p} {c}", ["Hauptstraße", "Lindenweg", "Schillerplatz", "Bahnhofstraße"],
+     ["Berlin", "Köln", "München"], "{:05d}"),
+    ("Calle {s} {n}, {p} {c}", ["Mayor", "Real", "del Sol"], ["Madrid", "Sevilla"], "{:05d}"),
+    ("Via {s} {n}, {p} {c}", ["Roma", "Garibaldi", "Dante"], ["Milano", "Torino"], "{:05d}"),
+]  # fmt: skip
+ANSWERS_FR = (
+    ["Le produit est arrivé", "La livraison a été", "Le service client était",
+     "J'ai trouvé l'emballage", "Le prix me semble", "La qualité est"],
+    ["très rapide", "un peu lent", "vraiment correct", "assez décevant", "parfait", "moyen"],
+    ["et je recommande.", "mais sans plus.", "pour une première commande.", "comme d'habitude.",
+     "malgré quelques soucis.", "selon moi."],
+)  # fmt: skip
+ANSWERS_EN = (
+    ["The parcel arrived", "Delivery was", "Customer service was", "The packaging looked"],
+    ["very fast", "a bit slow", "fine", "disappointing"],
+    ["and I would order again.", "but nothing special.", "for a first order."],
+)
+
+
+def text_traps(rng: random.Random) -> list[str]:
+    """item (short text), ship_to (address), survey_answer (free text, mostly French)."""
+    item = " ".join(
+        [rng.choice(ITEM_ADJECTIVES), rng.choice(ITEM_PRODUCTS), rng.choice(ITEM_VARIANTS)]
+    )
+    pattern, streets, cities, postal = rng.choice(ADDRESSES)
+    address = pattern.format(
+        n=rng.randint(1, 240),
+        s=rng.choice(streets),
+        c=rng.choice(cities),
+        p=postal.format(rng.randint(1000, 95999) if "{:05d}" in postal else rng.randint(1, 9)),
+    )
+    roll = rng.random()
+    parts = ANSWERS_EN if roll < 0.1 else ANSWERS_FR
+    answer = "" if roll > 0.9 else " ".join(rng.choice(part) for part in parts)
+    return [item, address, answer]
+
 
 def french_number(value: float) -> str:
     """1234.5 -> '1 234,50' (French formatting, stored as text)."""
@@ -53,9 +101,10 @@ def typing_traps(rng: random.Random, rows: int = 600) -> None:
                 "customer_id", "age", "nb_children", "satisfaction", "price_eur", "discount",
                 "signup_date", "last_login", "is_active", "zip_code", "country", "city",
                 "segment", "income", "birth_year", "latitude", "longitude", "email",
-                "comment", "source_system", "legacy_code",
+                "comment", "source_system", "legacy_code", "item", "ship_to", "survey_answer",
             ]
         )  # fmt: skip
+        texts = random.Random(50)  # its own generator: the columns above stay as they were
         for index in range(rows):
             country = rng.choice(COUNTRIES)
             signup = start + timedelta(days=rng.randrange(0, 2000))
@@ -85,6 +134,7 @@ def typing_traps(rng: random.Random, rows: int = 600) -> None:
                     rng.choice(COMMENTS),
                     "crm_v2",
                     "" if rng.random() < 0.97 else f"L-{rng.randint(100, 999)}",
+                    *text_traps(texts),
                 ]
             )
 

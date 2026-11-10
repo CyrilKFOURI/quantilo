@@ -1,6 +1,20 @@
 # Values that mean "missing", compared lowercased and trimmed.
 null_tokens = ["", "na", "n/a", "nan", "null", "none", "nil", "-", "--", "?", "#n/a", "#na", "missing"]
 
+# Street words: a value holding a number and one of these words looks like a street address
+# (R-TXT-3, 050). Whole words, compared lowercased.
+street_words = [
+  "street", "st", "road", "rd", "avenue", "ave", "av", "boulevard", "blvd", "bd", "lane", "ln",
+  "drive", "dr", "court", "ct", "place", "pl", "square", "sq", "terrace", "highway", "hwy",
+  "parkway", "pkwy", "way", "close", "crescent", "row",
+  "rue", "chemin", "allée", "allee", "impasse", "quai", "route", "cours", "faubourg", "sentier",
+  "calle", "avenida", "plaza", "paseo", "carrera", "camino", "ronda", "travesía",
+  "via", "viale", "piazza", "corso", "vicolo", "largo", "strada",
+  "strasse", "straße", "str", "weg", "platz", "gasse", "ring", "damm", "ufer",
+]
+# Word endings of the same (German compounds: "Hauptstraße", "Lindenweg").
+street_suffixes = ["strasse", "straße", "str", "weg", "platz", "allee", "gasse", "damm", "ufer"]
+
 # Pairs of words meaning true / false. A two-valued text column using one pair is boolean.
 [[boolean_pair]]
 true = ["true", "t"]

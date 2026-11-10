@@ -68,8 +68,11 @@ ds.variable("Fare")                   # describe, normality (5 tests), KDE, ECDF
 ds.fit("Fare")                        # probability laws ranked by AIC, transformations
 ds.outliers("Fare", method="iqr")     # IQR, 3×IQR, z-score, robust z, and the rows
 ds.compare("Fare", "Pclass")          # Welch / Mann-Whitney / ANOVA / Kruskal… + effect size
+                                      # groups: bootstrap intervals when small or skewed,
+                                      # pairwise differences adjusted for multiple tests
 ds.compare("Age", "Fare", color="Sex")
 ds.correlations(method="spearman")
+ds.correlations(correction="holm")    # auto: Benjamini-Hochberg from 10 pairs, Holm below
 ds.rows(limit=20, mode="duplicates")  # first, sample, duplicates, missing
 ds.to_pandas()                        # every row, each column in its type
 ds.export("clean.parquet")            # CSV, Parquet or Excel

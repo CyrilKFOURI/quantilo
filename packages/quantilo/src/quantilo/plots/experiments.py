@@ -233,3 +233,123 @@ def sample_size_figure(plan: dict[str, Any], tokens: Tokens) -> Built:
             "margin": {"t": 12},
         },
     }
+
+
+# --- Bandit view (049) --------------------------------------------------------------------------
+
+
+def _regret_axis(kind: str) -> str:
+    return "Cumulative regret" + (" (conversions)" if kind == "rate" else "")
+
+
+def bandit_shares_figure(replay: dict[str, Any], tokens: Tokens) -> Built:
+    """The share of each period's units a bandit would have sent to each variant; the control in
+    the neutral ink (the reference), the other variants in their colour."""
+    data: list[Built] = []
+    for i, share in enumerate(replay["shares"]):
+        color = tokens.ink3 if i == 0 else variant_color(tokens, i - 1)
+        data.append(
+            {
+                "type": "scatter",
+                "mode": "lines",
+                "name": share["variant"],
+                "x": replay["periods"],
+                "y": [s * 100 for s in share["shares"]],
+                "line": {"color": color, "width": 2, "shape": "hv"},
+                "hovertemplate": f"%{{x}}<br>{share['variant']}: %{{y:.0f}} %<extra></extra>",
+            }
+        )
+    return {
+        "data": data,
+        "layout": {
+            "xaxis": {"type": "date", "nticks": 6, "tickangle": 0},
+            "yaxis": {**axis_title("Bandit's share of the units (%)"), "range": [0, 100]},
+            "hovermode": "x unified",
+            **LEGEND,
+        },
+    }
+
+
+def _regret_lines(
+    x: list[Any], fixed: list[float], bandit: list[float], tokens: Tokens
+) -> list[Built]:
+    return [
+        {
+            "type": "scatter",
+            "mode": "lines",
+            "name": "Fixed split",
+            "x": x,
+            "y": fixed,
+            "line": {"color": tokens.ink3, "width": 2, "dash": "dot"},
+            "hovertemplate": "Fixed split: %{y:,.3g}<extra></extra>",
+        },
+        {
+            "type": "scatter",
+            "mode": "lines",
+            "name": "Bandit",
+            "x": x,
+            "y": bandit,
+            "line": {"color": tokens.palette[0], "width": 2},
+            "hovertemplate": "Bandit: %{y:,.3g}<extra></extra>",
+        },
+    ]
+
+
+def bandit_regret_figure(replay: dict[str, Any], kind: str, tokens: Tokens) -> Built:
+    """The cumulative regret of the fixed split and of the bandit against shipping the winner
+    from the first period: the gap between the two lines is what the bandit gained."""
+    return {
+        "data": _regret_lines(
+            replay["periods"], replay["regret_fixed"], replay["regret_bandit"], tokens
+        ),
+        "layout": {
+            "xaxis": {"type": "date", "nticks": 6, "tickangle": 0},
+            "yaxis": {
+                **axis_title(_regret_axis(kind)),
+                "zeroline": True,
+                "zerolinecolor": tokens.ink3,
+                "zerolinewidth": 1,
+            },
+            "hovermode": "x unified",
+            **LEGEND,
+        },
+    }
+
+
+def bandit_simulation_figure(simulation: dict[str, Any], tokens: Tokens) -> Built:
+    """The Plan's simulation: the expected cumulative regret of the fixed split and the bandit's
+    mean over the runs, with its 10–90 % band, against the units that entered the test."""
+    x = simulation["cumulative_units"]
+    color = tokens.palette[0]
+    band: list[Built] = [
+        {
+            "type": "scatter",
+            "mode": "lines",
+            "x": x,
+            "y": simulation["regret_bandit_low"],
+            "line": {"width": 0},
+            "hoverinfo": "skip",
+            "showlegend": False,
+        },
+        {
+            "type": "scatter",
+            "mode": "lines",
+            "x": x,
+            "y": simulation["regret_bandit_high"],
+            "fill": "tonexty",
+            "fillcolor": with_alpha(color, 0.15),
+            "line": {"width": 0},
+            "hoverinfo": "skip",
+            "showlegend": False,
+        },
+    ]
+    lines = _regret_lines(x, simulation["regret_fixed"], simulation["regret_bandit"], tokens)
+    return {
+        "data": band + lines,
+        "layout": {
+            "xaxis": {**axis_title("Units in the test"), "showgrid": True},
+            "yaxis": {**axis_title(_regret_axis(simulation["kind"])), "rangemode": "tozero"},
+            "hovermode": "x unified",
+            **LEGEND,
+        },
+    }

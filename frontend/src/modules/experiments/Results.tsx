@@ -1,11 +1,21 @@
 import { CircleCheck, CircleHelp, TriangleAlert } from "lucide-react";
-import { useId, useMemo } from "react";
+import { useId, useMemo, useState } from "react";
 
 import { Plot } from "../../charts/Plot";
+import { MultipleTestingNote } from "../../features/inference/MultipleTesting";
 import { t, type MessageKey } from "../../lib/i18n";
-import type { ExperimentComparison, ExperimentCumulative, ExperimentMetricResult, ExperimentResult, ExperimentSegments, MetricKind } from "./api";
-import { cumulativeFigure, intervalsFigure } from "./figures";
-import { gap, interval, percent, pValue, value } from "./format";
+import type {
+  BanditReplay,
+  ExperimentBandit,
+  ExperimentComparison,
+  ExperimentCumulative,
+  ExperimentMetricResult,
+  ExperimentResult,
+  ExperimentSegments,
+  MetricKind,
+} from "./api";
+import { banditRegretFigure, banditSharesFigure, cumulativeFigure, intervalsFigure } from "./figures";
+import { gap, interval, loss, percent, probability, pValue, value } from "./format";
 
 /** The verdict in a word, with a status colour and an icon (colour is never alone). */
 function Verdict({ comparison }: { comparison: ExperimentComparison }) {
@@ -176,6 +186,7 @@ export function SegmentsSection({ segments }: { segments: ExperimentSegments }) 
         {t("experiments.segmentsTitle", { metric: segments.metric, column: segments.column })}
       </h2>
       <p className="border-l-2 border-warn pl-3 text-xs text-ink-2">{segments.warning}</p>
+      {segments.correction && <MultipleTestingNote multiple={segments.correction} />}
       <dl className="space-y-3">
         {segments.levels.map((level) => (
           <div key={level.level} className="grid gap-1 sm:grid-cols-[160px_minmax(0,1fr)]">
@@ -204,6 +215,67 @@ export function CumulativeSection({ cumulative }: { cumulative: ExperimentCumula
       </h2>
       <p className="border-l-2 border-warn pl-3 text-xs text-ink-2">{cumulative.warning}</p>
       <Plot figure={figure} height={300} label={t("experiments.cumulativeLabel", { metric: cumulative.metric })} />
+    </section>
+  );
+}
+
+/** The replay's two charts, drawn only once the section is open (a closed section has no size). */
+function Replay({ replay, kind }: { replay: BanditReplay; kind: string }) {
+  const shares = useMemo(() => banditSharesFigure(replay), [replay]);
+  const regret = useMemo(() => banditRegretFigure(replay, kind), [replay, kind]);
+  return (
+    <div className="mt-3 space-y-3">
+      <p className="max-w-prose text-[13px] leading-relaxed text-ink-1">{replay.sentence}</p>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="min-w-0">
+          <h3 className="text-[13px] font-medium text-ink-1">{t("experiments.bandit.sharesTitle")}</h3>
+          <Plot figure={shares} height={260} label={t("experiments.bandit.sharesLabel")} />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-[13px] font-medium text-ink-1">{t("experiments.bandit.regretTitle")}</h3>
+          <Plot figure={regret} height={260} label={t("experiments.bandit.regretLabel")} />
+        </div>
+      </div>
+      <p className="max-w-prose text-xs text-ink-3">{replay.note}</p>
+    </div>
+  );
+}
+
+/** 049: P(each variant is best) and the expected loss of shipping it, then what a bandit would
+ *  have done with the traffic. A complement to the test above, never a replacement. */
+export function BanditSection({ bandit }: { bandit: ExperimentBandit }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section aria-labelledby="experiment-bandit" className="space-y-3 border-t border-line pt-5">
+      <div className="space-y-0.5">
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <h2 id="experiment-bandit" className="text-[15px] font-semibold text-ink-1">
+            {t("experiments.bandit.title")}
+          </h2>
+          <span className="font-mono text-xs text-ink-3">{bandit.metric}</span>
+        </div>
+        <p className="text-xs text-ink-3">{t("experiments.bandit.why", { prior: bandit.prior, draws: bandit.draws.toLocaleString("en-US") })}</p>
+      </div>
+      <p className="text-[13px] text-ink-1">{bandit.sentence}</p>
+      <ul className="space-y-1 text-[13px]" aria-label={t("experiments.bandit.listLabel")}>
+        {bandit.arms.map((arm) => (
+          <li key={arm.variant} className="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
+            <span className={`truncate ${arm.variant === bandit.leader ? "font-medium text-ink-1" : "text-ink-2"}`}>{arm.variant}</span>
+            <span className="text-ink-2 tabular-nums">
+              {t("experiments.bandit.pBest")} {probability(arm.p_best)} · {t("experiments.bandit.loss")} {loss(bandit.kind, arm.expected_loss)}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="max-w-prose border-l-2 border-warn pl-3 text-xs text-ink-2">{bandit.guardrail}</p>
+      <details className="group text-xs" onToggle={(e) => setOpen(e.currentTarget.open)}>
+        <summary className="cursor-pointer text-[13px] text-accent select-none hover:underline">{t("experiments.bandit.replayTitle")}</summary>
+        {bandit.replay ? (
+          open && <Replay replay={bandit.replay} kind={bandit.kind} />
+        ) : (
+          <p className="mt-2 text-ink-2">{bandit.replay_reason}</p>
+        )}
+      </details>
     </section>
   );
 }

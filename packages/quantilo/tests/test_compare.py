@@ -274,3 +274,81 @@ def test_two_large_categories_are_cut_to_15_boxes(connection) -> None:
     assert len(result.groups) <= 15 and result.layout.axis_kept == 5
     assert "Others" in {g.label for g in result.groups}
     assert result.message and "at most 15" in result.message
+
+
+# --- 051: bootstrap intervals and pairwise differences -------------------------------------------
+
+
+def small_groups() -> duckdb.DuckDBPyConnection:
+    rng = np.random.default_rng(11)
+    labels = ["big"] * 600 + ["small"] * 12 + ["skewed"] * 400
+    values = np.concatenate(
+        [rng.normal(10, 2, 600), rng.normal(12, 2, 12), rng.lognormal(2, 1.2, 400)]
+    )
+    table = pa.table({"file_row_number": pa.array(range(len(labels))), "g": labels, "v": values})
+    con = duckdb.connect()
+    con.register("t", table)
+    con.execute("CREATE TABLE data AS SELECT * FROM t")
+    return con
+
+
+def test_small_or_skewed_groups_get_a_bootstrap_interval_with_its_reason() -> None:
+    con = small_groups()
+    result = compare(con, "data", col("g", CAT), col("v", NUM))
+    by_label = {g.label: g for g in result.groups}
+    small, skewed, big = by_label["small"], by_label["skewed"], by_label["big"]
+    assert small.ci_method == "bootstrap" and small.ci_reason and "12 values" in small.ci_reason
+    assert skewed.ci_method == "bootstrap" and "skewness" in (skewed.ci_reason or "")
+    assert big.ci_method == "t"
+    for group in result.groups:
+        assert group.ci_low is not None and group.ci_high is not None
+        assert group.ci_low < (group.mean or 0) < group.ci_high
+        assert group.median_low is not None and group.median_high is not None
+        assert group.median_low <= (group.median or 0) <= group.median_high
+        assert group.median_reason
+    assert result.intervals and "bootstrap for 2 of 3 groups" in result.intervals
+    again = compare(con, "data", col("g", CAT), col("v", NUM))
+    assert [(g.ci_low, g.median_high) for g in again.groups] == [
+        (g.ci_low, g.median_high) for g in result.groups
+    ]
+
+
+def test_pairwise_differences_are_welch_tests_adjusted_by_holm(connection) -> None:
+    result = compare(connection, "data", col("v", NUM), col("g", CAT))
+    data = frame(connection, "SELECT g, v FROM data")
+    assert len(result.differences) == 3
+    assert result.multiple is not None and result.multiple.method == "holm"
+    for d in result.differences:
+        a, b = data["v"][data["g"] == d.a], data["v"][data["g"] == d.b]
+        expected: Any = stats.ttest_ind(a, b, equal_var=False)
+        assert d.p_value == pytest.approx(expected.pvalue, rel=1e-6, abs=1e-300)
+        assert d.diff == pytest.approx(b.mean() - a.mean())
+        assert d.p_adjusted is not None and d.p_adjusted >= (d.p_value or 0)
+        assert d.interval == "welch" and d.low is not None and d.low < d.diff < (d.high or 0)
+
+
+def test_a_difference_with_a_small_group_is_bootstrapped() -> None:
+    result = compare(small_groups(), "data", col("g", CAT), col("v", NUM))
+    pair = next(d for d in result.differences if {d.a, d.b} == {"big", "small"})
+    assert pair.interval == "bootstrap" and pair.reason and "small" in pair.reason
+    assert pair.low is not None and pair.high is not None and pair.low < pair.diff < pair.high
+
+
+def test_many_groups_use_benjamini_hochberg() -> None:
+    rng = np.random.default_rng(12)
+    labels = rng.choice([f"g{k}" for k in range(6)], size=3_000)
+    values = rng.normal(0, 1, 3_000) + np.array([int(label[1]) * 0.1 for label in labels])
+    table = pa.table({"file_row_number": pa.array(range(3_000)), "g": labels, "v": values})
+    con = duckdb.connect()
+    con.register("t", table)
+    con.execute("CREATE TABLE data AS SELECT * FROM t")
+    result = compare(con, "data", col("g", CAT), col("v", NUM))
+    assert len(result.differences) == 15
+    assert result.multiple is not None and result.multiple.method == "bh"
+    assert "15 tests" in result.multiple.sentence
+
+
+def test_colored_groups_compare_the_axis_groups_pairwise(connection) -> None:
+    result = compare(connection, "data", col("g", CAT), col("v", NUM), color=col("h", CAT))
+    assert {(d.a, d.b) for d in result.differences} == {("a", "b"), ("a", "c"), ("b", "c")}
+    assert all(g.ci_method in ("t", "bootstrap") for g in result.groups)

@@ -274,3 +274,30 @@ def test_link_wording_follows_the_evidence() -> None:
     assert pair_insight(graded("x", "y", "pearson", 0.02, 0.9), roles) is None
     redundant = pair_insight(graded("x", "y", "pearson", 0.99, 0.0001), roles)
     assert redundant is not None and redundant.kind == "redundant"
+
+
+# --- 051: multiple testing -----------------------------------------------------------------------
+
+
+def test_many_pairs_are_corrected_by_benjamini_hochberg(connection) -> None:
+    columns = [c for c in COLUMNS if c.type != "identifier"]
+    matrix, _ = association_matrix(connection, "data", columns)
+    m = matrix.multiple
+    assert m is not None and m.method == "bh" and m.auto
+    assert m.tests == sum(1 for p in matrix.pairs if p.p_value is not None) >= 10
+    assert m.significant == sum(
+        1 for p in matrix.pairs if p.p_value is not None and p.p_value < 0.05
+    )
+    assert m.kept == sum(1 for p in matrix.pairs if p.q_value is not None and p.q_value < 0.05)
+    assert f"{m.tests} tests" in m.sentence and "Benjamini–Hochberg" in m.sentence
+
+
+def test_few_pairs_use_holm_and_a_method_can_be_forced(connection) -> None:
+    few = [c for c in COLUMNS if c.name in ("x", "y", "noise", "score")]
+    matrix, _ = association_matrix(connection, "data", few)
+    assert matrix.multiple is not None and matrix.multiple.method == "holm"
+    forced, _ = association_matrix(connection, "data", few, correction="bonferroni")
+    assert forced.multiple is not None and forced.multiple.method == "bonferroni"
+    assert not forced.multiple.auto and "chosen" in forced.multiple.reason
+    for pair in forced.pairs:
+        assert pair.q_value == pytest.approx(min(1.0, (pair.p_value or 0) * 6))

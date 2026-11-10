@@ -65,7 +65,7 @@ DEFAULT_WINDOW: dict[Period, int] = {
     "year": 3,
 }
 # Amounts and volumes add up over a period; prices, ages or ratings are averaged.
-SUM_ROLES = frozenset({"amount", "quantity"})
+SUM_ROLES = frozenset({"amount", "quantity", "cost", "target"})  # 048: cost, target
 AUTO_MAX_PERIODS = 400  # an automatic period is coarsened beyond this many periods
 MAX_PERIODS = 2_000  # a chosen period is coarsened beyond this many (points drawn per series)
 MIN_PERIODS = 8  # fewer periods: no rolling statistics, no trend test

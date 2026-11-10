@@ -28,11 +28,12 @@ from quantilo.experiments.analyze import (
     analyze,
     guess_control,
 )
+from quantilo.experiments.bandit import BanditSimulation, simulate
 from quantilo.experiments.plan import SampleSize, SampleSizeRequest, sample_size
 from quantilo.filters.model import Condition, filters_key
 from quantilo.filters.scope import scoped_source, where_for
 from quantilo.typing.parsers import typed_sql
-from quantilo.typing.types import NUMERIC_TYPES
+from quantilo.typing.types import KEY_ROLES, NUMERIC_TYPES
 
 CACHE_SIZE = 16
 MAX_SEGMENT_LEVELS = 20
@@ -117,7 +118,7 @@ def repeated_units(views: list[ColumnView], taken: set[str]) -> list[ExperimentU
             continue
         if (
             view.type != "identifier"
-            and view.role != "identifier"
+            and view.role not in KEY_ROLES
             and not UNIT_HINT.search(view.name)
         ):
             continue
@@ -162,7 +163,7 @@ class ExperimentEngine:
         numbers = [
             v
             for v in ordered
-            if (v.type == "boolean" or v.type in NUMERIC_TYPES) and v.role != "identifier"
+            if (v.type == "boolean" or v.type in NUMERIC_TYPES) and v.role not in KEY_ROLES
         ]
         connection = duckdb.connect()
         try:
@@ -346,3 +347,7 @@ class ExperimentEngine:
     @staticmethod
     def sample_size(request: SampleSizeRequest) -> SampleSize:
         return sample_size(request)
+
+    @staticmethod
+    def bandit_simulation(request: SampleSizeRequest) -> BanditSimulation:
+        return simulate(request)

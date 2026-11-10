@@ -5,7 +5,7 @@ from typing import Literal
 
 from quantilo.synthetic.encode import RARE
 from quantilo.synthetic.sequences import SequencePlan
-from quantilo.typing.types import AnalysisType
+from quantilo.typing.types import KEY_ROLES, AnalysisType
 
 Treatment = Literal["model", "unique", "fake", "leave"]
 Method = Literal["cart", "copula", "bayes", "independent", "ctgan", "tvae", "timegan"]
@@ -115,7 +115,7 @@ def _treat(column: PlanColumn) -> ColumnPlan:
                 options,
             )
         return plan("leave", "R-SYN-06", "Free text could leak real content.", ["leave"])
-    if kind == "identifier" or role == "identifier":
+    if kind == "identifier" or role in KEY_ROLES:
         return plan(
             "unique",
             "R-SYN-05",

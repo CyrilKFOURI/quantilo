@@ -50,8 +50,19 @@ const correlations = {
     pairs: [
       { a: "units", b: "revenue", metric: "pearson", value: 0.997, p_value: 0.0001, n: 100, q_value: 0.0002, evidence: "strong" },
       { a: "units", b: "store", metric: "eta", value: 0.7, p_value: 0.0001, n: 100, q_value: 0.0002, evidence: "strong" },
-      { a: "revenue", b: "store", metric: "eta", value: 0.3, p_value: 0.2, n: 100, q_value: 0.2, evidence: "weak" },
+      { a: "revenue", b: "store", metric: "eta", value: 0.3, p_value: 0.04, n: 100, q_value: 0.06, evidence: "weak" },
     ],
+    multiple: {
+      method: "holm",
+      label: "Holm",
+      tests: 3,
+      significant: 3,
+      kept: 2,
+      alpha: 0.05,
+      auto: true,
+      reason: "3 tests: Holm (automatic below 10 tests).",
+      sentence: "2 of the 3 significant links stay significant after correcting for 3 tests (Holm).",
+    },
   },
   insights: [
     {
@@ -100,6 +111,19 @@ beforeEach(() => localStorage.clear());
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Correlations page", () => {
+  it("says how many links survive the correction and marks those that no longer hold", async () => {
+    const calls = setup();
+    renderAt("/d/d1/correlations");
+
+    expect(await screen.findByText(/2 of the 3 significant links stay significant/)).toBeInTheDocument();
+    expect(screen.getAllByText("no longer holds")).toHaveLength(1);
+    fireEvent.change(screen.getByRole("combobox", { name: /Correction/ }), { target: { value: "bonferroni" } });
+    await waitFor(() => {
+      const last = calls.filter((c) => c.key === "GET /datasets/d1/correlations").at(-1);
+      expect(last?.params.get("correction")).toBe("bonferroni");
+    });
+  });
+
   it("shows insights with links to their proof", async () => {
     setup();
     renderAt("/d/d1/correlations");

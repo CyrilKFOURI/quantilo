@@ -49,7 +49,7 @@ def test_the_modules_tools_are_collected(client: TestClient) -> None:
     assert {"analyze_time_series", "forecast"} <= names
     assert {"suggest_kpis", "compute_kpi", "save_kpi"} <= names
     assert {"plan_synthetic", "generate_synthetic", "save_synthetic_dataset"} <= names
-    assert {"analyze_experiment", "sample_size"} <= names
+    assert {"analyze_experiment", "bandit_view", "sample_size"} <= names
     assert "export_report" in names
     kinds = {t.name: t.kind for t in agent(client).registry}
     assert kinds["save_kpi"] == kinds["save_synthetic_dataset"] == "write"
@@ -252,6 +252,24 @@ def test_analyze_an_experiment_and_plan_the_next(client: TestClient) -> None:
     assert analyzed.link.page == "experiments" and analyzed.link.params["unit"] == "user_id"
     with pytest.raises(ToolError, match="2 to 5 variants"):
         run_tool(client, ab, "analyze_experiment", {"variant": "user_id", "metrics": ["converted"]})
+
+    bandit = run_tool(
+        client,
+        ab,
+        "bandit_view",
+        {"variant": "variant", "metrics": ["converted"], "unit": "user_id", "time": "date"},
+    )
+    assert bandit.summary.startswith("P(new_checkout is best)")
+    assert bandit.content["variants"][1]["p_best"] > 0.9
+    assert "replay" in bandit.content and "guardrail" in bandit.content
+    assert "reinforcement" not in str(bandit.content).lower()
+    ratio = run_tool(
+        client,
+        ab,
+        "bandit_view",
+        {"variant": "variant", "metrics": [{"column": "revenue", "denominator": "orders"}]},
+    )
+    assert ratio.summary == "No bandit view" and "ratio" in ratio.content["why"]
 
     planned = run_tool(client, ab, "sample_size", {"baseline": 0.2, "effect": 0.1})
     assert planned.content["control"] > 1_000

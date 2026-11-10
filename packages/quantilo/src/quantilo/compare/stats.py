@@ -138,6 +138,22 @@ def welch_t(a: GroupStats, b: GroupStats) -> BivariateTest:
     )
 
 
+def welch_interval(
+    a: GroupStats, b: GroupStats, alpha: float = 0.05
+) -> tuple[float | None, float | None]:
+    """Interval of b's mean minus a's, with Welch–Satterthwaite degrees of freedom."""
+    if a.n < 2 or b.n < 2:
+        return None, None
+    va, vb = a.var / a.n, b.var / b.n
+    se2 = va + vb
+    if se2 <= 0:
+        return None, None
+    df = se2**2 / (va**2 / (a.n - 1) + vb**2 / (b.n - 1))
+    margin = float(stats.t.ppf(1 - alpha / 2, df)) * math.sqrt(se2)
+    diff = b.mean - a.mean
+    return diff - margin, diff + margin
+
+
 def mann_whitney(a: np.ndarray, b: np.ndarray) -> BivariateTest:
     n = len(a) + len(b)
     if len(a) < 1 or len(b) < 1:

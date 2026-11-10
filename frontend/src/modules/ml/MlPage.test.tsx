@@ -441,6 +441,17 @@ describe("Explanations", () => {
                 tree: null,
                 pairs: [{ first: "size", second: "rooms", strength: 0.91, measure: "|r|" }],
                 warnings: [],
+                words: [
+                  {
+                    column: "notes",
+                    method: "linear",
+                    output: "prediction",
+                    terms: 812,
+                    up: [{ term: "sea view", effect: 21.5, rows: 0.12, towards: null }],
+                    down: [],
+                    sentence: "In notes, “sea view” pushes the prediction up most (+21.5), in prediction: exact, through the model's coefficients.",
+                  },
+                ],
               },
             },
     });
@@ -451,6 +462,9 @@ describe("Explanations", () => {
     expect(await screen.findByText("Higher size pushes the prediction up.", {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByText(/size and rooms are strongly linked/)).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Column" })).toHaveValue("size");
+    expect(screen.getByText(/“sea view” pushes the prediction up most/)).toBeInTheDocument();
+    expect(within(screen.getByRole("table", { name: "Pushes up" })).getByText("sea view")).toBeInTheDocument();
+    expect(screen.getByText("No term in this direction.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("radio", { name: "Predictions" }));
     fireEvent.click(screen.getByRole("button", { name: "Explain row 5" }));

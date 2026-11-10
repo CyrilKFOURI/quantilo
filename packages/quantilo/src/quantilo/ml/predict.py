@@ -3,7 +3,8 @@
 """Use a trained model on new data (037): the model card (what the model expects: columns and
 their types, the categories it knows, the training ranges, its validation scores, the versions it
 was trained with), the check of a file before predicting (missing columns, types, unknown
-categories, values out of the training range: Ready, Check or Blocked), predictions in blocks with
+categories, values out of the training range, unknown vocabulary of a free text: Ready, Check
+or Blocked), predictions in blocks with
 a reliability flag per row and a conformal interval for a number, the scores when the file holds
 the answer, the explanation of one predicted row, and the export of a model as a zip.
 
@@ -36,6 +37,7 @@ from quantilo.ml import data as ml_data
 from quantilo.ml import evaluate
 from quantilo.ml import explain as explainer
 from quantilo.ml import models as catalogue
+from quantilo.ml import text as textual
 from quantilo.ml import train as trainer
 from quantilo.ml.data import NUMERIC, Field
 from quantilo.ml.engine import period_of
@@ -60,6 +62,8 @@ QUANTILES = 101  # validation predictions kept as percentiles (no rows in the ca
 BINS = 30
 SHOWN_UNKNOWN = 5
 EXPLAIN_ROWS = 2_000
+TEXT_ROWS = 20_000  # texts of the new data whose vocabulary is checked
+TEXT_GAP = 0.15  # unknown terms this far above the training share: Check (052)
 WATERFALL = 10
 SECURITY = (
     "model.joblib is a Python pickle: loading it runs code. Only load a model you exported "
@@ -81,6 +85,17 @@ class Readable(Protocol):
 # --- The model card ------------------------------------------------------------------------------
 
 
+class TextVocabulary(BaseModel):
+    """How the model reads a free-text column (052): the cut, the terms it knows (words or
+    pieces of words, no row), and how much of its training texts the vocabulary missed."""
+
+    analyzer: Literal["words", "chars"]
+    terms: list[str]
+    components: int
+    unknown_share: float  # share of the training terms outside the vocabulary (the reference)
+    unmatched_share: float = 0.0  # training texts with no known term
+
+
 class ExpectedColumn(BaseModel):
     """A column the model reads: how it was read in training, how much it matters, the
     categories it knows and the range it was trained on."""
@@ -97,6 +112,7 @@ class ExpectedColumn(BaseModel):
     minimum: float | None = None  # numbers; dates as seconds since 1970
     maximum: float | None = None
     range: str | None = None  # the training range, as read
+    text: TextVocabulary | None = None  # a free text: its vocabulary (052)
 
 
 class Interval(BaseModel):
@@ -271,6 +287,7 @@ def build_card(
     by_name = {f.name: f for f in fields}
     inputs = [str(c) for c in pipeline.feature_names_in_]
     encoders = _encoders(pipeline)
+    texts = textual.steps_of(pipeline)
     shares = _importance(pipeline, trained)
     ranked = sorted(shares, key=lambda c: -shares[c])[:TOP_IMPORTANT]
     columns = []
@@ -292,6 +309,17 @@ def build_card(
             if len(numbers):
                 column.minimum, column.maximum = float(numbers.min()), float(numbers.max())
                 column.range = _range_label(found.type, column.minimum, column.maximum)
+        elif found.type == "text":
+            step = texts.get(name)
+            if step is not None:
+                features = step.features
+                column.text = TextVocabulary(
+                    analyzer=features.analyzer,
+                    terms=features.vocabulary,
+                    components=int(features.width_),
+                    unknown_share=float(features.unknown_share_),
+                    unmatched_share=float(features.unmatched_share_),
+                )
         else:
             known, rule = encoders.get(name, ([], ""))
             column.categories = known or sorted({str(v) for v in values.dropna()})
@@ -498,6 +526,11 @@ class ColumnCheck:
     out_of_range: float  # share of rows outside the training range
     range: str | None
     note: str | None  # one sentence when something deserves a look
+    # a free text (052): share of its terms the vocabulary does not know, here and in training,
+    # and share of its texts with no known term
+    unknown_terms: float | None = None
+    training_unknown_terms: float | None = None
+    unmatched_texts: float | None = None
 
 
 @dataclass
@@ -621,6 +654,15 @@ def check(
                 None,
             )
         )
+    for item, column in zip(checks, card.columns, strict=True):
+        if column.text is not None and item.found is not None:
+            texts = _sample_texts(connection, source, readers[column.name][0])
+            found_gap = textual.gap(
+                texts, textual.cutter(column.text.analyzer), set(column.text.terms)
+            )
+            item.unknown_terms = found_gap.unknown
+            item.unmatched_texts = found_gap.unmatched
+            item.training_unknown_terms = column.text.unknown_share
     for item in checks:
         item.note = _note(item)
     checks.sort(key=lambda c: (c.found is not None, -(c.importance or 0)))
@@ -630,6 +672,23 @@ def check(
     level, message, problems = _verdict(checks, missing, rows)
     return ModelCheck(
         level, message, rows, checks, missing, ignored, card.target.name in found, problems
+    )
+
+
+def _sample_texts(connection: duckdb.DuckDBPyConnection, source: str, expression: str) -> list[str]:
+    """Up to 20 000 non-empty texts of the new data, drawn with the seed."""
+    found = connection.execute(
+        f"SELECT v FROM (SELECT {expression} AS v, file_row_number AS r FROM {source}) "
+        f"WHERE v IS NOT NULL AND trim(v) <> '' ORDER BY hash(r + {SEED}) LIMIT {TEXT_ROWS}"
+    ).fetchall()
+    return [str(v) for (v,) in found]
+
+
+def _text_shift(item: ColumnCheck) -> bool:
+    """Many more unknown terms than in training (052)."""
+    return (
+        item.unknown_terms is not None
+        and item.unknown_terms - (item.training_unknown_terms or 0.0) >= TEXT_GAP
     )
 
 
@@ -654,6 +713,16 @@ def _note(item: ColumnCheck) -> str | None:
     if item.out_of_range:
         sentences.append(
             f"{_pct(item.out_of_range)} of rows are outside the training range ({item.range})."
+        )
+    if _text_shift(item):
+        sentences.append(
+            f"{_pct(item.unknown_terms or 0.0)} of its terms are unknown to the model "
+            f"({_pct(item.training_unknown_terms or 0.0)} in training): they are ignored."
+        )
+    if item.unmatched_texts and item.unmatched_texts >= NOTABLE:
+        sentences.append(
+            f"{_pct(item.unmatched_texts)} of its texts have no known term: the model reads them "
+            "as empty."
         )
     return " ".join(sentences) or None
 
@@ -684,6 +753,11 @@ def _verdict(
             )
         if 0 < c.unreadable < UNREADABLE:
             notes.append(f"{c.column}: {_pct(c.unreadable)} of its values could not be read.")
+        if _text_shift(c):
+            notes.append(
+                f"{c.column}: {_pct(c.unknown_terms or 0.0)} of its terms are unknown to the "
+                f"model ({_pct(c.training_unknown_terms or 0.0)} in training)."
+            )
     if notes:
         return (
             "check",
@@ -711,14 +785,22 @@ def _labels_of(card: ModelCard, chances: np.ndarray) -> np.ndarray:
 
 
 def _reliability(card: ModelCard, data: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
-    """Rows with an important value the model never saw (unknown category, out of its range)."""
+    """Rows with an important value the model never saw (unknown category, out of its range, a
+    text without a single known term)."""
     reasons: list[list[str]] = [[] for _ in range(len(data))]
     flagged = np.zeros(len(data), dtype=bool)
     for column in card.columns:
         if not column.important or column.name not in data.columns:
             continue
         values = cast(pd.Series, data[column.name])
-        if column.categories is not None:
+        if column.text is not None:
+            hit = textual.gap(
+                textual.texts(values),
+                textual.cutter(column.text.analyzer),
+                set(column.text.terms),
+            ).rows
+            what = "no known word"
+        elif column.categories is not None:
             text = values.astype(object)
             hit = (text.notna() & ~text.astype(str).isin(set(column.categories))).to_numpy()
             what = "unknown category"

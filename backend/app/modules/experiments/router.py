@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
 from quantilo.experiments.analyze import ExperimentDesign, ExperimentResult
+from quantilo.experiments.bandit import BanditSimulation
 from quantilo.experiments.plan import SampleSize, SampleSizeRequest
 from quantilo.experiments.service import (
     ExperimentCandidates,
@@ -52,3 +53,9 @@ def baseline(
 @router.post("/sample-size")
 def sample_size(request: SampleSizeRequest, service: Service) -> SampleSize:
     return service.sample_size(request)
+
+
+@router.post("/bandit-simulation")
+def bandit_simulation(request: SampleSizeRequest, service: Service) -> BanditSimulation:
+    """The planned test run with a fixed split and with a bandit (Plan, 049)."""
+    return service.bandit_simulation(request)

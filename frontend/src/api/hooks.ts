@@ -16,6 +16,7 @@ import {
   type SeriesParams,
   type SeriesSectionKey,
   type CorrelationMethod,
+  type Correction,
   type ColumnChange,
   type Dataset,
   type ImportOptions,
@@ -76,7 +77,8 @@ export const queryKeys = {
     method: CorrelationMethod,
     columns: string[] | null,
     filters: Condition[],
-  ) => ["datasets", id, "correlations", method, columns, filters] as const,
+    correction: Correction = "auto",
+  ) => ["datasets", id, "correlations", method, columns, filters, correction] as const,
   compare: (id: string, params: CompareParams, filters: Condition[]) =>
     ["datasets", id, "compare", params, filters] as const,
   series: (
@@ -934,11 +936,12 @@ export function useCorrelations(
   method: CorrelationMethod,
   columns: string[] | null,
   enabled: boolean,
+  correction: Correction = "auto",
 ) {
   const filters = useActiveFilters(id);
   return useQuery({
-    queryKey: queryKeys.correlations(id, method, columns, filters),
-    queryFn: () => api.correlations(id, method, columns, filters),
+    queryKey: queryKeys.correlations(id, method, columns, filters, correction),
+    queryFn: () => api.correlations(id, method, columns, filters, correction),
     enabled,
     staleTime: 60_000,
     placeholderData: (previous) => previous,

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { column, roles } from "../../test/columns";
 import { dataset, health, mockApi } from "../../test/mockApi";
 import { renderAt } from "../../test/render";
-import { categoricalProfile, fit, numericProfile, outliers } from "../../test/variable";
+import { categoricalProfile, fit, numericProfile, outliers, textProfile } from "../../test/variable";
 
 // jsdom can't draw Plotly: render a labelled placeholder instead.
 vi.mock("../../charts/Plot", () => ({
@@ -18,6 +18,8 @@ const columns = [
   column({ name: "price", position: 0 }),
   column({ name: "city", position: 1, type: "categorical_nominal", detected_type: "categorical_nominal" }),
   column({ name: "hidden", position: 2, excluded: true }),
+  column({ name: "survey_answer", position: 3, type: "text", detected_type: "text", role: "free_text" }),
+  column({ name: "item", position: 4, type: "text", detected_type: "text", role: "label" }),
 ];
 
 const histogram = {
@@ -69,7 +71,7 @@ describe("Variable page", () => {
     expect(await screen.findByRole("heading", { name: "price" })).toBeInTheDocument();
     expect(await screen.findByText("Excess kurtosis")).toBeInTheDocument();
     expect(screen.getByText("Not normal")).toBeInTheDocument();
-    expect(screen.getByText("1 of 2")).toBeInTheDocument(); // excluded columns are skipped
+    expect(screen.getByText("1 of 4")).toBeInTheDocument(); // excluded columns are skipped
     expect(screen.getAllByRole("button", { name: "Skewness" }).length).toBeGreaterThan(0); // info tips
     expect(await screen.findByRole("img", { name: "Distribution of price" })).toBeInTheDocument();
   });
@@ -139,6 +141,30 @@ describe("Variable page", () => {
     expect(screen.getByText("0.52 bits")).toBeInTheDocument();
     expect(screen.getByText(/not equally frequent \(p < 0.001\)/)).toBeInTheDocument();
     expect(await screen.findByRole("cell", { name: "Paris" })).toBeInTheDocument();
+  });
+
+  it("profiles a text: language, expressions, examples and repeated texts (050)", async () => {
+    setup(textProfile);
+    renderAt("/d/d1/variable/survey_answer");
+
+    expect(await screen.findByText("French")).toBeInTheDocument();
+    expect(screen.getByText("90% of texts")).toBeInTheDocument();
+    expect(screen.getByText("“livraison” comes up most often: 95 times.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", { name: "2 words" }));
+    expect(screen.getByText("“très rapide” comes up most often: 92 times.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Examples/ }));
+    expect(screen.getByText("Delivery was fine selon moi.")).toBeInTheDocument();
+    expect(screen.getByText(/Texts found more than once: 1, on 0.6% of rows/)).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "La qualité est parfait et je recommande." })).toBeInTheDocument();
+  });
+
+  it("names a short text after its role (050)", async () => {
+    setup(textProfile);
+    renderAt("/d/d1/variable/item");
+
+    expect(await screen.findByRole("button", { name: "Change type" })).toHaveTextContent("Short text");
   });
 
   it("links to the previous and next variables", async () => {

@@ -1,11 +1,13 @@
 import { TriangleAlert } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import type { CategoricalProfile, DateProfile, IdentifierProfile, TextProfile } from "../../api/client";
 import { formatNumber } from "../../charts/figures";
 import { Plot } from "../../charts/Plot";
 import { formatCount } from "../../lib/format";
 import { t } from "../../lib/i18n";
+import { SegmentedControl } from "../../ui/SegmentedControl";
+import { Tabs } from "../../ui/Tabs";
 import { calendarFigure, horizontalBars } from "./figures";
 import { Metrics, type Metric } from "./Metrics";
 import { pLabel } from "./normality";
@@ -104,30 +106,131 @@ export function DatePanel({ profile }: { profile: DateProfile }) {
   );
 }
 
+type TextTab = "words" | "examples";
+type ExpressionSize = "1" | "2" | "3";
+
+function languageMetric(profile: TextProfile): Metric {
+  const label = t("text.language");
+  if (!profile.language) return { label, value: "—", explain: `${t("text.explainLanguage")} ${t("text.languageNone")}.` };
+  const mixed = profile.language === "mixed";
+  const note = mixed
+    ? profile.languages.map((bar) => `${bar.label} ${bar.count}%`).join(", ")
+    : t("text.ofTexts", { share: `${Math.round(100 * (profile.language_share ?? 0))}%` });
+  return {
+    label,
+    value: mixed ? t("columns.mixedLanguages") : (profile.language_label ?? profile.language),
+    note,
+    explain: t("text.explainLanguage"),
+  };
+}
+
+export function textMetrics(profile: TextProfile): Metric[] {
+  return [
+    { label: t("stat.distinct"), value: formatCount(profile.distinct) },
+    { label: t("stat.missing"), value: formatCount(profile.missing), note: pct(profile.missing, profile.rows) },
+    {
+      label: t("text.lengths"),
+      value: `${formatCount(profile.min_length)} – ${formatCount(profile.max_length)}`,
+      note: profile.mean_length !== null ? `avg ${formatNumber(profile.mean_length)}` : undefined,
+    },
+    {
+      label: t("text.wordsPerText"),
+      value: formatNumber(profile.median_words),
+      note: profile.p90_words !== null ? t("text.p90", { value: formatNumber(profile.p90_words) }) : undefined,
+    },
+    { label: t("text.distinctWords"), value: formatCount(profile.distinct_words) },
+    languageMetric(profile),
+  ];
+}
+
+/** Free text, short text or address (050): figures, then Words and Examples tabs. */
 export function TextPanel({ profile }: { profile: TextProfile }) {
-  const words = useMemo(() => horizontalBars(profile.words, (tokens) => tokens.text), [profile.words]);
+  const [tab, setTab] = useState<TextTab>("words");
+  const tabs = [
+    { value: "words" as const, label: t("text.tab.words") },
+    { value: "examples" as const, label: t("text.tab.examples"), badge: profile.repeated_count ? formatCount(profile.repeated_count) : undefined },
+  ];
   return (
     <div className="space-y-4">
-      <Metrics
-        items={[
-          { label: t("stat.distinct"), value: formatCount(profile.distinct) },
-          { label: t("stat.missing"), value: formatCount(profile.missing), note: pct(profile.missing, profile.rows) },
-          {
-            label: t("text.lengths"),
-            value: `${formatCount(profile.min_length)} – ${formatCount(profile.max_length)}`,
-            note: profile.mean_length !== null ? `avg ${formatNumber(profile.mean_length)}` : undefined,
-          },
-        ]}
-      />
+      <Metrics items={textMetrics(profile)} />
+      <Tabs label={t("text.tabs")} value={tab} items={tabs} onChange={setTab}>
+        {tab === "words" ? <TextWords profile={profile} /> : <TextExamples profile={profile} />}
+      </Tabs>
+    </div>
+  );
+}
+
+function TextWords({ profile }: { profile: TextProfile }) {
+  const [size, setSize] = useState<ExpressionSize>("1");
+  const bars = { "1": profile.words, "2": profile.bigrams, "3": profile.trigrams }[size];
+  const figure = useMemo(() => horizontalBars(bars, (tokens) => tokens.text), [bars]);
+  const top = bars[0];
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SegmentedControl
+          label={t("text.size")}
+          value={size}
+          onChange={setSize}
+          options={[
+            { value: "1", label: t("text.size.1") },
+            { value: "2", label: t("text.size.2") },
+            { value: "3", label: t("text.size.3") },
+          ]}
+        />
+        {profile.sampled_texts !== null && (
+          <p className="text-xs text-ink-3">{t("text.sampled", { count: formatCount(profile.sampled_texts) })}</p>
+        )}
+      </div>
+      {top && <p className="text-ink-1">{t("text.topExpression", { label: top.label, count: formatCount(top.count) })}</p>}
       <figure className="rounded-md border border-line p-2">
-        <figcaption className="mb-1 px-1 text-xs text-ink-3">{t("text.words")}</figcaption>
-        {profile.words.length ? (
-          <Plot figure={words} height={Math.max(160, profile.words.length * 20)} label={t("text.words")} />
+        <figcaption className="mb-1 px-1 text-xs text-ink-3">{t("text.expressions")}</figcaption>
+        {bars.length ? (
+          <Plot figure={figure} height={Math.max(160, bars.length * 20)} label={t("text.expressions")} />
         ) : (
           <p className="px-1 py-4 text-ink-3">{t("text.noWords")}</p>
         )}
       </figure>
     </div>
+  );
+}
+
+function TextExamples({ profile }: { profile: TextProfile }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <ExampleList title={t("text.shortest")} texts={profile.shortest} />
+        <ExampleList title={t("text.longest")} texts={profile.longest} />
+      </div>
+      {profile.repeated_count === 0 ? (
+        <p className="text-ink-2">{t("text.noRepeated")}</p>
+      ) : (
+        <>
+          <p className="text-ink-2">
+            {t("text.repeatedNote", {
+              count: formatCount(profile.repeated_count),
+              pct: pct(profile.repeated_rows, profile.rows - profile.missing) ?? "0%",
+            })}
+          </p>
+          <CountTable title={t("text.repeated")} rows={profile.repeated} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function ExampleList({ title, texts }: { title: string; texts: string[] }) {
+  return (
+    <section className="min-w-0">
+      <h3 className="mb-1.5 text-xs font-medium text-ink-3">{title}</h3>
+      <ul className="divide-y divide-line rounded-md border border-line">
+        {texts.map((text) => (
+          <li key={text} className="line-clamp-3 px-3 py-1.5 text-[13px] break-words text-ink-1" title={text}>
+            {text}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -2,7 +2,9 @@
 
 exp = ds.experiment(variant="group", metrics=["converted"], unit="user_id")
 exp.analyze()                         # SRM, a comparison per metric and variant, Holm, power
+exp.bandit()                          # P(best), expected loss, what a bandit would have done
 dx.sample_size(baseline=0.10, effect=0.05)   # units per group before running one
+dx.bandit_simulation(baseline=0.10, effect=0.05, daily=1_000)   # fixed split vs bandit
 """
 
 from typing import Any
@@ -12,6 +14,7 @@ from quantilo.experiments.analyze import (
     ExperimentMetric,
     ExperimentResult,
 )
+from quantilo.experiments.bandit import BanditSimulation, ExperimentBandit, simulate
 from quantilo.experiments.plan import SampleSize, SampleSizeRequest
 from quantilo.experiments.plan import sample_size as plan
 from quantilo.experiments.service import ExperimentEngine
@@ -50,6 +53,13 @@ class Experiment:
         and a sentence; subgroups and the cumulative difference when asked."""
         return self._engine.analyze(self._id, self.design, self._conditions)
 
+    def bandit(self) -> ExperimentBandit | None:
+        """The primary metric's bandit view: P(each variant is best) and the expected loss of
+        shipping it (Beta or Normal posteriors, seeded Monte Carlo), and with `time=` the replay
+        of what a Thompson-sampling bandit would have done. None for a ratio (see
+        `analyze().bandit_reason`). It complements the test, it does not replace it."""
+        return self.analyze().bandit
+
     def __repr__(self) -> str:
         metrics = ", ".join(m.column for m in self.design.metrics)
         return f"<Experiment {self.design.variant!r}: {metrics}>"
@@ -86,3 +96,36 @@ def sample_size(
         }
     )
     return plan(request)
+
+
+def bandit_simulation(
+    baseline: float,
+    effect: float,
+    *,
+    kind: str = "rate",
+    relative: bool = True,
+    sd: float | None = None,
+    alpha: float = 0.05,
+    power: float = 0.8,
+    variants: int = 2,
+    ratio: float = 1.0,
+    daily: int | None = None,
+) -> BanditSimulation:
+    """The planned test (same arguments as `sample_size`) run 200 times with a fixed split and
+    with a Thompson-sampling bandit: units gained, share of the traffic sent to the best variant,
+    how often each ends sure of it."""
+    request = SampleSizeRequest.model_validate(
+        {
+            "kind": kind,
+            "baseline": baseline,
+            "sd": sd,
+            "effect": effect,
+            "relative": relative,
+            "alpha": alpha,
+            "power": power,
+            "variants": variants,
+            "ratio": ratio,
+            "daily": daily,
+        }
+    )
+    return simulate(request)

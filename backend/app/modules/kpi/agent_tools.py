@@ -27,8 +27,9 @@ class NoInput(BaseModel):
 class SuggestKpis(Tool[NoInput]):
     name: ClassVar[str] = "suggest_kpis"
     description: ClassVar[str] = (
-        "KPIs the app suggests from the column types and roles (amounts, quantities, dates), "
-        "each with its full definition ready for compute_kpi, plus the best columns to split by."
+        "KPIs the app suggests from the column types and roles (amounts, quantities, orders, "
+        "customers, dates), best score first, each with its reasons and its full definition "
+        "ready for compute_kpi, plus the best columns to split by and parent > child hierarchies."
     )
     Input: ClassVar[type[BaseModel]] = NoInput
 
@@ -45,11 +46,17 @@ class SuggestKpis(Tool[NoInput]):
                 {
                     "name": k.name,
                     "rule": k.rule,
+                    "score": k.score,
+                    "reasons": k.reasons,
                     "definition": k.definition.model_dump(mode="json", exclude_defaults=True),
                 }
                 for k in found.kpis
             ],
             "split_by": found.splits,
+            "hierarchies": [
+                {"parent": h.parent, "child": h.child, "reason": h.reason}
+                for h in found.hierarchies
+            ],
         }
         return ToolOutput(
             f"{len(found.kpis)} KPIs suggested", content, AppLink("kpi", {}, "Open the KPI builder")

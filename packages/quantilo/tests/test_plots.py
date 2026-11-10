@@ -225,6 +225,20 @@ def test_experiment_figures(tmp_path: Path) -> None:
     curve = drawn(dx.plot(dx.sample_size(baseline=0.1, effect=0.05)))
     assert curve.layout.xaxis.type == "log" and curve.data[1].x[0] > 50_000
 
+    # 049: the bandit view's replay and the Plan simulation
+    regret = drawn(dx.plot(result, "bandit"))
+    assert [t.name for t in regret.data] == ["Fixed split", "Bandit"]
+    assert regret.data[1].line.color == LIGHT.palette[0]
+    assert regret.layout.yaxis.title.text == "Cumulative regret (conversions)"
+    shares = drawn(dx.plot(result.bandit, "shares"))
+    assert [t.name for t in shares.data] == ["A", "B", "C"]
+    assert shares.data[0].line.color == LIGHT.ink3 and shares.data[1].line.color == LIGHT.palette[0]
+    no_date = ds.experiment("group", ["converted"]).analyze()
+    with pytest.raises(PlotError, match="Choose a date"):
+        dx.plot(no_date, "bandit")
+    simulated = drawn(dx.plot(dx.bandit_simulation(baseline=0.1, effect=0.2, daily=1_000)))
+    assert simulated.data[1].fill == "tonexty" and simulated.data[3].name == "Bandit"
+
 
 def test_segments_and_unusual_rows_figures(shop: dx.Dataset) -> None:
     found = shop.segments(["income", "spend"]).fit()

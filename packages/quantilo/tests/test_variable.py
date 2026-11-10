@@ -222,6 +222,36 @@ def test_text_profile_counts_words() -> None:
 
     assert profile.words[0] == {"label": "red", "count": 4}
     assert (profile.min_length, profile.max_length) == (10, 14)
+    assert "the" not in {bar["label"] for bar in profile.words}  # stop words left out (050)
+
+
+def test_text_profile_sheet() -> None:
+    # 050: expressions of 1 to 3 words, language, examples, repeated texts
+    values = (
+        ["The delivery was really fast and the box was fine."] * 3
+        + [f"Delivery was really fast for order {n}, thank you." for n in range(20)]
+        + ["Late.", "The customer service never answered my emails about the refund.", None]
+    )
+
+    profile = profiles.text(source_of(values, "text"))
+
+    assert profile.bigrams[0] == {"label": "really fast", "count": 23}
+    assert profile.trigrams[0]["label"] == "delivery was really"  # "was" inside is fine
+    assert all(not bar["label"].startswith("was ") for bar in profile.bigrams)
+    assert (profile.language, profile.language_label, profile.language_share) == (
+        "en",
+        "English",
+        1.0,
+    )
+    assert profile.shortest[0] == "Late."
+    assert profile.longest[0].startswith("The customer service")
+    assert profile.repeated == [
+        {"label": "The delivery was really fast and the box was fine.", "count": 3}
+    ]
+    assert (profile.repeated_count, profile.repeated_rows) == (1, 3)
+    assert profile.median_words == 9
+    assert profile.distinct_words > 20
+    assert profile.sampled_texts is None
 
 
 def test_identifier_profile() -> None:

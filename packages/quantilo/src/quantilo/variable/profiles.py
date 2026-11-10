@@ -6,14 +6,19 @@ from dataclasses import dataclass, field
 from scipy import stats
 
 from quantilo.charts.prepare import Bar
+from quantilo.ingestion.sql import lit
 from quantilo.typing.dates import HAS_TIME, STEP_SECONDS, auto_step, classify_step
-from quantilo.typing.summary import value_label
+from quantilo.typing.knowledge_base import load
+from quantilo.typing.summary import text_measures, value_label
+from quantilo.typing.text import language_label, stopwords_for, weighted_quantile
 from quantilo.variable.source import VariableSource, clean
 
 RARE_SHARE = 0.01
 DOMINANT_SHARE = 0.8
 LIST_LIMIT = 20
 CALENDAR_DAYS = 3 * 366
+TEXTS_LIMIT = 100_000  # distinct texts read for the frequent expressions (050, F-4)
+EXAMPLE_CHARS = 1_000  # longest examples are cut there
 
 
 @dataclass
@@ -57,7 +62,22 @@ class TextProfile:
     min_length: int | None
     max_length: int | None
     mean_length: float | None
-    words: list[Bar] = field(default_factory=list)
+    words: list[Bar] = field(default_factory=list)  # without stop words (050)
+    bigrams: list[Bar] = field(default_factory=list)
+    trigrams: list[Bar] = field(default_factory=list)
+    distinct_words: int = 0
+    median_words: float | None = None
+    p90_words: float | None = None
+    language: str | None = None  # ISO code, "mixed", or None when too few stop words
+    language_label: str | None = None
+    language_share: float | None = None  # share of the texts with a language that use it
+    languages: list[Bar] = field(default_factory=list)  # label, % of those texts
+    shortest: list[str] = field(default_factory=list)
+    longest: list[str] = field(default_factory=list)
+    repeated: list[Bar] = field(default_factory=list)  # texts found more than once ("templates")
+    repeated_count: int = 0  # distinct texts found more than once
+    repeated_rows: int = 0  # rows holding one of them
+    sampled_texts: int | None = None  # expressions counted on this many distinct texts
 
 
 @dataclass
@@ -175,27 +195,90 @@ def dates(source: VariableSource, year_only: bool) -> DateProfile:
     return profile
 
 
+def lit_list(values: list[str]) -> str:
+    return "[" + ", ".join(lit(value) for value in values) + "]"
+
+
+def _expressions(source: VariableSource, texts: str, stop: str, size: int) -> list[Bar]:
+    """The most frequent expressions of `size` words, not starting or ending with a stop word."""
+    grams = (
+        f"SELECT array_to_string(w[i:i + {size - 1}], ' ') AS g, w[i] AS head, "
+        f"w[i + {size - 1}] AS tail, c FROM (SELECT w, c, unnest(range(1, len(w) + {2 - size})) "
+        f"AS i FROM {texts})"
+    )
+    return _bars(
+        source.all(
+            f"SELECT g, sum(c) AS n FROM ({grams}) WHERE length(head) >= 2 AND length(tail) >= 2 "
+            f"AND head NOT IN (SELECT s FROM {stop}) AND tail NOT IN (SELECT s FROM {stop}) "
+            f"GROUP BY g ORDER BY n DESC, g LIMIT {LIST_LIMIT}"
+        )
+    )
+
+
 def text(source: VariableSource) -> TextProfile:
     rows, missing, distinct = _counts(source)
     low, high, mean = source.one(
         f"SELECT min(n), max(n), avg(n) FROM (SELECT length(CAST(t AS VARCHAR)) AS n "
         f"FROM {source.values} WHERE t IS NOT NULL)"
     )
-    words = source.all(
-        "SELECT w, count(*) AS c FROM ("
-        "SELECT unnest(regexp_split_to_array(lower(CAST(t AS VARCHAR)), '[^\\p{L}\\p{N}]+')) AS w "
-        f"FROM {source.values} WHERE t IS NOT NULL) "
-        f"WHERE length(w) >= 2 GROUP BY w ORDER BY c DESC, w LIMIT {LIST_LIMIT}"
-    )
-    return TextProfile(
+    profile = TextProfile(
         rows,
         missing,
         distinct,
         int(low) if low is not None else None,
         int(high) if high is not None else None,
         clean(mean),
-        _bars(words),
     )
+    if not distinct:
+        return profile
+    kb = load()
+    measures = text_measures(source.connection, source.values)
+    profile.language = measures.language
+    profile.language_label = language_label(measures, kb)
+    profile.language_share = measures.language_share
+    profile.languages = [
+        Bar(label=getattr(kb.language(code), "label", code), count=round(100 * share))
+        for code, share in measures.languages[:5]
+    ]
+
+    grouped = (
+        f"(SELECT CAST(t AS VARCHAR) AS v, count(*) AS c FROM {source.values} "
+        "WHERE t IS NOT NULL GROUP BY v)"
+    )
+    # F-4: expressions are counted on at most TEXTS_LIMIT distinct texts (picked by hash).
+    profile.sampled_texts = TEXTS_LIMIT if distinct > TEXTS_LIMIT else None
+    texts = (
+        f"(SELECT regexp_extract_all(lower(v), '[\\p{{L}}\\p{{N}}]+') AS w, "
+        f"len(string_split_regex(trim(v), '\\s+')) AS n, c "
+        f"FROM (SELECT v, c FROM {grouped} ORDER BY hash(v), v LIMIT {TEXTS_LIMIT}))"
+    )
+    stop = f"(SELECT unnest({lit_list(sorted(stopwords_for(measures, kb)))}) AS s)"
+    profile.words = _expressions(source, texts, stop, 1)
+    profile.bigrams = _expressions(source, texts, stop, 2)
+    profile.trigrams = _expressions(source, texts, stop, 3)
+    (profile.distinct_words,) = source.one(
+        f"SELECT count(DISTINCT x) FROM (SELECT unnest(w) AS x FROM {texts})"
+    )
+    counts = {int(n): int(c) for n, c in source.all(f"SELECT n, sum(c) FROM {texts} GROUP BY n")}
+    profile.median_words = weighted_quantile(counts, 0.5)
+    profile.p90_words = weighted_quantile(counts, 0.9)
+
+    shown = f"left(v, {EXAMPLE_CHARS})"
+    profile.shortest = [
+        str(v)
+        for (v,) in source.all(f"SELECT {shown} FROM {grouped} ORDER BY length(v), v LIMIT 3")
+    ]
+    profile.longest = [
+        str(v)
+        for (v,) in source.all(f"SELECT {shown} FROM {grouped} ORDER BY length(v) DESC, v LIMIT 3")
+    ]
+    repeated = f"(SELECT v, c FROM {grouped} WHERE c > 1)"
+    count, repeated_rows = source.one(f"SELECT count(*), coalesce(sum(c), 0) FROM {repeated}")
+    profile.repeated_count, profile.repeated_rows = int(count), int(repeated_rows)
+    profile.repeated = _bars(
+        source.all(f"SELECT {shown}, c FROM {repeated} ORDER BY c DESC, v LIMIT {LIST_LIMIT}")
+    )
+    return profile
 
 
 def identifier(source: VariableSource) -> IdentifierProfile:

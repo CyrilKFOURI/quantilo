@@ -16,6 +16,9 @@ AnalysisType = Literal[
 ]
 ANALYSIS_TYPES: tuple[AnalysisType, ...] = get_args(AnalysisType)
 NUMERIC_TYPES: tuple[AnalysisType, ...] = ("numeric_continuous", "numeric_discrete")
+# Roles of columns that name a thing rather than measure it: detected like identifiers, never a
+# metric (048, R-ROLE-02).
+KEY_ROLES: frozenset[str] = frozenset({"identifier", "customer_key", "order_key"})
 TEXT_LIKE_TYPES: tuple[AnalysisType, ...] = (
     "categorical_nominal",
     "categorical_ordinal",

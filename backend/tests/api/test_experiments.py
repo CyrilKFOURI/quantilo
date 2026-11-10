@@ -108,3 +108,26 @@ def test_baseline_then_sample_size(client: TestClient, ab: str) -> None:
 
     refused = client.post(f"{BASE}/sample-size", json={"baseline": 10, "effect": 0.1})
     assert refused.status_code == 422 and "between 0 and 1" in refused.json()["error"]["message"]
+
+
+def test_bandit_view_in_the_analysis_and_the_plan_simulation(client: TestClient, ab: str) -> None:
+    design = {"variant": "variant", "metrics": [{"column": "converted"}], "unit": "user_id"}
+    result = client.post(f"{BASE}/datasets/{ab}/analyze", json=design).json()
+
+    bandit = result["bandit"]
+    assert [arm["variant"] for arm in bandit["arms"]] == ["control", "new_checkout"]
+    assert sum(arm["p_best"] for arm in bandit["arms"]) == pytest.approx(1.0)
+    assert bandit["replay"] is None and "date" in bandit["replay_reason"]
+    dated = client.post(f"{BASE}/datasets/{ab}/analyze", json={**design, "time": "date"}).json()[
+        "bandit"
+    ]
+    assert dated["replay"]["periods"] and dated["replay"]["sentence"].startswith("Over")
+
+    plan = {"baseline": 0.2, "effect": 0.1, "daily": 500}
+    simulated = client.post(f"{BASE}/bandit-simulation", json=plan)
+    assert simulated.status_code == 200
+    body = simulated.json()
+    assert body["best"] == "B" and body["gained"] > 0 and body["guardrail"]
+    assert client.post(f"{BASE}/bandit-simulation", json=plan).json() == body
+    refused = client.post(f"{BASE}/bandit-simulation", json={"baseline": 2, "effect": 0.1})
+    assert refused.status_code == 422

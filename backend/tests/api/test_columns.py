@@ -134,7 +134,7 @@ def test_columns_of_a_dataset_imported_before_detection_are_detected_lazily(
 
     columns = client.get(f"/api/v1/datasets/{traps_id}/columns").json()
 
-    assert len(columns) == 21
+    assert len(columns) == 24
 
 
 def test_roles_are_listed(client: TestClient) -> None:

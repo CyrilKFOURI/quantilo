@@ -1,5 +1,5 @@
-"""What the Experiments module lets the AI agent do (spec 034): analyze an A/B test of the dataset
-and plan one (sample size), through this module's own engine."""
+"""What the Experiments module lets the AI agent do (specs 034, 049): analyze an A/B test of the
+dataset, read its bandit view, and plan one (sample size), through this module's own engine."""
 
 from typing import Any, ClassVar, Literal
 
@@ -146,6 +146,71 @@ class AnalyzeExperiment(Tool[AnalyzeInput]):
         )
 
 
+def _bandit_content(result: ExperimentResult) -> dict[str, Any]:
+    bandit = result.bandit
+    if bandit is None:
+        return {"bandit_view": None, "why": result.bandit_reason}
+    content: dict[str, Any] = {
+        "metric": bandit.metric,
+        "prior": bandit.prior,
+        "variants": [
+            {
+                "variant": arm.variant,
+                "p_best": arm.p_best,
+                "expected_loss": arm.expected_loss,
+                "sentence": arm.sentence,
+            }
+            for arm in bandit.arms
+        ],
+        "guardrail": bandit.guardrail,
+    }
+    if bandit.replay:
+        content["replay"] = {
+            "sentence": bandit.replay.sentence,
+            "gained": bandit.replay.gained,
+            "gained_relative": bandit.replay.gained_relative,
+            "regret_fixed": bandit.replay.regret_fixed[-1],
+            "regret_bandit": bandit.replay.regret_bandit[-1],
+            "note": bandit.replay.note,
+        }
+    else:
+        content["replay"] = bandit.replay_reason
+    return compact(content, max_items=12)
+
+
+class BanditView(Tool[AnalyzeInput]):
+    name: ClassVar[str] = "bandit_view"
+    description: ClassVar[str] = (
+        "The bandit view of an A/B test already run (primary metric: a rate, a mean or a count): "
+        "P(each variant is best) and the expected loss of shipping it (Beta or Normal "
+        "posteriors, seeded Monte Carlo) and, with a date column (time=), what a Thompson-"
+        "sampling bandit would have done: units gained or lost against the fixed split and the "
+        "cumulative regret. Use it after analyze_experiment, never instead of it: always quote "
+        "its guardrail (after an adaptive allocation, classical intervals are biased)."
+    )
+    Input: ClassVar[type[BaseModel]] = AnalyzeInput
+
+    def __init__(self, engine: ExperimentEngine) -> None:
+        self.engine = engine
+
+    def label(self, args: AnalyzeInput) -> str:
+        return f"Reading the bandit view of {args.variant}"
+
+    def run(self, ctx: ToolContext, args: AnalyzeInput) -> ToolOutput:
+        try:
+            result = self.engine.analyze(ctx.dataset_id, args.design(), ctx.conditions)
+        except AppError as error:
+            raise ToolError(f"This experiment can't be analyzed: {error.message}") from error
+        summary = result.bandit.sentence if result.bandit else "No bandit view"
+        primary = next(m for m in result.metrics if m.primary)
+        params = {"variant": args.variant, "metric": primary.column}
+        if args.unit:
+            params["unit"] = args.unit
+        return ToolOutput(
+            summary, _bandit_content(result), AppLink("experiments", params, "Open in Experiments")
+        )
+
+
 class SampleSizeInput(BaseModel):
     kind: Literal["rate", "mean"] = Field("rate", description="A rate (0/1) or a mean metric.")
     baseline: float = Field(description="Current rate (0.10 = 10 %) or mean.")
@@ -188,4 +253,4 @@ class SampleSizeTool(Tool[SampleSizeInput]):
 
 def agent_tools(app: FastAPI) -> list[Tool[Any]]:
     engine: ExperimentEngine = app.state.experiments
-    return [AnalyzeExperiment(engine), SampleSizeTool(engine)]
+    return [AnalyzeExperiment(engine), BanditView(engine), SampleSizeTool(engine)]

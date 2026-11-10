@@ -1,0 +1,88 @@
+# Stop words: the grammatical words of each language (articles, pronouns, prepositions,
+# conjunctions, common auxiliaries), written for this project. Compared lowercased.
+#
+# Elisions keep their apostrophe ("l'", "qu'"): a lone "t" ("T-LIGHT") is not French.
+# Used to tell sentences from labels (a share of stop words) and to find a text's language
+# (the language whose stop words it holds most). Words shared by several languages ("de", "a",
+# "in") are fine: a tie gives no language. They are also left out at both ends of the frequent
+# expressions shown on the variable page.
+#
+# `id`: ISO 639-1 code; `label`: shown in the interface.
+
+[[language]]
+id = "en"
+label = "English"
+words = [
+  "a", "about", "after", "again", "all", "also", "am", "an", "and", "any", "are", "as", "at",
+  "be", "because", "been", "before", "being", "both", "but", "by", "can", "could", "did", "do",
+  "does", "doing", "don", "down", "during", "each", "even", "few", "for", "from", "further",
+  "had", "has", "have", "having", "he", "her", "here", "hers", "herself", "him", "himself",
+  "his", "how", "i", "if", "in", "into", "is", "isn", "it", "its", "itself", "just", "me",
+  "more", "most", "my", "myself", "no", "nor", "not", "now", "of", "off", "on", "once", "only",
+  "or", "other", "our", "ours", "ourselves", "out", "over", "own", "same", "she", "should", "so",
+  "some", "such", "than", "that", "the", "their", "theirs", "them", "themselves", "then",
+  "there", "these", "they", "this", "those", "through", "to", "too", "under", "until", "up",
+  "very", "was", "wasn", "we", "were", "what", "when", "where", "which", "while", "who", "whom",
+  "why", "will", "with", "would", "you", "your", "yours", "yourself", "yourselves",
+]
+
+[[language]]
+id = "fr"
+label = "French"
+words = [
+  "à", "ai", "aie", "ainsi", "alors", "as", "au", "aucun", "aussi", "autre", "aux", "avait",
+  "avec", "avez", "avoir", "avons", "c'", "ça", "car", "ce", "ceci", "cela", "celle", "celui",
+  "ces", "cet", "cette", "chez", "comme", "comment", "d'", "dans", "de", "des", "donc", "dont",
+  "du", "elle", "elles", "en", "encore", "entre", "es", "est", "et", "étaient", "était", "été",
+  "être", "eu", "eux", "fait", "il", "ils", "j'", "je", "jusqu'", "l'", "la", "le", "les", "leur",
+  "leurs", "lui", "m'", "ma", "mais", "me", "même", "mes", "moi", "mon", "n'", "ne", "ni", "nos",
+  "notre", "nous", "on", "ont", "ou", "où", "par", "parce", "pas", "peu", "plus", "pour",
+  "pourquoi", "qu'", "quand", "que", "quel", "quelle", "qui", "s'", "sa", "sans", "se", "sera",
+  "ses", "si", "son", "sont", "sous", "suis", "sur", "t'", "ta", "te", "tes", "toi", "ton",
+  "tous", "tout", "toute", "très", "tu", "un", "une", "vos", "votre", "vous", "y",
+]
+
+[[language]]
+id = "es"
+label = "Spanish"
+words = [
+  "a", "al", "algo", "algunos", "ante", "antes", "aquí", "así", "aunque", "cada", "como",
+  "con", "contra", "cual", "cuando", "de", "del", "desde", "donde", "dos", "el", "él", "ella",
+  "ellas", "ellos", "en", "entre", "era", "eran", "es", "esa", "ese", "eso", "esta", "está",
+  "están", "estas", "este", "esto", "estos", "fue", "fueron", "ha", "había", "han", "hasta",
+  "hay", "la", "las", "le", "les", "lo", "los", "más", "me", "mi", "mis", "mucho", "muy", "nada",
+  "ni", "no", "nos", "nosotros", "o", "otra", "otro", "para", "pero", "poco", "por", "porque",
+  "qué", "que", "quien", "se", "sea", "ser", "si", "sí", "sin", "sobre", "son", "su", "sus",
+  "también", "tan", "te", "tengo", "tiene", "todo", "todos", "tu", "tus", "un", "una", "unas",
+  "uno", "unos", "usted", "y", "ya", "yo",
+]
+
+[[language]]
+id = "de"
+label = "German"
+words = [
+  "aber", "alle", "allem", "als", "also", "am", "an", "auch", "auf", "aus", "bei", "bin", "bis",
+  "bist", "da", "damit", "dann", "das", "dass", "dem", "den", "denn", "der", "des", "dich",
+  "die", "dir", "doch", "dort", "du", "durch", "ein", "eine", "einem", "einen", "einer", "eines",
+  "er", "es", "etwas", "euch", "für", "gegen", "hat", "hatte", "hier", "ich", "ihm", "ihn",
+  "ihr", "ihre", "im", "in", "ist", "ja", "jetzt", "kann", "kein", "keine", "man", "mich", "mir",
+  "mit", "nach", "nicht", "noch", "nur", "ob", "oder", "ohne", "schon", "sehr", "sein", "seine",
+  "sich", "sie", "sind", "so", "über", "um", "und", "uns", "unser", "unter", "vom", "von", "vor",
+  "war", "waren", "was", "weil", "wenn", "wer", "wie", "wieder", "wir", "wird", "wo", "zu",
+  "zum", "zur",
+]
+
+[[language]]
+id = "it"
+label = "Italian"
+words = [
+  "a", "abbiamo", "ad", "agli", "ai", "al", "alla", "alle", "allo", "anche", "ancora", "che",
+  "chi", "ci", "come", "con", "cosa", "così", "da", "dagli", "dai", "dal", "dalla", "degli",
+  "dei", "del", "della", "delle", "dello", "di", "dove", "e", "è", "ed", "era", "erano", "gli",
+  "ha", "hanno", "ho", "i", "il", "in", "io", "l'", "dell'", "all'", "nell'", "un'", "la", "le",
+  "lei", "li", "lo", "loro", "lui",
+  "ma", "mi", "mia", "mio", "molto", "ne", "negli", "nei", "nel", "nella", "nelle", "noi", "non",
+  "o", "per", "perché", "più", "poco", "quale", "quando", "quella", "quelli", "quello", "questa",
+  "questi", "questo", "se", "sei", "si", "sia", "siamo", "sono", "su", "sua", "sue", "sui",
+  "sul", "sulla", "suo", "tra", "tu", "tutti", "tutto", "un", "una", "uno", "voi",
+]

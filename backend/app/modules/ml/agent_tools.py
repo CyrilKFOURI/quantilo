@@ -423,6 +423,18 @@ class ExplainModel(Tool[ExplainInput]):
             }
         elif e.shap_unavailable:
             content["shap_unavailable"] = e.shap_unavailable
+        if e.words:  # free text (052): the terms that move the predictions
+            content["words"] = [
+                {
+                    "column": w.column,
+                    "method": w.method,
+                    "output": w.output,
+                    "sentence": w.sentence,
+                    "up": [{"term": x.term, "effect": _r(x.effect, 3)} for x in w.up[:8]],
+                    "down": [{"term": x.term, "effect": _r(x.effect, 3)} for x in w.down[:8]],
+                }
+                for w in e.words
+            ]
         if e.warnings:
             content["warnings"] = e.warnings
         top = e.permutation.items[0].column if e.permutation and e.permutation.items else None

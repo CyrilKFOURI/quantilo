@@ -21,6 +21,9 @@ export type ExperimentMetricResult = ExperimentResult["metrics"][number];
 export type ExperimentComparison = ExperimentMetricResult["comparisons"][number];
 export type ExperimentCumulative = NonNullable<ExperimentResult["cumulative"]>;
 export type ExperimentSegments = NonNullable<ExperimentResult["segments"]>;
+export type ExperimentBandit = NonNullable<ExperimentResult["bandit"]>;
+export type BanditReplay = NonNullable<ExperimentBandit["replay"]>;
+export type BanditSimulation = Complete<Schemas["BanditSimulation"]>;
 export type MetricBaseline = Complete<Schemas["MetricBaseline"]>;
 export type SampleSize = Complete<Schemas["SampleSize"]>;
 export type SampleSizeRequest = Partial<Schemas["SampleSizeRequest"]> & Pick<Schemas["SampleSizeRequest"], "baseline" | "effect">;
@@ -39,6 +42,7 @@ export const experimentsApi = {
   baseline: (id: string, column: string, filters?: Parameters<typeof filtersParam>[0]) =>
     request<MetricBaseline>("GET", `${BASE}/datasets/${id}/baseline${query(filters, { column })}`),
   sampleSize: (plan: SampleSizeRequest) => request<SampleSize>("POST", `${BASE}/sample-size`, plan),
+  banditSimulation: (plan: SampleSizeRequest) => request<BanditSimulation>("POST", `${BASE}/bandit-simulation`, plan),
 };
 
 export function useExperimentCandidates(id: string, enabled: boolean) {
@@ -79,6 +83,18 @@ export function useSampleSize(plan: SampleSizeRequest | null) {
     queryKey: ["experiments", "sample-size", plan],
     queryFn: () => experimentsApi.sampleSize(plan as SampleSizeRequest),
     enabled: Boolean(plan),
+    staleTime: Infinity,
+    placeholderData: (previous) => previous,
+    retry: false,
+  });
+}
+
+/** Plan's "fixed split vs bandit": computed only once its section is open (049). */
+export function useBanditSimulation(plan: SampleSizeRequest | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ["experiments", "bandit-simulation", plan],
+    queryFn: () => experimentsApi.banditSimulation(plan as SampleSizeRequest),
+    enabled: Boolean(plan) && enabled,
     staleTime: Infinity,
     placeholderData: (previous) => previous,
     retry: false,

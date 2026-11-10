@@ -74,6 +74,9 @@ const scatter = {
     }),
   ],
   message: null,
+  intervals: null,
+  differences: [],
+  multiple: null,
 };
 
 const periods = Array.from(
@@ -154,7 +157,71 @@ const coloredGroups = {
   message: "Tests compare the pclass groups, all segment values together.",
 };
 
+const groupsWithDifferences = {
+  ...coloredGroups,
+  color: null,
+  color_levels: [],
+  groups: ["1", "2", "3"].map((label) => ({
+    label,
+    color: null,
+    n: label === "3" ? 12 : 40,
+    mean: 30,
+    std: 5,
+    q1: 25,
+    median: 30,
+    q3: 35,
+    low: 20,
+    high: 40,
+    ci_low: 28,
+    ci_high: 32,
+    sample: [],
+    ci_method: label === "3" ? "bootstrap" : "t",
+    ci_reason: label === "3" ? "12 values: too few for the t interval" : "40 values, skewness within ±1",
+    median_low: 29,
+    median_high: 31,
+    median_reason: "bootstrap: a median has no simple formula",
+  })),
+  intervals: "Mean intervals: bootstrap for 1 of 3 groups (fewer than 30 values or skewness beyond ±1), Student t for the others.",
+  differences: [
+    { a: "1", b: "2", n_a: 40, n_b: 40, diff: 1.5, low: 0.2, high: 2.8, interval: "welch", reason: "Welch interval", p_value: 0.03, p_adjusted: 0.09 },
+    { a: "1", b: "3", n_a: 40, n_b: 12, diff: 4, low: 2, high: 6, interval: "bootstrap", reason: "bootstrap, 3: 12 values", p_value: 0.0001, p_adjusted: 0.0003 },
+    { a: "2", b: "3", n_a: 40, n_b: 12, diff: 0.5, low: -1, high: 2, interval: "bootstrap", reason: "bootstrap, 3: 12 values", p_value: 0.6, p_adjusted: 0.6 },
+  ],
+  multiple: {
+    method: "holm",
+    label: "Holm",
+    tests: 3,
+    significant: 2,
+    kept: 1,
+    alpha: 0.05,
+    auto: true,
+    reason: "3 tests: Holm (automatic below 10 tests).",
+    sentence: "1 of the 2 significant differences stays significant after correcting for 3 tests (Holm).",
+  },
+};
+
 describe("Compare page", () => {
+  it("lists each group's intervals with their method, and the pairwise differences after correction", async () => {
+    mockApi({
+      "GET /health": health,
+      "GET /datasets/d1": dataset(),
+      "GET /datasets/d1/columns": [
+        column({ name: "pclass", position: 0, type: "numeric_discrete", detected_type: "numeric_discrete", summary: summaryWith(3) }),
+        column({ name: "age", position: 1 }),
+      ],
+      "GET /column-roles": roles,
+      "GET /datasets/d1/compare": groupsWithDifferences,
+    });
+    renderAt("/d/d1/compare?x=pclass&y=age");
+
+    expect(await screen.findByText(/bootstrap for 1 of 3 groups/)).toBeInTheDocument();
+    expect(screen.getByText("12 values: too few for the t interval")).toBeInTheDocument();
+    expect(screen.getByText("Pairwise differences (3)")).toBeInTheDocument();
+    expect(screen.getByText(/1 of the 2 significant differences stays significant/)).toBeInTheDocument();
+    // 2 − 1: p = 0.03 alone, 0.09 once the three pairs are counted
+    expect(screen.getAllByText("no longer holds")).toHaveLength(1);
+  });
+
   it("reads a whole number with few values as categories, and colours its groups", async () => {
     const calls = mockApi({
       "GET /health": health,

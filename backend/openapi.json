@@ -1748,6 +1748,7 @@
           "correlations"
         ],
         "summary": "Correlations",
+        "description": "The association matrix; `correction` adjusts the pairs' p-values (auto: Benjamini-Hochberg\nfrom 10 pairs, Holm below).",
         "operationId": "correlations_api_v1_datasets__dataset_id__correlations_get",
         "parameters": [
           {
@@ -1790,6 +1791,22 @@
               "title": "Columns"
             },
             "description": "Comma-separated column names (default: every column)."
+          },
+          {
+            "name": "correction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "bh",
+                "holm",
+                "bonferroni"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Correction"
+            }
           },
           {
             "name": "filters",
@@ -12298,6 +12315,48 @@
         }
       }
     },
+    "/api/v1/modules/experiments/bandit-simulation": {
+      "post": {
+        "tags": [
+          "module:experiments"
+        ],
+        "summary": "Bandit Simulation",
+        "description": "The planned test run with a fixed split and with a bandit (Plan, 049).",
+        "operationId": "bandit_simulation_api_v1_modules_experiments_bandit_simulation_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SampleSizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BanditSimulation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/modules/agent/settings": {
       "get": {
         "tags": [
@@ -14860,6 +14919,354 @@
         ],
         "title": "Balance"
       },
+      "BanditArm": {
+        "properties": {
+          "variant": {
+            "type": "string",
+            "title": "Variant"
+          },
+          "control": {
+            "type": "boolean",
+            "title": "Control"
+          },
+          "units": {
+            "type": "integer",
+            "title": "Units"
+          },
+          "mean": {
+            "type": "number",
+            "title": "Mean"
+          },
+          "low": {
+            "type": "number",
+            "title": "Low"
+          },
+          "high": {
+            "type": "number",
+            "title": "High"
+          },
+          "p_best": {
+            "type": "number",
+            "title": "P Best"
+          },
+          "expected_loss": {
+            "type": "number",
+            "title": "Expected Loss"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "variant",
+          "control",
+          "units",
+          "mean",
+          "low",
+          "high",
+          "p_best",
+          "expected_loss",
+          "sentence"
+        ],
+        "title": "BanditArm"
+      },
+      "BanditReplay": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "grain": {
+            "type": "string",
+            "title": "Grain"
+          },
+          "periods": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Periods"
+          },
+          "units": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Units"
+          },
+          "shares": {
+            "items": {
+              "$ref": "#/components/schemas/BanditShare"
+            },
+            "type": "array",
+            "title": "Shares"
+          },
+          "fixed": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Fixed"
+          },
+          "winner": {
+            "type": "string",
+            "title": "Winner"
+          },
+          "value_fixed": {
+            "type": "number",
+            "title": "Value Fixed"
+          },
+          "value_bandit": {
+            "type": "number",
+            "title": "Value Bandit"
+          },
+          "gained": {
+            "type": "number",
+            "title": "Gained"
+          },
+          "gained_relative": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gained Relative"
+          },
+          "regret_fixed": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Regret Fixed"
+          },
+          "regret_bandit": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Regret Bandit"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "grain",
+          "periods",
+          "units",
+          "shares",
+          "fixed",
+          "winner",
+          "value_fixed",
+          "value_bandit",
+          "gained",
+          "gained_relative",
+          "regret_fixed",
+          "regret_bandit",
+          "sentence",
+          "note"
+        ],
+        "title": "BanditReplay"
+      },
+      "BanditShare": {
+        "properties": {
+          "variant": {
+            "type": "string",
+            "title": "Variant"
+          },
+          "shares": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Shares"
+          }
+        },
+        "type": "object",
+        "required": [
+          "variant",
+          "shares"
+        ],
+        "title": "BanditShare"
+      },
+      "BanditSimulation": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "baseline": {
+            "type": "number",
+            "title": "Baseline"
+          },
+          "target": {
+            "type": "number",
+            "title": "Target"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels"
+          },
+          "values": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Values"
+          },
+          "best": {
+            "type": "string",
+            "title": "Best"
+          },
+          "units": {
+            "type": "integer",
+            "title": "Units"
+          },
+          "grain": {
+            "type": "string",
+            "enum": [
+              "day",
+              "batch"
+            ],
+            "title": "Grain"
+          },
+          "per_period": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Per Period"
+          },
+          "runs": {
+            "type": "integer",
+            "title": "Runs"
+          },
+          "seed": {
+            "type": "integer",
+            "title": "Seed"
+          },
+          "cumulative_units": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Cumulative Units"
+          },
+          "regret_fixed": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Regret Fixed"
+          },
+          "regret_bandit": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Regret Bandit"
+          },
+          "regret_bandit_low": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Regret Bandit Low"
+          },
+          "regret_bandit_high": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Regret Bandit High"
+          },
+          "gained": {
+            "type": "number",
+            "title": "Gained"
+          },
+          "gained_low": {
+            "type": "number",
+            "title": "Gained Low"
+          },
+          "gained_high": {
+            "type": "number",
+            "title": "Gained High"
+          },
+          "best_share_fixed": {
+            "type": "number",
+            "title": "Best Share Fixed"
+          },
+          "best_share_bandit": {
+            "type": "number",
+            "title": "Best Share Bandit"
+          },
+          "sure_fixed": {
+            "type": "number",
+            "title": "Sure Fixed"
+          },
+          "sure_bandit": {
+            "type": "number",
+            "title": "Sure Bandit"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "guardrail": {
+            "type": "string",
+            "title": "Guardrail"
+          },
+          "assumptions": {
+            "type": "string",
+            "title": "Assumptions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "baseline",
+          "target",
+          "labels",
+          "values",
+          "best",
+          "units",
+          "grain",
+          "per_period",
+          "runs",
+          "seed",
+          "cumulative_units",
+          "regret_fixed",
+          "regret_bandit",
+          "regret_bandit_low",
+          "regret_bandit_high",
+          "gained",
+          "gained_low",
+          "gained_high",
+          "best_share_fixed",
+          "best_share_bandit",
+          "sure_fixed",
+          "sure_bandit",
+          "sentence",
+          "guardrail",
+          "assumptions"
+        ],
+        "title": "BanditSimulation"
+      },
       "Bar": {
         "properties": {
           "label": {
@@ -16623,6 +17030,39 @@
               }
             ],
             "title": "Note"
+          },
+          "unknown_terms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unknown Terms"
+          },
+          "training_unknown_terms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Training Unknown Terms"
+          },
+          "unmatched_texts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unmatched Texts"
           }
         },
         "type": "object",
@@ -17432,6 +17872,16 @@
                 "type": "null"
               }
             ]
+          },
+          "text": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TextSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -17798,6 +18248,34 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/GroupLayout"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intervals": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intervals"
+          },
+          "differences": {
+            "items": {
+              "$ref": "#/components/schemas/GroupDifference"
+            },
+            "type": "array",
+            "title": "Differences"
+          },
+          "multiple": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MultipleTesting"
               },
               {
                 "type": "null"
@@ -20814,6 +21292,16 @@
               }
             ],
             "title": "Range"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TextVocabulary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -20823,6 +21311,90 @@
         ],
         "title": "ExpectedColumn",
         "description": "A column the model reads: how it was read in training, how much it matters, the\ncategories it knows and the range it was trained on."
+      },
+      "ExperimentBandit": {
+        "properties": {
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "rate",
+              "mean",
+              "count"
+            ],
+            "title": "Kind"
+          },
+          "prior": {
+            "type": "string",
+            "title": "Prior"
+          },
+          "draws": {
+            "type": "integer",
+            "title": "Draws"
+          },
+          "seed": {
+            "type": "integer",
+            "title": "Seed"
+          },
+          "arms": {
+            "items": {
+              "$ref": "#/components/schemas/BanditArm"
+            },
+            "type": "array",
+            "title": "Arms"
+          },
+          "leader": {
+            "type": "string",
+            "title": "Leader"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "replay": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BanditReplay"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replay_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replay Reason"
+          },
+          "guardrail": {
+            "type": "string",
+            "title": "Guardrail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metric",
+          "kind",
+          "prior",
+          "draws",
+          "seed",
+          "arms",
+          "leader",
+          "sentence",
+          "replay",
+          "replay_reason",
+          "guardrail"
+        ],
+        "title": "ExperimentBandit"
       },
       "ExperimentCandidates": {
         "properties": {
@@ -21699,6 +22271,27 @@
                 "type": "null"
               }
             ]
+          },
+          "bandit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExperimentBandit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bandit_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bandit Reason"
           }
         },
         "type": "object",
@@ -21766,6 +22359,16 @@
           "warning": {
             "type": "string",
             "title": "Warning"
+          },
+          "correction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MultipleTesting"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -21977,6 +22580,13 @@
             },
             "type": "array",
             "title": "Warnings"
+          },
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/TextWords"
+            },
+            "type": "array",
+            "title": "Words"
           }
         },
         "type": "object",
@@ -22820,6 +23430,101 @@
         ],
         "title": "Group"
       },
+      "GroupDifference": {
+        "properties": {
+          "a": {
+            "type": "string",
+            "title": "A"
+          },
+          "b": {
+            "type": "string",
+            "title": "B"
+          },
+          "n_a": {
+            "type": "integer",
+            "title": "N A"
+          },
+          "n_b": {
+            "type": "integer",
+            "title": "N B"
+          },
+          "diff": {
+            "type": "number",
+            "title": "Diff"
+          },
+          "low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low"
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          },
+          "interval": {
+            "type": "string",
+            "enum": [
+              "welch",
+              "bootstrap"
+            ],
+            "title": "Interval"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "p_adjusted": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Adjusted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "a",
+          "b",
+          "n_a",
+          "n_b",
+          "diff",
+          "low",
+          "high",
+          "interval",
+          "reason",
+          "p_value"
+        ],
+        "title": "GroupDifference",
+        "description": "Mean of b minus mean of a, between two groups of the axis (051)."
+      },
       "GroupForecast": {
         "properties": {
           "group": {
@@ -23503,6 +24208,35 @@
           "db"
         ],
         "title": "HealthOut"
+      },
+      "Hierarchy": {
+        "properties": {
+          "parent": {
+            "type": "string",
+            "title": "Parent"
+          },
+          "child": {
+            "type": "string",
+            "title": "Child"
+          },
+          "share": {
+            "type": "number",
+            "title": "Share"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "parent",
+          "child",
+          "share",
+          "reason"
+        ],
+        "title": "Hierarchy",
+        "description": "Split by the parent, then the child: the child belongs to one parent (R-SUG-18)."
       },
       "HierarchyResult": {
         "properties": {
@@ -25110,6 +25844,16 @@
             },
             "type": "array",
             "title": "Pairs"
+          },
+          "multiple": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MultipleTesting"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -26216,6 +26960,65 @@
           "std"
         ],
         "title": "Moments"
+      },
+      "MultipleTesting": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "bh",
+              "holm",
+              "bonferroni",
+              "none"
+            ],
+            "title": "Method"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tests": {
+            "type": "integer",
+            "title": "Tests"
+          },
+          "significant": {
+            "type": "integer",
+            "title": "Significant"
+          },
+          "kept": {
+            "type": "integer",
+            "title": "Kept"
+          },
+          "alpha": {
+            "type": "number",
+            "title": "Alpha"
+          },
+          "auto": {
+            "type": "boolean",
+            "title": "Auto"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "label",
+          "tests",
+          "significant",
+          "kept",
+          "alpha",
+          "auto",
+          "reason",
+          "sentence"
+        ],
+        "title": "MultipleTesting"
       },
       "Names": {
         "properties": {
@@ -35889,13 +36692,26 @@
           },
           "definition": {
             "$ref": "#/components/schemas/Definition-Output"
+          },
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
           }
         },
         "type": "object",
         "required": [
           "rule",
           "name",
-          "definition"
+          "definition",
+          "score",
+          "reasons"
         ],
         "title": "SuggestedKpi"
       },
@@ -35947,12 +36763,20 @@
             },
             "type": "array",
             "title": "Splits"
+          },
+          "hierarchies": {
+            "items": {
+              "$ref": "#/components/schemas/Hierarchy"
+            },
+            "type": "array",
+            "title": "Hierarchies"
           }
         },
         "type": "object",
         "required": [
           "kpis",
-          "splits"
+          "splits",
+          "hierarchies"
         ],
         "title": "Suggestions"
       },
@@ -36759,6 +37583,129 @@
             },
             "type": "array",
             "title": "Words"
+          },
+          "bigrams": {
+            "items": {
+              "$ref": "#/components/schemas/Bar"
+            },
+            "type": "array",
+            "title": "Bigrams"
+          },
+          "trigrams": {
+            "items": {
+              "$ref": "#/components/schemas/Bar"
+            },
+            "type": "array",
+            "title": "Trigrams"
+          },
+          "distinct_words": {
+            "type": "integer",
+            "title": "Distinct Words",
+            "default": 0
+          },
+          "median_words": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Words"
+          },
+          "p90_words": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P90 Words"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "language_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Label"
+          },
+          "language_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Share"
+          },
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/Bar"
+            },
+            "type": "array",
+            "title": "Languages"
+          },
+          "shortest": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Shortest"
+          },
+          "longest": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Longest"
+          },
+          "repeated": {
+            "items": {
+              "$ref": "#/components/schemas/Bar"
+            },
+            "type": "array",
+            "title": "Repeated"
+          },
+          "repeated_count": {
+            "type": "integer",
+            "title": "Repeated Count",
+            "default": 0
+          },
+          "repeated_rows": {
+            "type": "integer",
+            "title": "Repeated Rows",
+            "default": 0
+          },
+          "sampled_texts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sampled Texts"
           }
         },
         "type": "object",
@@ -36771,6 +37718,147 @@
           "mean_length"
         ],
         "title": "TextProfile"
+      },
+      "TextSummary": {
+        "properties": {
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "language_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Label"
+          },
+          "language_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Share"
+          },
+          "median_words": {
+            "type": "number",
+            "title": "Median Words"
+          }
+        },
+        "type": "object",
+        "required": [
+          "language",
+          "language_label",
+          "language_share",
+          "median_words"
+        ],
+        "title": "TextSummary",
+        "description": "Language and length of a text column (050), on at most 5,000 distinct texts."
+      },
+      "TextVocabulary": {
+        "properties": {
+          "analyzer": {
+            "type": "string",
+            "enum": [
+              "words",
+              "chars"
+            ],
+            "title": "Analyzer"
+          },
+          "terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Terms"
+          },
+          "components": {
+            "type": "integer",
+            "title": "Components"
+          },
+          "unknown_share": {
+            "type": "number",
+            "title": "Unknown Share"
+          },
+          "unmatched_share": {
+            "type": "number",
+            "title": "Unmatched Share",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "analyzer",
+          "terms",
+          "components",
+          "unknown_share"
+        ],
+        "title": "TextVocabulary",
+        "description": "How the model reads a free-text column (052): the cut, the terms it knows (words or\npieces of words, no row), and how much of its training texts the vocabulary missed."
+      },
+      "TextWords": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "output": {
+            "type": "string",
+            "title": "Output"
+          },
+          "terms": {
+            "type": "integer",
+            "title": "Terms"
+          },
+          "up": {
+            "items": {
+              "$ref": "#/components/schemas/Word"
+            },
+            "type": "array",
+            "title": "Up"
+          },
+          "down": {
+            "items": {
+              "$ref": "#/components/schemas/Word"
+            },
+            "type": "array",
+            "title": "Down"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "method",
+          "output",
+          "terms",
+          "up",
+          "down",
+          "sentence"
+        ],
+        "title": "TextWords",
+        "description": "The terms of one free-text column that move the predictions most (052)."
       },
       "Threshold": {
         "properties": {
@@ -38812,6 +39900,40 @@
         "type": "object",
         "title": "View"
       },
+      "Word": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "effect": {
+            "type": "number",
+            "title": "Effect"
+          },
+          "rows": {
+            "type": "number",
+            "title": "Rows"
+          },
+          "towards": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Towards"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "effect",
+          "rows"
+        ],
+        "title": "Word"
+      },
       "YearLine": {
         "properties": {
           "year": {
@@ -39044,6 +40166,65 @@
               }
             ],
             "title": "Color"
+          },
+          "ci_method": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "t",
+                  "bootstrap"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Method"
+          },
+          "ci_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Reason"
+          },
+          "median_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Low"
+          },
+          "median_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median High"
+          },
+          "median_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Reason"
           }
         },
         "type": "object",

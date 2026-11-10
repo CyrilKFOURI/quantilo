@@ -46,7 +46,7 @@ export function VariableCard({ datasetId, column, topN, onChangeType }: Variable
             {column.name}
           </h3>
           <div className="-ml-1.5">
-            <TypeBadge type={column.type} detectedType={column.detected_type} reasons={column.reasons} onChange={onChangeType} />
+            <TypeBadge type={column.type} detectedType={column.detected_type} reasons={column.reasons} role={column.role} onChange={onChangeType} />
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">

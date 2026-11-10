@@ -2,12 +2,15 @@
 
 import math
 from dataclasses import dataclass, field
+from itertools import combinations
 from typing import Literal
 
 import duckdb
 import numpy as np
 from scipy import stats as scipy_stats
 
+from quantilo.compare import bootstrap as bs
+from quantilo.compare.multiple import Correction, MultipleTesting, correct
 from quantilo.compare.stats import (
     BivariateTest,
     GroupStats,
@@ -16,6 +19,8 @@ from quantilo.compare.stats import (
     group_tests,
     pearson,
     rank_correlations,
+    welch_interval,
+    welch_t,
 )
 from quantilo.errors import ExplorerError
 from quantilo.filters.scope import TypedColumn
@@ -115,6 +120,126 @@ class Group:
     ci_high: float | None
     sample: list[float] = field(default_factory=list)
     color: str | None = None  # the colour level of this box (None without a colour)
+    ci_method: bs.IntervalMethod | None = None  # what gave the mean's interval (R-BS-01)
+    ci_reason: str | None = None
+    median_low: float | None = None  # 95% interval of the median, by bootstrap (R-BS-02)
+    median_high: float | None = None
+    median_reason: str | None = None
+
+
+@dataclass
+class GroupDifference:
+    """Mean of b minus mean of a, between two groups of the axis (051)."""
+
+    a: str
+    b: str
+    n_a: int
+    n_b: int
+    diff: float
+    low: float | None  # 95% interval of the difference
+    high: float | None
+    interval: Literal["welch", "bootstrap"]  # R-BS-03
+    reason: str
+    p_value: float | None  # Welch's t on every row
+    p_adjusted: float | None = None  # over every difference of the view (R-MT-01/02)
+
+
+@dataclass
+class Tested:
+    """A group entering the pairwise differences."""
+
+    label: str
+    stats: GroupStats
+    replicates: bs.Replicates | None
+    method: bs.IntervalMethod
+    reason: str
+
+
+def set_intervals(
+    groups: list[Group], samples: list[np.ndarray], budget_groups: int
+) -> list[bs.Replicates | None]:
+    """Each group's mean interval (bootstrap or Student t) and median interval, with the reason
+    (R-BS-01, 02, 05, 06). Returns the bootstrap replicates, for the differences."""
+    held = bs.held_size(budget_groups, max((len(values) for values in samples), default=0))
+    found: list[bs.Replicates | None] = []
+    for stream, (group, values) in enumerate(zip(groups, samples, strict=True)):
+        method, reason = bs.mean_rule(group.n, values)
+        group.ci_method, group.ci_reason = method, reason
+        replicates = None
+        if len(values) >= bs.MIN_VALUES and group.mean is not None and group.median is not None:
+            replicates = bs.replicates(values[:held], group.n, stream, (group.mean, group.median))
+            note = bs.sample_note(replicates.m, group.n)
+            if method == "bootstrap":
+                group.ci_low, group.ci_high = bs.interval(replicates.means, group.n)
+                group.ci_reason = reason + note
+            group.median_low, group.median_high = bs.interval(replicates.medians, group.n)
+            group.median_reason = "bootstrap: a median has no simple formula" + note
+        else:
+            group.median_reason = f"{group.n} values: too few for an interval"
+        found.append(replicates)
+    return found
+
+
+def intervals_sentence(groups: list[Group]) -> str | None:
+    """Which method gave the intervals, in one sentence (R-BS-06)."""
+    if not groups:
+        return None
+    boxes = any(g.color is not None for g in groups)
+    noun, single = ("boxes", "box") if boxes else ("groups", "group")
+    resampled = sum(1 for g in groups if g.ci_method == "bootstrap")
+    why = "fewer than 30 values or skewness beyond ±1"
+    if resampled == 0:
+        mean = f"Mean intervals: Student t for every {single}."
+    elif resampled == len(groups):
+        mean = f"Mean intervals: bootstrap for all {len(groups)} {noun} ({why})."
+    else:
+        others = "the other" if len(groups) - resampled == 1 else "the others"
+        mean = (
+            f"Mean intervals: bootstrap for {resampled} of {len(groups)} {noun} ({why}), "
+            f"Student t for {others}."
+        )
+    return f"{mean} Median intervals: bootstrap ({bs.DRAWS:,} resamples, fixed seed)."
+
+
+def pairwise(
+    tested: list[Tested], correction: Correction = "auto", alpha: float = 0.05
+) -> tuple[list[GroupDifference], MultipleTesting | None]:
+    """Every pair of groups: difference of means, its interval (R-BS-03) and Welch's p-value,
+    adjusted over the pairs (R-MT-01/02)."""
+    found: list[GroupDifference] = []
+    for a, b in combinations(tested, 2):
+        test = welch_t(a.stats, b.stats)
+        triggers = [t for t in (a, b) if t.method == "bootstrap"]
+        interval: Literal["welch", "bootstrap"] = "welch"
+        if triggers and a.replicates is not None and b.replicates is not None:
+            low, high = bs.interval(
+                b.replicates.means - a.replicates.means, min(a.stats.n, b.stats.n), alpha
+            )
+            interval = "bootstrap"
+            reason = "bootstrap, " + "; ".join(f"{t.label}: {t.reason}" for t in triggers)
+        else:
+            low, high = welch_interval(a.stats, b.stats, alpha)
+            reason = "Welch interval: both means are close to normal"
+        found.append(
+            GroupDifference(
+                a.label,
+                b.label,
+                a.stats.n,
+                b.stats.n,
+                b.stats.mean - a.stats.mean,
+                clean(low),
+                clean(high),
+                interval,
+                reason,
+                test.p_value,
+            )
+        )
+    if not found:
+        return [], None
+    adjusted, summary = correct([d.p_value for d in found], correction, alpha, noun="differences")
+    for difference, value in zip(found, adjusted, strict=True):
+        difference.p_adjusted = value
+    return found, summary
 
 
 @dataclass
@@ -226,6 +351,9 @@ class Comparison:
     categories: list[CategoryRead] = field(default_factory=list)
     color_levels: list[str] = field(default_factory=list)  # groups: the colours, in legend order
     layout: GroupLayout | None = None  # groups: what is on the axis and in colour, and why
+    intervals: str | None = None  # groups: which method gave the intervals (051)
+    differences: list[GroupDifference] = field(default_factory=list)  # groups, pairwise (051)
+    multiple: MultipleTesting | None = None  # the correction over the differences
 
 
 def label_sql(column: TypedColumn) -> str:
@@ -276,9 +404,11 @@ class Comparer:
         z: CompareColumn | None = None,
         color: CompareColumn | None = None,
         options: ts.Options | None = None,
+        correction: Correction = "auto",
     ) -> None:
         self.connection = connection
         self.options = options or ts.Options()
+        self.correction: Correction = correction
         self.source = source
         self.x, self.y, self.z, self.color = x, y, z, color
         if x.name == y.name:
@@ -463,7 +593,7 @@ class Comparer:
         samples = {
             str(label): [float(v) for v in values]
             for label, values in self.all(
-                f"SELECT g, list(v) FROM (SELECT g, v, row_number() OVER "
+                f"SELECT g, list(v ORDER BY k) FROM (SELECT g, v, row_number() OVER "
                 f"(PARTITION BY g ORDER BY hash(rn + {SEED})) AS k FROM {grouped}) "
                 f"WHERE k <= {max(VIOLIN_SAMPLE, TEST_SAMPLE // max(len(kept), 1))} GROUP BY g"
             )
@@ -475,6 +605,18 @@ class Comparer:
         tested = [g for g in result.groups if g.label != OTHERS]
         group_stats = [GroupStats(g.n, g.mean or 0.0, (g.std or 0.0) ** 2) for g in tested]
         group_samples = [np.array(g.sample, dtype=float) for g in tested]
+        every_sample = [np.array(g.sample, dtype=float) for g in result.groups]
+        replicates = set_intervals(result.groups, every_sample, len(result.groups))
+        result.intervals = intervals_sentence(result.groups)
+        if len(tested) >= 2:
+            by_label = dict(zip((g.label for g in result.groups), replicates, strict=True))
+            result.differences, result.multiple = pairwise(
+                [
+                    Tested(g.label, s, by_label[g.label], g.ci_method or "t", g.ci_reason or "")
+                    for g, s in zip(tested, group_stats, strict=True)
+                ],
+                self.correction,
+            )
         for group in result.groups:
             group.sample = group.sample[:VIOLIN_SAMPLE]
         result.tests = group_tests(group_stats, group_samples) if len(tested) >= 2 else []
@@ -530,7 +672,7 @@ class Comparer:
         samples = {
             (str(label), str(level)): [float(v) for v in values]
             for label, level, values in self.all(
-                f"SELECT g, c, list(v) FROM (SELECT g, c, v, row_number() OVER "
+                f"SELECT g, c, list(v ORDER BY k) FROM (SELECT g, c, v, row_number() OVER "
                 f"(PARTITION BY g, c ORDER BY hash(rn + {SEED})) AS k FROM {grouped}) "
                 f"WHERE k <= {VIOLIN_SAMPLE} GROUP BY g, c"
             )
@@ -551,11 +693,23 @@ class Comparer:
             f"SELECT g, count(*), avg(v), var_samp(v), list(v ORDER BY hash(rn + {SEED}))"
             f"[1:{TEST_SAMPLE}] FROM {grouped} WHERE g <> '{OTHERS}' GROUP BY g"
         )
+        rank = {label: i for i, label in enumerate(kept)}
+        pooled.sort(key=lambda row: rank.get(str(row[0]), len(rank)))
         stats = [
             GroupStats(int(k), float(m or 0.0), float(var or 0.0)) for _, k, m, var, _ in pooled
         ]
         values = [np.array(sample, dtype=float) for *_, sample in pooled]
         result.tests = group_tests(stats, values) if len(pooled) >= 2 else []
+        budget = len(result.groups) + len(pooled)
+        set_intervals(
+            result.groups, [np.array(g.sample, dtype=float) for g in result.groups], budget
+        )
+        result.intervals = intervals_sentence(result.groups)
+        if len(pooled) >= 2:
+            result.differences, result.multiple = pairwise(
+                self.pooled_tested(pooled, stats, values, budget, len(result.groups)),
+                self.correction,
+            )
         boxes = len(result.groups)
         notes = [
             f"{axis.name} on the axis ({len(axis_counts)} values), {hue.name} in colour "
@@ -579,6 +733,28 @@ class Comparer:
             result.message,
         )
         return result
+
+    @staticmethod
+    def pooled_tested(
+        pooled: list[tuple],
+        stats: list[GroupStats],
+        values: list[np.ndarray],
+        budget: int,
+        first_stream: int,
+    ) -> list[Tested]:
+        """The axis groups, all colours together, ready for the pairwise differences."""
+        held = bs.held_size(budget, max((len(v) for v in values), default=0))
+        tested: list[Tested] = []
+        for stream, (row, s, v) in enumerate(zip(pooled, stats, values, strict=True)):
+            method, reason = bs.mean_rule(s.n, v)
+            replicates = None
+            if len(v) >= bs.MIN_VALUES:
+                center = (s.mean, float(np.median(v)))
+                replicates = bs.replicates(v[:held], s.n, first_stream + stream, center)
+                if method == "bootstrap":
+                    reason += bs.sample_note(replicates.m, s.n)
+            tested.append(Tested(str(row[0]), s, replicates, method, reason))
+        return tested
 
     @staticmethod
     def group(label: str, row: list, sample: list[float]) -> Group:
@@ -778,5 +954,6 @@ def compare(
     z: CompareColumn | None = None,
     color: CompareColumn | None = None,
     options: ts.Options | None = None,
+    correction: Correction = "auto",
 ) -> Comparison:
-    return Comparer(connection, source, x, y, z, color, options).compare()
+    return Comparer(connection, source, x, y, z, color, options, correction).compare()

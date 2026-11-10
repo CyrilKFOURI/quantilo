@@ -198,6 +198,9 @@ export function scatter3dFigure(result: Comparison): Figure {
 
 export type GroupView = "box" | "violin" | "means";
 
+/** What gave a group's mean interval, for the hover (051). */
+const intervalMethod = (group: Comparison["groups"][number]) => (group.ci_method === "bootstrap" ? "bootstrap" : "Student t");
+
 /** Groups split by a colour: one box (violin, mean) per colour level, side by side. */
 function coloredGroups(result: Comparison, view: GroupView, tokens: ChartTokens, vertical: boolean): Data[] {
   const colors = colorOf(result.color_levels, tokens);
@@ -223,8 +226,8 @@ function coloredGroups(result: Comparison, view: GroupView, tokens: ChartTokens,
           thickness: 1.5,
           width: 6,
         },
-        customdata: groups.map((g) => [g.n, formatNumber(g.ci_low), formatNumber(g.ci_high)]),
-        hovertemplate: `${level} · %{${vertical ? "x" : "y"}}<br>mean %{${vertical ? "y" : "x"}:,.4g}<br>95% CI %{customdata[1]} – %{customdata[2]}<br>n = %{customdata[0]:,}<extra></extra>`,
+        customdata: groups.map((g) => [g.n, formatNumber(g.ci_low), formatNumber(g.ci_high), intervalMethod(g)]),
+        hovertemplate: `${level} · %{${vertical ? "x" : "y"}}<br>mean %{${vertical ? "y" : "x"}:,.4g}<br>95% CI %{customdata[1]} – %{customdata[2]} (%{customdata[3]})<br>n = %{customdata[0]:,}<extra></extra>`,
       } as Data;
     }
     if (view === "violin") {
@@ -302,8 +305,9 @@ export function groupsFigure(result: Comparison, view: GroupView): Figure {
             g.n,
             formatNumber(g.ci_low),
             formatNumber(g.ci_high),
+            intervalMethod(g),
           ]),
-          hovertemplate: `%{${vertical ? "x" : "y"}}<br>mean %{${vertical ? "y" : "x"}:,.4g}<br>95% CI %{customdata[1]} – %{customdata[2]}<br>n = %{customdata[0]:,}<extra></extra>`,
+          hovertemplate: `%{${vertical ? "x" : "y"}}<br>mean %{${vertical ? "y" : "x"}:,.4g}<br>95% CI %{customdata[1]} – %{customdata[2]} (%{customdata[3]})<br>n = %{customdata[0]:,}<extra></extra>`,
         } as Data,
       ];
     } else if (view === "violin") {

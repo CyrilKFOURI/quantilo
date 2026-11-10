@@ -1,4 +1,4 @@
-"""Knowledge base: semantic roles, null tokens, boolean vocabularies and known orders.
+"""Knowledge base: semantic roles, null tokens, boolean vocabularies, known orders, stop words.
 
 Extending detection = editing the TOML files next to this module (no code change).
 """
@@ -32,6 +32,28 @@ class Role:
     min: float | None = None
     max: float | None = None
     pattern: str | None = None
+    # A key (identifier, customer_key, order_key) is detected like an identifier. With `suffixes`,
+    # the role only names a column whose whole name is one of its words, alone or with a suffix.
+    key: bool = False
+    suffixes: tuple[str, ...] = ()
+
+    def whole_name(self, tokens: tuple[str, ...]) -> bool:
+        """'customer' · 'customer id' · 'id customer' · 'customerid' (048, R-ROLE-01)."""
+        words = {name[0] for name in self.names if len(name) == 1}
+        if tokens in self.names:
+            return True
+        if len(tokens) == 2:
+            first, last = tokens
+            return (first in words and last in self.suffixes) or (
+                first in self.suffixes and last in words
+            )
+        if len(tokens) == 1:
+            return any(
+                tokens[0] == word + suffix or tokens[0] == suffix + word
+                for word in words
+                for suffix in self.suffixes
+            )
+        return False
 
     def accepts_range(self, low: float | None, high: float | None) -> bool:
         if low is None or high is None:
@@ -42,11 +64,26 @@ class Role:
 
 
 @dataclass(frozen=True)
+class Language:
+    """A language known by its stop words (`stopwords.toml`)."""
+
+    id: str
+    label: str
+    words: frozenset[str]
+
+
+@dataclass(frozen=True)
 class KnowledgeBase:
     roles: tuple[Role, ...]
     null_tokens: tuple[str, ...]
     boolean_pairs: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...]
     orders: tuple[tuple[str, ...], ...]
+    languages: tuple[Language, ...] = ()
+    street_words: frozenset[str] = frozenset()
+    street_suffixes: tuple[str, ...] = ()
+
+    def language(self, language_id: str | None) -> Language | None:
+        return next((item for item in self.languages if item.id == language_id), None)
 
     def role(self, role_id: str | None) -> Role | None:
         return next((role for role in self.roles if role.id == role_id), None)
@@ -61,6 +98,13 @@ class KnowledgeBase:
         best: tuple[int, int, int] | None = None
         best_role: Role | None = None
         for index, role in enumerate(self.roles):
+            if role.suffixes:
+                # whole-name roles: the match spans the name ("customer_id" beats "id")
+                if role.whole_name(tokens):
+                    score = (len(tokens), 1, -index)
+                    if best is None or score > best:
+                        best, best_role = score, role
+                continue
             for name in role.names:
                 for start in range(len(tokens) - len(name) + 1):
                     if tokens[start : start + len(name)] != name:
@@ -99,6 +143,8 @@ def _role(raw: dict[str, Any]) -> Role:
         min=raw.get("min"),
         max=raw.get("max"),
         pattern=raw.get("pattern"),
+        key=bool(raw.get("key", raw["id"] == "identifier")),
+        suffixes=tuple(raw.get("suffixes", [])),
     )
 
 
@@ -106,6 +152,7 @@ def _role(raw: dict[str, Any]) -> Role:
 def load() -> KnowledgeBase:
     roles = tomllib.loads((DIRECTORY / "roles.toml").read_text(encoding="utf-8"))
     vocabulary = tomllib.loads((DIRECTORY / "vocabulary.toml").read_text(encoding="utf-8"))
+    stopwords = tomllib.loads((DIRECTORY / "stopwords.toml").read_text(encoding="utf-8"))
     return KnowledgeBase(
         roles=tuple(_role(role) for role in roles["role"]),
         null_tokens=tuple(vocabulary["null_tokens"]),
@@ -113,4 +160,10 @@ def load() -> KnowledgeBase:
             (tuple(pair["true"]), tuple(pair["false"])) for pair in vocabulary["boolean_pair"]
         ),
         orders=tuple(tuple(order["values"]) for order in vocabulary["order"]),
+        languages=tuple(
+            Language(item["id"], item["label"], frozenset(word.lower() for word in item["words"]))
+            for item in stopwords["language"]
+        ),
+        street_words=frozenset(word.lower() for word in vocabulary.get("street_words", [])),
+        street_suffixes=tuple(vocabulary.get("street_suffixes", [])),
     )

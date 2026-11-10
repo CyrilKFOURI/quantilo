@@ -98,6 +98,7 @@ export function VariablePage() {
                     type={column.type}
                     detectedType={column.detected_type}
                     reasons={column.reasons}
+                    role={column.role}
                     onChange={(type: AnalysisType) => update.mutate([{ name: column.name, type }])}
                   />
                 </div>

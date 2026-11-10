@@ -3,7 +3,7 @@ import { Check, ChevronDown, RotateCcw } from "lucide-react";
 
 import type { AnalysisType } from "../../api/client";
 import { t } from "../../lib/i18n";
-import { ANALYSIS_TYPES, TYPE_META } from "./columnTypes";
+import { ANALYSIS_TYPES, TYPE_META, typeLabel } from "./columnTypes";
 
 type TypeBadgeProps = {
   type: AnalysisType;
@@ -12,15 +12,17 @@ type TypeBadgeProps = {
   onReset?: () => void;
   detectedType?: AnalysisType;
   reasons?: string[];
+  /** For text: "label" and "address" show as Short text / Address (050). */
+  role?: string | null;
 };
 
-export function TypeBadge({ type, onChange, onReset, detectedType, reasons }: TypeBadgeProps) {
+export function TypeBadge({ type, onChange, onReset, detectedType, reasons, role }: TypeBadgeProps) {
   const meta = TYPE_META[type];
   const Icon = meta.icon;
   const label = (
     <>
       <Icon size={14} strokeWidth={1.5} className={meta.tone} aria-hidden />
-      <span className="text-ink-1">{t(meta.label)}</span>
+      <span className="text-ink-1">{t(typeLabel(type, role))}</span>
     </>
   );
 

@@ -9,6 +9,7 @@
     ds.correlations()               # mixed association matrix, ranked pairs, insights
     ds.experiment("group", ["converted"]).analyze()   # an A/B test, Holm-adjusted
     dx.sample_size(baseline=0.10, effect=0.05)       # units per group to plan one
+    dx.bandit_simulation(baseline=0.10, effect=0.05, daily=1_000)   # fixed split vs bandit
     dx.plot(ds.compare("Age", "Survived"))   # the app's chart (the plot extra)
     model = dx.load_model("churn_lightgbm.zip")   # a model exported by the app (037)
 
@@ -21,7 +22,7 @@ from typing import TYPE_CHECKING
 from quantilo.catalog import ColumnView
 from quantilo.dataset import Dataset, DatasetInfo, from_arrow, from_pandas, open
 from quantilo.errors import ColumnNotFound, ExplorerError, NotFoundError
-from quantilo.experiments.facade import sample_size
+from quantilo.experiments.facade import bandit_simulation, sample_size
 from quantilo.filters.model import Condition
 from quantilo.results import to_dict, to_pandas
 from quantilo.timeseries.drivers import Driver, ScenarioChange
@@ -73,6 +74,7 @@ __all__ = [
     "ScenarioChange",
     "Thresholds",
     "__version__",
+    "bandit_simulation",
     "from_arrow",
     "from_pandas",
     "load_model",

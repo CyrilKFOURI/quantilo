@@ -1,5 +1,5 @@
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { ChevronDown, Copy, FolderOpen, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import { ChevronDown, Copy, FolderOpen, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { ApiError, type KpiDefinition, type KpiResult, type SavedKpi } from "../../api/client";
@@ -23,6 +23,7 @@ import {
 import { KpiCharts } from "./KpiCharts";
 import type { TableOptions } from "./pivot";
 import { PivotTable } from "./PivotTable";
+import { HierarchyChip, SuggestionChips } from "./SuggestionChips";
 import type { KpiSearch } from "./search";
 import { Tiles } from "./Tiles";
 import { Loading } from "../../ui/Loading";
@@ -182,6 +183,8 @@ export function KpiPage() {
   };
   const splitsTaken = new Set((applied?.groups ?? []).map((g) => g.column));
   const splitChips = (suggestions.data?.splits ?? []).filter((s) => !splitsTaken.has(s));
+  // 048: "Region › State" only on a KPI not split yet (both splits at once, R-SUG-18)
+  const hierarchyChips = splitsTaken.size === 0 ? (suggestions.data?.hierarchies ?? []) : [];
 
   return (
     <div className="flex flex-col">
@@ -215,28 +218,14 @@ export function KpiPage() {
       <div className="px-(--gutter) pb-10">
         <div className="min-w-0 space-y-3">
           {suggestions.data && suggestions.data.kpis.length > 0 && (
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1" role="group" aria-label={t("kpi.suggested")}>
-              <span className="inline-flex items-center gap-1 pr-1 text-xs text-ink-3">
-                <Sparkles size={12} aria-hidden /> {t("kpi.suggested")}
-              </span>
-              {suggestions.data.kpis.map((kpi) => {
-                const active = Boolean(applied) && !search.kpi && sameData(applied, kpi.definition);
-                return (
-                  <button
-                    key={kpi.name}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => {
-                      go({ kpi: undefined, def: kpi.definition });
-                      setEdit(null);
-                    }}
-                    className={`border-b-2 px-0.5 pb-0.5 text-[13px] ${active ? "border-accent font-medium text-ink-1" : "border-transparent text-ink-2 hover:border-line hover:text-ink-1"}`}
-                  >
-                    {kpi.name}
-                  </button>
-                );
-              })}
-            </div>
+            <SuggestionChips
+              kpis={suggestions.data.kpis}
+              isActive={(definition) => Boolean(applied) && !search.kpi && sameData(applied, definition)}
+              onPick={(definition) => {
+                go({ kpi: undefined, def: definition });
+                setEdit(null);
+              }}
+            />
           )}
 
           {columns.data && draft && (
@@ -311,7 +300,7 @@ export function KpiPage() {
                     <span className="font-medium text-ink-2">{t("kpi.why")} </span>
                     {result.resolved.why.join(" · ")}
                   </p>
-                  {splitChips.length > 0 && (applied.groups ?? []).length < 2 && (
+                  {splitChips.length + hierarchyChips.length > 0 && (applied.groups ?? []).length < 2 && (
                     <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t("kpi.splitSuggestions")}>
                       <span className="text-xs text-ink-3">{t("kpi.splitSuggestions")}</span>
                       {splitChips.map((column) => (
@@ -323,6 +312,13 @@ export function KpiPage() {
                         >
                           + {column}
                         </button>
+                      ))}
+                      {hierarchyChips.map((h) => (
+                        <HierarchyChip
+                          key={`${h.parent}>${h.child}`}
+                          hierarchy={h}
+                          onPick={() => apply({ ...applied, groups: [{ column: h.parent }, { column: h.child }] })}
+                        />
                       ))}
                     </div>
                   )}

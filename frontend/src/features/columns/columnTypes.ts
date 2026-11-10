@@ -79,3 +79,15 @@ export const TYPE_META: Record<AnalysisType, TypeMeta> = {
 };
 
 export const ANALYSIS_TYPES = Object.keys(TYPE_META) as AnalysisType[];
+
+/** Roles that name a kind of text (050): the badge says "Short text" or "Address", the type stays text. */
+const TEXT_KIND_LABELS: Record<string, MessageKey> = {
+  label: "type.text.short",
+  address: "type.text.address",
+};
+
+/** The badge label of a type, refined by the role for text columns. */
+export function typeLabel(type: AnalysisType, role?: string | null): MessageKey {
+  if (type === "text" && role && TEXT_KIND_LABELS[role]) return TEXT_KIND_LABELS[role];
+  return TYPE_META[type].label;
+}

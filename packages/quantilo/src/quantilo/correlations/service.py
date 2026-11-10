@@ -7,6 +7,7 @@ from typing import Any
 import duckdb
 
 from quantilo.catalog import Catalog
+from quantilo.compare.multiple import Correction
 from quantilo.correlations.insights import Insight, insights_for
 from quantilo.correlations.matrix import (
     Matrix,
@@ -37,6 +38,7 @@ class CorrelationService:
         method: Method = "pearson",
         chosen: list[str] | None = None,
         conditions: list[Condition] | None = None,
+        correction: Correction = "auto",
     ) -> Correlations:
         conditions = conditions or []
         dataset = self.columns.ready(dataset_id)
@@ -49,6 +51,7 @@ class CorrelationService:
             method,
             tuple(chosen) if chosen is not None else None,
             filters_key(conditions),
+            correction,
         )
         if key in self._cache:
             self._cache.move_to_end(key)
@@ -57,7 +60,9 @@ class CorrelationService:
         source = scoped_source(dataset.storage_path, where_for(views, conditions), numbered=True)
         connection = duckdb.connect()
         try:
-            matrix, loaded = association_matrix(connection, source, columns, method, chosen)
+            matrix, loaded = association_matrix(
+                connection, source, columns, method, chosen, correction
+            )
             in_matrix = {info.name for info in matrix.columns}
             used = [c for c in columns if c.name in in_matrix]
             insights = insights_for(used, matrix, loaded)

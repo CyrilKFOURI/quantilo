@@ -2,7 +2,7 @@ import type { Data, Layout } from "plotly.js-dist-min";
 
 import { withAlpha } from "../../charts/figures";
 import type { ChartTokens } from "../../charts/theme";
-import type { ExperimentCumulative, ExperimentMetricResult, MetricKind, SampleSize } from "./api";
+import type { BanditReplay, BanditSimulation, ExperimentCumulative, ExperimentMetricResult, MetricKind, SampleSize } from "./api";
 
 /* The Experiments page's charts (twins: quantilo/plots/experiments.py). A variant
    keeps its colour everywhere: the i-th variant after the control takes the i-th palette colour;
@@ -162,6 +162,104 @@ export function sampleSizeFigure(plan: SampleSize): (tokens: ChartTokens) => Bui
         xaxis: { ...axisTitle("Units per group (control)"), type: "log", showgrid: true },
         yaxis: { ...axisTitle(`Smallest detectable lift${relative ? " (%)" : ""}`), rangemode: "tozero" },
         margin: { t: 12 },
+      },
+    };
+  };
+}
+
+/* --- Bandit view (049) ------------------------------------------------------------------------ */
+
+const regretAxis = (kind: string) => `Cumulative regret${kind === "rate" ? " (conversions)" : ""}`;
+
+/** The share of each period's units a bandit would have sent to each variant: the control in the
+ *  neutral ink (the reference), the other variants in their colour. */
+export function banditSharesFigure(replay: BanditReplay): (tokens: ChartTokens) => Built {
+  return (tokens) => ({
+    data: replay.shares.map(
+      (share, i) =>
+        ({
+          type: "scatter",
+          mode: "lines",
+          name: share.variant,
+          x: replay.periods,
+          y: share.shares.map((s) => s * 100),
+          line: { color: i === 0 ? tokens.ink3 : variantColor(tokens, i - 1), width: 2, shape: "hv" },
+          hovertemplate: `%{x}<br>${share.variant}: %{y:.0f} %<extra></extra>`,
+        }) as Data,
+    ),
+    layout: {
+      xaxis: { type: "date", nticks: 6, tickangle: 0 },
+      yaxis: { ...axisTitle("Bandit's share of the units (%)"), range: [0, 100] },
+      hovermode: "x unified",
+      ...LEGEND,
+    },
+  });
+}
+
+function regretLines(x: (string | number)[], fixed: number[], bandit: number[], tokens: ChartTokens): Data[] {
+  return [
+    {
+      type: "scatter",
+      mode: "lines",
+      name: "Fixed split",
+      x,
+      y: fixed,
+      line: { color: tokens.ink3, width: 2, dash: "dot" },
+      hovertemplate: "Fixed split: %{y:,.3g}<extra></extra>",
+    } as Data,
+    {
+      type: "scatter",
+      mode: "lines",
+      name: "Bandit",
+      x,
+      y: bandit,
+      line: { color: tokens.palette[0] ?? tokens.ink1, width: 2 },
+      hovertemplate: "Bandit: %{y:,.3g}<extra></extra>",
+    } as Data,
+  ];
+}
+
+/** The cumulative regret of the fixed split and of the bandit against shipping the winner from
+ *  the first period: the gap between the lines is what the bandit gained. */
+export function banditRegretFigure(replay: BanditReplay, kind: string): (tokens: ChartTokens) => Built {
+  return (tokens) => ({
+    data: regretLines(replay.periods, replay.regret_fixed, replay.regret_bandit, tokens),
+    layout: {
+      xaxis: { type: "date", nticks: 6, tickangle: 0 },
+      yaxis: { ...axisTitle(regretAxis(kind)), zeroline: true, zerolinecolor: tokens.ink3, zerolinewidth: 1 },
+      hovermode: "x unified",
+      ...LEGEND,
+    },
+  });
+}
+
+/** Plan's simulation: the fixed split's expected cumulative regret and the bandit's mean over the
+ *  runs, with its 10–90 % band, against the units that entered the test. */
+export function banditSimulationFigure(simulation: BanditSimulation): (tokens: ChartTokens) => Built {
+  return (tokens) => {
+    const x = simulation.cumulative_units;
+    const color = tokens.palette[0] ?? tokens.ink1;
+    return {
+      data: [
+        { type: "scatter", mode: "lines", x, y: simulation.regret_bandit_low, line: { width: 0 }, hoverinfo: "skip", showlegend: false } as Data,
+        {
+          type: "scatter",
+          mode: "lines",
+          x,
+          y: simulation.regret_bandit_high,
+          fill: "tonexty",
+          fillcolor: withAlpha(color, 0.15),
+          line: { width: 0 },
+          hoverinfo: "skip",
+          showlegend: false,
+        } as Data,
+        ...regretLines(x, simulation.regret_fixed, simulation.regret_bandit, tokens),
+      ],
+      layout: {
+        xaxis: { ...axisTitle("Units in the test"), showgrid: true },
+        yaxis: { ...axisTitle(regretAxis(simulation.kind)), rangemode: "tozero" },
+        hovermode: "x unified",
+        ...LEGEND,
       },
     };
   };

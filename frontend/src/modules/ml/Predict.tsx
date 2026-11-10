@@ -328,7 +328,17 @@ function CheckRow({ column: c, drift }: { column: MlColumnCheck; drift?: DriftCo
         {c.found !== null && c.found !== c.expected ? ` ← ${t(`type.${c.found}` as MessageKey)}` : ""}
       </td>
       <td className="px-3 py-1.5 text-right text-ink-2">{c.importance === null ? "—" : pct(c.importance)}</td>
-      <td className="px-3 py-1.5 text-right">{c.unknown_rows ? pct(c.unknown_share) : "—"}</td>
+      <td className="px-3 py-1.5 text-right">
+        {typeof c.unknown_terms === "number" ? (
+          <span title={t("ml.predict.unknownTermsHint", { training: pct(c.training_unknown_terms ?? 0) })}>
+            {t("ml.predict.unknownTerms", { share: pct(c.unknown_terms) })}
+          </span>
+        ) : c.unknown_rows ? (
+          pct(c.unknown_share)
+        ) : (
+          "—"
+        )}
+      </td>
       <td className="px-3 py-1.5 text-right">{c.out_of_range ? pct(c.out_of_range) : "—"}</td>
       {drift !== undefined && (
         <td

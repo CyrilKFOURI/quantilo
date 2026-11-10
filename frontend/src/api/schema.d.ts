@@ -468,7 +468,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Correlations */
+        /**
+         * Correlations
+         * @description The association matrix; `correction` adjusts the pairs' p-values (auto: Benjamini-Hochberg
+         *     from 10 pairs, Holm below).
+         */
         get: operations["correlations_api_v1_datasets__dataset_id__correlations_get"];
         put?: never;
         post?: never;
@@ -2493,6 +2497,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/modules/experiments/bandit-simulation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bandit Simulation
+         * @description The planned test run with a fixed split and with a bandit (Plan, 049).
+         */
+        post: operations["bandit_simulation_api_v1_modules_experiments_bandit_simulation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/modules/agent/settings": {
         parameters: {
             query?: never;
@@ -3399,6 +3423,125 @@ export interface components {
                 [key: string]: number;
             };
         };
+        /** BanditArm */
+        BanditArm: {
+            /** Variant */
+            variant: string;
+            /** Control */
+            control: boolean;
+            /** Units */
+            units: number;
+            /** Mean */
+            mean: number;
+            /** Low */
+            low: number;
+            /** High */
+            high: number;
+            /** P Best */
+            p_best: number;
+            /** Expected Loss */
+            expected_loss: number;
+            /** Sentence */
+            sentence: string;
+        };
+        /** BanditReplay */
+        BanditReplay: {
+            /** Column */
+            column: string;
+            /** Grain */
+            grain: string;
+            /** Periods */
+            periods: string[];
+            /** Units */
+            units: number[];
+            /** Shares */
+            shares: components["schemas"]["BanditShare"][];
+            /** Fixed */
+            fixed: number[];
+            /** Winner */
+            winner: string;
+            /** Value Fixed */
+            value_fixed: number;
+            /** Value Bandit */
+            value_bandit: number;
+            /** Gained */
+            gained: number;
+            /** Gained Relative */
+            gained_relative: number | null;
+            /** Regret Fixed */
+            regret_fixed: number[];
+            /** Regret Bandit */
+            regret_bandit: number[];
+            /** Sentence */
+            sentence: string;
+            /** Note */
+            note: string;
+        };
+        /** BanditShare */
+        BanditShare: {
+            /** Variant */
+            variant: string;
+            /** Shares */
+            shares: number[];
+        };
+        /** BanditSimulation */
+        BanditSimulation: {
+            /** Kind */
+            kind: string;
+            /** Baseline */
+            baseline: number;
+            /** Target */
+            target: number;
+            /** Labels */
+            labels: string[];
+            /** Values */
+            values: number[];
+            /** Best */
+            best: string;
+            /** Units */
+            units: number;
+            /**
+             * Grain
+             * @enum {string}
+             */
+            grain: "day" | "batch";
+            /** Per Period */
+            per_period: number[];
+            /** Runs */
+            runs: number;
+            /** Seed */
+            seed: number;
+            /** Cumulative Units */
+            cumulative_units: number[];
+            /** Regret Fixed */
+            regret_fixed: number[];
+            /** Regret Bandit */
+            regret_bandit: number[];
+            /** Regret Bandit Low */
+            regret_bandit_low: number[];
+            /** Regret Bandit High */
+            regret_bandit_high: number[];
+            /** Gained */
+            gained: number;
+            /** Gained Low */
+            gained_low: number;
+            /** Gained High */
+            gained_high: number;
+            /** Best Share Fixed */
+            best_share_fixed: number;
+            /** Best Share Bandit */
+            best_share_bandit: number;
+            /** Sure Fixed */
+            sure_fixed: number;
+            /** Sure Bandit */
+            sure_bandit: number;
+            /** Sentence */
+            sentence: string;
+            /** Guardrail */
+            guardrail: string;
+            /** Assumptions */
+            assumptions: string;
+        };
         /** Bar */
         Bar: {
             /** Label */
@@ -3969,6 +4112,12 @@ export interface components {
             range: string | null;
             /** Note */
             note: string | null;
+            /** Unknown Terms */
+            unknown_terms?: number | null;
+            /** Training Unknown Terms */
+            training_unknown_terms?: number | null;
+            /** Unmatched Texts */
+            unmatched_texts?: number | null;
         };
         /**
          * ColumnChoice
@@ -4206,6 +4355,7 @@ export interface components {
             /** Histogram */
             histogram: components["schemas"]["HistogramBar"][];
             date?: components["schemas"]["app__schemas__columns__DateProfile"] | null;
+            text?: components["schemas"]["TextSummary"] | null;
         };
         /** CompareItem */
         CompareItem: {
@@ -4296,6 +4446,11 @@ export interface components {
             /** Color Levels */
             color_levels?: string[];
             layout?: components["schemas"]["GroupLayout"] | null;
+            /** Intervals */
+            intervals?: string | null;
+            /** Differences */
+            differences?: components["schemas"]["GroupDifference"][];
+            multiple?: components["schemas"]["MultipleTesting"] | null;
         };
         /** CompatibleRecipe */
         CompatibleRecipe: {
@@ -5246,6 +5401,34 @@ export interface components {
             maximum?: number | null;
             /** Range */
             range?: string | null;
+            text?: components["schemas"]["TextVocabulary"] | null;
+        };
+        /** ExperimentBandit */
+        ExperimentBandit: {
+            /** Metric */
+            metric: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "rate" | "mean" | "count";
+            /** Prior */
+            prior: string;
+            /** Draws */
+            draws: number;
+            /** Seed */
+            seed: number;
+            /** Arms */
+            arms: components["schemas"]["BanditArm"][];
+            /** Leader */
+            leader: string;
+            /** Sentence */
+            sentence: string;
+            replay: components["schemas"]["BanditReplay"] | null;
+            /** Replay Reason */
+            replay_reason: string | null;
+            /** Guardrail */
+            guardrail: string;
         };
         /** ExperimentCandidates */
         ExperimentCandidates: {
@@ -5503,6 +5686,9 @@ export interface components {
             suggested_unit: string | null;
             segments?: components["schemas"]["ExperimentSegments"] | null;
             cumulative?: components["schemas"]["ExperimentCumulative"] | null;
+            bandit?: components["schemas"]["ExperimentBandit"] | null;
+            /** Bandit Reason */
+            bandit_reason?: string | null;
         };
         /** ExperimentSegment */
         ExperimentSegment: {
@@ -5525,6 +5711,7 @@ export interface components {
             skipped: number;
             /** Warning */
             warning: string;
+            correction?: components["schemas"]["MultipleTesting"] | null;
         };
         /** ExperimentSrm */
         ExperimentSrm: {
@@ -5584,6 +5771,8 @@ export interface components {
             pairs: components["schemas"]["quantilo__ml__explain__Pair"][];
             /** Warnings */
             warnings?: string[];
+            /** Words */
+            words?: components["schemas"]["TextWords"][];
         };
         /** ExplanationState */
         ExplanationState: {
@@ -5885,6 +6074,37 @@ export interface components {
             /** Column */
             column: string;
         };
+        /**
+         * GroupDifference
+         * @description Mean of b minus mean of a, between two groups of the axis (051).
+         */
+        GroupDifference: {
+            /** A */
+            a: string;
+            /** B */
+            b: string;
+            /** N A */
+            n_a: number;
+            /** N B */
+            n_b: number;
+            /** Diff */
+            diff: number;
+            /** Low */
+            low: number | null;
+            /** High */
+            high: number | null;
+            /**
+             * Interval
+             * @enum {string}
+             */
+            interval: "welch" | "bootstrap";
+            /** Reason */
+            reason: string;
+            /** P Value */
+            p_value: number | null;
+            /** P Adjusted */
+            p_adjusted?: number | null;
+        };
         /** GroupForecast */
         GroupForecast: {
             /** Group */
@@ -6098,6 +6318,20 @@ export interface components {
              * @enum {string}
              */
             db: "ok" | "error";
+        };
+        /**
+         * Hierarchy
+         * @description Split by the parent, then the child: the child belongs to one parent (R-SUG-18).
+         */
+        Hierarchy: {
+            /** Parent */
+            parent: string;
+            /** Child */
+            child: string;
+            /** Share */
+            share: number;
+            /** Reason */
+            reason: string;
         };
         /** HierarchyResult */
         HierarchyResult: {
@@ -6602,6 +6836,7 @@ export interface components {
             truncated: number;
             /** Pairs */
             pairs?: components["schemas"]["quantilo__correlations__matrix__Pair"][];
+            multiple?: components["schemas"]["MultipleTesting"] | null;
         };
         /** MatrixMember */
         MatrixMember: {
@@ -6947,6 +7182,30 @@ export interface components {
             median: number | null;
             /** Std */
             std: number | null;
+        };
+        /** MultipleTesting */
+        MultipleTesting: {
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "bh" | "holm" | "bonferroni" | "none";
+            /** Label */
+            label: string;
+            /** Tests */
+            tests: number;
+            /** Significant */
+            significant: number;
+            /** Kept */
+            kept: number;
+            /** Alpha */
+            alpha: number;
+            /** Auto */
+            auto: boolean;
+            /** Reason */
+            reason: string;
+            /** Sentence */
+            sentence: string;
         };
         /** Names */
         Names: {
@@ -10024,6 +10283,10 @@ export interface components {
             /** Name */
             name: string;
             definition: components["schemas"]["Definition-Output"];
+            /** Score */
+            score: number;
+            /** Reasons */
+            reasons: string[];
         };
         /** Suggestion */
         Suggestion: {
@@ -10044,6 +10307,8 @@ export interface components {
             kpis: components["schemas"]["SuggestedKpi"][];
             /** Splits */
             splits: string[];
+            /** Hierarchies */
+            hierarchies: components["schemas"]["Hierarchy"][];
         };
         /** Synthesis */
         Synthesis: {
@@ -10283,6 +10548,102 @@ export interface components {
             mean_length: number | null;
             /** Words */
             words?: components["schemas"]["Bar"][];
+            /** Bigrams */
+            bigrams?: components["schemas"]["Bar"][];
+            /** Trigrams */
+            trigrams?: components["schemas"]["Bar"][];
+            /**
+             * Distinct Words
+             * @default 0
+             */
+            distinct_words: number;
+            /** Median Words */
+            median_words?: number | null;
+            /** P90 Words */
+            p90_words?: number | null;
+            /** Language */
+            language?: string | null;
+            /** Language Label */
+            language_label?: string | null;
+            /** Language Share */
+            language_share?: number | null;
+            /** Languages */
+            languages?: components["schemas"]["Bar"][];
+            /** Shortest */
+            shortest?: string[];
+            /** Longest */
+            longest?: string[];
+            /** Repeated */
+            repeated?: components["schemas"]["Bar"][];
+            /**
+             * Repeated Count
+             * @default 0
+             */
+            repeated_count: number;
+            /**
+             * Repeated Rows
+             * @default 0
+             */
+            repeated_rows: number;
+            /** Sampled Texts */
+            sampled_texts?: number | null;
+        };
+        /**
+         * TextSummary
+         * @description Language and length of a text column (050), on at most 5,000 distinct texts.
+         */
+        TextSummary: {
+            /** Language */
+            language: string | null;
+            /** Language Label */
+            language_label: string | null;
+            /** Language Share */
+            language_share: number | null;
+            /** Median Words */
+            median_words: number;
+        };
+        /**
+         * TextVocabulary
+         * @description How the model reads a free-text column (052): the cut, the terms it knows (words or
+         *     pieces of words, no row), and how much of its training texts the vocabulary missed.
+         */
+        TextVocabulary: {
+            /**
+             * Analyzer
+             * @enum {string}
+             */
+            analyzer: "words" | "chars";
+            /** Terms */
+            terms: string[];
+            /** Components */
+            components: number;
+            /** Unknown Share */
+            unknown_share: number;
+            /**
+             * Unmatched Share
+             * @default 0
+             */
+            unmatched_share: number;
+        };
+        /**
+         * TextWords
+         * @description The terms of one free-text column that move the predictions most (052).
+         */
+        TextWords: {
+            /** Column */
+            column: string;
+            /** Method */
+            method: string;
+            /** Output */
+            output: string;
+            /** Terms */
+            terms: number;
+            /** Up */
+            up: components["schemas"]["Word"][];
+            /** Down */
+            down: components["schemas"]["Word"][];
+            /** Sentence */
+            sentence: string;
         };
         /** Threshold */
         Threshold: {
@@ -10999,6 +11360,17 @@ export interface components {
              */
             show_as: "value" | "share_total" | "share_row" | "share_column" | "change" | "change_pct" | "change_yoy" | "running";
         };
+        /** Word */
+        Word: {
+            /** Term */
+            term: string;
+            /** Effect */
+            effect: number;
+            /** Rows */
+            rows: number;
+            /** Towards */
+            towards?: string | null;
+        };
         /** YearLine */
         YearLine: {
             /** Year */
@@ -11056,6 +11428,16 @@ export interface components {
             sample?: number[];
             /** Color */
             color?: string | null;
+            /** Ci Method */
+            ci_method?: ("t" | "bootstrap") | null;
+            /** Ci Reason */
+            ci_reason?: string | null;
+            /** Median Low */
+            median_low?: number | null;
+            /** Median High */
+            median_high?: number | null;
+            /** Median Reason */
+            median_reason?: string | null;
         };
         /** Pair */
         quantilo__correlations__matrix__Pair: {
@@ -12223,6 +12605,7 @@ export interface operations {
                 method?: "pearson" | "spearman";
                 /** @description Comma-separated column names (default: every column). */
                 columns?: string | null;
+                correction?: "auto" | "bh" | "holm" | "bonferroni";
                 /** @description JSON list of conditions, combined with AND. */
                 filters?: string | null;
             };
@@ -16566,6 +16949,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SampleSize"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bandit_simulation_api_v1_modules_experiments_bandit_simulation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SampleSizeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BanditSimulation"];
                 };
             };
             /** @description Validation Error */

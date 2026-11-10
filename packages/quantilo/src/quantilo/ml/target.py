@@ -7,7 +7,16 @@ from quantilo.ml.data import CATEGORICAL, NUMERIC
 
 Task = Literal["regression", "binary", "multiclass"]
 MAX_CLASSES = 20  # beyond, the 19 most frequent classes plus "Other"
-SUGGESTED_ROLES = {"amount", "quantity", "rating", "status", "percentage", "duration"}
+SUGGESTED_ROLES = {
+    "amount",
+    "quantity",
+    "rating",
+    "status",
+    "percentage",
+    "duration",
+    "cost",  # 048: once amounts
+    "unit_price",
+}
 
 
 @dataclass

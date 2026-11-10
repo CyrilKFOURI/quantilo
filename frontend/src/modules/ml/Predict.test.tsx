@@ -34,6 +34,9 @@ const columnCheck = (name: string, overrides: Record<string, unknown> = {}) => (
   out_of_range: 0,
   range: null,
   note: null,
+  unknown_terms: null,
+  training_unknown_terms: null,
+  unmatched_texts: null,
   ...overrides,
 });
 
@@ -129,6 +132,23 @@ function routes(check: unknown, made: { done: boolean }) {
 
 describe("Predict on new data", () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it("shows the share of unknown terms of a free-text column", async () => {
+    const note = "48 % of its terms are unknown to the model (21 % in training): they are ignored.";
+    const texts = {
+      ...ready,
+      level: "check",
+      message: "Check: the model can predict, but review: 48% of its terms are unknown to the model (21% in training).",
+      columns: [columnCheck("review", { expected: "text", found: "text", unknown_terms: 0.48, training_unknown_terms: 0.21, unmatched_texts: 0.1, note })],
+    };
+    mockApi(routes(texts, { done: false }));
+    renderSection();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Predict on new data" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText("48 % of terms")).toHaveAttribute("title", expect.stringContaining("21 % in training"));
+    expect(within(dialog).getByText(note)).toBeInTheDocument();
+  });
 
   it("checks the other dataset, predicts it with the identifiers kept, then shows the result", async () => {
     const calls = mockApi(routes(ready, { done: false }));

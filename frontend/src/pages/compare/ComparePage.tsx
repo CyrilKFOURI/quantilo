@@ -22,6 +22,7 @@ import {
   type TableView,
 } from "../../features/compare/figures";
 import { TestsPanel } from "../../features/compare/TestsPanel";
+import { GroupIntervals, PairwiseDifferences } from "../../features/compare/GroupInference";
 import {
   shownLayers,
   TimeOptions,
@@ -507,6 +508,12 @@ function ChartArea({
         label={t("compare.chartLabel", { x: result.x, y: result.y })}
       />
       {result.time && <TimeTable result={result} />}
+      {result.kind === "groups" && (
+        <>
+          <GroupIntervals result={result} />
+          <PairwiseDifferences result={result} />
+        </>
+      )}
       {view === "density" && (
         <p className="mt-1.5 text-xs text-ink-3">{t("compare.densityNote")}</p>
       )}

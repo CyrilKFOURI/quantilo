@@ -20,6 +20,15 @@ class DateProfile(BaseModel):
     parts: list[str]
 
 
+class TextSummary(BaseModel):
+    """Language and length of a text column (050), on at most 5,000 distinct texts."""
+
+    language: str | None  # ISO code, "mixed", or None (too few stop words to tell)
+    language_label: str | None
+    language_share: float | None
+    median_words: float
+
+
 class ColumnSummary(BaseModel):
     rows: int
     null_count: int
@@ -28,6 +37,7 @@ class ColumnSummary(BaseModel):
     examples: list[str]
     histogram: list[HistogramBar]
     date: DateProfile | None = None
+    text: TextSummary | None = None
 
 
 class ColumnOut(BaseModel):

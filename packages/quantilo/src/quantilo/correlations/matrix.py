@@ -17,7 +17,8 @@ from scipy.cluster.hierarchy import leaves_list, linkage
 from scipy.spatial.distance import squareform
 
 from quantilo.compare.analyze import label_sql, number_sql
-from quantilo.correlations.evidence import Evidence, adjusted, effect_size, grade
+from quantilo.compare.multiple import Correction, MultipleTesting, correct
+from quantilo.correlations.evidence import Evidence, effect_size, grade
 from quantilo.typing.types import AnalysisType, Parser
 from quantilo.variable.source import SEED
 
@@ -73,7 +74,7 @@ class Pair:
     value: float  # signed for num × num, 0..1 otherwise
     p_value: float | None
     n: int
-    q_value: float | None = None  # p adjusted over every pair (Benjamini-Hochberg)
+    q_value: float | None = None  # p adjusted over every pair, by `Matrix.multiple.method`
     evidence: Evidence = "none"
 
 
@@ -91,6 +92,7 @@ class Matrix:
     excluded: list[Excluded] = field(default_factory=list)
     truncated: int = 0  # eligible columns left out beyond MAX_COLUMNS
     pairs: list[Pair] = field(default_factory=list)  # every computed pair, strongest first
+    multiple: MultipleTesting | None = None  # the correction over the pairs (051)
 
 
 def eligible(
@@ -283,6 +285,7 @@ def association_matrix(
     columns: list[MatrixColumn],
     method: Method = "pearson",
     chosen: list[str] | None = None,
+    correction: Correction = "auto",
 ) -> tuple[Matrix, Loaded]:
     usable, excluded, truncated = eligible(columns, chosen)
     loaded = load(connection, source, usable) if usable else Loaded({}, {}, 0, 0)
@@ -343,7 +346,8 @@ def association_matrix(
             if value is not None:
                 pairs.append(Pair(first.name, second.name, metric, value, p, n))
     pairs.sort(key=lambda pair: -abs(pair.value))
-    for pair, q in zip(pairs, adjusted([pair.p_value for pair in pairs]), strict=True):
+    adjusted, multiple = correct([pair.p_value for pair in pairs], correction, noun="links")
+    for pair, q in zip(pairs, adjusted, strict=True):
         pair.q_value = q
         pair.evidence = grade(effect_size(pair.metric, pair.value), q)
     matrix = Matrix(
@@ -359,5 +363,6 @@ def association_matrix(
         excluded,
         truncated,
         pairs,
+        multiple,
     )
     return matrix, loaded

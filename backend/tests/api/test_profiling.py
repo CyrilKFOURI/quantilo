@@ -17,7 +17,7 @@ def test_overview_of_typing_traps(client: TestClient) -> None:
 
     overview = client.get(f"/api/v1/datasets/{dataset_id}/overview").json()
 
-    assert (overview["rows"], overview["columns"], overview["duplicate_rows"]) == (600, 21, 0)
+    assert (overview["rows"], overview["columns"], overview["duplicate_rows"]) == (600, 24, 0)
     assert overview["types"]["numeric_continuous"] == 5
     assert overview["missing_pct"] > 0
     kinds = {alert["kind"] for alert in overview["alerts"]}

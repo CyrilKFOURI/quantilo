@@ -11,11 +11,14 @@ from typing import Any
 import duckdb
 
 from quantilo.typing.dates import date_profile
+from quantilo.typing.knowledge_base import load
 from quantilo.typing.parsers import present_sql, typed_sql
+from quantilo.typing.text import TextMeasures, language_label, measure
 from quantilo.typing.types import AnalysisType, Parser
 
 HISTOGRAM_BINS = 12
 TOP_CATEGORIES = 8
+TEXT_SAMPLE = 5_000  # distinct texts measured for the language (050, C-2)
 
 
 def number_label(value: float) -> str:
@@ -97,6 +100,27 @@ def histogram(
     return []
 
 
+def text_measures(
+    connection: duckdb.DuckDBPyConnection, values: str, limit: int = TEXT_SAMPLE
+) -> TextMeasures:
+    """Measures of a text column (`values` yields `t`): `limit` distinct texts with their counts,
+    picked by a hash of the text (reproducible)."""
+    rows = connection.execute(
+        f"SELECT v, c FROM (SELECT CAST(t AS VARCHAR) AS v, count(*) AS c FROM {values} "
+        f"WHERE t IS NOT NULL GROUP BY v) ORDER BY hash(v), v LIMIT {limit}"
+    ).fetchall()
+    return measure([(str(value), int(count)) for value, count in rows], load())
+
+
+def text_summary(measures: TextMeasures) -> dict[str, Any]:
+    return {
+        "language": measures.language,
+        "language_label": language_label(measures, load()),
+        "language_share": measures.language_share,
+        "median_words": measures.median_words,
+    }
+
+
 def summarize(
     connection: duckdb.DuckDBPyConnection,
     source: str,
@@ -120,7 +144,11 @@ def summarize(
         "examples": [example["label"] for example in examples],
         "histogram": histogram(connection, source, typed, analysis_type, order),
         "date": None,
+        "text": None,
     }
     if analysis_type == "datetime" and valid:
         summary["date"] = date_profile(connection, source, typed, parser.kind == "year")
+    if analysis_type == "text" and valid:
+        values = f"(SELECT {typed} AS t FROM {source})"
+        summary["text"] = text_summary(text_measures(connection, values))
     return summary

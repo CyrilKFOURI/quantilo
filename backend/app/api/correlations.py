@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
+from quantilo.compare.multiple import Correction
 from quantilo.correlations.matrix import Method
 from quantilo.correlations.service import Correlations, CorrelationService
 
@@ -26,6 +27,9 @@ def correlations(
     filters: Filters,
     method: Method = "pearson",
     columns: Columns = None,
+    correction: Correction = "auto",
 ) -> Correlations:
+    """The association matrix; `correction` adjusts the pairs' p-values (auto: Benjamini-Hochberg
+    from 10 pairs, Holm below)."""
     chosen = [name for name in columns.split(",") if name] if columns else None
-    return service.correlations(dataset_id, method, chosen, filters)
+    return service.correlations(dataset_id, method, chosen, filters, correction)

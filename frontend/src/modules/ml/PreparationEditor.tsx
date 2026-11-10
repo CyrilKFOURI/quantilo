@@ -39,6 +39,8 @@ export function preparationSummary(preparation: MlPreparation): string {
   const onehot = used.filter((d) => d.encoding === "onehot").length;
   if (logs) parts.push(t("ml.prep.summary.log", { count: String(logs) }));
   if (onehot) parts.push(t("ml.prep.summary.onehot", { count: String(onehot) }));
+  const texts = used.filter((d) => d.type === "text").length;
+  if (texts) parts.push(t("ml.prep.summary.text", { count: String(texts) }));
   const strategy = preparation.balance?.strategy;
   if (strategy && strategy !== "none") parts.push(label("imbalance", strategy).toLowerCase());
   if (preparation.dropped_rows) parts.push(t("ml.prep.summary.dropped", { count: String(preparation.dropped_rows) }));

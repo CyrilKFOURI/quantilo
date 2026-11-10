@@ -18,9 +18,15 @@ def test_opens_on_suggestions_ready_to_compute(client: TestClient, sales: str) -
     found = client.get(f"{BASE}/{sales}/suggestions").json()
 
     names = [k["name"] for k in found["kpis"]]
-    assert names[:3] == ["Rows", "Total revenue", "Total units"]
+    # 048: best score first, each with its reasons
+    assert names[0] == "Total revenue"
+    assert {"Total units", "Average unit price", "Rows"} <= set(names)
+    scores = [k["score"] for k in found["kpis"]]
+    assert scores == sorted(scores, reverse=True)
+    assert found["kpis"][0]["reasons"][0].startswith("R-SUG-02 · revenue is an amount")
     assert found["splits"][0] == "store"
-    result = client.post(f"{BASE}/{sales}/compute", json=found["kpis"][1]["definition"]).json()
+    assert found["hierarchies"] == []
+    result = client.post(f"{BASE}/{sales}/compute", json=found["kpis"][0]["definition"]).json()
     assert result["name"] == "Total revenue by month"
     assert result["resolved"]["grain"]["rule"] == "R-TIME-01"
     assert result["measures"][0]["chart"]["value"] in ("bars", "area")

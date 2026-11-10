@@ -44,6 +44,16 @@ def _view(view: str | None, views: list[str], what: str) -> str:
     return view
 
 
+def _bandit(bandit: dict[str, Any], view: str, tokens: Tokens) -> tuple[Built, int]:
+    """The replay of a bandit view: the cumulative regret, or the bandit's traffic shares."""
+    replay = bandit.get("replay")
+    if not replay:
+        raise PlotError(bandit.get("replay_reason") or "No replay: give the experiment time=….")
+    if view == "shares":
+        return experiments.bandit_shares_figure(replay, tokens), 260
+    return experiments.bandit_regret_figure(replay, bandit["kind"], tokens), 260
+
+
 def _infer_type(chart: dict[str, Any]) -> str:
     return {"histogram": "numeric_continuous", "timeline": "datetime"}.get(
         chart["kind"], "categorical_nominal"
@@ -395,7 +405,11 @@ def figure_data(
     if kind == "DateChange":
         return changes.periods_figure(data, tokens), 300
     if kind == "ExperimentResult":
-        chosen = _view(view, ["intervals", "cumulative"], "An experiment")
+        chosen = _view(view, ["intervals", "cumulative", "bandit", "shares"], "An experiment")
+        if chosen in ("bandit", "shares"):
+            if not data.get("bandit"):
+                raise PlotError(data.get("bandit_reason") or "No bandit view.")
+            return _bandit(data["bandit"], chosen, tokens)
         if chosen == "cumulative":
             if not data.get("cumulative"):
                 raise PlotError("No date column: give the experiment time=… to follow it.")
@@ -411,6 +425,10 @@ def figure_data(
         return experiments.intervals_figure(metric, tokens), 90 + 56 * len(metric["comparisons"])
     if kind == "SampleSize":
         return experiments.sample_size_figure(data, tokens), 300
+    if kind == "ExperimentBandit":
+        return _bandit(data, _view(view, ["bandit", "shares"], "A bandit view"), tokens)
+    if kind == "BanditSimulation":
+        return experiments.bandit_simulation_figure(data, tokens), 300
     if kind == "ColumnDetail":
         if data.get("levels") and not data.get("histogram"):
             return synthetic.levels_figure(data, tokens), min(520, 80 + 24 * len(data["levels"]))

@@ -5,8 +5,8 @@ import { Plot } from "../../charts/Plot";
 import { t } from "../../lib/i18n";
 import { ErrorNote, Select, TextInput } from "../../ui/fields";
 import { SegmentedControl } from "../../ui/SegmentedControl";
-import { useBaseline, useExperimentCandidates, useSampleSize, type SampleSizeRequest } from "./api";
-import { sampleSizeFigure } from "./figures";
+import { useBanditSimulation, useBaseline, useExperimentCandidates, useSampleSize, type BanditSimulation, type SampleSizeRequest } from "./api";
+import { banditSimulationFigure, sampleSizeFigure } from "./figures";
 import { number } from "./format";
 import { Loading } from "../../ui/Loading";
 
@@ -48,6 +48,68 @@ function Labeled({ label, children, hint }: { label: string; children: ReactNode
       {children}
       {hint && <span className="text-[11px] text-ink-3">{hint}</span>}
     </label>
+  );
+}
+
+const signed = (kind: string, v: number) => {
+  const text = Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: kind === "rate" || Math.abs(v) >= 100 ? 0 : 2 });
+  return `${v >= 0 ? "+" : "−"}${text}`;
+};
+
+function SimulationResult({ simulation }: { simulation: BanditSimulation }) {
+  const figure = useMemo(() => banditSimulationFigure(simulation), [simulation]);
+  const pct = (v: number) => `${Math.round(v * 100)} %`;
+  return (
+    <div className="mt-3 space-y-3">
+      <p className="max-w-prose text-[13px] leading-relaxed text-ink-1">{simulation.sentence}</p>
+      <dl className="flex flex-wrap gap-x-10 gap-y-3">
+        <div>
+          <dt className="text-xs text-ink-3">{t(simulation.kind === "rate" ? "experiments.plan.bandit.gainedConversions" : "experiments.plan.bandit.gained")}</dt>
+          <dd className="text-xl font-semibold tracking-tight text-ink-1 tabular-nums">{signed(simulation.kind, simulation.gained)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-3">{t("experiments.plan.bandit.toBest", { variant: simulation.best })}</dt>
+          <dd className="text-xl font-semibold tracking-tight text-ink-1 tabular-nums">
+            {pct(simulation.best_share_bandit)} <span className="text-[13px] font-normal text-ink-3">{t("experiments.plan.bandit.vsFixed", { share: pct(simulation.best_share_fixed) })}</span>
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-3">{t("experiments.plan.bandit.sure")}</dt>
+          <dd className="text-xl font-semibold tracking-tight text-ink-1 tabular-nums">
+            {pct(simulation.sure_bandit)} <span className="text-[13px] font-normal text-ink-3">{t("experiments.plan.bandit.vsFixed", { share: pct(simulation.sure_fixed) })}</span>
+          </dd>
+        </div>
+      </dl>
+      <div className="max-w-4xl">
+        <h3 className="text-[13px] font-medium text-ink-1">{t("experiments.plan.bandit.chartTitle")}</h3>
+        <Plot figure={figure} height={300} label={t("experiments.plan.bandit.chartLabel")} />
+      </div>
+      <p className="max-w-prose text-xs text-ink-3">{simulation.assumptions}</p>
+      <p className="max-w-prose border-l-2 border-warn pl-3 text-xs text-ink-2">{simulation.guardrail}</p>
+    </div>
+  );
+}
+
+/** 049: the planned test run with a fixed split and with a bandit; simulated once opened. */
+function BanditPlan({ request }: { request: SampleSizeRequest }) {
+  const [open, setOpen] = useState(false);
+  const simulation = useBanditSimulation(request, open);
+  const error = simulation.error instanceof ApiError ? simulation.error : null;
+  return (
+    <details className="border-t border-line pt-4 text-xs" onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className="cursor-pointer text-[13px] text-accent select-none hover:underline">{t("experiments.plan.bandit.title")}</summary>
+      <p className="mt-2 max-w-prose text-ink-2">{t("experiments.plan.bandit.intro")}</p>
+      {open &&
+        (error ? (
+          <ErrorNote>{error.message}</ErrorNote>
+        ) : !simulation.data ? (
+          <Loading label={t("experiments.plan.bandit.loading")} className="mt-3 h-[300px]" />
+        ) : (
+          <div className={simulation.isFetching ? "opacity-60 transition-opacity" : ""}>
+            <SimulationResult simulation={simulation.data} />
+          </div>
+        ))}
+    </details>
   );
 }
 
@@ -238,6 +300,7 @@ export function Plan({ datasetId, ready }: { datasetId: string; ready: boolean }
             <Plot figure={figure} height={300} label={t("experiments.plan.curveLabel")} />
             <p className="mt-1 text-xs text-ink-3">{t("experiments.plan.curveNote")}</p>
           </div>
+          <BanditPlan request={request} />
         </section>
       )}
     </div>

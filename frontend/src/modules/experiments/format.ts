@@ -41,3 +41,19 @@ export function pValue(p: number | null): string {
 }
 
 export const interval = (low: string, high: string) => `[${low} ; ${high}]`;
+
+/** P(best) as the engine writes it (experiments/bandit.py): 94 % · 99.7 % · > 99.9 % · < 0.1 %. */
+export function probability(p: number): string {
+  if (p >= 0.9995) return "> 99.9 %";
+  if (p < 0.0005) return "< 0.1 %";
+  const shown = p * 100;
+  return shown >= 1 && shown <= 99 ? `${shown.toFixed(0)} %` : `${shown.toFixed(1)} %`;
+}
+
+/** An expected loss: points for a rate, the metric's unit otherwise; tiny losses as "< 0.01". */
+export function loss(kind: string, v: number): string {
+  const shown = kind === "rate" ? v * 100 : v;
+  const unit = kind === "rate" ? " pt" : "";
+  if (shown < 0.005) return `< 0.01${unit}`;
+  return `${number(shown)}${unit}`;
+}

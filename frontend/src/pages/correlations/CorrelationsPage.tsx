@@ -2,7 +2,7 @@ import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { Columns3 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import type { AnalysisType, AssociationMatrix, CorrelationMethod } from "../../api/client";
+import type { AnalysisType, AssociationMatrix, CorrelationMethod, Correction } from "../../api/client";
 import { useColumns, useCorrelations, useDataset } from "../../api/hooks";
 import { Plot, type PointClick } from "../../charts/Plot";
 import { EvidenceBadge, evidenceRank } from "../../features/correlations/evidence";
@@ -10,17 +10,24 @@ import { FocusPanel } from "../../features/correlations/FocusPanel";
 import { matrixFigure, METRIC_LABELS } from "../../features/correlations/figures";
 import { TYPE_META } from "../../features/columns/columnTypes";
 import { InsightsList } from "../../features/correlations/InsightsList";
+import { MultipleTestingNote, NoLongerHolds, noLongerHolds } from "../../features/inference/MultipleTesting";
 import { formatP } from "../../features/variable/normality";
 import { formatCount } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { useStoredState } from "../../lib/useStoredState";
-import { Checkbox, ErrorNote } from "../../ui/fields";
+import { Checkbox, ErrorNote, Select } from "../../ui/fields";
 import { Popover } from "../../ui/Popover";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Loading } from "../../ui/Loading";
 
 const ELIGIBLE = new Set(["numeric_continuous", "numeric_discrete", "categorical_nominal", "categorical_ordinal", "boolean"]);
 const PAIR_ROWS = 15;
+const CORRECTIONS: { value: Correction; label: string }[] = [
+  { value: "auto", label: "Auto" },
+  { value: "bh", label: "Benjamini–Hochberg" },
+  { value: "holm", label: "Holm" },
+  { value: "bonferroni", label: "Bonferroni" },
+];
 
 export function CorrelationsPage() {
   const { datasetId } = useParams({ from: "/d/$datasetId/correlations" });
@@ -32,8 +39,9 @@ export function CorrelationsPage() {
   const [method, setMethod] = useStoredState<CorrelationMethod>(key("method"), "pearson");
   const [clustered, setClustered] = useStoredState(key("clustered"), true);
   const [chosen, setChosen] = useStoredState<string[] | null>(key("columns"), null);
+  const [correction, setCorrection] = useStoredState<Correction>(key("correction"), "auto");
   const [focus, setFocus] = useState("");
-  const correlations = useCorrelations(datasetId, method, chosen, ready);
+  const correlations = useCorrelations(datasetId, method, chosen, ready, correction);
   const matrix = correlations.data?.matrix;
 
   const eligible = useMemo(
@@ -67,6 +75,7 @@ export function CorrelationsPage() {
       </header>
 
       {correlations.isError && <ErrorNote>{correlations.error.message}</ErrorNote>}
+      {matrix?.multiple && <MultipleTestingNote multiple={matrix.multiple} className="max-w-prose" />}
       {correlations.data && <InsightsList datasetId={datasetId} insights={correlations.data.insights} typeOf={typeOf} />}
 
       <div className="flex flex-wrap items-center gap-3">
@@ -79,6 +88,21 @@ export function CorrelationsPage() {
           ]}
           onChange={setMethod}
         />
+        <label className="inline-flex items-center gap-2 text-[13px] text-ink-2">
+          {t("correlations.correction")}
+          <Select
+            value={correction}
+            onChange={(event) => setCorrection(event.target.value as Correction)}
+            title={t("correlations.correctionHint")}
+            className="w-44"
+          >
+            {CORRECTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.value === "auto" ? t("correlations.correctionAuto") : option.label}
+              </option>
+            ))}
+          </Select>
+        </label>
         <Checkbox label={t("correlations.cluster")} checked={clustered} onChange={(event) => setClustered(event.target.checked)} className="text-[13px] text-ink-2" />
         <ColumnChooser eligible={eligible} chosen={chosen} onChange={setChosen} />
         {matrix && (
@@ -212,14 +236,15 @@ function StrongestPairs({
         <span className="text-xs text-ink-3">{t("correlations.pairsHint")}</span>
       </div>
       <div className="overflow-x-auto rounded-md border border-line">
-        {/* 041: a phone keeps the pair, the value, the evidence and View (measure, adj. p and n hidden). */}
-        <table className="w-full border-collapse text-[13px] max-sm:[&_tr>:nth-child(3)]:hidden max-sm:[&_tr>:nth-child(5)]:hidden max-sm:[&_tr>:nth-child(7)]:hidden">
+        {/* 041: a phone keeps the pair, the value, adj. p, the evidence and View (measure, p and n hidden). */}
+        <table className="w-full border-collapse text-[13px] max-sm:[&_tr>:nth-child(3)]:hidden max-sm:[&_tr>:nth-child(5)]:hidden max-sm:[&_tr>:nth-child(8)]:hidden">
           <thead className="bg-surface-2 text-left text-xs text-ink-3">
             <tr>
               <th scope="col" className="px-3 py-1.5 font-normal">A</th>
               <th scope="col" className="px-3 py-1.5 font-normal">B</th>
               <th scope="col" className="px-3 py-1.5 font-normal">{t("correlations.metric")}</th>
               <th scope="col" className="px-3 py-1.5 text-right font-normal">{t("correlations.value")}</th>
+              <th scope="col" className="px-3 py-1.5 text-right font-normal">p</th>
               <th scope="col" className="px-3 py-1.5 text-right font-normal">adj. p</th>
               <th scope="col" className="px-3 py-1.5 font-normal">{t("evidence.title")}</th>
               <th scope="col" className="px-3 py-1.5 text-right font-normal">n</th>
@@ -234,8 +259,10 @@ function StrongestPairs({
                   <td className={`px-3 py-1.5 font-mono text-xs font-medium ${tone(pair.b)}`}>{pair.b}</td>
                   <td className="px-3 py-1.5 text-ink-2">{METRIC_LABELS[pair.metric]}</td>
                   <td className={`px-3 py-1.5 text-right tabular-nums ${pair.value < 0 ? "text-bad" : "text-ink-1"}`}>{pair.value.toFixed(3)}</td>
-                  <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums" title={`p = ${formatP(pair.p_value)}`}>
-                    {formatP(pair.q_value ?? null)}
+                  <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{formatP(pair.p_value)}</td>
+                  <td className="px-3 py-1.5 text-right text-ink-2 tabular-nums">
+                    <span className="whitespace-nowrap">{formatP(pair.q_value ?? null)}</span>
+                    {noLongerHolds(pair.p_value, pair.q_value) && <NoLongerHolds />}
                   </td>
                   <td className="px-3 py-1.5">
                     <EvidenceBadge level={pair.evidence} />

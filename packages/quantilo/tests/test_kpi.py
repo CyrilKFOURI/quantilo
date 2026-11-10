@@ -14,7 +14,8 @@ from quantilo.ingestion.sql import lit
 from quantilo.kpi import rules
 from quantilo.kpi.compute import KpiError, compute
 from quantilo.kpi.definition import Definition
-from quantilo.kpi.suggest import split_candidates, suggest
+from quantilo.kpi.probe import measure
+from quantilo.kpi.suggest import Facts, choose_date, hierarchies, split_candidates, suggest
 from quantilo.typing.types import Parser
 
 
@@ -399,16 +400,184 @@ def summarised() -> list[Col]:
 
 def test_suggestions_follow_the_columns() -> None:
     found = suggest(summarised())
+    # 048: ranked by score (R-SUG-16), no longer in rule order
     assert [s.name for s in found] == [
-        "Rows",
         "Total revenue",
         "Total profit",
         "Total units",
+        "Average unit price",
+        "Rows",
         "Distinct customer_id",
         "Revenue per customer_id",
+        "% churned",
+        "Average rating",
     ]
+    assert [s.score for s in found] == sorted((s.score for s in found), reverse=True)
     assert all(s.definition.time and s.definition.time.column == "date" for s in found)
     assert split_candidates(summarised()) == ["country", "size", "segment"]
+
+
+def test_every_suggestion_says_why_with_its_rule() -> None:
+    for suggestion in suggest(summarised()):
+        assert suggestion.reasons[0].startswith(f"{suggestion.rule} · ")
+        score = f"R-SUG-16 · Score {suggestion.score}/100"
+        assert any(r.startswith(score) for r in suggestion.reasons)
+        assert 0 < suggestion.score <= 100
+
+
+FULL = {"rows": 9_994, "null_count": 0}
+
+
+def orders(*extra: Col) -> list[Col]:
+    def col(name: str, kind: str, role: str | None = None, distinct: int | None = None) -> Col:
+        summary = {**FULL, "distinct_count": distinct or 2_000}
+        return Col(name, kind, role, summary=summary)
+
+    return [
+        col("Order Date", "datetime", None, 1_237),
+        col("Ship Date", "datetime", None, 1_334),
+        col("Order ID", "categorical_nominal", "order_key", 5_009),
+        col("Customer ID", "categorical_nominal", "customer_key", 793),
+        col("Region", "categorical_nominal", "region", 4),
+        col("State", "categorical_nominal", "region", 49),
+        col("Segment", "categorical_nominal", None, 3),
+        col("Sales", "numeric_continuous", "amount"),
+        col("Quantity", "numeric_discrete", "quantity"),
+        col("Price", "numeric_continuous", "amount"),
+        *extra,
+    ]
+
+
+def columns_of(definition: Definition) -> list[tuple[str, str | None]]:
+    return [(m.agg, m.column) for m in definition.measures]
+
+
+def test_business_ratios_from_order_and_customer_keys() -> None:
+    found = {s.name: s for s in suggest(orders())}
+
+    basket = found["Average basket"].definition
+    assert basket.ratio is not None
+    assert columns_of(basket) == [("sum", "Sales"), ("distinct", "Order ID")]
+    units = found["Units per order"].definition
+    assert columns_of(units) == [("sum", "Quantity"), ("distinct", "Order ID")]
+    price = found["Average unit price"].definition
+    assert columns_of(price) == [("sum", "Sales"), ("sum", "Quantity")]
+    per_customer = found["Sales per customer"].definition
+    assert columns_of(per_customer) == [("sum", "Sales"), ("distinct", "Customer ID")]
+    assert "Distinct Customer ID" in found and "Distinct Order ID" in found
+    assert "5,009 orders" in found["Average basket"].reasons[0]
+
+
+def test_a_price_is_averaged_never_summed() -> None:
+    found = {s.name: s for s in suggest(orders())}
+
+    assert "Total Price" not in found
+    assert found["Average Price"].rule == "R-SUG-09"
+    assert found["Average Price"].definition.measures[0].agg == "mean"
+    unit = Col("unit_price", "numeric_continuous", "unit_price")
+    assert any(s.name == "Average unit_price" for s in suggest([*orders()[:-1], unit]))
+
+
+def test_the_date_is_the_order_one_never_a_birth_date() -> None:
+    columns = orders()
+    time = suggest(columns)[0].definition.time
+    assert time is not None and time.column == "Order Date"
+    shipped = [c for c in columns if c.name != "Order Date"]
+    birth = Col("birth_date", "datetime")
+    updated = Col("last_updated", "datetime")
+    chosen, reason = choose_date([birth, updated, *shipped])
+    assert chosen is not None and chosen.name == "Ship Date"
+    assert reason and "birth_date is never a time axis" in reason
+    alone, why = choose_date([birth])
+    assert alone is None and why and why.startswith("R-SUG-17")
+    # equal names: the best-filled date
+    sparse = Col("date_a", "datetime", summary={"rows": 10, "null_count": 5, "distinct_count": 4})
+    full = Col("date_b", "datetime", summary={"rows": 10, "null_count": 0, "distinct_count": 9})
+    assert choose_date([sparse, full])[0] is full
+
+
+def test_amounts_in_several_currencies_are_split_by_currency() -> None:
+    currency = Col(
+        "currency", "categorical_nominal", "currency", summary={**FULL, "distinct_count": 3}
+    )
+    found = {s.name: s for s in suggest(orders(currency))}
+
+    assert [g.column for g in found["Total Sales"].definition.groups] == ["currency"]
+    assert any(r.startswith("R-SUG-19") for r in found["Total Sales"].reasons)
+    assert found["Rows"].definition.groups == []
+
+
+def test_hierarchies_and_twins_from_the_rows() -> None:
+    code = Col("Region code", "categorical_nominal", summary={**FULL, "distinct_count": 4})
+    columns = orders(code)
+    facts = Facts(
+        dependency={
+            ("State", "Region"): 1.0,
+            ("Region", "State"): 0.2,
+            ("Region", "Region code"): 1.0,
+            ("Region code", "Region"): 0.995,
+            ("State", "Region code"): 1.0,
+            ("Region code", "State"): 0.2,
+        }
+    )
+
+    found = hierarchies(columns, facts)
+    assert (found[0].parent, found[0].child) == ("Region", "State")
+    assert found[0].reason.startswith("R-SUG-18 · Each State belongs to one Region (100% of rows)")
+    splits = split_candidates(columns, facts)
+    assert "Region" in splits and "Region code" not in splits  # twins never together
+
+
+def test_a_measure_that_moves_with_a_better_one_ranks_lower() -> None:
+    columns = orders(Col("Sales incl VAT", "numeric_continuous", "amount"))
+    plain = {s.name: s.score for s in suggest(columns)}
+    facts = Facts(correlation={frozenset(("Sales", "Sales incl VAT")): 0.999})
+    found = {s.name: s for s in suggest(columns, facts)}
+
+    assert found["Total Sales incl VAT"].score == plain["Total Sales incl VAT"] // 2
+    assert any("Moves with Sales (r = 1.00)" in r for r in found["Total Sales incl VAT"].reasons)
+
+
+def test_one_order_per_customer_drops_the_customer_kpis() -> None:
+    facts = Facts(dependency={("Order ID", "Customer ID"): 1.0, ("Customer ID", "Order ID"): 1.0})
+    names = [s.name for s in suggest(orders(), facts)]
+    assert "Average basket" in names and "Sales per customer" not in names
+
+
+def test_more_suggestions_than_the_page_shows_stop_at_twelve() -> None:
+    found = suggest(orders())
+    assert 6 < len(found) <= 12
+
+
+def test_the_probe_measures_dependencies_and_correlations(tmp_path: Path) -> None:
+    rng = np.random.default_rng(3)
+    states = [f"S{i}" for i in range(20)]
+    region = {s: f"R{i % 4}" for i, s in enumerate(states)}
+    picked = rng.choice(states, 3_000)
+    sales = rng.gamma(2.0, 50.0, 3_000)
+    frame = pd.DataFrame(
+        {
+            "state": picked,
+            "region": [region[s] for s in picked],
+            "segment": rng.choice(["A", "B", "C"], 3_000),
+            "sales": sales,
+            "sales_vat": sales * 1.2,
+            "units": rng.integers(1, 6, 3_000),
+        }
+    )
+    path = tmp_path / "p.parquet"
+    frame.to_parquet(path)
+    source = f"read_parquet({lit(str(path))}, file_row_number = true)"
+    labels = [Col(name, "categorical_nominal") for name in ("state", "region", "segment")]
+    numbers = [Col(name, "numeric_continuous") for name in ("sales", "sales_vat", "units")]
+
+    facts = measure(duckdb.connect(), source, labels, numbers)
+
+    assert facts.fixes("state", "region") == pytest.approx(1.0)
+    assert (facts.fixes("region", "state") or 1) < 0.5
+    assert (facts.fixes("segment", "state") or 1) < 0.5
+    assert facts.corr("sales", "sales_vat") == pytest.approx(1.0)
+    assert abs(facts.corr("sales", "units") or 1) < 0.2
 
 
 def test_without_a_date_suggestions_split_at_once() -> None:

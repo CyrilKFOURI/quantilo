@@ -87,6 +87,49 @@ export const categoricalProfile = {
   identifier: null,
 };
 
+// 050: survey answers, mostly French, with a template answered 3 times
+export const textProfile = {
+  name: "survey_answer",
+  type: "text",
+  numeric: null,
+  categorical: null,
+  date: null,
+  text: {
+    rows: 600,
+    missing: 58,
+    distinct: 190,
+    min_length: 24,
+    max_length: 61,
+    mean_length: 44.2,
+    words: [
+      { label: "livraison", count: 95 },
+      { label: "produit", count: 90 },
+    ],
+    bigrams: [
+      { label: "très rapide", count: 92 },
+      { label: "service client", count: 88 },
+    ],
+    trigrams: [{ label: "produit est arrivé", count: 90 }],
+    distinct_words: 61,
+    median_words: 9,
+    p90_words: 11,
+    language: "fr",
+    language_label: "French",
+    language_share: 0.9,
+    languages: [
+      { label: "French", count: 90 },
+      { label: "English", count: 10 },
+    ],
+    shortest: ["Delivery was fine selon moi."],
+    longest: ["Le service client était assez décevant malgré quelques soucis."],
+    repeated: [{ label: "La qualité est parfait et je recommande.", count: 3 }],
+    repeated_count: 1,
+    repeated_rows: 3,
+    sampled_texts: null,
+  },
+  identifier: null,
+};
+
 export const fit = {
   n: 1190,
   grid: [0, 1, 2],

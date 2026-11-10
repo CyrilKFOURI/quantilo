@@ -204,6 +204,16 @@ class ProfileColumn(Tool[ColumnInput]):
                 "distinct": p.distinct,
                 "length": [p.min_length, p.max_length],
                 "mean_length": _r(p.mean_length, 3),
+                # 050: what the texts say and in which language
+                "kind": {"label": "short text", "address": "address"}.get(
+                    view.role or "", "free text"
+                ),
+                "language": p.language_label,
+                "median_words": p.median_words,
+                "distinct_words": p.distinct_words,
+                "top_words": [b["label"] for b in p.words[:10]],
+                "top_expressions": [b["label"] for b in p.bigrams[:10]],
+                "repeated_texts": p.repeated_count,
             }
         link = AppLink("variable", {"column": view.name}, f"Open {view.name}")
         return ToolOutput(summary, content, link)

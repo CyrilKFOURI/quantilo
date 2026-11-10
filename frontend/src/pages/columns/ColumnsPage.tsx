@@ -10,6 +10,7 @@ import { RoleMenu } from "../../features/columns/RoleMenu";
 import { Sparkline } from "../../features/columns/Sparkline";
 import { TypeBadge } from "../../features/columns/TypeBadge";
 import { useColumnHistory } from "../../features/columns/useColumnHistory";
+import { formatNumber } from "../../charts/figures";
 import { formatCount } from "../../lib/format";
 import { t, type MessageKey } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
@@ -325,6 +326,7 @@ function ColumnRow({
           type={column.type}
           detectedType={column.detected_type}
           reasons={column.reasons}
+          role={column.role}
           onChange={(type) => onChange({ type })}
           onReset={column.overridden ? () => onChange({ reset: true }) : undefined}
         />
@@ -341,6 +343,9 @@ function ColumnRow({
               {t("columns.dateParts", { parts: summary.date.parts.map(datePartLabel).join(", ") })}
             </span>
           </p>
+        )}
+        {column.type === "text" && summary?.text && (
+          <p className="mt-0.5 max-w-64 truncate text-xs text-ink-2 max-sm:hidden">{textLine(summary.text)}</p>
         )}
         {column.type === "categorical_ordinal" && (
           <p className="mt-0.5 flex max-w-64 items-baseline gap-1.5 text-xs text-ink-2 max-sm:max-w-[30vw]">
@@ -405,6 +410,14 @@ const DATE_PART_KEYS: Record<string, MessageKey> = {
 
 function datePartLabel(part: string): string {
   return DATE_PART_KEYS[part] ? t(DATE_PART_KEYS[part]) : part;
+}
+
+/** "English · median 14 words", "Mixed languages · …", or the words alone (050). */
+function textLine(text: NonNullable<NonNullable<Column["summary"]>["text"]>): string {
+  const words = formatNumber(text.median_words);
+  if (!text.language) return t("columns.textWords", { words });
+  const language = text.language === "mixed" ? t("columns.mixedLanguages") : (text.language_label ?? text.language);
+  return t("columns.textLanguage", { language, words });
 }
 
 function ConfidenceTag({ confidence }: { confidence: Column["confidence"] }) {

@@ -18,7 +18,23 @@ export const RATIO = "ratio";
 
 const NUMBERS = new Set(["numeric_continuous", "numeric_discrete"]);
 const SPLITS = new Set(["categorical_nominal", "categorical_ordinal", "boolean"]);
-const SUM_ROLES = new Set(["amount", "quantity"]);
+const SUM_ROLES = new Set(["amount", "quantity", "cost", "target"]);
+// 048 (P1, R-SUG-09): a price or a level is averaged, never summed; same words as the engine's
+// kpi/suggest.py LEVEL_WORDS.
+const LEVEL_WORDS = new Set(["price", "prices", "prix", "tarif", "unit", "salary", "salaries", "salaire", "wage", "wages", "avg", "average", "mean", "moyenne", "moyen", "rate", "balance"]);
+
+/** "UnitPrice" / "unit_price" / "Prix moyen" → its words, as the engine reads column names. */
+export function nameWords(name: string): string[] {
+  const spaced = name.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+  const plain = spaced.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  return plain.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+
+/** A price, a salary, an average: an amount that is a level, not a flow. */
+export function isLevel(column: Column): boolean {
+  if (column.role === "unit_price") return true;
+  return column.role === "amount" && nameWords(column.name).some((w) => LEVEL_WORDS.has(w));
+}
 
 /** Columns an aggregate can read (Rows reads none). */
 export function columnsFor(agg: Agg, columns: Column[]): Column[] {
@@ -34,11 +50,11 @@ export const dateColumns = (columns: Column[]) =>
 export const splitColumns = (columns: Column[]) =>
   columns.filter((c) => !c.excluded && SPLITS.has(c.type));
 
-/** The default aggregate of a column (spec R-MES-01): sums for amounts and volumes, means for
- *  other numbers, "% true" for yes/no columns, distinct counts for everything else. */
+/** The default aggregate of a column (spec R-MES-01): sums for amounts, costs and volumes, means
+ *  for prices and other numbers, "% true" for yes/no columns, distinct counts for the rest. */
 export function defaultAgg(column: Column): Agg {
   if (column.type === "boolean") return "true_share";
-  if (NUMBERS.has(column.type)) return column.role && SUM_ROLES.has(column.role) ? "sum" : "mean";
+  if (NUMBERS.has(column.type)) return column.role && SUM_ROLES.has(column.role) && !isLevel(column) ? "sum" : "mean";
   return "distinct";
 }
 

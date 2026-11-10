@@ -65,9 +65,30 @@ def comparison_content(c: Comparison) -> dict[str, Any]:
                 "q1": _r(g.q1),
                 "q3": _r(g.q3),
                 "mean_95ci": [_r(g.ci_low), _r(g.ci_high)],
+                "mean_ci_method": g.ci_method,
+                "mean_ci_reason": g.ci_reason,
+                "median_95ci": [_r(g.median_low), _r(g.median_high)],
             }
             for g in c.groups[:MAX_GROUPS]
         ]
+        if c.intervals:
+            content["intervals"] = c.intervals
+    if c.differences:
+        # most significant first, after the correction (051)
+        ranked = sorted(c.differences, key=lambda d: (d.p_adjusted is None, d.p_adjusted or 0))
+        content["pairwise_differences"] = [
+            {
+                "b_minus_a": f"{d.b} − {d.a}",
+                "diff": _r(d.diff),
+                "ci_95": [_r(d.low), _r(d.high)],
+                "interval": d.interval,
+                "p_value": _r(d.p_value, 4),
+                "p_adjusted": _r(d.p_adjusted, 4),
+            }
+            for d in ranked[:MAX_PAIRS]
+        ]
+    if c.multiple is not None:
+        content["multiple_testing"] = c.multiple.sentence
     if c.contingency is not None:
         t = c.contingency
         # totals and shares given ready-made: the model must not compute figures (R-AG-G1)
@@ -131,7 +152,9 @@ class CompareColumns(Tool[CompareInput]):
         "visual and tests from the types: correlation tests for two numbers, t-test / ANOVA / "
         "rank tests with effect sizes for a number by a category, χ² with Cramér's V for two "
         "categories, trend tests for a date and a number. Returns every test with its p-value, "
-        "effect size and whether it is the recommended one, plus group summaries or the crosstab."
+        "effect size and whether it is the recommended one, plus group summaries (mean and median "
+        "intervals, bootstrap when a group is small or skewed) and, for groups, every pairwise "
+        "difference with its interval and p adjusted for multiple tests, or the crosstab."
     )
     Input: ClassVar[type[BaseModel]] = CompareInput
 
@@ -166,6 +189,7 @@ def _pair(p: Pair) -> dict[str, Any]:
         "b": p.b,
         "measure": METRICS.get(p.metric, p.metric),
         "value": _r(p.value, 3),
+        "p_value": _r(p.p_value, 4),
         "q_value": _r(p.q_value, 3),
         "evidence": p.evidence,
         "n": p.n,
@@ -183,9 +207,10 @@ class GetCorrelations(Tool[CorrelationsInput]):
     description: ClassVar[str] = (
         "The mixed association matrix of the dataset (Pearson or Spearman between numbers, "
         "bias-corrected Cramér's V between categories, η between a number and a category), as the "
-        "strongest pairs with their evidence level (effect size and Benjamini-Hochberg adjusted "
-        "p), plus the rule-based insights of the Correlations page. Use it for an overview of "
-        "what is linked to what."
+        "strongest pairs with their evidence level (effect size and p adjusted over every pair: "
+        "Benjamini-Hochberg from 10 pairs, Holm below; q_value is the adjusted p), a sentence on "
+        "how many links survive the correction, plus the rule-based insights of the Correlations "
+        "page. Use it for an overview of what is linked to what."
     )
     Input: ClassVar[type[BaseModel]] = CorrelationsInput
 
@@ -206,6 +231,7 @@ class GetCorrelations(Tool[CorrelationsInput]):
             "columns": [c.name for c in m.columns],
             "left_out": [{"column": e.name, "reason": e.reason} for e in m.excluded],
             "strongest_pairs": [_pair(p) for p in m.pairs[:MAX_PAIRS]],
+            "multiple_testing": m.multiple.sentence if m.multiple else None,
             "insights": [i.text for i in sorted(found.insights, key=lambda i: -i.score)[:10]],
         }
         strong = sum(1 for p in m.pairs if p.evidence == "strong")

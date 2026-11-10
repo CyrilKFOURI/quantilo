@@ -11,6 +11,8 @@ import { Loading } from "../../ui/Loading";
 
 type Explanation = NonNullable<MlExplanation>;
 type TreeNode = NonNullable<Explanation["tree"]>[number];
+type TextWords = Explanation["words"][number];
+type Word = TextWords["up"][number];
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -87,6 +89,9 @@ function ExplainBody({ found }: { found: Explanation }) {
           <p className="max-w-prose text-[13px] text-ink-2">{found.shap_unavailable}</p>
         )}
       </Section>
+      {found.words.map((w) => (
+        <WordsSection key={w.column} words={w} />
+      ))}
       {chosen && (
         <Section title={t("ml.explain.dependence")} hint={t("ml.explain.dependenceHint")}>
           <label className="flex items-center gap-2 text-xs text-ink-2">
@@ -109,6 +114,62 @@ function ExplainBody({ found }: { found: Explanation }) {
           <TreeView nodes={found.tree} />
         </Section>
       )}
+    </div>
+  );
+}
+
+/** The terms of one free-text column that move the predictions most (052). */
+function WordsSection({ words }: { words: TextWords }) {
+  const hint = t(words.method === "linear" ? "ml.explain.wordsLinear" : "ml.explain.wordsContrast", {
+    output: words.output,
+    terms: words.terms.toLocaleString("en-US"),
+  });
+  return (
+    <Section title={t("ml.explain.words", { column: words.column })} hint={hint}>
+      <p className="max-w-prose text-[13px] text-ink-1">{words.sentence}</p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <WordList label={t("ml.explain.wordsUp")} items={words.up} />
+        <WordList label={t("ml.explain.wordsDown")} items={words.down} />
+      </div>
+    </Section>
+  );
+}
+
+function WordList({ label, items }: { label: string; items: Word[] }) {
+  return (
+    <div className="min-w-0">
+      <table className="w-full border-collapse text-[13px] tabular-nums" aria-label={label}>
+        <thead className="text-left text-xs text-ink-3">
+          <tr>
+            <th className="py-1 pr-3 font-normal">{label}</th>
+            <th className="py-1 pr-3 text-right font-normal">{t("ml.explain.wordsEffect")}</th>
+            <th className="py-1 text-right font-normal">{t("ml.explain.wordsRows")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.length === 0 ? (
+            <tr className="border-t border-line">
+              <td colSpan={3} className="py-1 text-ink-3">
+                {t("ml.explain.wordsNone")}
+              </td>
+            </tr>
+          ) : (
+            items.map((w) => (
+              <tr key={w.term} className="border-t border-line">
+                <td className="max-w-0 truncate py-1 pr-3 font-mono text-xs text-ink-1" title={w.term}>
+                  {w.term}
+                  {w.towards && <span className="ml-1.5 font-sans text-[11px] text-ink-3">→ {w.towards}</span>}
+                </td>
+                <td className="py-1 pr-3 text-right text-ink-1">
+                  {w.effect >= 0 ? "+" : ""}
+                  {formatNumber(w.effect)}
+                </td>
+                <td className="py-1 text-right text-ink-2">{`${Math.round(w.rows * 100) || "<1"} %`}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
