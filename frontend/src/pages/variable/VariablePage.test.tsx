@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { column, roles } from "../../test/columns";
 import { dataset, health, mockApi } from "../../test/mockApi";
 import { renderAt } from "../../test/render";
-import { categoricalProfile, fit, numericProfile, outliers, textProfile } from "../../test/variable";
+import { categoricalProfile, fit, numericProfile, outliers, robust, tail, textProfile } from "../../test/variable";
 
 // jsdom can't draw Plotly: render a labelled placeholder instead.
 vi.mock("../../charts/Plot", () => ({
@@ -51,6 +51,7 @@ function setup(profile: unknown = numericProfile()) {
     "GET /datasets/d1/variable": profile,
     "GET /datasets/d1/variable/fit": fit,
     "GET /datasets/d1/variable/outliers": outliers,
+    "GET /datasets/d1/variable/tail": tail,
     "GET /datasets/d1/columns/chart": {
       ...histogram,
       ...(profile === categoricalProfile
@@ -133,6 +134,42 @@ describe("Variable page", () => {
     );
   });
 
+
+  it("hides the Tail tab and the robust block when their rules do not fire (056)", async () => {
+    setup();
+    renderAt("/d/d1/variable/price");
+    expect(await screen.findByRole("tab", { name: "Outliers" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Tail" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Robust center and spread")).not.toBeInTheDocument();
+  });
+
+  it("shows the robust center with its reason (056)", async () => {
+    const profile = numericProfile();
+    setup({ ...profile, numeric: { ...profile.numeric, robust } });
+    renderAt("/d/d1/variable/price");
+
+    expect(await screen.findByText(/6.8 % of values are outliers by the IQR rule/)).toBeInTheDocument();
+    expect(screen.getByText("The mean is 38% above the Huber center: the outliers pull it up.")).toBeInTheDocument();
+    expect(screen.getByText("Huber center")).toBeInTheDocument();
+  });
+
+  it("opens the Tail tab when the rule fires: sentence, risk, return levels, charts (056)", async () => {
+    const profile = numericProfile();
+    setup({ ...profile, numeric: { ...profile.numeric, tail_rule: tail.rule } });
+    renderAt("/d/d1/variable/price");
+    fireEvent.click(await screen.findByRole("tab", { name: "Tail" }));
+
+    expect(await screen.findByText(tail.conclusion)).toBeInTheDocument();
+    expect(screen.getByText("Expected shortfall 95%")).toBeInTheDocument();
+    const table = screen.getByRole("table");
+    expect(within(table).getByRole("cell", { name: "1 in 1,000 rows" })).toBeInTheDocument();
+    expect(within(table).getByRole("cell", { name: "6,900 – unbounded" })).toBeInTheDocument();
+    expect(within(table).getByRole("cell", { name: "beyond the data" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Return levels: price" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Mean excess: price" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Hill plot: price" })).toBeInTheDocument();
+    expect(screen.getByText("1 row in 1,000 exceeds 2,966.", { exact: false })).toBeInTheDocument();
+  });
   it("profiles a category and warns about imbalance", async () => {
     setup(categoricalProfile);
     renderAt("/d/d1/variable/city");

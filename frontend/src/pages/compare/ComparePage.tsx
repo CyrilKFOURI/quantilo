@@ -39,6 +39,7 @@ import { Checkbox, ErrorNote, Field, Select } from "../../ui/fields";
 import { ParamPanel } from "../../ui/ParamPanel";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Loading } from "../../ui/Loading";
+import { InfoTip } from "../../ui/InfoTip";
 
 export type CompareSearch = {
   x?: string;
@@ -401,9 +402,10 @@ function figureFor(
   view: View,
   regression: boolean,
   time: TimeSearch,
+  lowess = false,
 ) {
   if (view === "3d") return scatter3dFigure(result);
-  if (view === "points") return scatterFigure(result, regression);
+  if (view === "points") return scatterFigure(result, regression, lowess);
   if (view === "density") return densityFigure(result);
   if (view === "box" || view === "violin" || view === "means")
     return groupsFigure(result, view);
@@ -427,10 +429,15 @@ function ChartArea({
 }) {
   const [chosen, setChosen] = useState<View | null>(null);
   const [regression, setRegression] = useState(true);
+  // LOWESS (064, R-SM-12): on by the rule until the user ticks or unticks it for this pair.
+  const pair = `${result.x}|${result.y}`;
+  const [lowessChoice, setLowessChoice] = useState<{ pair: string; on: boolean } | null>(null);
+  const lowess =
+    lowessChoice?.pair === pair ? lowessChoice.on : Boolean(result.lowess?.suggested);
   const view = pickView(result, chosen);
   const figure = useMemo(
-    () => figureFor(result, view, regression, time),
-    [result, view, regression, time],
+    () => figureFor(result, view, regression, time, lowess),
+    [result, view, regression, time, lowess],
   );
   const views = viewsFor(result);
 
@@ -458,6 +465,7 @@ function ChartArea({
         )}
         {result.time && <AnalyzeLink result={result} time={time} />}
         {experiment && <ExperimentLink {...experiment} />}
+        {result.kind === "scatter" && !result.z && <ControlsLink x={result.x} y={result.y} />}
         {view === "points" && result.regression && (
           <Checkbox
             label={t("compare.regression", {
@@ -470,6 +478,17 @@ function ChartArea({
             onChange={(event) => setRegression(event.target.checked)}
             className="text-xs text-ink-2"
           />
+        )}
+        {view === "points" && result.lowess && (
+          <span className="inline-flex items-center gap-1">
+            <Checkbox
+              label={t("compare.lowess")}
+              checked={lowess}
+              onChange={(event) => setLowessChoice({ pair, on: event.target.checked })}
+              className="text-xs text-ink-2"
+            />
+            <InfoTip text={result.lowess.reason} label={t("compare.lowessWhy")} />
+          </span>
         )}
       </div>
       {result.time && (
@@ -558,6 +577,21 @@ function AnalyzeLink({
       className="text-xs text-accent hover:underline"
     >
       {t("time.analyze")}
+    </Link>
+  );
+}
+
+/** 068: Y on X in the Regression tab, where the strongest links of Y can join as controls. */
+function ControlsLink({ x, y }: { x: string; y: string }) {
+  const { datasetId } = useParams({ from: "/d/$datasetId/compare" });
+  return (
+    <Link
+      to={"/d/$datasetId/regression" as never}
+      params={{ datasetId } as never}
+      search={{ target: y, columns: x, focus: x } as never}
+      className="text-xs text-accent hover:underline"
+    >
+      {t("compare.addControls")}
     </Link>
   );
 }

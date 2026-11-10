@@ -1,10 +1,28 @@
 import type { KpiResult, KpiSeries } from "../../api/client";
 import type { ShowAs } from "./definition";
+import { cellFlags, type CellFlag } from "./signals";
 
 /** "Show as" modes that only mean something for a measure that adds up (spec R-TAB-11). */
 export const ADDITIVE_MODES = new Set<ShowAs>(["share_total", "share_row", "share_column", "running"]);
 /** Modes that read the previous period or last year: they need a time axis. */
-export const TIME_MODES = new Set<ShowAs>(["change", "change_pct", "change_yoy", "running"]);
+export const TIME_MODES = new Set<ShowAs>(["change", "change_pct", "change_yoy", "running", "rolling", "trend"]);
+/** 053: smoothed modes, drawn as a curve over the values (R-SHOW-01, R-SHOW-02). */
+export const SMOOTH_MODES = new Set<ShowAs>(["rolling", "trend"]);
+/** R-SHOW-01: the trailing window of a rolling mean, by grain (a short cycle). */
+export const ROLLING_WINDOW: Record<string, number> = { day: 7, week: 4, month: 3, quarter: 4, year: 3 };
+
+/** The rolling mean's window for this result (3 when the grain is unknown). */
+export const rollingWindow = (result: KpiResult) => ROLLING_WINDOW[result.resolved.grain?.value ?? ""] ?? 3;
+
+/** R-SHOW-01: the mean of the complete periods of the window ending at each period; empty until
+ *  the window is full, and for an incomplete period. */
+export function rollingMean(values: (number | null)[], partial: boolean[], window: number): (number | null)[] {
+  return values.map((value, i) => {
+    if (i < window - 1 || partial[i] || value === null) return null;
+    const kept = values.slice(i - window + 1, i + 1).filter((v, j): v is number => v !== null && !partial[i - window + 1 + j]);
+    return kept.length ? kept.reduce((a, b) => a + b, 0) / kept.length : null;
+  });
+}
 export const DIVERGING_MODES = new Set<ShowAs>(["change", "change_pct", "change_yoy"]);
 export const COLUMNS_MAX_PERIODS = 13;
 
@@ -46,6 +64,8 @@ export function shownValues(result: KpiResult, s: KpiSeries, mode: ShowAs): (num
     let sum = 0;
     return s.values.map((v) => (sum += v ?? 0));
   }
+  if (mode === "rolling") return rollingMean(s.values, result.periods.map((p) => p.partial), rollingWindow(result));
+  if (mode === "trend") return s.trend ?? s.values.map(() => null);
   return s.values;
 }
 
@@ -68,6 +88,8 @@ export type TableCell = {
   partial: boolean;
   total: boolean;
   shade: number | null; // 0…1 sequential, −1…1 diverging
+  /** 054: a signal on this cell (low n, unusual period, thin period), with its sentence. */
+  flag: CellFlag | null;
 };
 export type TableRow = {
   key: string;
@@ -113,6 +135,7 @@ export function buildTable(result: KpiResult, options: TableOptions): Table {
   const second = levels[1] ?? [];
   const periods = result.periods;
   const cache = new Map<string, (number | null)[]>();
+  const flagOf = cellFlags(result);
   const values = (s: KpiSeries, mode: ShowAs) => {
     const key = `${mode}|${s.measure}|${s.g1}|${s.g2}`;
     if (!cache.has(key)) cache.set(key, shownValues(result, s, mode));
@@ -130,6 +153,7 @@ export function buildTable(result: KpiResult, options: TableOptions): Table {
       partial: p !== null && Boolean(periods[p]?.partial),
       total: total || g1 === null || (result.splits.length > 1 && g2 === null) || p === null,
       shade: null,
+      flag: flagOf(measure.id, p === null ? null : (periods[p]?.start ?? null), g1, g2),
     };
   };
   const compareCells = (measure: (typeof measures)[number], g1: Key, g2: Key, p: number): TableCell[] => {
@@ -139,7 +163,7 @@ export function buildTable(result: KpiResult, options: TableOptions): Table {
       const before = (kind === "previous" ? s?.previous[p] : s?.last_year[p]) ?? null;
       const mode: ShowAs = kind === "previous" ? "change" : "change_yoy";
       const value = kind === "previous" ? (now === null || before === null ? null : now - before) : change(now, before);
-      return { value, measure: measure.id, mode, partial: Boolean(periods[p]?.partial), total: false, shade: null };
+      return { value, measure: measure.id, mode, partial: Boolean(periods[p]?.partial), total: false, shade: null, flag: null };
     });
   };
   const compareHead = options.compare.map((kind) => (kind === "previous" ? "Δ vs previous" : "Δ% vs last year"));
@@ -286,7 +310,7 @@ export function buildTable(result: KpiResult, options: TableOptions): Table {
         kind: "total",
         partial: false,
         cells: measures.flatMap((m) =>
-          groups.flatMap(([g1, g2]) => [cell(m, g1, g2, null, true), ...options.compare.map(() => ({ ...cell(m, g1, g2, null, true), value: null }))]),
+          groups.flatMap(([g1, g2]) => [cell(m, g1, g2, null, true), ...options.compare.map(() => ({ ...cell(m, g1, g2, null, true), value: null, flag: null }))]),
         ),
       });
     }

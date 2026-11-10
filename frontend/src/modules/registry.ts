@@ -1,6 +1,8 @@
 import { createElement } from "react";
 
 import { agentPanel } from "./agent/manifest";
+import { cleanModule } from "./clean/manifest";
+import { CLEAN_ENABLED } from "./clean/flag";
 import { experimentsModule } from "./experiments/manifest";
 import { kpiModule } from "./kpi/manifest";
 import { mlModule } from "./ml/manifest";
@@ -21,6 +23,8 @@ const lockedInLite = (module: ModuleManifest): ModuleManifest =>
 
 /** Active modules. Adding a module = creating its folder and listing its manifest here. */
 export const modules: ModuleManifest[] = [
+  // the Dataset section, under Overview (065); VITE_CLEAN_ENABLED=0 leaves it out
+  ...(CLEAN_ENABLED ? [cleanModule] : []),
   timeseriesModule,
   kpiModule,
   lockedInLite(mlModule),

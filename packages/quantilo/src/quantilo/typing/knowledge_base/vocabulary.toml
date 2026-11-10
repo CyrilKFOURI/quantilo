@@ -15,6 +15,15 @@ street_words = [
 # Word endings of the same (German compounds: "Hauptstraße", "Lindenweg").
 street_suffixes = ["strasse", "straße", "str", "weg", "platz", "allee", "gasse", "damm", "ufer"]
 
+# Column names that say an outcome (053, R-SUG-06): a yes/no column named so is the one a KPI
+# tracks ("% Churn"), before other yes/no columns. Whole words of the name, lowercased.
+outcome_names = [
+  "churn", "churned", "attrition", "exited", "left", "converted", "conversion", "cancelled",
+  "canceled", "cancellation", "returned", "refunded", "default", "defaulted", "fraud",
+  "fraudulent", "won", "win", "paid", "delivered", "resolved", "approved", "accepted",
+  "subscribed", "clicked", "purchased", "retained", "active",
+]
+
 # Pairs of words meaning true / false. A two-valued text column using one pair is boolean.
 [[boolean_pair]]
 true = ["true", "t"]
@@ -101,3 +110,34 @@ values = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 [[order]]
 values = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+
+# Outcomes of a status column (053, P5, R-SUG-22): a categorical column with at least one value
+# of `share` and one of `other` is a status, and "% {share}" is the KPI it suggests. Values are
+# compared lowercased; `share` is the side a business tracks.
+[[outcome]]
+share = ["won", "closed won", "win"]
+other = ["lost", "closed lost", "loss"]
+
+[[outcome]]
+share = ["paid", "settled", "payé", "payée"]
+other = ["cancelled", "canceled", "refunded", "unpaid", "failed", "declined", "overdue", "annulé", "annulée", "impayé"]
+
+[[outcome]]
+share = ["delivered", "livré", "livrée"]
+other = ["returned", "cancelled", "canceled", "lost", "pending", "shipped", "in transit", "retourné"]
+
+[[outcome]]
+share = ["churned", "churn", "inactive", "left", "cancelled", "canceled", "résilié"]
+other = ["active", "retained", "stayed", "current", "actif"]
+
+[[outcome]]
+share = ["converted", "conversion", "purchased", "subscribed", "signed up"]
+other = ["not converted", "no conversion", "bounced", "abandoned", "visited", "lead"]
+
+[[outcome]]
+share = ["resolved", "closed", "solved", "done", "résolu", "fermé"]
+other = ["open", "opened", "pending", "new", "in progress", "escalated", "ouvert", "en cours"]
+
+[[outcome]]
+share = ["approved", "accepted", "accepté", "approuvé"]
+other = ["rejected", "declined", "refused", "denied", "refusé", "rejeté"]

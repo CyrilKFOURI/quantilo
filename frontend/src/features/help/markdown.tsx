@@ -92,7 +92,13 @@ export function inline(text: string, href: HrefFilter = anyHref): ReactNode[] {
         const safe = href(target);
         if (safe === null) return label;
         return (
-          <a key={key} href={safe} className="text-accent underline-offset-2 hover:underline">
+          // Another site opens in a new tab: leaving would close the app (and restart Python in the web version).
+          <a
+            key={key}
+            href={safe}
+            {...(/^https?:\/\//.test(safe) ? { target: "_blank", rel: "noreferrer" } : {})}
+            className="text-accent underline-offset-2 hover:underline"
+          >
             {label}
           </a>
         );

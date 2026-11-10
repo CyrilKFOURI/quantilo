@@ -3,6 +3,8 @@
 - Host check: blocks DNS rebinding (an attacker domain resolving to 127.0.0.1).
 - Cross-site check: blocks requests initiated by another site (CSRF, including simple GETs
   such as <img src="http://localhost:8000/api/...">), using Sec-Fetch-Site and Origin.
+- Response headers (081): no MIME sniffing, never shown in another site's frame (clickjacking,
+  for browsers without Sec-Fetch-*), no address leaked in the Referer.
 """
 
 from urllib.parse import urlsplit
@@ -14,6 +16,12 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "frame-ancestors 'none'",
+    "Referrer-Policy": "no-referrer",
+}
 
 
 def hostname(value: str) -> str:
@@ -36,6 +44,12 @@ class LocalOnlyMiddleware(BaseHTTPMiddleware):
         self.allowed_hosts = allowed_hosts
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        response = await self.check(request, call_next)
+        for key, value in SECURITY_HEADERS.items():
+            response.headers.setdefault(key, value)
+        return response
+
+    async def check(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if hostname(request.headers.get("host", "")) not in self.allowed_hosts:
             return forbidden("Unknown host.")
         if request.headers.get("sec-fetch-site") in ("cross-site", "same-site"):

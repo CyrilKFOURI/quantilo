@@ -5,6 +5,7 @@ from quantilo.variable.analyze import VariableProfile
 from quantilo.variable.fitting import Fit
 from quantilo.variable.outliers import OutlierMethod, Outliers
 from quantilo.variable.service import VariableService
+from quantilo.variable.tails import Tail
 
 from app.api.filters import Filters
 
@@ -40,3 +41,8 @@ def outliers(
     method: OutlierMethod = "iqr",
 ) -> Outliers:
     return service.outliers(dataset_id, column, method, filters)
+
+
+@router.get("/datasets/{dataset_id}/variable/tail")
+def tail(dataset_id: str, column: ColumnName, service: Variable, filters: Filters) -> Tail:
+    return service.tail(dataset_id, column, filters)

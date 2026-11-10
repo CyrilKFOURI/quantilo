@@ -50,6 +50,7 @@ def test_the_modules_tools_are_collected(client: TestClient) -> None:
     assert {"suggest_kpis", "compute_kpi", "save_kpi"} <= names
     assert {"plan_synthetic", "generate_synthetic", "save_synthetic_dataset"} <= names
     assert {"analyze_experiment", "bandit_view", "sample_size"} <= names
+    assert {"learn_policy", "evaluate_policy"} <= names
     assert "export_report" in names
     kinds = {t.name: t.kind for t in agent(client).registry}
     assert kinds["save_kpi"] == kinds["save_synthetic_dataset"] == "write"
@@ -155,6 +156,9 @@ def test_kpis_are_suggested_and_computed(client: TestClient, sales: str) -> None
     computed = run_tool(client, sales, "compute_kpi", {"definition": first["definition"]})
 
     assert computed.content["tiles"]
+    # 054: the signals are always listed, each with its rule and sentence
+    assert isinstance(computed.content["signals"], list)
+    assert all(s["rule"].startswith("R-SIG-") and s["message"] for s in computed.content["signals"])
     with pytest.raises(ToolError):
         run_tool(
             client,
@@ -270,6 +274,23 @@ def test_analyze_an_experiment_and_plan_the_next(client: TestClient) -> None:
         {"variant": "variant", "metrics": [{"column": "revenue", "denominator": "orders"}]},
     )
     assert ratio.summary == "No bandit view" and "ratio" in ratio.content["why"]
+
+    learnt = run_tool(
+        client,
+        ab,
+        "learn_policy",
+        {"variant": "variant", "metrics": ["converted"], "unit": "user_id"},
+    )
+    assert learnt.content["caveat"].startswith("Hypothesis to confirm with a new test")
+    assert learnt.summary == learnt.content["rule"] and learnt.link.page == "experiments"
+    assert "reinforcement" not in str(learnt.content).lower()
+    with pytest.raises(ToolError, match="cannot describe the units"):
+        run_tool(
+            client,
+            ab,
+            "evaluate_policy",
+            {"action": "device", "reward": "converted", "covariates": ["user_id"]},
+        )
 
     planned = run_tool(client, ab, "sample_size", {"baseline": 0.2, "effect": 0.1})
     assert planned.content["control"] > 1_000

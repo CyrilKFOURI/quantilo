@@ -81,6 +81,9 @@ class KnowledgeBase:
     languages: tuple[Language, ...] = ()
     street_words: frozenset[str] = frozenset()
     street_suffixes: tuple[str, ...] = ()
+    # 053: (tracked side, other side) of a status, and column names that say an outcome
+    outcomes: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = ()
+    outcome_names: frozenset[str] = frozenset()
 
     def language(self, language_id: str | None) -> Language | None:
         return next((item for item in self.languages if item.id == language_id), None)
@@ -166,4 +169,12 @@ def load() -> KnowledgeBase:
         ),
         street_words=frozenset(word.lower() for word in vocabulary.get("street_words", [])),
         street_suffixes=tuple(vocabulary.get("street_suffixes", [])),
+        outcomes=tuple(
+            (
+                tuple(word.lower() for word in item["share"]),
+                tuple(word.lower() for word in item["other"]),
+            )
+            for item in vocabulary.get("outcome", [])
+        ),
+        outcome_names=frozenset(word.lower() for word in vocabulary.get("outcome_names", [])),
     )

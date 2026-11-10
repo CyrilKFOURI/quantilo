@@ -20,6 +20,7 @@ from quantilo.compare.multiple import MultipleTesting, correct
 from quantilo.errors import ExplorerError
 from quantilo.experiments import bandit as bd
 from quantilo.experiments import stats as st
+from quantilo.experiments.policy_offer import PolicyOffer
 
 MetricKind = Literal["rate", "mean", "count", "ratio"]
 Verdict = Literal["better", "worse", "unclear", "underpowered", "not_tested"]
@@ -227,6 +228,7 @@ class ExperimentResult:
     cumulative: ExperimentCumulative | None = None
     bandit: bd.ExperimentBandit | None = None  # the primary metric's bandit view (049)
     bandit_reason: str | None = None  # why there is none
+    policy_offer: PolicyOffer | None = None  # who should get which variant (055)
 
 
 # --- Columns as the service read them ------------------------------------------------------------

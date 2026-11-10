@@ -20,6 +20,9 @@ class SourceOptions(BaseModel):
     sheets: list[str] | None = None
     files: list[str] | None = None
     folder_mode: Literal["union", "intersection"] = "union"
+    # Excel: sheet -> 1-based row holding the column names, the rows above skipped (080, J1).
+    # None keeps the first non-empty row; the import preview fills it when the detection is sure.
+    header_row: dict[str, int] | None = None
 
 
 class ImportOptions(SourceOptions):

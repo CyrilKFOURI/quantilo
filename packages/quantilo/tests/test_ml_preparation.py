@@ -125,7 +125,7 @@ def test_global_settings_feed_the_rules() -> None:
     size = decision(preparation, "size")
     assert size.impute == "knn" and "R-NUM-13" in size.rules and not size.indicator
     assert decision(preparation, "city").encoding == "target"  # 4 categories > limit 3
-    assert "smoothing 2" in decision(preparation, "many").why[-1]
+    assert any("smoothing 2" in w for w in decision(preparation, "many").why)
     assert preparation.custom
 
 

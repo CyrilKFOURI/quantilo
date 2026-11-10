@@ -280,3 +280,75 @@ class RankAssociationsWith(Tool[TargetInput]):
             {"target": target, "ranked": ranked},
             AppLink("correlations", {}, "Open the correlations"),
         )
+
+
+class StructureInput(BaseModel):
+    factors: bool = Field(
+        False,
+        description="Also run the factor analysis (varimax), KMO and Bartlett's test: slower, "
+        "for questions about latent factors or whether the columns can be factored.",
+    )
+
+
+class GetStructure(Tool[StructureInput]):
+    name: ClassVar[str] = "get_structure"
+    description: ClassVar[str] = (
+        "How many real dimensions the numeric columns carry (the Structure section of the "
+        "Correlations page): a standardised PCA whose number of components is chosen by Horn's "
+        "parallel analysis, the share of variance each keeps and the columns that load on it, "
+        "with the app's sentence. With factors=true, also the varimax factor analysis, its "
+        "communalities, KMO (overall and per column) and Bartlett's sphericity test. Use it for "
+        "“are these columns redundant?”, “how many underlying factors?” questions."
+    )
+    Input: ClassVar[type[BaseModel]] = StructureInput
+
+    def __init__(self, services: AppServices) -> None:
+        self.services = services
+
+    def label(self, args: StructureInput) -> str:
+        return "Analysing the structure of the numeric columns"
+
+    def run(self, ctx: ToolContext, args: StructureInput) -> ToolOutput:
+        found = self.services.correlations.structure(ctx.dataset_id, None, ctx.conditions)
+        link = AppLink("correlations", {}, "Open the correlations")
+        if found.reason:
+            return ToolOutput(found.reason, {"reason": found.reason}, link)
+        content: dict[str, Any] = {
+            "conclusion": found.conclusion,
+            "columns": found.columns,
+            "left_out": [{"column": c.name, "reason": c.reason} for c in found.left_out],
+            "rows": found.rows,
+            "sampled": found.sampled,
+            "components_kept": found.retained,
+            "kaiser_would_keep": found.kaiser,
+            "components": [
+                {
+                    "component": f"PC{c.index}",
+                    "eigenvalue": _r(c.eigenvalue, 3),
+                    "variance_pct": round(100 * c.explained, 1),
+                    "cumulative_pct": round(100 * c.cumulative, 1),
+                    "kept": c.retained,
+                    "columns": c.label,
+                }
+                for c in found.components[: max(found.retained, 2)]
+            ],
+            "notes": found.notes,
+        }
+        if args.factors:
+            f = self.services.correlations.factors(ctx.dataset_id, None, ctx.conditions)
+            content["factor_analysis"] = {
+                "conclusion": f.conclusion,
+                "factors": f.k,
+                "rotation": f.rotation,
+                "kmo": f.kmo,
+                "kmo_reading": f.kmo_label,
+                "kmo_per_column": dict(zip(f.columns, f.msa, strict=False)),
+                "bartlett_chi2": f.bartlett_chi2,
+                "bartlett_df": f.bartlett_df,
+                "bartlett_p": _r(f.bartlett_p, 4),
+                "variance_pct": [round(100 * v, 1) for v in f.variance],
+                "factor_columns": {f"F{i + 1}": label for i, label in enumerate(f.labels)},
+                "communalities": dict(zip(f.columns, f.communalities, strict=False)),
+                "notes": f.notes,
+            }
+        return ToolOutput(found.conclusion, content, link)

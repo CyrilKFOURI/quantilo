@@ -24,6 +24,7 @@ def setup(app: FastAPI) -> None:
         correlations=state.correlations,
         reports=state.reports,
         versions=getattr(state, "versions", None),
+        regression=getattr(state, "regression", None),
     )
     notes = NoteRepository(state.workspace.db_path)
     state.agent = AgentService(

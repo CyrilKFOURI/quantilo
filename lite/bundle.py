@@ -1,5 +1,6 @@
 """Pack the Python the lite (browser) build runs: the engine, the backend app, the samples, and
-the few pure-Python wheels Pyodide does not ship (so a visit never calls PyPI).
+the few pure-Python wheels Pyodide does not ship (so a visit never calls PyPI). Then write the
+site's static pages and vercel.json (static_site.py, feature 081).
 
 Usage: python lite/bundle.py <dist-lite folder>   (run by `npm run build:lite`, with pip)
 """
@@ -10,10 +11,11 @@ import sys
 import zipfile
 from pathlib import Path
 
+from static_site import write_site
+
 ROOT = Path(__file__).resolve().parents[1]
 PARTS = {
-    "engine/quantilo": ROOT
-    / "packages/quantilo/src/quantilo",
+    "engine/quantilo": ROOT / "packages/quantilo/src/quantilo",
     "backend/app": ROOT / "backend/app",
     "samples": ROOT / "samples",
 }
@@ -61,6 +63,7 @@ def main(dist: Path) -> None:
     count = pack(zipped)
     print(f"{zipped}: {count} files, {zipped.stat().st_size / 1e6:.1f} MB")
     print(f"{dist / 'wheels'}: {', '.join(wheels(dist / 'wheels'))}")
+    print(f"{dist}: {', '.join(write_site(dist))}")
 
 
 if __name__ == "__main__":

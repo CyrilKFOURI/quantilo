@@ -67,12 +67,22 @@ ds.overview()                         # rows, types, missing cells, duplicates, 
 ds.variable("Fare")                   # describe, normality (5 tests), KDE, ECDF, QQ
 ds.fit("Fare")                        # probability laws ranked by AIC, transformations
 ds.outliers("Fare", method="iqr")     # IQR, 3×IQR, z-score, robust z, and the rows
+ds.tail("Fare")                       # GPD above a threshold, 1-in-1,000 levels, Hill, VaR / ES
 ds.compare("Fare", "Pclass")          # Welch / Mann-Whitney / ANOVA / Kruskal… + effect size
                                       # groups: bootstrap intervals when small or skewed,
                                       # pairwise differences adjusted for multiple tests
 ds.compare("Age", "Fare", color="Sex")
 ds.correlations(method="spearman")
 ds.correlations(correction="holm")    # auto: Benjamini-Hochberg from 10 pairs, Holm below
+ds.structure()                        # PCA on standardised numbers, components by parallel analysis
+ds.factors()                          # varimax factor analysis, communalities, KMO, Bartlett
+
+ds.regression("Fare", ["Age", "Pclass", "Sex"])  # OLS, HC3 by rule (clustered for a panel,
+                                      # HAC for a dated series), adj. p, checks in sentences
+ds.regression("Survived", ["Age", "Sex"])   # yes/no target: logistic, average marginal effects
+ds.regression()                       # target and 5 columns picked from the correlations
+ds.regression_section("standard_errors", "Fare", ["Age"])  # every kind side by side;
+                                      # also "influence", "terms", "more"
 ds.rows(limit=20, mode="duplicates")  # first, sample, duplicates, missing
 ds.to_pandas()                        # every row, each column in its type
 ds.export("clean.parquet")            # CSV, Parquet or Excel
@@ -178,6 +188,19 @@ found.to_dataset()                      # the rows with a `segment` column, as a
 ds.segments(method="kprototypes", k=3)  # also kmeans, gmm, ward, hdbscan
 odd = ds.unusual_rows()                 # Isolation Forest, Mahalanobis (MCD), LOF, or "segment"
 odd.threshold, odd.listed[0].reasons    # where the scores break; why each row is unusual
+```
+
+## Cleaning
+
+```python
+cleaning = ds.clean()                   # suggestions computed now, each with its reason and its step
+cleaning.suggestions[0].reason          # "247,906 values had extra spaces (at the ends, doubled…)."
+cleaning.steps                          # starts with the automatic ones (lossless fixes)
+cleaning.use("B-14:rows").skip("B-03:City")   # tick or untick a suggestion
+cleaning.add(op="rename_column", column="Customer ID", to="customer")
+cleaning.preview()                      # cells changed per column, rows removed, the first 50 touched
+cleaned = cleaning.apply()              # a new dataset; this one is never changed
+cleaning.report.summary()               # "251,330 cells changed · 34,335 rows removed"
 ```
 
 ## KPIs

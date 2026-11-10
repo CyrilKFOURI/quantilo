@@ -15,7 +15,18 @@ const legend: Partial<Layout> = {
 };
 const title = (text: string) => ({ title: { text, font: { size: 11 } } });
 
-export type Layers = { values: boolean; mean: boolean; band: boolean };
+/** `bands`: the 95 % bands of the other smoothers and of the periods filled by Kalman (064). */
+export type Layers = { values: boolean; mean: boolean; band: boolean; bands?: boolean };
+
+/** A curve of the Smooth row other than the moving average (064), with its 95 % band. */
+export type SmoothTrace = {
+  name: string;
+  values: (number | null)[];
+  low: (number | null)[];
+  high: (number | null)[];
+  /** Index in the palette. */
+  color: number;
+};
 
 /** The analysed series with its rolling mean and ± 1σ band; other groups faintly behind. */
 export function overviewFigure(
@@ -26,6 +37,8 @@ export function overviewFigure(
   what: string,
   rolled: string,
   extra: { window: number; mean: (number | null)[]; name?: string }[] = [],
+  smoothed: SmoothTrace[] = [],
+  filledName = "Filled by Kalman",
 ): Figure {
   return (tokens) => {
     const color = tokens.palette[0] ?? tokens.date;
@@ -116,6 +129,74 @@ export function overviewFigure(
         hovertemplate: `%{x}<br>${name}: %{y:,.4g}<extra></extra>`,
       } as Data);
     });
+    const bands = layers.bands ?? true;
+    for (const curve of smoothed) {
+      const tint = tokens.palette[curve.color % 8] ?? tokens.ink2;
+      if (bands && curve.low.some((v) => v !== null)) {
+        data.push(
+          {
+            type: "scatter",
+            mode: "lines",
+            x: periods,
+            y: curve.low,
+            line: { width: 0 },
+            hoverinfo: "skip",
+            showlegend: false,
+          } as Data,
+          {
+            type: "scatter",
+            mode: "lines",
+            name: `${curve.name} · 95 %`,
+            x: periods,
+            y: curve.high,
+            fill: "tonexty",
+            fillcolor: withAlpha(tint, 0.12),
+            line: { width: 0 },
+            hoverinfo: "skip",
+            showlegend: false,
+          } as Data,
+        );
+      }
+      data.push({
+        type: "scatter",
+        mode: "lines",
+        name: curve.name,
+        x: periods,
+        y: curve.values,
+        line: { color: tint, width: 2 },
+        hovertemplate: `%{x}<br>${curve.name}: %{y:,.4g}<extra></extra>`,
+      } as Data);
+    }
+    // Periods filled by Kalman: hollow points with their 95 % band as error bars.
+    const filled = (analyzed.filled_low ?? []).flatMap((low, i) => {
+      const high = analyzed.filled_high?.[i];
+      const value = analyzed.values[i];
+      return low !== null && high !== null && high !== undefined && value !== null && value !== undefined
+        ? [{ i, low, high, value }]
+        : [];
+    });
+    if (filled.length) {
+      data.push({
+        type: "scatter",
+        mode: "markers",
+        name: filledName,
+        x: filled.map((p) => periods[p.i]),
+        y: filled.map((p) => p.value),
+        marker: { size: 7, color: tokens.surface, line: { color, width: 1.5 } },
+        error_y: bands
+          ? {
+              type: "data",
+              symmetric: false,
+              array: filled.map((p) => p.high - p.value),
+              arrayminus: filled.map((p) => p.value - p.low),
+              color: withAlpha(color, 0.6),
+              thickness: 1,
+              width: 3,
+            }
+          : { visible: false },
+        hovertemplate: `%{x}<br>${filledName}: %{y:,.4g}<extra></extra>`,
+      } as Data);
+    }
     return {
       data,
       layout: {

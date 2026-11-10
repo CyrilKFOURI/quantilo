@@ -18,6 +18,8 @@ type Base = {
   group?: PageGroup;
   /** 046: false when the page is reached from its group's tabs only, not from the sidebar. */
   nav?: boolean;
+  /** 065: listed in the sidebar's Dataset section (under Overview) instead of the analyses. */
+  section?: "dataset";
 };
 
 /** A panel a module docks beside every page (e.g. the assistant); it decides when to show itself. */

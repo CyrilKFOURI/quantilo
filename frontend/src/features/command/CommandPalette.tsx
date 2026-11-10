@@ -17,6 +17,7 @@ import {
   Search,
   Settings,
   Sun,
+  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -55,6 +56,7 @@ export function CommandPalette({ open, onOpenChange, onShortcuts }: CommandPalet
         ["/d/$datasetId/columns", "nav.columns", Columns3],
         ["/d/$datasetId/compare", "nav.compare", ScatterChart],
         ["/d/$datasetId/correlations", "nav.correlations", Grid3x3],
+        ["/d/$datasetId/regression", "tab.regression", TrendingUp],
         ["/d/$datasetId/data", "nav.data", Rows3],
       ];
       for (const [to, label, icon] of pages) {

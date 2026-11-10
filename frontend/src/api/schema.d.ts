@@ -405,6 +405,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/variable/tail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tail */
+        get: operations["tail_api_v1_datasets__dataset_id__variable_tail_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/datasets/{dataset_id}/saved-filters": {
         parameters: {
             query?: never;
@@ -474,6 +491,169 @@ export interface paths {
          *     from 10 pairs, Holm below).
          */
         get: operations["correlations_api_v1_datasets__dataset_id__correlations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/correlations/structure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Structure
+         * @description How many real dimensions the numeric columns carry (078): standardised PCA, components
+         *     kept by Horn's parallel analysis, loadings, scree and a sampled biplot.
+         */
+        get: operations["structure_api_v1_datasets__dataset_id__correlations_structure_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/correlations/factors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Factors
+         * @description Varimax factor analysis, communalities, KMO and Bartlett's test (078, Advanced > More).
+         */
+        get: operations["factors_api_v1_datasets__dataset_id__correlations_factors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/regression": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Regression
+         * @description Coefficients with intervals (standard errors chosen by rule), adjusted p-values, quality,
+         *     checks in sentences and the residual plots.
+         */
+        get: operations["regression_api_v1_datasets__dataset_id__regression_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/regression/suggestion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggestion
+         * @description The target (R-REG-20) and up to 5 columns (R-REG-21) the page starts from, with reasons.
+         */
+        get: operations["suggestion_api_v1_datasets__dataset_id__regression_suggestion_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/regression/standard-errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Standard Errors
+         * @description Advanced > Standard errors: every kind side by side, with what it allows for.
+         */
+        get: operations["standard_errors_api_v1_datasets__dataset_id__regression_standard_errors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/regression/influence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Influence
+         * @description Advanced > Influence: the 20 most influential rows, with DFBETAS.
+         */
+        get: operations["influence_api_v1_datasets__dataset_id__regression_influence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/regression/terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Terms
+         * @description Advanced > Terms: reference levels, columns left out and why, VIF, condition number.
+         */
+        get: operations["terms_api_v1_datasets__dataset_id__regression_terms_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/regression/more": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * More
+         * @description Advanced > More (computed only when opened): White's test, the fit without the
+         *     influential rows.
+         */
+        get: operations["more_api_v1_datasets__dataset_id__regression_more_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -786,6 +966,28 @@ export interface paths {
          * @description The series, its rolling statistics, key figures and trend methods.
          */
         get: operations["overview_api_v1_modules_timeseries_datasets__dataset_id__overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/timeseries/datasets/{dataset_id}/smoothing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Smoothing
+         * @description Smoothed curves of the series (EWMA, Kalman filtered / smoothed, LOWESS, Savitzky-Golay,
+         *     Hodrick-Prescott), each with its automatic parameters and whether it is causal, and the
+         *     methods the data suggests (rules only: no model is fitted without a method).
+         */
+        get: operations["smoothing_api_v1_modules_timeseries_datasets__dataset_id__smoothing_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2517,6 +2719,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/modules/experiments/datasets/{dataset_id}/policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Policy
+         * @description Who should get which variant (055 § B): a policy tree on doubly robust scores, its
+         *     cross-validated value against everyone on each variant, the Qini curve.
+         */
+        post: operations["policy_api_v1_modules_experiments_datasets__dataset_id__policy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/experiments/datasets/{dataset_id}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Decisions
+         * @description Does the dataset look like logged decisions (an action, its reward, covariates)?
+         */
+        get: operations["decisions_api_v1_modules_experiments_datasets__dataset_id__decisions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/experiments/datasets/{dataset_id}/evaluate-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Evaluate Policy
+         * @description Evaluate policies from logged decisions (055 § C): diagnostics, then DM, IPS, SNIPS and
+         *     DR for the logged decisions, each constant policy, the learnt rule and the saved models.
+         */
+        post: operations["evaluate_policy_api_v1_modules_experiments_datasets__dataset_id__evaluate_policy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/modules/agent/settings": {
         parameters: {
             query?: never;
@@ -2932,10 +3196,164 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/modules/clean/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Settings */
+        get: operations["settings_api_v1_modules_clean_settings_get"];
+        /** Update Settings */
+        put: operations["update_settings_api_v1_modules_clean_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/clean/lineage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lineage
+         * @description Every cleaned version and the dataset it was made from.
+         */
+        get: operations["lineage_api_v1_modules_clean_lineage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/clean/datasets/{dataset_id}/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggestions
+         * @description The Basic suggestions, each with its reason, numbers and step (cached per import).
+         */
+        get: operations["suggestions_api_v1_modules_clean_datasets__dataset_id__suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/clean/datasets/{dataset_id}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Draft
+         * @description The saved draft, or the automatic suggestions' steps when there is none.
+         */
+        get: operations["draft_api_v1_modules_clean_datasets__dataset_id__draft_get"];
+        /** Save Draft */
+        put: operations["save_draft_api_v1_modules_clean_datasets__dataset_id__draft_put"];
+        post?: never;
+        /**
+         * Reset Draft
+         * @description Back to the automatic steps.
+         */
+        delete: operations["reset_draft_api_v1_modules_clean_datasets__dataset_id__draft_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/clean/datasets/{dataset_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview
+         * @description Before / after of every step (or one): counts on the whole file, first rows touched.
+         */
+        post: operations["preview_api_v1_modules_clean_datasets__dataset_id__preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/clean/datasets/{dataset_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Family
+         * @description The original of this dataset and its cleaned versions, v1 first.
+         */
+        get: operations["family_api_v1_modules_clean_datasets__dataset_id__versions_get"];
+        put?: never;
+        /**
+         * Save
+         * @description Save the steps as a new cleaned version (a dataset); the original is not changed.
+         */
+        post: operations["save_api_v1_modules_clean_datasets__dataset_id__versions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/clean/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Job */
+        get: operations["job_api_v1_modules_clean_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        /** Cancel */
+        delete: operations["cancel_api_v1_modules_clean_jobs__job_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActionOverlap */
+        ActionOverlap: {
+            /** Action */
+            action: string;
+            /** Logged Share */
+            logged_share: number;
+            /** Rare Share */
+            rare_share: number;
+        };
         /** AgentConversation */
         AgentConversation: {
             /** Id */
@@ -3567,6 +3985,15 @@ export interface components {
             /** Count */
             count: number;
         };
+        /** BiplotArrow */
+        BiplotArrow: {
+            /** Column */
+            column: string;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
         /** BivariateTest */
         BivariateTest: {
             /** Key */
@@ -3747,6 +4174,91 @@ export interface components {
             before: string | null;
             /** After */
             after: string | null;
+        };
+        /** ChangeCase */
+        ChangeCase: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "change_case";
+            /** Columns */
+            columns: string[];
+            /**
+             * Case
+             * @enum {string}
+             */
+            case: "lower" | "upper" | "title";
+        };
+        /**
+         * ChangeType
+         * @description Write the column in another type. Text is read with the given decimal separator, date
+         *     formats (tried in order) or true/false words; what cannot be read becomes empty.
+         */
+        ChangeType: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "change_type";
+            /** Column */
+            column: string;
+            /**
+             * To
+             * @enum {string}
+             */
+            to: "text" | "number" | "integer" | "date" | "datetime" | "boolean";
+            /**
+             * Decimal
+             * @default .
+             * @enum {string}
+             */
+            decimal: "." | ",";
+            /** Formats */
+            formats?: string[];
+            /**
+             * Excel Serial
+             * @default false
+             */
+            excel_serial: boolean;
+            /** True Values */
+            true_values?: string[];
+            /** False Values */
+            false_values?: string[];
         };
         /**
          * ChangedSlice
@@ -4013,6 +4525,220 @@ export interface components {
             /** Class Curves */
             class_curves?: components["schemas"]["ClassCurves"][];
         };
+        /** CleanDraft */
+        CleanDraft: {
+            /** Dataset Id */
+            dataset_id: string;
+            /** Steps */
+            steps: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
+            /** Automatic */
+            automatic: boolean;
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /**
+         * CleanFamily
+         * @description A dataset, its original and every cleaned version of that original (v1 first).
+         */
+        CleanFamily: {
+            /** Dataset Id */
+            dataset_id: string;
+            /** Original Id */
+            original_id: string;
+            /** Versions */
+            versions: components["schemas"]["CleanVersion"][];
+        };
+        /** CleanJob */
+        CleanJob: {
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "done" | "failed" | "cancelled";
+            /** Stage */
+            stage: string;
+            /** Dataset Id */
+            dataset_id: string;
+            /** Progress */
+            progress?: number | null;
+            /** Created Dataset Id */
+            created_dataset_id?: string | null;
+            /** Error */
+            error?: string | null;
+        };
+        /** CleanLineageItem */
+        CleanLineageItem: {
+            /** Dataset Id */
+            dataset_id: string;
+            /** Parent Id */
+            parent_id: string;
+            /** Seq */
+            seq: number;
+            /** Origin */
+            origin: string;
+            /** Steps */
+            steps: number;
+            /** Created At */
+            created_at: string;
+            /** Out Of Date */
+            out_of_date: boolean;
+        };
+        /** CleanPreview */
+        CleanPreview: {
+            /** Rows Before */
+            rows_before: number;
+            /** Rows After */
+            rows_after: number;
+            /** Rows Removed */
+            rows_removed: number;
+            /** Cells Changed */
+            cells_changed: number;
+            /** Columns */
+            columns: components["schemas"]["ColumnDiff"][];
+            /** Added */
+            added?: string[];
+            /** Dropped */
+            dropped?: string[];
+            /** Shown */
+            shown?: string[];
+            /** Sample */
+            sample?: components["schemas"]["PreviewRow"][];
+            /** Problems */
+            problems?: {
+                [key: string]: string;
+            };
+        };
+        /** CleanPreviewRequest */
+        CleanPreviewRequest: {
+            /** Steps */
+            steps?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
+            /** Step Id */
+            step_id?: string | null;
+        };
+        /** CleanReport */
+        CleanReport: {
+            /** Rows Before */
+            rows_before: number;
+            /** Rows After */
+            rows_after: number;
+            /** Rows Removed */
+            rows_removed: number;
+            /** Cells Changed */
+            cells_changed: number;
+            /** Columns Before */
+            columns_before: number;
+            /** Columns After */
+            columns_after: number;
+            /** Cells By Column */
+            cells_by_column?: {
+                [key: string]: number;
+            };
+            /** Steps */
+            steps?: components["schemas"]["StepReport"][];
+            /** Added */
+            added?: string[];
+            /** Dropped */
+            dropped?: string[];
+            /** Type Changes */
+            type_changes?: components["schemas"]["TypeChange"][];
+            /**
+             * Seconds
+             * @default 0
+             */
+            seconds: number;
+        };
+        /**
+         * CleanSettings
+         * @description Settings > Cleaning. `suggest` (default for now, spec decision 10): suggestions computed
+         *     when Clean opens; `off`: on demand; `auto`: a cleaned version made after each new import when
+         *     an automatic rule changes a cell.
+         */
+        CleanSettings: {
+            /**
+             * Mode
+             * @default suggest
+             * @enum {string}
+             */
+            mode: "suggest" | "auto" | "off";
+        };
+        /** CleanSuggestion */
+        CleanSuggestion: {
+            /** Id */
+            id: string;
+            /** Rule */
+            rule: string;
+            /**
+             * Layer
+             * @default basic
+             * @enum {string}
+             */
+            layer: "basic" | "advanced" | "expert";
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "A" | "S" | "I";
+            /**
+             * Order
+             * @default 0
+             */
+            order: number;
+            /** Title */
+            title: string;
+            /** Reason */
+            reason: string;
+            /** Columns */
+            columns?: string[];
+            /**
+             * Cells
+             * @default 0
+             */
+            cells: number;
+            /**
+             * Rows
+             * @default 0
+             */
+            rows: number;
+            /** Examples */
+            examples?: components["schemas"]["Example"][];
+            /** Step */
+            step?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"]) | null;
+        };
+        /** CleanSuggestions */
+        CleanSuggestions: {
+            /** Dataset Id */
+            dataset_id: string;
+            /** Rows */
+            rows: number;
+            /** Seconds */
+            seconds: number;
+            /** Suggestions */
+            suggestions: components["schemas"]["CleanSuggestion"][];
+        };
+        /** CleanVersion */
+        CleanVersion: {
+            /** Dataset Id */
+            dataset_id: string;
+            /** Parent Id */
+            parent_id: string;
+            /** Seq */
+            seq: number;
+            /** Name */
+            name: string;
+            /** Origin */
+            origin: string;
+            /** Status */
+            status: string;
+            /** Created At */
+            created_at: string;
+            /** Out Of Date */
+            out_of_date: boolean;
+            /** Steps */
+            steps?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
+            report?: components["schemas"]["CleanReport"] | null;
+        };
         /** Coefficient */
         Coefficient: {
             /** Feature */
@@ -4033,6 +4759,17 @@ export interface components {
             per_unit?: number | null;
             /** Odds Ratio */
             odds_ratio?: number | null;
+        };
+        /** CoefficientShift */
+        CoefficientShift: {
+            /** Term */
+            term: string;
+            /** Estimate */
+            estimate: number;
+            /** Without */
+            without: number | null;
+            /** Change */
+            change: number | null;
         };
         /** ColumnAutocorrelation */
         ColumnAutocorrelation: {
@@ -4164,6 +4901,19 @@ export interface components {
             /** Levels */
             levels?: components["schemas"]["ValueRow"][];
             target?: components["schemas"]["TargetOverlay"] | null;
+        };
+        /** ColumnDiff */
+        ColumnDiff: {
+            /** Column */
+            column: string;
+            /** Before */
+            before: string | null;
+            /** Cells */
+            cells: number;
+            /** Dtype Before */
+            dtype_before?: string | null;
+            /** Dtype After */
+            dtype_after?: string | null;
         };
         /** ColumnEdits */
         ColumnEdits: {
@@ -4427,12 +5177,13 @@ export interface components {
             group_axis?: ("x" | "y") | null;
             points?: components["schemas"]["Points"] | null;
             regression?: components["schemas"]["Regression"] | null;
+            lowess?: components["schemas"]["Lowess"] | null;
             density?: components["schemas"]["Density"] | null;
             /** Groups */
             groups?: components["schemas"]["quantilo__compare__analyze__Group"][];
             contingency?: components["schemas"]["Contingency"] | null;
             /** Series */
-            series?: components["schemas"]["Series"][];
+            series?: components["schemas"]["quantilo__compare__analyze__Series"][];
             /** Step */
             step?: string | null;
             time?: components["schemas"]["TimeView"] | null;
@@ -4537,6 +5288,7 @@ export interface components {
             matrix: components["schemas"]["Matrix"];
             /** Insights */
             insights?: components["schemas"]["Insight"][];
+            structure?: components["schemas"]["StructureRule"] | null;
         };
         /** Correlogram */
         Correlogram: {
@@ -4782,6 +5534,65 @@ export interface components {
             /** Holdout */
             holdout: number[];
         };
+        /** DecisionsDiagnostics */
+        DecisionsDiagnostics: {
+            /**
+             * Propensity
+             * @enum {string}
+             */
+            propensity: "column" | "estimated";
+            /** Min Propensity */
+            min_propensity: number | null;
+            /** Below */
+            below: number;
+            /** Clipped */
+            clipped: number;
+            /** Dropped */
+            dropped: number;
+            /** Overlap */
+            overlap: components["schemas"]["ActionOverlap"][];
+            /** Sentences */
+            sentences: string[];
+        };
+        /** DecisionsRequest */
+        DecisionsRequest: {
+            /**
+             * Action
+             * @description The column naming the decision taken (2 to 10 actions).
+             */
+            action: string;
+            /**
+             * Reward
+             * @description The reward observed after the decision (number or yes/no).
+             */
+            reward: string;
+            /**
+             * Propensity
+             * @description Probability of the logged action, in ]0, 1]; estimated when unset.
+             */
+            propensity?: string | null;
+            /**
+             * Covariates
+             * @description Columns describing each unit; every usable one when unset.
+             */
+            covariates?: string[] | null;
+            /**
+             * Models
+             * @description Saved ML models (run ids in the app) to evaluate as policies.
+             */
+            models?: string[];
+            /**
+             * Learn
+             * @description Also learn a rule from the log (a cross-validated tree on doubly robust scores) and evaluate it: slower, the page's "Advanced > More".
+             * @default false
+             */
+            learn: boolean;
+            /**
+             * Alpha
+             * @default 0.05
+             */
+            alpha: number;
+        };
         /** Decomposition */
         Decomposition: {
             /**
@@ -5019,6 +5830,17 @@ export interface components {
             /** Failures */
             failures?: string[];
         };
+        /** DiagnosticTest */
+        DiagnosticTest: {
+            /** Name */
+            name: string;
+            /** Statistic */
+            statistic: number | null;
+            /** P Value */
+            p_value: number | null;
+            /** Df */
+            df?: number | null;
+        };
         /** Disclosure */
         Disclosure: {
             /** Known */
@@ -5191,6 +6013,151 @@ export interface components {
             /** Future Values */
             future_values: (number | null)[];
         };
+        /** DropColumns */
+        DropColumns: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "drop_columns";
+            /** Columns */
+            columns: string[];
+        };
+        /**
+         * DropDuplicates
+         * @description Rows equal on `keys` (every column when None): one is kept.
+         */
+        DropDuplicates: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "drop_duplicates";
+            /** Keys */
+            keys?: string[] | null;
+            /**
+             * Keep
+             * @default first
+             * @enum {string}
+             */
+            keep: "first" | "last" | "most_complete";
+        };
+        /** DropEmptyRows */
+        DropEmptyRows: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "drop_empty_rows";
+        };
+        /**
+         * DropHeaderRows
+         * @description Rows whose every value is its column's name: a header repeated inside the file.
+         */
+        DropHeaderRows: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "drop_header_rows";
+        };
+        /** DuplicateColumn */
+        DuplicateColumn: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "duplicate_column";
+            /** Column */
+            column: string;
+            /** To */
+            to: string;
+        };
         /** Ecdf */
         Ecdf: {
             /** Real X */
@@ -5361,6 +6328,27 @@ export interface components {
             fits: number;
             /** Rows */
             rows: number;
+        };
+        /** EstimatorValue */
+        EstimatorValue: {
+            /**
+             * Estimator
+             * @enum {string}
+             */
+            estimator: "dm" | "ips" | "snips" | "dr";
+            /** Value */
+            value: number | null;
+            /** Low */
+            low: number | null;
+            /** High */
+            high: number | null;
+        };
+        /** Example */
+        Example: {
+            /** Before */
+            before: string | null;
+            /** After */
+            after: string | null;
         };
         /** Excluded */
         Excluded: {
@@ -5689,6 +6677,7 @@ export interface components {
             bandit?: components["schemas"]["ExperimentBandit"] | null;
             /** Bandit Reason */
             bandit_reason?: string | null;
+            policy_offer?: components["schemas"]["PolicyOffer"] | null;
         };
         /** ExperimentSegment */
         ExperimentSegment: {
@@ -5792,6 +6781,49 @@ export interface components {
             /** Mean */
             mean: number;
         };
+        /** Factors */
+        Factors: {
+            /** Columns */
+            columns: string[];
+            /** Left Out */
+            left_out: components["schemas"]["StructureLeftOut"][];
+            /** Rows */
+            rows: number;
+            /** Sampled */
+            sampled: boolean;
+            /** K */
+            k: number;
+            /** Rotation */
+            rotation: string | null;
+            /** Loadings */
+            loadings: number[][];
+            /** Communalities */
+            communalities: number[];
+            /** Uniqueness */
+            uniqueness: number[];
+            /** Variance */
+            variance: number[];
+            /** Labels */
+            labels: string[];
+            /** Kmo */
+            kmo: number | null;
+            /** Kmo Label */
+            kmo_label: string;
+            /** Msa */
+            msa: (number | null)[];
+            /** Bartlett Chi2 */
+            bartlett_chi2: number | null;
+            /** Bartlett Df */
+            bartlett_df: number;
+            /** Bartlett P */
+            bartlett_p: number | null;
+            /** Conclusion */
+            conclusion: string;
+            /** Notes */
+            notes?: string[];
+            /** Reason */
+            reason?: string | null;
+        };
         /**
          * Fairness
          * @description Metrics side by side for each group of a sensitive column (display only).
@@ -5873,6 +6905,110 @@ export interface components {
             format: "csv" | "parquet" | "excel" | "npy";
             /** Size */
             size: number;
+        };
+        /**
+         * Fill
+         * @description Fill empty cells with the value above (down) or below (up), in the file's row order.
+         */
+        Fill: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "fill";
+            /** Column */
+            column: string;
+            /**
+             * Direction
+             * @default down
+             * @enum {string}
+             */
+            direction: "down" | "up";
+        };
+        /** FillEmpty */
+        FillEmpty: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "fill_empty";
+            /** Column */
+            column: string;
+            /** Value */
+            value: string;
+        };
+        /** FilterRows */
+        FilterRows: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "filter_rows";
+            /** Conditions */
+            conditions: components["schemas"]["RowCondition"][];
+            /**
+             * Combine
+             * @default all
+             * @enum {string}
+             */
+            combine: "all" | "any";
+            /**
+             * Action
+             * @default remove
+             * @enum {string}
+             */
+            action: "keep" | "remove";
         };
         /**
          * FilterStep
@@ -6415,6 +7551,10 @@ export interface components {
              * @enum {string}
              */
             folder_mode: "union" | "intersection";
+            /** Header Row */
+            header_row?: {
+                [key: string]: number;
+            } | null;
             /** Columns */
             columns?: string[] | null;
             /**
@@ -6449,6 +7589,36 @@ export interface components {
             feature: string;
             /** Importance */
             importance: number;
+        };
+        /** InfluenceTable */
+        InfluenceTable: {
+            /** Terms */
+            terms: string[];
+            /** Rows */
+            rows: components["schemas"]["InfluentialRow"][];
+            /** Influential */
+            influential: number;
+            /** Outliers */
+            outliers: number;
+            /** Cook Threshold */
+            cook_threshold: number;
+            /** Sentence */
+            sentence: string;
+        };
+        /** InfluentialRow */
+        InfluentialRow: {
+            /** Row */
+            row: number;
+            /** Leverage */
+            leverage: number;
+            /** Cook */
+            cook: number;
+            /** Studentized */
+            studentized: number;
+            /** Bonferroni */
+            bonferroni: number;
+            /** Dfbetas */
+            dfbetas: number[];
         };
         /** Insight */
         Insight: {
@@ -6598,6 +7768,8 @@ export interface components {
             resolved: components["schemas"]["Resolved"];
             /** Warnings */
             warnings: string[];
+            /** Signals */
+            signals?: components["schemas"]["Signal"][];
         };
         /** KpiStep */
         KpiStep: {
@@ -6707,6 +7879,15 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** LeftOutTerm */
+        LeftOutTerm: {
+            /** Term */
+            term: string;
+            /** Column */
+            column: string;
+            /** Reason */
+            reason: string;
+        };
         /** LevelError */
         LevelError: {
             /** Level */
@@ -6790,6 +7971,82 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** LoggedDecisions */
+        LoggedDecisions: {
+            /** Detected */
+            detected: boolean;
+            /** Sentence */
+            sentence: string;
+            /** Action */
+            action: string | null;
+            /** Actions */
+            actions: string[];
+            /** Reward */
+            reward: string | null;
+            /** Propensity */
+            propensity: string | null;
+            /** Covariates */
+            covariates: string[];
+            /** Action Columns */
+            action_columns?: string[];
+            /** Reward Columns */
+            reward_columns?: string[];
+            /** Propensity Columns */
+            propensity_columns?: string[];
+        };
+        /**
+         * Lowess
+         * @description LOWESS curve of a scatter (064, R-SM-12): drawn by default when it bends away from the
+         *     straight line, i.e. explains clearly more of Y than the line on the same points.
+         */
+        Lowess: {
+            /** X */
+            x: number[];
+            /** Y */
+            y: number[];
+            /** R2 */
+            r2: number;
+            /** Line R2 */
+            line_r2: number;
+            /** Suggested */
+            suggested: boolean;
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * MapValues
+         * @description Old value → new value (None: empty). Only the values listed change (C-05).
+         */
+        MapValues: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "map_values";
+            /** Column */
+            column: string;
+            /** Map */
+            map: {
+                [key: string]: string | null;
+            };
+        };
         /** MarkChange */
         MarkChange: {
             /** Key */
@@ -6871,12 +8128,20 @@ export interface components {
              * Agg
              * @enum {string}
              */
-            agg: "count" | "sum" | "mean" | "median" | "min" | "max" | "distinct" | "true_share";
+            agg: "count" | "sum" | "mean" | "median" | "min" | "max" | "distinct" | "true_share" | "share" | "weighted_mean";
             /** Column */
             column?: string | null;
             /** Label */
             label?: string | null;
             format?: components["schemas"]["Format"];
+            /** Values */
+            values?: string[];
+            /** Key */
+            key?: string | null;
+            /** Weight */
+            weight?: string | null;
+            /** Until */
+            until?: string | null;
         };
         /** MeasureOut */
         MeasureOut: {
@@ -6977,6 +8242,13 @@ export interface components {
             value: number | null;
             /** Sd */
             sd: number | null;
+            /** Rows */
+            rows: number;
+        };
+        /** MissingRows */
+        MissingRows: {
+            /** Column */
+            column: string;
             /** Rows */
             rows: number;
         };
@@ -7172,7 +8444,7 @@ export interface components {
             /** Probabilities */
             probabilities: boolean;
             /** Space */
-            space: components["schemas"]["Param"][];
+            space: components["schemas"]["quantilo__ml__catalog__spaces__Param"][];
         };
         /** Moments */
         Moments: {
@@ -7182,6 +8454,18 @@ export interface components {
             median: number | null;
             /** Std */
             std: number | null;
+        };
+        /** MoreChecks */
+        MoreChecks: {
+            white: components["schemas"]["DiagnosticTest"] | null;
+            /** White Sentence */
+            white_sentence: string;
+            /** Removed */
+            removed: number;
+            /** Shifts */
+            shifts: components["schemas"]["CoefficientShift"][];
+            /** Shift Sentence */
+            shift_sentence: string;
         };
         /** MultipleTesting */
         MultipleTesting: {
@@ -7254,6 +8538,108 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
+        /**
+         * NormalizeSpaces
+         * @description Trim, and one space for any run of spaces, tabs, line breaks or no-break spaces.
+         */
+        NormalizeSpaces: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "normalize_spaces";
+            /** Columns */
+            columns: string[];
+        };
+        /**
+         * NullOutside
+         * @description Numbers below `min` or above `max` become empty.
+         */
+        NullOutside: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "null_outside";
+            /** Column */
+            column: string;
+            /** Min */
+            min?: number | null;
+            /** Max */
+            max?: number | null;
+        };
+        /**
+         * NullValues
+         * @description These values become empty. `exact`: the stored value as text; `token`: trimmed, any case.
+         */
+        NullValues: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "null_values";
+            /** Column */
+            column: string;
+            /** Values */
+            values: string[];
+            /**
+             * Match
+             * @default exact
+             * @enum {string}
+             */
+            match: "exact" | "token";
+        };
         /** NumberFormat */
         NumberFormat: {
             /** Decimals */
@@ -7298,6 +8684,24 @@ export interface components {
             qq: components["schemas"]["QQ"] | null;
             /** Sample */
             sample: number[];
+            robust?: components["schemas"]["Robust"] | null;
+            tail_rule?: components["schemas"]["TailRule"] | null;
+        };
+        /**
+         * Order
+         * @description Ordered rows (panel walk-forward or time-based split): what the lags follow.
+         */
+        Order: {
+            /** Period */
+            period: string;
+            /** Entity */
+            entity: string | null;
+            /** Shift */
+            shift: number;
+            /** Window */
+            window: number;
+            /** Grain */
+            grain: string;
         };
         /**
          * Origin
@@ -7410,6 +8814,39 @@ export interface components {
             column_stats: {
                 [key: string]: components["schemas"]["ColumnStats"];
             };
+        };
+        /**
+         * PadZeros
+         * @description Digits shorter than `length` get zeros on the left (a postal code that lost its zero);
+         *     the column is written as text.
+         */
+        PadZeros: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "pad_zeros";
+            /** Column */
+            column: string;
+            /** Length */
+            length: number;
         };
         /** PairBox */
         PairBox: {
@@ -7541,27 +8978,6 @@ export interface components {
             suggested_embargo?: number | null;
             /** Embargo Reason */
             embargo_reason?: string | null;
-        };
-        /** Param */
-        Param: {
-            /** Key */
-            key: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "float" | "int" | "categorical";
-            /** Low */
-            low?: number | null;
-            /** High */
-            high?: number | null;
-            /**
-             * Log
-             * @default false
-             */
-            log: boolean;
-            /** Choices */
-            choices?: string[];
         };
         /**
          * ParentCandidate
@@ -7765,6 +9181,218 @@ export interface components {
             /** Color */
             color?: string[] | null;
         };
+        /** PolicyCovariate */
+        PolicyCovariate: {
+            /** Column */
+            column: string;
+            /** Used */
+            used: boolean;
+            /** Reason */
+            reason?: string | null;
+        };
+        /** PolicyEstimate */
+        PolicyEstimate: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "logged" | "constant" | "learned" | "model";
+            /** Description */
+            description: string;
+            /** Estimates */
+            estimates: components["schemas"]["EstimatorValue"][];
+            /** Value */
+            value: number | null;
+            /** Low */
+            low: number | null;
+            /** High */
+            high: number | null;
+            /** Gain */
+            gain: number | null;
+            /** Gain Low */
+            gain_low: number | null;
+            /** Gain High */
+            gain_high: number | null;
+            /** Ess */
+            ess: number | null;
+            /** Ess Share */
+            ess_share: number | null;
+            /** Reliable */
+            reliable: boolean;
+            /** Clipped */
+            clipped: number;
+            /** Choices */
+            choices: {
+                [key: string]: number;
+            };
+            /** Sentence */
+            sentence: string;
+        };
+        /** PolicyEvaluation */
+        PolicyEvaluation: {
+            /** Action */
+            action: string;
+            /** Reward */
+            reward: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "rate" | "mean";
+            /** Actions */
+            actions: string[];
+            /** Units */
+            units: number;
+            /** Sampled */
+            sampled: boolean;
+            /** Covariates */
+            covariates: components["schemas"]["PolicyCovariate"][];
+            diagnostics: components["schemas"]["DecisionsDiagnostics"];
+            /** Policies */
+            policies: components["schemas"]["PolicyEstimate"][];
+            /** Rule */
+            rule: string | null;
+            /** Warnings */
+            warnings: string[];
+            /** Skipped */
+            skipped: string[];
+            /** Method */
+            method: string;
+            /** Draws */
+            draws: number;
+        };
+        /** PolicyGain */
+        PolicyGain: {
+            /** Versus */
+            versus: string;
+            /** Diff */
+            diff: number | null;
+            /** Low */
+            low: number | null;
+            /** High */
+            high: number | null;
+        };
+        /** PolicyLeafView */
+        PolicyLeafView: {
+            /** Conditions */
+            conditions: string;
+            /** Variant */
+            variant: string;
+            /** Units */
+            units: number;
+            /** Share */
+            share: number;
+        };
+        /** PolicyLearning */
+        PolicyLearning: {
+            /** Metric */
+            metric: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "rate" | "mean" | "count";
+            /** Variants */
+            variants: string[];
+            /** Control */
+            control: string;
+            /** Units */
+            units: number;
+            /** Sampled */
+            sampled: boolean;
+            /** Covariates */
+            covariates: components["schemas"]["PolicyCovariate"][];
+            /** Depth */
+            depth: number;
+            /** Depth Values */
+            depth_values: number[];
+            /** Rule */
+            rule: string;
+            /** Leaves */
+            leaves: components["schemas"]["PolicyLeafView"][];
+            /** Values */
+            values: components["schemas"]["PolicyValue"][];
+            /** Gains */
+            gains: components["schemas"]["PolicyGain"][];
+            /** Best Constant */
+            best_constant: string;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "worth_testing" | "no_better";
+            /** Sentence */
+            sentence: string;
+            /** Qini */
+            qini: components["schemas"]["PolicyQini"][];
+            /** Caveat */
+            caveat: string;
+            /** Method */
+            method: string;
+            /** Draws */
+            draws: number;
+        };
+        /**
+         * PolicyOffer
+         * @description Whether "who should get which variant" can be computed for an analysis (R-PL1).
+         */
+        PolicyOffer: {
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string | null;
+            /** Covariates */
+            covariates: string[];
+        };
+        /** PolicyQini */
+        PolicyQini: {
+            /** Variant */
+            variant: string;
+            /** Control */
+            control: string;
+            /** Shares */
+            shares: number[];
+            /** Gains */
+            gains: number[];
+            /** Random */
+            random: number[];
+            /** Auuc */
+            auuc: number;
+            /** Sentence */
+            sentence: string;
+        };
+        /** PolicyRequest */
+        PolicyRequest: {
+            design: components["schemas"]["ExperimentDesign"];
+            /**
+             * Covariates
+             * @description Columns describing the units before the test; every usable one if unset.
+             */
+            covariates?: string[] | null;
+            /**
+             * Qini
+             * @description Add the Qini curves (the page's "Advanced > More", asked when opened).
+             * @default false
+             */
+            qini: boolean;
+        };
+        /** PolicyValue */
+        PolicyValue: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: number | null;
+            /** Low */
+            low: number | null;
+            /** High */
+            high: number | null;
+        };
         /** PredictStart */
         PredictStart: {
             /**
@@ -7954,6 +9582,8 @@ export interface components {
              * @default false
              */
             distance: boolean;
+            folds?: components["schemas"]["TargetFolds"] | null;
+            order?: components["schemas"]["Order"] | null;
         };
         /**
          * PreparationPreview
@@ -8002,12 +9632,29 @@ export interface components {
             suggested_name: string;
             /** Warnings */
             warnings?: string[];
+            /** Header Row */
+            header_row?: {
+                [key: string]: number;
+            } | null;
         };
         /** PreviewRequest */
         PreviewRequest: {
             /** Path */
             path: string;
             options?: components["schemas"]["SourceOptions"];
+        };
+        /** PreviewRow */
+        PreviewRow: {
+            /** Row */
+            row: number;
+            /** Removed */
+            removed: boolean;
+            /** Before */
+            before: (string | null)[];
+            /** After */
+            after: (string | null)[];
+            /** Changed */
+            changed: boolean[];
         };
         /** Privacy */
         Privacy: {
@@ -8114,6 +9761,12 @@ export interface components {
             numerator: string;
             /** Denominator */
             denominator: string;
+            /**
+             * Kind
+             * @default ratio
+             * @enum {string}
+             */
+            kind: "ratio" | "margin" | "difference";
             /** Label */
             label?: string | null;
             /**
@@ -8374,6 +10027,19 @@ export interface components {
             /** Why */
             why: string;
         };
+        /** ReferenceLevel */
+        ReferenceLevel: {
+            /** Column */
+            column: string;
+            /** Level */
+            level: string;
+            /** Levels */
+            levels: number;
+            /** Others */
+            others: number;
+            /** Reason */
+            reason: string;
+        };
         /** Regression */
         Regression: {
             /** Slope */
@@ -8382,6 +10048,155 @@ export interface components {
             intercept: number;
             /** R2 */
             r2: number | null;
+        };
+        /** RegressionCheck */
+        RegressionCheck: {
+            /** Key */
+            key: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "warn" | "bad" | "info";
+            /** Title */
+            title: string;
+            /** Sentence */
+            sentence: string;
+            /** Rule */
+            rule?: string | null;
+            /** Action */
+            action?: string | null;
+            /** Column */
+            column?: string | null;
+        };
+        /** RegressionCoefficient */
+        RegressionCoefficient: {
+            /** Term */
+            term: string;
+            /** Column */
+            column: string;
+            /** Level */
+            level: string | null;
+            /** Estimate */
+            estimate: number;
+            /** Std Error */
+            std_error: number | null;
+            /** Ci Low */
+            ci_low: number | null;
+            /** Ci High */
+            ci_high: number | null;
+            /** Statistic */
+            statistic: number | null;
+            /** P Value */
+            p_value: number | null;
+            /** Q Value */
+            q_value?: number | null;
+            /**
+             * Evidence
+             * @default none
+             * @enum {string}
+             */
+            evidence: "strong" | "moderate" | "weak" | "none";
+            /** Standardized */
+            standardized?: number | null;
+            /** Std Low */
+            std_low?: number | null;
+            /** Std High */
+            std_high?: number | null;
+            /** Odds Ratio */
+            odds_ratio?: number | null;
+            /** Marginal */
+            marginal?: number | null;
+            /** Marginal Low */
+            marginal_low?: number | null;
+            /** Marginal High */
+            marginal_high?: number | null;
+            /**
+             * Sentence
+             * @default
+             */
+            sentence: string;
+        };
+        /** RegressionPick */
+        RegressionPick: {
+            /** Column */
+            column: string;
+            /** Reason */
+            reason: string;
+        };
+        /** RegressionQuality */
+        RegressionQuality: {
+            /** Rows */
+            rows: number;
+            /** Loaded */
+            loaded: number;
+            /** Total */
+            total: number;
+            /** Sampled */
+            sampled: boolean;
+            /** Missing */
+            missing: components["schemas"]["MissingRows"][];
+            /** R2 */
+            r2: number | null;
+            /** Adj R2 */
+            adj_r2: number | null;
+            /** Oos R2 */
+            oos_r2: number | null;
+            /** Oos How */
+            oos_how: string;
+            /** Aic */
+            aic: number | null;
+            /** Bic */
+            bic: number | null;
+            /** F */
+            f: number | null;
+            /** F P */
+            f_p: number | null;
+            /** Df Model */
+            df_model: number;
+            /** Df Resid */
+            df_resid: number;
+            /** Pseudo R2 */
+            pseudo_r2?: number | null;
+        };
+        /** RegressionReport */
+        RegressionReport: {
+            /** Target */
+            target: string;
+            /** Positive */
+            positive: string | null;
+            /**
+             * Model
+             * @enum {string}
+             */
+            model: "ols" | "wls" | "logit";
+            /** Model Label */
+            model_label: string;
+            /** Model Reason */
+            model_reason: string;
+            /** Columns */
+            columns: string[];
+            /** Focus */
+            focus: string | null;
+            /** Terms */
+            terms: components["schemas"]["RegressionCoefficient"][];
+            se: components["schemas"]["SeChoice"];
+            /** Weights */
+            weights: string | null;
+            quality: components["schemas"]["RegressionQuality"];
+            multiple: components["schemas"]["MultipleTesting"];
+            /** Sentence */
+            sentence: string;
+            /** Checks */
+            checks: components["schemas"]["RegressionCheck"][];
+            /** References */
+            references: components["schemas"]["ReferenceLevel"][];
+            /** Left Out */
+            left_out: components["schemas"]["LeftOutTerm"][];
+            structure: components["schemas"]["RowStructure"];
+            /** Hints */
+            hints?: string[];
+            plots?: components["schemas"]["ResidualPlots"] | null;
         };
         /** RegressionResult */
         RegressionResult: {
@@ -8410,6 +10225,16 @@ export interface components {
             /** Heteroscedasticity P */
             heteroscedasticity_p?: number | null;
         };
+        /** RegressionSuggestion */
+        RegressionSuggestion: {
+            target: components["schemas"]["RegressionPick"] | null;
+            /** Columns */
+            columns: components["schemas"]["RegressionPick"][];
+            /** Candidates */
+            candidates: string[];
+            /** Regressors */
+            regressors: string[];
+        };
         /** RelationChange */
         RelationChange: {
             /** A */
@@ -8437,10 +10262,114 @@ export interface components {
             /** Pairs */
             pairs: components["schemas"]["RelationChange"][];
         };
+        /**
+         * RemoveInvisible
+         * @description Remove zero-width characters, byte-order marks, soft hyphens and control characters.
+         */
+        RemoveInvisible: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "remove_invisible";
+            /** Columns */
+            columns: string[];
+        };
+        /** RenameColumn */
+        RenameColumn: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "rename_column";
+            /** Column */
+            column: string;
+            /** To */
+            to: string;
+        };
         /** RenameRequest */
         RenameRequest: {
             /** Name */
             name: string;
+        };
+        /** ReplaceValues */
+        ReplaceValues: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "replace_values";
+            /** Column */
+            column: string;
+            /** Find */
+            find: string;
+            /**
+             * Replace
+             * @default
+             */
+            replace: string;
+            /**
+             * Match
+             * @default exact
+             * @enum {string}
+             */
+            match: "exact" | "contains" | "regex";
+            /**
+             * Case Sensitive
+             * @default true
+             */
+            case_sensitive: boolean;
         };
         /** Report */
         Report: {
@@ -8483,6 +10412,29 @@ export interface components {
             /** File Name */
             file_name?: string | null;
         };
+        /** ResidualPlots */
+        ResidualPlots: {
+            /** Fitted */
+            fitted: number[];
+            /** Residuals */
+            residuals: number[];
+            /** Rows */
+            rows: number[];
+            /** Leverage */
+            leverage: number[];
+            /** Cook */
+            cook: number[];
+            /** Cook Threshold */
+            cook_threshold: number;
+            /** Qq Theoretical */
+            qq_theoretical: number[];
+            /** Qq Sample */
+            qq_sample: number[];
+            /** Points */
+            points: number;
+            /** Of */
+            of: number;
+        };
         /** Resolved */
         Resolved: {
             grain: components["schemas"]["quantilo__kpi__rules__Decision"] | null;
@@ -8492,6 +10444,60 @@ export interface components {
             time: boolean;
             /** Why */
             why?: string[];
+            trend?: components["schemas"]["quantilo__kpi__rules__Decision"] | null;
+        };
+        /** ReturnLevel */
+        ReturnLevel: {
+            /** Period */
+            period: number;
+            /** Value */
+            value: number;
+            /** Low */
+            low: number | null;
+            /** High */
+            high: number | null;
+            /** Beyond Data */
+            beyond_data: boolean;
+            /** Empirical */
+            empirical: number | null;
+        };
+        /** Risk */
+        Risk: {
+            /** Level */
+            level: number;
+            /** Var */
+            var: number;
+            /** Es */
+            es: number;
+            /** Rows */
+            rows: number;
+        };
+        /** Robust */
+        Robust: {
+            /** Fires */
+            fires: boolean;
+            /** Reason */
+            reason: string;
+            /** Outliers */
+            outliers: number;
+            /** Outlier Share */
+            outlier_share: number;
+            /** Median */
+            median: number | null;
+            /** Mad Sigma */
+            mad_sigma: number | null;
+            /** Iqr Sigma */
+            iqr_sigma: number | null;
+            /** Huber Center */
+            huber_center: number | null;
+            /** Huber Scale */
+            huber_scale: number | null;
+            /** Mean Shift */
+            mean_shift: number | null;
+            /** Sample */
+            sample: number;
+            /** Note */
+            note?: string | null;
         };
         /** RoleOut */
         RoleOut: {
@@ -8527,6 +10533,24 @@ export interface components {
             /** Compared */
             compared?: string[];
         };
+        /**
+         * RowCondition
+         * @description On the stored value (decision 5 of the spec): numbers compare as numbers, the rest as
+         *     text.
+         */
+        RowCondition: {
+            /** Column */
+            column: string;
+            /**
+             * Op
+             * @enum {string}
+             */
+            op: "eq" | "ne" | "lt" | "le" | "gt" | "ge" | "contains" | "empty" | "not_empty" | "in";
+            /** Value */
+            value?: string | null;
+            /** Values */
+            values?: string[] | null;
+        };
         /** RowExplanation */
         RowExplanation: {
             /** Row */
@@ -8543,6 +10567,36 @@ export interface components {
             steps: components["schemas"]["Contribution"][];
             /** Unavailable */
             unavailable: string | null;
+        };
+        /**
+         * RowStructure
+         * @description What the rows are: independent, one series in time, or a panel (entities × periods).
+         */
+        RowStructure: {
+            /**
+             * Kind
+             * @default none
+             * @enum {string}
+             */
+            kind: "none" | "series" | "panel";
+            /** Date */
+            date?: string | null;
+            /** Entity */
+            entity?: string | null;
+            /** Period */
+            period?: string | null;
+            /**
+             * Periods
+             * @default 0
+             */
+            periods: number;
+            /**
+             * Entities
+             * @default 0
+             */
+            entities: number;
+            /** Message */
+            message?: string | null;
         };
         /**
          * RowValue
@@ -8926,6 +10980,11 @@ export interface components {
             name: string;
             definition: components["schemas"]["Definition-Input"];
         };
+        /** SaveRequest */
+        SaveRequest: {
+            /** Steps */
+            steps: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
+        };
         /** SavedAnalysis */
         SavedAnalysis: {
             /** Id */
@@ -9051,6 +11110,48 @@ export interface components {
             coverage95: number | null;
             /** Winkler95 */
             winkler95: number | null;
+        };
+        /** SeChoice */
+        SeChoice: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+            /** Label */
+            label: string;
+            /** Rule */
+            rule: string | null;
+            /** Reason */
+            reason: string;
+            /** Lag */
+            lag?: number | null;
+            /** Groups */
+            groups?: string[];
+            /** Clusters */
+            clusters?: number | null;
+            /** Warning */
+            warning?: string | null;
+        };
+        /** SeColumn */
+        SeColumn: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+            /** Label */
+            label: string;
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string;
+            /** Chosen */
+            chosen: boolean;
+            /** Std Errors */
+            std_errors: (number | null)[];
+            /** P Values */
+            p_values: (number | null)[];
         };
         /**
          * SearchParam
@@ -9604,21 +11705,6 @@ export interface components {
             /** Steps */
             steps?: number | null;
         };
-        /** Series */
-        Series: {
-            /** Label */
-            label: string | null;
-            /** Periods */
-            periods: string[];
-            /** Values */
-            values: (number | null)[];
-            /** Rolling Mean */
-            rolling_mean?: (number | null)[];
-            /** Rolling Std */
-            rolling_std?: (number | null)[];
-            /** Counts */
-            counts?: number[];
-        };
         /** SeriesAutocorrelation */
         SeriesAutocorrelation: {
             setup: components["schemas"]["SeriesSetup"];
@@ -9656,7 +11742,7 @@ export interface components {
              * Anomaly Method
              * @enum {string}
              */
-            anomaly_method: "robust_z" | "iqr" | "rolling_z" | "hampel" | "gesd" | "isolation_forest" | "lof" | "autoencoder";
+            anomaly_method: "robust_z" | "iqr" | "rolling_z" | "hampel" | "gesd" | "isolation_forest" | "lof" | "autoencoder" | "kalman";
             /** Threshold */
             threshold: number;
             /** Residuals From */
@@ -9702,7 +11788,7 @@ export interface components {
              * @default leave
              * @enum {string}
              */
-            gaps: "leave" | "interpolate" | "zero" | "carry";
+            gaps: "leave" | "interpolate" | "zero" | "carry" | "kalman";
             /** Season */
             season?: number | null;
             /** Models */
@@ -9813,6 +11899,12 @@ export interface components {
             rolling_mean?: (number | null)[];
             /** Rolling Std */
             rolling_std?: (number | null)[];
+            /** Filled Low */
+            filled_low?: (number | null)[];
+            /** Filled High */
+            filled_high?: (number | null)[];
+            /** Filled By */
+            filled_by?: string | null;
         };
         /** SeriesOut */
         SeriesOut: {
@@ -9832,6 +11924,8 @@ export interface components {
             rows: number[];
             /** Overall */
             overall: number | null;
+            /** Trend */
+            trend?: (number | null)[] | null;
         };
         /** SeriesOverview */
         SeriesOverview: {
@@ -9923,7 +12017,7 @@ export interface components {
              * Gaps
              * @enum {string}
              */
-            gaps: "leave" | "interpolate" | "zero" | "carry";
+            gaps: "leave" | "interpolate" | "zero" | "carry" | "kalman";
             /** Season */
             season: number | null;
             /** Periods */
@@ -9932,6 +12026,26 @@ export interface components {
             rows: number;
             /** Total */
             total: number;
+        };
+        /**
+         * SeriesSmoothing
+         * @description Smoothed curves of the analysed series (064), the methods suggested by the data and the
+         *     ones that do not apply to this period.
+         */
+        SeriesSmoothing: {
+            setup: components["schemas"]["SeriesSetup"];
+            /** Periods */
+            periods: string[];
+            /** Curves */
+            curves: components["schemas"]["quantilo__timeseries__smoothing__Curve"][];
+            /** Suggestions */
+            suggestions: components["schemas"]["quantilo__timeseries__smoothing__Suggestion"][];
+            /** Unavailable */
+            unavailable: {
+                [key: string]: string;
+            };
+            /** Message */
+            message?: string | null;
         };
         /** SeriesStationarity */
         SeriesStationarity: {
@@ -9951,7 +12065,7 @@ export interface components {
             /** Transformed */
             transformed: number[];
             synthesis: components["schemas"]["Synthesis"] | null;
-            suggestion: components["schemas"]["Suggestion"] | null;
+            suggestion: components["schemas"]["quantilo__timeseries__stationarity__Suggestion"] | null;
             /** Methods */
             methods: components["schemas"]["MethodResult"][];
             /** Filled */
@@ -10052,6 +12166,20 @@ export interface components {
             /** Reading */
             reading: string | null;
         };
+        /**
+         * ShapeAt
+         * @description ξ̂ at another threshold, to see whether it is stable.
+         */
+        ShapeAt: {
+            /** Level */
+            level: number;
+            /** Threshold */
+            threshold: number;
+            /** Exceedances */
+            exceedances: number;
+            /** Xi */
+            xi: number | null;
+        };
         /** ShapeScore */
         ShapeScore: {
             /** Column */
@@ -10142,6 +12270,45 @@ export interface components {
             /** Duplicates */
             duplicates: number;
         };
+        /** Signal */
+        Signal: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "anomaly" | "level_shift" | "low_n" | "thin_period" | "empty_measure" | "duplicates" | "mix" | "simpson";
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "info" | "warning";
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "series" | "change" | "measure" | "cells";
+            /** Rule */
+            rule: string;
+            /** Measure */
+            measure: string | null;
+            /** Message */
+            message: string;
+            /** Cells */
+            cells?: components["schemas"]["SignalCell"][];
+            /** Score */
+            score?: number | null;
+        };
+        /** SignalCell */
+        SignalCell: {
+            /** Period */
+            period: string | null;
+            /** G1 */
+            g1?: string | null;
+            /** G2 */
+            g2?: string | null;
+            /** Value */
+            value?: number | null;
+        };
         /**
          * Slice
          * @description A subgroup where the model is notably worse than on average.
@@ -10193,6 +12360,10 @@ export interface components {
              * @enum {string}
              */
             folder_mode: "union" | "intersection";
+            /** Header Row */
+            header_row?: {
+                [key: string]: number;
+            } | null;
         };
         /** SplitOut */
         SplitOut: {
@@ -10204,6 +12375,17 @@ export interface components {
             others: number;
             /** Ordinal */
             ordinal: boolean;
+        };
+        /** StandardErrorTable */
+        StandardErrorTable: {
+            /** Terms */
+            terms: string[];
+            /** Estimates */
+            estimates: number[];
+            /** Kinds */
+            kinds: components["schemas"]["SeColumn"][];
+            /** Sentence */
+            sentence: string;
         };
         /** Stat */
         Stat: {
@@ -10235,6 +12417,22 @@ export interface components {
              */
             label: string;
         };
+        /** StepReport */
+        StepReport: {
+            /** Id */
+            id: string;
+            /** Op */
+            op: string;
+            /** Rule */
+            rule: string | null;
+            /** Origin */
+            origin: string;
+            /**
+             * Rows Removed
+             * @default 0
+             */
+            rows_removed: number;
+        };
         /** StepResult */
         StepResult: {
             /** Id */
@@ -10257,6 +12455,20 @@ export interface components {
             /** Files */
             files?: string[];
         };
+        /**
+         * Steps
+         * @description A cleaning: `{"schema": 1, "steps": [...]}`.
+         */
+        Steps: {
+            /**
+             * Schema
+             * @default 1
+             * @constant
+             */
+            schema: 1;
+            /** Steps */
+            steps?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
+        };
         /** StorageInfo */
         StorageInfo: {
             /** Workspace */
@@ -10276,6 +12488,101 @@ export interface components {
              */
             keep_limit_bytes: number;
         };
+        /** Structure */
+        Structure: {
+            /** Columns */
+            columns: string[];
+            /** Left Out */
+            left_out: components["schemas"]["StructureLeftOut"][];
+            /** Rows */
+            rows: number;
+            /** Total */
+            total: number;
+            /** Sampled */
+            sampled: boolean;
+            /** Dropped */
+            dropped: number;
+            /** Filled */
+            filled: number;
+            /** Components */
+            components: components["schemas"]["StructureComponent"][];
+            /** Retained */
+            retained: number;
+            /** Kaiser */
+            kaiser: number;
+            /** Loadings */
+            loadings: number[][];
+            /** Shown */
+            shown: number;
+            biplot: components["schemas"]["StructureBiplot"] | null;
+            /** Conclusion */
+            conclusion: string;
+            /**
+             * Permutations
+             * @default 100
+             */
+            permutations: number;
+            /**
+             * Parallel Rows
+             * @default 0
+             */
+            parallel_rows: number;
+            /** Notes */
+            notes?: string[];
+            /** Reason */
+            reason?: string | null;
+        };
+        /** StructureBiplot */
+        StructureBiplot: {
+            /** X */
+            x: number[];
+            /** Y */
+            y: number[];
+            /** Points */
+            points: number;
+            /** Of */
+            of: number;
+            /** Arrows */
+            arrows: components["schemas"]["BiplotArrow"][];
+        };
+        /** StructureComponent */
+        StructureComponent: {
+            /** Index */
+            index: number;
+            /** Eigenvalue */
+            eigenvalue: number;
+            /** Explained */
+            explained: number;
+            /** Cumulative */
+            cumulative: number;
+            /** Threshold */
+            threshold: number | null;
+            /** Retained */
+            retained: boolean;
+            /** Label */
+            label: string;
+        };
+        /** StructureLeftOut */
+        StructureLeftOut: {
+            /** Name */
+            name: string;
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * StructureRule
+         * @description Whether the Correlations page proposes the Structure section (R-STR-1), and why.
+         */
+        StructureRule: {
+            /** Proposed */
+            proposed: boolean;
+            /** Numeric */
+            numeric: number;
+            /** Strong */
+            strong: number;
+            /** Reason */
+            reason: string;
+        };
         /** SuggestedKpi */
         SuggestedKpi: {
             /** Rule */
@@ -10287,19 +12594,6 @@ export interface components {
             score: number;
             /** Reasons */
             reasons: string[];
-        };
-        /** Suggestion */
-        Suggestion: {
-            /**
-             * Transform
-             * @enum {string}
-             */
-            transform: "none" | "log" | "diff" | "seasonal_diff" | "log_diff" | "diff2" | "seasonal_diff_diff";
-            /**
-             * Verdict
-             * @enum {string}
-             */
-            verdict: "stationary" | "unit_root" | "trend_or_difference" | "inconclusive";
         };
         /** Suggestions */
         Suggestions: {
@@ -10464,6 +12758,62 @@ export interface components {
             /** Sort */
             sort?: string | null;
         };
+        /** Tail */
+        Tail: {
+            /** N */
+            n: number;
+            /** Sample */
+            sample: number;
+            /** Sampled */
+            sampled: boolean;
+            rule: components["schemas"]["TailRule"];
+            /** Reason */
+            reason?: string | null;
+            threshold?: components["schemas"]["Threshold-Output"] | null;
+            /** Xi */
+            xi?: number | null;
+            /** Xi Low */
+            xi_low?: number | null;
+            /** Xi High */
+            xi_high?: number | null;
+            /** Sigma */
+            sigma?: number | null;
+            /** Rate */
+            rate?: number | null;
+            /** Endpoint */
+            endpoint?: number | null;
+            /** Stability */
+            stability?: components["schemas"]["ShapeAt"][];
+            /** Return Levels */
+            return_levels?: components["schemas"]["ReturnLevel"][];
+            /** Risk */
+            risk?: components["schemas"]["Risk"][];
+            hill?: components["schemas"]["quantilo__variable__tails__Series"] | null;
+            mean_excess?: components["schemas"]["quantilo__variable__tails__Series"] | null;
+            curve?: components["schemas"]["quantilo__variable__tails__Series"] | null;
+            observed?: components["schemas"]["quantilo__variable__tails__Series"] | null;
+            /**
+             * Conclusion
+             * @default
+             */
+            conclusion: string;
+            /** Notes */
+            notes?: string[];
+        };
+        /**
+         * TailRule
+         * @description Whether the Tail tab is shown, and why (R-TAIL-1).
+         */
+        TailRule: {
+            /** Fires */
+            fires: boolean;
+            /** Reason */
+            reason: string;
+            /** Kurtosis */
+            kurtosis?: number | null;
+            /** Xi */
+            xi?: number | null;
+        };
         /**
          * TargetDistribution
          * @description What the browser needs to cut the target: exact quantiles, a fine histogram, a sorted
@@ -10499,6 +12849,21 @@ export interface components {
             /** Values */
             values: components["schemas"]["ValueCount"][] | null;
         };
+        /**
+         * TargetFolds
+         * @description How the target encoding is cross-fitted, and why (R-CAT-08).
+         */
+        TargetFolds: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "random" | "periods" | "time" | "groups";
+            /** Column */
+            column: string | null;
+            /** Why */
+            why: string;
+        };
         /** TargetOverlay */
         TargetOverlay: {
             /** Target */
@@ -10518,6 +12883,19 @@ export interface components {
             candidates: components["schemas"]["Candidate"][];
             /** Rows */
             rows: number;
+        };
+        /** TermsTable */
+        TermsTable: {
+            /** References */
+            references: components["schemas"]["ReferenceLevel"][];
+            /** Left Out */
+            left_out: components["schemas"]["LeftOutTerm"][];
+            /** Vifs */
+            vifs: components["schemas"]["Vif"][];
+            /** Condition */
+            condition: number | null;
+            /** Sentence */
+            sentence: string;
         };
         /** TestResult */
         TestResult: {
@@ -10646,9 +13024,22 @@ export interface components {
             sentence: string;
         };
         /** Threshold */
-        Threshold: {
+        "Threshold-Input": {
             /** Threshold */
             threshold?: number | null;
+        };
+        /** Threshold */
+        "Threshold-Output": {
+            /** Value */
+            value: number;
+            /** Level */
+            level: number;
+            /** Exceedances */
+            exceedances: number;
+            /** Linear R2 */
+            linear_r2: number | null;
+            /** Why */
+            why: string;
         };
         /** Tile */
         Tile: {
@@ -10673,6 +13064,7 @@ export interface components {
             /** Spark Index */
             spark_index: number | null;
             top?: components["schemas"]["TopGroup"] | null;
+            to_date?: components["schemas"]["ToDate"] | null;
         };
         /** Time */
         Time: {
@@ -10755,6 +13147,31 @@ export interface components {
              * @default false
              */
             last_partial: boolean;
+        };
+        /** ToDate */
+        ToDate: {
+            /** Period */
+            period: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: number | null;
+            /** Previous Label */
+            previous_label: string;
+            /** Previous */
+            previous: number | null;
+            /** Change */
+            change: number | null;
+            /** Last Year Label */
+            last_year_label: string;
+            /** Last Year */
+            last_year: number | null;
+            /** Change Yoy */
+            change_yoy: number | null;
+            /** Projected */
+            projected: number | null;
+            /** Elapsed */
+            elapsed: number;
         };
         /** TopGroup */
         TopGroup: {
@@ -10928,6 +13345,15 @@ export interface components {
                 [key: string]: unknown;
             };
             preparation?: components["schemas"]["Choices"] | null;
+        };
+        /** TypeChange */
+        TypeChange: {
+            /** Column */
+            column: string;
+            /** Before */
+            before: string;
+            /** After */
+            after: string;
         };
         /**
          * UnusualCurve
@@ -11358,7 +13784,18 @@ export interface components {
              * @default value
              * @enum {string}
              */
-            show_as: "value" | "share_total" | "share_row" | "share_column" | "change" | "change_pct" | "change_yoy" | "running";
+            show_as: "value" | "share_total" | "share_row" | "share_column" | "change" | "change_pct" | "change_yoy" | "running" | "rolling" | "trend";
+        };
+        /** Vif */
+        Vif: {
+            /** Term */
+            term: string;
+            /** Vif */
+            vif: number | null;
+            /** Partner */
+            partner: string | null;
+            /** Correlation */
+            correlation: number | null;
         };
         /** Word */
         Word: {
@@ -11439,6 +13876,21 @@ export interface components {
             /** Median Reason */
             median_reason?: string | null;
         };
+        /** Series */
+        quantilo__compare__analyze__Series: {
+            /** Label */
+            label: string | null;
+            /** Periods */
+            periods: string[];
+            /** Values */
+            values: (number | null)[];
+            /** Rolling Mean */
+            rolling_mean?: (number | null)[];
+            /** Rolling Std */
+            rolling_std?: (number | null)[];
+            /** Counts */
+            counts?: number[];
+        };
         /** Pair */
         quantilo__correlations__matrix__Pair: {
             /** A */
@@ -11497,6 +13949,27 @@ export interface components {
             allowed: boolean;
             /** Reason */
             reason?: string | null;
+        };
+        /** Param */
+        quantilo__ml__catalog__spaces__Param: {
+            /** Key */
+            key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "float" | "int" | "categorical";
+            /** Low */
+            low?: number | null;
+            /** High */
+            high?: number | null;
+            /**
+             * Log
+             * @default false
+             */
+            log: boolean;
+            /** Choices */
+            choices?: string[];
         };
         /** Pair */
         quantilo__ml__explain__Pair: {
@@ -11561,6 +14034,8 @@ export interface components {
              * @default 0
              */
             missing: number;
+            /** Cycle */
+            cycle?: number[] | null;
         };
         /** Option */
         quantilo__ml__preparation__Option: {
@@ -11577,6 +14052,64 @@ export interface components {
             y: number[];
             /** Thresholds */
             thresholds?: number[];
+        };
+        /** Curve */
+        quantilo__timeseries__smoothing__Curve: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "moving_average" | "ewma" | "kalman_filtered" | "kalman_smoothed" | "lowess" | "savgol" | "hp";
+            /** Causal */
+            causal: boolean;
+            /** Values */
+            values: (number | null)[];
+            /** Low */
+            low?: (number | null)[];
+            /** High */
+            high?: (number | null)[];
+            /** Params */
+            params?: components["schemas"]["quantilo__timeseries__smoothing__Param"][];
+            /** Info */
+            info?: string | null;
+            /** Notes */
+            notes?: string[];
+            /** Error */
+            error?: string | null;
+        };
+        /** Param */
+        quantilo__timeseries__smoothing__Param: {
+            /** Key */
+            key: string;
+            /** Value */
+            value: number | string;
+            /** Auto */
+            auto: boolean;
+            /** Reason */
+            reason: string;
+        };
+        /** Suggestion */
+        quantilo__timeseries__smoothing__Suggestion: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "moving_average" | "ewma" | "kalman_filtered" | "kalman_smoothed" | "lowess" | "savgol" | "hp";
+            /** Reason */
+            reason: string;
+        };
+        /** Suggestion */
+        quantilo__timeseries__stationarity__Suggestion: {
+            /**
+             * Transform
+             * @enum {string}
+             */
+            transform: "none" | "log" | "diff" | "seasonal_diff" | "log_diff" | "diff2" | "seasonal_diff_diff";
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "stationary" | "unit_root" | "trend_or_difference" | "inconclusive";
         };
         /** Curve */
         quantilo__variable__numeric__Curve: {
@@ -11611,6 +14144,19 @@ export interface components {
             gaps?: string[];
             /** Calendar */
             calendar?: components["schemas"]["Bar"][];
+        };
+        /** Series */
+        quantilo__variable__tails__Series: {
+            /** X */
+            x: number[];
+            /** Y */
+            y: number[];
+            /** Low */
+            low?: number[];
+            /** High */
+            high?: number[];
+            /** Count */
+            count?: number[];
         };
     };
     responses: never;
@@ -12459,6 +15005,41 @@ export interface operations {
             };
         };
     };
+    tail_api_v1_datasets__dataset_id__variable_tail_get: {
+        parameters: {
+            query: {
+                column: string;
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_saved_api_v1_datasets__dataset_id__saved_filters_get: {
         parameters: {
             query?: never;
@@ -12624,6 +15205,340 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Correlations"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    structure_api_v1_datasets__dataset_id__correlations_structure_get: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated column names (default: every column). */
+                columns?: string | null;
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Structure"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    factors_api_v1_datasets__dataset_id__correlations_factors_get: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated column names (default: every column). */
+                columns?: string | null;
+                /** @description Factors (default: the parallel analysis' count). */
+                k?: number | null;
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Factors"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regression_api_v1_datasets__dataset_id__regression_get: {
+        parameters: {
+            query?: {
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+                /** @description Column to explain (default: R-REG-20). */
+                target?: string | null;
+                /** @description Comma-separated explanatory columns (absent: R-REG-21; empty: none). */
+                columns?: string | null;
+                /** @description Weight column (absent: a column of role weight; empty: none). */
+                weights?: string | null;
+                /** @description Grouped by: errors clustered on it. */
+                cluster?: string | null;
+                se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+                /** @description The column the conclusion speaks of. */
+                focus?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegressionReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suggestion_api_v1_datasets__dataset_id__regression_suggestion_get: {
+        parameters: {
+            query?: {
+                target?: string | null;
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegressionSuggestion"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    standard_errors_api_v1_datasets__dataset_id__regression_standard_errors_get: {
+        parameters: {
+            query?: {
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+                /** @description Column to explain (default: R-REG-20). */
+                target?: string | null;
+                /** @description Comma-separated explanatory columns (absent: R-REG-21; empty: none). */
+                columns?: string | null;
+                /** @description Weight column (absent: a column of role weight; empty: none). */
+                weights?: string | null;
+                /** @description Grouped by: errors clustered on it. */
+                cluster?: string | null;
+                se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+                /** @description The column the conclusion speaks of. */
+                focus?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StandardErrorTable"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    influence_api_v1_datasets__dataset_id__regression_influence_get: {
+        parameters: {
+            query?: {
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+                /** @description Column to explain (default: R-REG-20). */
+                target?: string | null;
+                /** @description Comma-separated explanatory columns (absent: R-REG-21; empty: none). */
+                columns?: string | null;
+                /** @description Weight column (absent: a column of role weight; empty: none). */
+                weights?: string | null;
+                /** @description Grouped by: errors clustered on it. */
+                cluster?: string | null;
+                se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+                /** @description The column the conclusion speaks of. */
+                focus?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InfluenceTable"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    terms_api_v1_datasets__dataset_id__regression_terms_get: {
+        parameters: {
+            query?: {
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+                /** @description Column to explain (default: R-REG-20). */
+                target?: string | null;
+                /** @description Comma-separated explanatory columns (absent: R-REG-21; empty: none). */
+                columns?: string | null;
+                /** @description Weight column (absent: a column of role weight; empty: none). */
+                weights?: string | null;
+                /** @description Grouped by: errors clustered on it. */
+                cluster?: string | null;
+                se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+                /** @description The column the conclusion speaks of. */
+                focus?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermsTable"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    more_api_v1_datasets__dataset_id__regression_more_get: {
+        parameters: {
+            query?: {
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+                /** @description Column to explain (default: R-REG-20). */
+                target?: string | null;
+                /** @description Comma-separated explanatory columns (absent: R-REG-21; empty: none). */
+                columns?: string | null;
+                /** @description Weight column (absent: a column of role weight; empty: none). */
+                weights?: string | null;
+                /** @description Grouped by: errors clustered on it. */
+                cluster?: string | null;
+                se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+                /** @description The column the conclusion speaks of. */
+                focus?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MoreChecks"];
                 };
             };
             /** @description Validation Error */
@@ -13211,7 +16126,7 @@ export interface operations {
                 agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
                 window?: number | null;
                 align?: "trailing" | "centered";
-                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                gaps?: "leave" | "interpolate" | "zero" | "carry" | "kalman";
                 season?: number | null;
                 filters?: string | null;
             };
@@ -13243,6 +16158,57 @@ export interface operations {
             };
         };
     };
+    smoothing_api_v1_modules_timeseries_datasets__dataset_id__smoothing_get: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated method keys. */
+                methods?: string | null;
+                ewma_alpha?: number | null;
+                lowess_frac?: number | null;
+                savgol_window?: number | null;
+                savgol_order?: number | null;
+                kalman_model?: ("llevel" | "lltrend" | "llevel_seasonal" | "lltrend_seasonal") | "auto";
+                hp_lambda?: number | null;
+                time?: string | null;
+                value?: string | null;
+                group?: string | null;
+                series?: string | null;
+                period?: ("hour" | "day" | "week" | "month" | "quarter" | "year") | "auto";
+                agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
+                window?: number | null;
+                align?: "trailing" | "centered";
+                gaps?: "leave" | "interpolate" | "zero" | "carry" | "kalman";
+                season?: number | null;
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesSmoothing"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     seasonality_api_v1_modules_timeseries_datasets__dataset_id__seasonality_get: {
         parameters: {
             query?: {
@@ -13256,7 +16222,7 @@ export interface operations {
                 agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
                 window?: number | null;
                 align?: "trailing" | "centered";
-                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                gaps?: "leave" | "interpolate" | "zero" | "carry" | "kalman";
                 season?: number | null;
                 filters?: string | null;
             };
@@ -13302,7 +16268,7 @@ export interface operations {
                 agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
                 window?: number | null;
                 align?: "trailing" | "centered";
-                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                gaps?: "leave" | "interpolate" | "zero" | "carry" | "kalman";
                 season?: number | null;
                 filters?: string | null;
             };
@@ -13351,7 +16317,7 @@ export interface operations {
                 agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
                 window?: number | null;
                 align?: "trailing" | "centered";
-                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                gaps?: "leave" | "interpolate" | "zero" | "carry" | "kalman";
                 season?: number | null;
                 filters?: string | null;
             };
@@ -13398,7 +16364,7 @@ export interface operations {
                 agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
                 window?: number | null;
                 align?: "trailing" | "centered";
-                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                gaps?: "leave" | "interpolate" | "zero" | "carry" | "kalman";
                 season?: number | null;
                 filters?: string | null;
             };
@@ -13442,7 +16408,7 @@ export interface operations {
                 agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
                 window?: number | null;
                 align?: "trailing" | "centered";
-                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                gaps?: "leave" | "interpolate" | "zero" | "carry" | "kalman";
                 season?: number | null;
                 filters?: string | null;
             };
@@ -13482,7 +16448,7 @@ export interface operations {
                 sensitivity?: "low" | "medium" | "high";
                 /** @description Comma-separated method keys. */
                 methods?: string | null;
-                anomaly?: "robust_z" | "iqr" | "rolling_z" | "hampel" | "gesd" | "isolation_forest" | "lof" | "autoencoder";
+                anomaly?: "robust_z" | "iqr" | "rolling_z" | "hampel" | "gesd" | "isolation_forest" | "lof" | "autoencoder" | "kalman";
                 threshold?: number;
                 time?: string | null;
                 value?: string | null;
@@ -13492,7 +16458,7 @@ export interface operations {
                 agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
                 window?: number | null;
                 align?: "trailing" | "centered";
-                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                gaps?: "leave" | "interpolate" | "zero" | "carry" | "kalman";
                 season?: number | null;
                 filters?: string | null;
             };
@@ -13540,7 +16506,7 @@ export interface operations {
                 agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
                 window?: number | null;
                 align?: "trailing" | "centered";
-                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                gaps?: "leave" | "interpolate" | "zero" | "carry" | "kalman";
                 season?: number | null;
                 filters?: string | null;
             };
@@ -13588,7 +16554,7 @@ export interface operations {
                 agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
                 window?: number | null;
                 align?: "trailing" | "centered";
-                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                gaps?: "leave" | "interpolate" | "zero" | "carry" | "kalman";
                 season?: number | null;
                 filters?: string | null;
             };
@@ -13694,7 +16660,7 @@ export interface operations {
                 agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
                 window?: number | null;
                 align?: "trailing" | "centered";
-                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                gaps?: "leave" | "interpolate" | "zero" | "carry" | "kalman";
                 season?: number | null;
                 filters?: string | null;
             };
@@ -13737,7 +16703,7 @@ export interface operations {
                 agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
                 window?: number | null;
                 align?: "trailing" | "centered";
-                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                gaps?: "leave" | "interpolate" | "zero" | "carry" | "kalman";
                 season?: number | null;
                 filters?: string | null;
             };
@@ -13788,7 +16754,7 @@ export interface operations {
                 agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
                 window?: number | null;
                 align?: "trailing" | "centered";
-                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                gaps?: "leave" | "interpolate" | "zero" | "carry" | "kalman";
                 season?: number | null;
                 filters?: string | null;
             };
@@ -13926,7 +16892,7 @@ export interface operations {
                 agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
                 window?: number | null;
                 align?: "trailing" | "centered";
-                gaps?: "leave" | "interpolate" | "zero" | "carry";
+                gaps?: "leave" | "interpolate" | "zero" | "carry" | "kalman";
                 season?: number | null;
                 filters?: string | null;
             };
@@ -15944,7 +18910,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["Threshold"] | null;
+                "application/json": components["schemas"]["Threshold-Input"] | null;
             };
         };
         responses: {
@@ -16995,6 +19961,113 @@ export interface operations {
             };
         };
     };
+    policy_api_v1_modules_experiments_datasets__dataset_id__policy_post: {
+        parameters: {
+            query?: {
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyLearning"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decisions_api_v1_modules_experiments_datasets__dataset_id__decisions_get: {
+        parameters: {
+            query?: {
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoggedDecisions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluate_policy_api_v1_modules_experiments_datasets__dataset_id__evaluate_policy_post: {
+        parameters: {
+            query?: {
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyEvaluation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_settings_api_v1_modules_agent_settings_get: {
         parameters: {
             query?: never;
@@ -17899,6 +20972,370 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    settings_api_v1_modules_clean_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanSettings"];
+                };
+            };
+        };
+    };
+    update_settings_api_v1_modules_clean_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CleanSettings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanSettings"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lineage_api_v1_modules_clean_lineage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanLineageItem"][];
+                };
+            };
+        };
+    };
+    suggestions_api_v1_modules_clean_datasets__dataset_id__suggestions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanSuggestions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    draft_api_v1_modules_clean_datasets__dataset_id__draft_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanDraft"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_draft_api_v1_modules_clean_datasets__dataset_id__draft_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Steps"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanDraft"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_draft_api_v1_modules_clean_datasets__dataset_id__draft_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanDraft"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_api_v1_modules_clean_datasets__dataset_id__preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CleanPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    family_api_v1_modules_clean_datasets__dataset_id__versions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanFamily"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_api_v1_modules_clean_datasets__dataset_id__versions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    job_api_v1_modules_clean_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_api_v1_modules_clean_jobs__job_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanJob"];
+                };
             };
             /** @description Validation Error */
             422: {

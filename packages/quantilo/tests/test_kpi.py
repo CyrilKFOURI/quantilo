@@ -400,10 +400,11 @@ def summarised() -> list[Col]:
 
 def test_suggestions_follow_the_columns() -> None:
     found = suggest(summarised())
-    # 048: ranked by score (R-SUG-16), no longer in rule order
+    # 048: ranked by score (R-SUG-16), no longer in rule order; 053: profit ÷ revenue (R-SUG-21)
     assert [s.name for s in found] == [
         "Total revenue",
         "Total profit",
+        "Profit margin",
         "Total units",
         "Average unit price",
         "Rows",
@@ -472,10 +473,11 @@ def test_a_price_is_averaged_never_summed() -> None:
     found = {s.name: s for s in suggest(orders())}
 
     assert "Total Price" not in found
-    assert found["Average Price"].rule == "R-SUG-09"
-    assert found["Average Price"].definition.measures[0].agg == "mean"
+    # 053: weighted by Quantity (R-SUG-23)
+    assert found["Weighted average Price"].rule == "R-SUG-09"
+    assert found["Weighted average Price"].definition.measures[0].agg == "weighted_mean"
     unit = Col("unit_price", "numeric_continuous", "unit_price")
-    assert any(s.name == "Average unit_price" for s in suggest([*orders()[:-1], unit]))
+    assert any(s.name == "Weighted average unit_price" for s in suggest([*orders()[:-1], unit]))
 
 
 def test_the_date_is_the_order_one_never_a_birth_date() -> None:

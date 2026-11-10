@@ -359,3 +359,47 @@ def test_scenario_route(client: TestClient, shop: str) -> None:
 
     wrong = client.post(f"{BASE}/{shop}/scenario", params={**params, "model": "naive"}, json=body)
     assert wrong.status_code == 422
+
+
+def test_smoothing_route(client: TestClient, sales: str) -> None:
+    only = get(client, sales, "smoothing", period="month").json()
+    assert only["curves"] == [] and "hp" not in only["unavailable"]
+
+    result = get(
+        client,
+        sales,
+        "smoothing",
+        period="month",
+        methods="ewma,kalman_filtered,hp",
+        ewma_alpha=0.4,
+        kalman_model="llevel",
+    ).json()
+    curves = {c["key"]: c for c in result["curves"]}
+    assert list(curves) == ["ewma", "kalman_filtered", "hp"]
+    assert curves["ewma"]["params"][0] == {
+        "key": "alpha",
+        "value": 0.4,
+        "auto": False,
+        "reason": "set in the options",
+    }
+    assert curves["kalman_filtered"]["causal"] and not curves["hp"]["causal"]
+    assert curves["hp"]["params"][0]["value"] == 129_600
+    assert get(client, sales, "smoothing", methods="magic").status_code == 422
+    assert get(client, sales, "smoothing", kalman_model="arima").status_code == 422
+
+
+def test_kalman_gaps_anomalies_and_structural_model(client: TestClient, sales: str) -> None:
+    filled = get(client, sales, "overview", gaps="kalman").json()
+    assert filled["setup"]["gaps"] == "kalman"
+    assert len(filled["analyzed"]["filled_low"]) == filled["setup"]["periods"]
+
+    breaks = get(client, sales, "breaks", anomaly="kalman").json()
+    assert breaks["anomaly_method"] == "kalman"
+    assert breaks["residuals_from"].startswith("Kalman")
+
+    job = client.post(
+        f"{BASE}/{sales}/forecast", params={"methods": "naive,structural", "horizon": 4}
+    ).json()
+    done = wait(client, job)
+    structural = next(m for m in done["result"]["results"] if m["key"] == "structural")
+    assert structural["info"].startswith("UCM(") and structural["scores"] is not None

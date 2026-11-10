@@ -31,6 +31,8 @@ def test_opens_on_suggestions_ready_to_compute(client: TestClient, sales: str) -
     assert result["resolved"]["grain"]["rule"] == "R-TIME-01"
     assert result["measures"][0]["chart"]["value"] in ("bars", "area")
     assert result["tiles"][0]["value"] is not None and result["resolved"]["why"]
+    # 054: signals always listed, the started period at an equal date on the tiles
+    assert isinstance(result["signals"], list) and "to_date" in result["tiles"][0]
 
 
 def test_split_by_store_and_page_filters(client: TestClient, sales: str) -> None:

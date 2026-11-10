@@ -109,6 +109,17 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 "tests/test_segments.py" = ["RUF001", "RUF002", "RUF003"]
 # Chart labels and hover texts use the app's symbols (×, −, σ, ρ, η, ≤).
 "src/quantilo/plots/*" = ["RUF001", "RUF002", "RUF003"]
+# Extreme-value notation (ξ, σ, ζ, ×, −) in the tail and robust analyses (056).
+"src/quantilo/variable/tails.py" = ["RUF001", "RUF002", "RUF003"]
+"src/quantilo/variable/robust.py" = ["RUF001", "RUF002", "RUF003"]
+"tests/test_tails.py" = ["RUF001", "RUF002", "RUF003"]
+# Regression sentences and notation (×, −, ρ, Breusch–Pagan, ⌊4(T/100)^(2/9)⌋) (067).
+"src/quantilo/regression/*" = ["RUF001", "RUF002", "RUF003"]
+"tests/test_regression*.py" = ["RUF001", "RUF002", "RUF003"]
+# Table detection (080): header names join levels with " · ", labels carry dashes and NBSP.
+"src/quantilo/ingestion/layout/*" = ["RUF001", "RUF002", "RUF003"]
+"tests/test_layout_*.py" = ["RUF001", "RUF002", "RUF003"]
+"tests/layout_fixtures.py" = ["RUF001", "RUF002", "RUF003"]
 
 [tool.pyright]
 pythonVersion = "3.12"

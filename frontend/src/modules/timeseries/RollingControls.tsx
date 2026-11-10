@@ -1,12 +1,12 @@
 import { Plus, X } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { t, type MessageKey } from "../../lib/i18n";
 import { Checkbox, TextInput } from "../../ui/fields";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { MAX_WINDOWS } from "./Windows";
 
-export type Layers = { values: boolean; mean: boolean; band: boolean };
+export type Layers = { values: boolean; mean: boolean; band: boolean; bands?: boolean };
 type Align = "trailing" | "centered";
 
 /** Windows worth suggesting for each period (a week, a month, a quarter, a year…). */
@@ -43,6 +43,9 @@ export function RollingControls({
   onWindows,
   onAlign,
   onLayers,
+  smooth,
+  average = true,
+  hasBands = false,
 }: {
   windows: number[];
   auto: number | null;
@@ -53,6 +56,12 @@ export function RollingControls({
   onWindows: (next: number[]) => void;
   onAlign: (next: Align) => void;
   onLayers: (next: Layers) => void;
+  /** The Smooth row of methods (064), drawn first. */
+  smooth?: ReactNode;
+  /** The moving average is ticked: its windows and position are shown. */
+  average?: boolean;
+  /** Another smoother or Kalman-filled periods have a 95 % band to show or hide. */
+  hasBands?: boolean;
 }) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
@@ -73,6 +82,9 @@ export function RollingControls({
 
   return (
     <div className="space-y-2 text-xs">
+      {smooth}
+      {average && (
+      <>
       <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t("ts.rolling.means")}>
           <span className="w-24 shrink-0 text-ink-3">{t("ts.rolling.means")}</span>
           {shown.map((w, i) => {
@@ -167,15 +179,28 @@ export function RollingControls({
           ]}
         />
       </div>
+      </>
+      )}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5" role="group" aria-label={t("ts.rolling.show")}>
         <span className="w-24 shrink-0 text-ink-3">{t("ts.rolling.show")}</span>
         <Checkbox label={t("time.layer.values")} checked={layers.values} onChange={(e) => onLayers({ ...layers, values: e.target.checked })} />
-        <Checkbox label={t("ts.rolling.layerMeans")} checked={layers.mean} onChange={(e) => onLayers({ ...layers, mean: e.target.checked })} />
-        <Checkbox
-          label={first ? t("ts.rolling.layerBand", { span: span(first, period) }) : t("time.layer.band")}
-          checked={layers.band}
-          onChange={(e) => onLayers({ ...layers, band: e.target.checked })}
-        />
+        {average && (
+          <Checkbox label={t("ts.rolling.layerMeans")} checked={layers.mean} onChange={(e) => onLayers({ ...layers, mean: e.target.checked })} />
+        )}
+        {average && (
+          <Checkbox
+            label={first ? t("ts.rolling.layerBand", { span: span(first, period) }) : t("time.layer.band")}
+            checked={layers.band}
+            onChange={(e) => onLayers({ ...layers, band: e.target.checked })}
+          />
+        )}
+        {hasBands && (
+          <Checkbox
+            label={t("ts.smooth.layerBands")}
+            checked={layers.bands ?? true}
+            onChange={(e) => onLayers({ ...layers, bands: e.target.checked })}
+          />
+        )}
       </div>
     </div>
   );

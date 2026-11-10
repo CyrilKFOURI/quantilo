@@ -9,7 +9,11 @@ export type Chart = NonNullable<View["chart"]>;
 export type Format = NonNullable<Measure["format"]>;
 export type Grain = "day" | "week" | "month" | "quarter" | "year";
 
-export const AGGS: Agg[] = ["count", "sum", "mean", "median", "min", "max", "distinct", "true_share"];
+export const AGGS: Agg[] = ["count", "sum", "mean", "median", "min", "max", "weighted_mean", "distinct", "true_share", "share"];
+/** 053 (R-MES-07): a delay between two dates is averaged, never summed. */
+export const DELAY_AGGS: Agg[] = ["mean", "median", "min", "max"];
+export type RatioKind = "ratio" | "margin" | "difference";
+export const RATIO_KINDS: RatioKind[] = ["ratio", "margin", "difference"];
 export const GRAINS: Grain[] = ["day", "week", "month", "quarter", "year"];
 export const ADDITIVE = new Set<Agg>(["count", "sum"]);
 export const MAX_MEASURES = 4;
@@ -18,6 +22,9 @@ export const RATIO = "ratio";
 
 const NUMBERS = new Set(["numeric_continuous", "numeric_discrete"]);
 const SPLITS = new Set(["categorical_nominal", "categorical_ordinal", "boolean"]);
+const KEYS = new Set(["identifier", "categorical_nominal"]);
+/** 053 (R-MES-01, P18): averaged with a weight when the dataset has a quantity. */
+const WEIGHTED_ROLES = new Set(["unit_price", "percentage"]);
 const SUM_ROLES = new Set(["amount", "quantity", "cost", "target"]);
 // 048 (P1, R-SUG-09): a price or a level is averaged, never summed; same words as the engine's
 // kpi/suggest.py LEVEL_WORDS.
@@ -42,6 +49,7 @@ export function columnsFor(agg: Agg, columns: Column[]): Column[] {
   if (agg === "count") return [];
   if (agg === "distinct") return usable.filter((c) => c.type !== "ignored");
   if (agg === "true_share") return usable.filter((c) => c.type === "boolean");
+  if (agg === "share") return usable.filter((c) => SPLITS.has(c.type));
   return usable.filter((c) => NUMBERS.has(c.type));
 }
 
@@ -57,6 +65,38 @@ export function defaultAgg(column: Column): Agg {
   if (NUMBERS.has(column.type)) return column.role && SUM_ROLES.has(column.role) && !isLevel(column) ? "sum" : "mean";
   return "distinct";
 }
+
+/** The weights a weighted average can use: numbers, quantities first. */
+export function weightColumns(columns: Column[], except: string | null | undefined): Column[] {
+  const numbers = columnsFor("sum", columns).filter((c) => c.name !== except);
+  return [...numbers.filter((c) => c.role === "quantity"), ...numbers.filter((c) => c.role !== "quantity")];
+}
+
+/** The keys a share can count distinct (customers, orders, ids), keys by role first. */
+export function keyColumns(columns: Column[]): Column[] {
+  const keys = columns.filter((c) => !c.excluded && KEYS.has(c.type));
+  const named = (c: Column) => c.role === "order_key" || c.role === "customer_key";
+  return [...keys.filter(named), ...keys.filter((c) => !named(c))];
+}
+
+/** The most frequent values of a column (its summary), for the values a share counts. */
+export function levelsOf(column: Column | undefined): string[] {
+  return column?.summary?.histogram.map((bar) => bar.label) ?? [];
+}
+
+/** The measure a column starts with (R-MES-01): its default aggregate, and since 053 a unit price,
+ *  a level or a percentage weighted by the dataset's first quantity; a status counts its first value. */
+export function defaultMeasure(column: Column, columns: Column[]): Partial<Measure> {
+  const agg = defaultAgg(column);
+  if (agg === "mean" && (WEIGHTED_ROLES.has(column.role ?? "") || isLevel(column))) {
+    const weight = weightColumns(columns, column.name).find((c) => c.role === "quantity");
+    if (weight) return { agg: "weighted_mean", weight: weight.name };
+  }
+  return { agg };
+}
+
+/** A delay between two dates (053, R-MES-07): `column` → `until`. */
+export const isDelay = (measure: Measure) => Boolean(measure.until);
 
 export function nextMeasureId(measures: Measure[]): string {
   const used = new Set(measures.map((m) => m.id));

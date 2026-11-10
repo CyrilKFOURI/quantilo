@@ -13,7 +13,7 @@ export const METRIC_LABELS: Record<string, string> = {
 };
 
 /** Diverging scale: red for negative, neutral grey at 0, blue for positive (validated pair). */
-function divergingScale(tokens: ChartTokens): [number, string][] {
+export function divergingScale(tokens: ChartTokens): [number, string][] {
   return [
     [0, tokens.palette[7] ?? tokens.ink3],
     [0.5, tokens.line],

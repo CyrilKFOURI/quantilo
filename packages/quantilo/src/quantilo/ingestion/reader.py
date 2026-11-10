@@ -27,13 +27,14 @@ def _column(values: list[object]) -> pa.Array:
         return pa.array([None if value is None else str(value) for value in values], pa.string())
 
 
-def read_sheet(path: Path, sheet: str) -> pa.Table:
-    """A sheet as a table: the first row names the columns; fully empty rows are skipped."""
+def read_sheet(path: Path, sheet: str, header_row: int | None = None) -> pa.Table:
+    """A sheet as a table: the first non-empty row names the columns, or row `header_row` (1-based)
+    with the rows above it skipped (title, notes: feature 080); fully empty rows are skipped."""
     workbook = openpyxl.load_workbook(path, read_only=True, data_only=True)
     try:
         rows = [
             row
-            for row in workbook[sheet].iter_rows(values_only=True)
+            for row in workbook[sheet].iter_rows(min_row=header_row or 1, values_only=True)
             if any(c is not None for c in row)
         ]
     finally:
@@ -169,7 +170,7 @@ class SourceReader:
         parts = []
         self.excel_rows[file.path] = 0
         for sheet in names:
-            table = read_sheet(file.path, sheet)
+            table = read_sheet(file.path, sheet, (self.options.header_row or {}).get(sheet))
             self._views += 1
             view = f"excel_sheet_{self._views}"
             self.connection.register(view, table)

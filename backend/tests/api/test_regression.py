@@ -1,0 +1,89 @@
+import json
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.config import default_samples_dir
+from tests.api.test_profiling import import_path
+
+
+@pytest.fixture
+def traps(client: TestClient) -> str:
+    return import_path(client, default_samples_dir() / "typing_traps.csv")
+
+
+def url(dataset_id: str, path: str = "") -> str:
+    return f"/api/v1/datasets/{dataset_id}/regression{path}"
+
+
+def test_first_plane(client: TestClient, traps: str) -> None:
+    response = client.get(
+        url(traps), params={"target": "price_eur", "columns": "age,income,segment"}
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["target"] == "price_eur" and body["model"] == "ols"
+    assert body["se"]["kind"] == "hc3" and body["se"]["rule"] == "R-REG-SE-05"
+    assert body["terms"][0]["term"] == "(Intercept)"
+    assert any(t["column"] == "segment" and t["level"] for t in body["terms"])
+    assert body["quality"]["rows"] > 0 and body["multiple"]["tests"] == len(body["terms"]) - 1
+    assert body["sentence"] and {c["key"] for c in body["checks"]} >= {"spread", "collinearity"}
+    assert body["plots"]["points"] == body["quality"]["rows"]
+
+
+def test_suggestion_then_regression_without_parameters(client: TestClient, traps: str) -> None:
+    found = client.get(url(traps, "/suggestion")).json()
+    assert found["target"]["column"] == "price_eur"  # the amount (R-REG-20)
+    assert found["columns"] and all(p["reason"].startswith("R-REG-21") for p in found["columns"])
+    body = client.get(url(traps)).json()
+    assert body["target"] == "price_eur"
+    assert body["columns"] == [p["column"] for p in found["columns"]]
+
+
+def test_sections(client: TestClient, traps: str) -> None:
+    params = {"target": "price_eur", "columns": "age,income"}
+    errors = client.get(url(traps, "/standard-errors"), params=params).json()
+    assert [k["kind"] for k in errors["kinds"]][:5] == ["classic", "hc0", "hc1", "hc2", "hc3"]
+    assert next(k for k in errors["kinds"] if k["kind"] == "hc3")["chosen"]
+    influence = client.get(url(traps, "/influence"), params=params).json()
+    assert len(influence["rows"]) == 20 and len(influence["rows"][0]["dfbetas"]) == 3
+    terms = client.get(url(traps, "/terms"), params=params).json()
+    assert {v["term"] for v in terms["vifs"]} == {"age", "income"}
+    more = client.get(url(traps, "/more"), params=params).json()
+    assert more["white"]["name"] == "White"
+
+
+def test_forced_standard_errors_and_filters(client: TestClient, traps: str) -> None:
+    body = client.get(
+        url(traps),
+        params={
+            "target": "price_eur",
+            "columns": "age",
+            "se": "classic",
+            "filters": json.dumps([{"column": "country", "op": "in", "values": ["FR"]}]),
+        },
+    ).json()
+    assert body["se"]["kind"] == "classic" and body["se"]["rule"] is None
+    assert body["quality"]["total"] < 600
+
+
+def test_errors_are_explained(client: TestClient, traps: str) -> None:
+    unknown = client.get(url(traps), params={"target": "price_eur", "columns": "nope"})
+    assert unknown.status_code == 404
+    category = client.get(url(traps), params={"target": "country", "columns": "age"})
+    assert category.status_code == 422 and "levels" in category.json()["error"]["message"]
+
+
+def test_agent_tool(client: TestClient, traps: str) -> None:
+    from tests.api.test_agent import run_tool
+
+    found = run_tool(
+        client, traps, "fit_regression", {"target": "price_eur", "columns": ["age", "income"]}
+    )
+    assert found.content["standard_errors"]["rule"] == "R-REG-SE-05"
+    assert [t["term"] for t in found.content["terms"]] == ["(Intercept)", "age", "income"]
+    assert found.content["checks"] and found.content["conclusion"]
+    assert found.link.page == "regression"
+    assert found.link.params == {"target": "price_eur", "columns": "age,income"}
+    playbook = run_tool(client, traps, "get_playbook", {"topic": "regression"})
+    assert "HC3" in playbook.content

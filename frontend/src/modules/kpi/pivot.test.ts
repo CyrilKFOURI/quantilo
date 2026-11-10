@@ -4,6 +4,8 @@ import type { KpiResult, KpiSeries } from "../../api/client";
 import { dataPart, sameData, withFormat, withLabel, withView } from "./definition";
 import { formatChange, formatShown, formatValue } from "./format";
 import { buildTable, effectiveMode, shownValues, toDelimited, type TableOptions } from "./pivot";
+import { byScope, signalMarks } from "./signals";
+import type { ChartTokens } from "../../charts/theme";
 
 const decision = (value: string, options: { value: string; allowed: boolean; reason: string | null }[] = []) => ({
   value,
@@ -15,7 +17,7 @@ const decision = (value: string, options: { value: string; allowed: boolean; rea
 const format = { decimals: 0, scale: 1, prefix: "", suffix: "", percent: false, rule: "R-FMT-01", reason: "Whole numbers." };
 
 function series(g1: string | null, values: number[], previous: (number | null)[], overall: number): KpiSeries {
-  return { measure: "m1", g1, g2: null, values, previous, last_year: values.map(() => null), rows: values.map(() => 1), overall };
+  return { measure: "m1", g1, g2: null, values, previous, last_year: values.map(() => null), rows: values.map(() => 1), overall, trend: null };
 }
 
 /** Revenue by month by country: A and B, three months, the last one incomplete. */
@@ -56,8 +58,10 @@ const result: KpiResult = {
     shading: decision("on"),
     time: true,
     why: [],
+    trend: null,
   },
   warnings: [],
+  signals: [],
 };
 
 const options = (patch: Partial<TableOptions> = {}): TableOptions => ({
@@ -151,5 +155,61 @@ describe("definition", () => {
     expect(sameData(base, { ...base, other: "hide" })).toBe(true);
     expect(sameData(base, { ...base, top: 3 })).toBe(false);
     expect(dataPart(withView(base, { share: true }))).toBe(dataPart(base));
+  });
+});
+
+describe("signals (054)", () => {
+  const flagged: KpiResult = {
+    ...result,
+    signals: [
+      {
+        kind: "low_n",
+        severity: "warning",
+        scope: "cells",
+        rule: "R-SIG-03",
+        measure: "m1",
+        message: "1 cell of Total revenue rests on fewer than 30 values: read them with care (R-SIG-03).",
+        cells: [{ period: "2025-02-01", g1: "B", g2: null, value: 12 }],
+        score: 1,
+      },
+      {
+        kind: "thin_period",
+        severity: "warning",
+        scope: "cells",
+        rule: "R-SIG-04",
+        measure: null,
+        message: "Jan 2025 has under 20 % of the median period's rows.",
+        cells: [{ period: "2025-01-01", g1: null, g2: null, value: 3 }],
+        score: 0.5,
+      },
+      {
+        kind: "anomaly",
+        severity: "info",
+        scope: "series",
+        rule: "R-SIG-01",
+        measure: "m1",
+        message: "Feb 2025 unusually high (robust z 4.1, R-SIG-01)",
+        cells: [{ period: "2025-02-01", g1: null, g2: null, value: 4.1 }],
+        score: 4.1,
+      },
+    ],
+  };
+
+  it("marks the cells a signal names, with the cell's n, and every cell of a thin period", () => {
+    const table = buildTable(flagged, options({ layout: "periods_rows" }));
+    const [jan, feb] = table.rows;
+    // columns: A, B, Total
+    expect(feb?.cells[1]?.flag?.message).toBe("Low n: 12 values, under 30 (R-SIG-03)");
+    expect(feb?.cells[0]?.flag).toBeNull();
+    expect(feb?.cells[2]?.flag?.kind).toBe("anomaly");
+    expect(jan?.cells.every((c) => c.flag?.kind === "thin_period")).toBe(true);
+    expect(byScope(flagged, "series")).toHaveLength(1);
+  });
+
+  it("puts a marker over an unusual period of the measure's chart only", () => {
+    const tokens = { ink2: "#555", ink3: "#999" } as unknown as ChartTokens;
+    const marks = signalMarks(flagged, "m1", tokens);
+    expect(marks?.annotations?.[0]).toMatchObject({ x: 1, text: "▲", hovertext: expect.stringContaining("unusually high") });
+    expect(signalMarks(flagged, "m2", tokens)).toBeNull();
   });
 });

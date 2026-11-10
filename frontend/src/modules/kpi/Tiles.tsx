@@ -80,6 +80,28 @@ export function Tiles({
                 change={tile.change_yoy}
                 against={t("kpi.tile.vsLastYear", { value: formatValue(tile.last_year, measure.format, custom, "compact") })}
               />
+              {tile.to_date && (
+                // 054, R-TILE-03 · 04: the started period at an equal date, projected if it adds up
+                <p className="flex w-full flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px]" title={t("kpi.tile.toDateTitle", { period: tile.to_date.period })}>
+                  <span className="text-ink-2">
+                    {t("kpi.tile.toDate", { label: tile.to_date.label })}{" "}
+                    <span className="tabular-nums text-ink-1">{formatValue(tile.to_date.value, measure.format, custom, "compact") || "—"}</span>
+                  </span>
+                  <Change
+                    change={tile.to_date.change}
+                    against={t("kpi.tile.vsSpan", { label: tile.to_date.previous_label, value: formatValue(tile.to_date.previous, measure.format, custom, "compact") })}
+                  />
+                  <Change
+                    change={tile.to_date.change_yoy}
+                    against={t("kpi.tile.vsLastYear", { value: formatValue(tile.to_date.last_year, measure.format, custom, "compact") })}
+                  />
+                  {tile.to_date.projected !== null && (
+                    <span className="text-ink-3">
+                      {t("kpi.tile.projected", { value: formatValue(tile.to_date.projected, measure.format, custom, "compact") })}
+                    </span>
+                  )}
+                </p>
+              )}
               {tile.top && (
                 <span className="text-xs text-ink-2">
                   {t("kpi.tile.top", { label: tile.top.label, share: formatShare(tile.top.share) })}

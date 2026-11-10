@@ -68,6 +68,23 @@ def _matrix(matrix: Matrix) -> pd.DataFrame:
     return pd.DataFrame(matrix.values, index=names, columns=names, dtype=float)
 
 
+def _structure(structure: Any) -> pd.DataFrame:
+    """One row per column, its loading on each component shown (078)."""
+    names = [f"PC{i + 1}" for i in range(structure.shown)]
+    return pd.DataFrame(structure.loadings, index=structure.columns, columns=names, dtype=float)
+
+
+def _factors(factors: Any) -> pd.DataFrame:
+    """One row per column: its loading on each factor, communality, uniqueness and KMO (078)."""
+    names = [f"F{i + 1}" for i in range(factors.k)]
+    frame = pd.DataFrame(factors.loadings, index=factors.columns, columns=names, dtype=float)
+    if factors.columns:
+        frame["communality"] = factors.communalities
+        frame["uniqueness"] = factors.uniqueness
+        frame["kmo"] = factors.msa
+    return frame
+
+
 def _overview(overview: Overview) -> pd.DataFrame:
     frame = pd.DataFrame({name: to_dict(stats) for name, stats in overview.column_stats.items()})
     return frame.T.rename_axis("column").reset_index()
@@ -133,6 +150,7 @@ def _tables() -> list[tuple[type, Callable[[Any], pd.DataFrame], str]]:
     from quantilo.compare.analyze import Comparison
     from quantilo.correlations.matrix import Matrix
     from quantilo.correlations.service import Correlations
+    from quantilo.correlations.structure import Factors, Structure
     from quantilo.experiments.analyze import ExperimentResult
     from quantilo.experiments.bandit import BanditSimulation, ExperimentBandit
     from quantilo.experiments.plan import SampleSize
@@ -154,11 +172,14 @@ def _tables() -> list[tuple[type, Callable[[Any], pd.DataFrame], str]]:
     from quantilo.timeseries.forecasting import SeriesForecast
     from quantilo.variable.fitting import Fit
     from quantilo.variable.outliers import Outliers
+    from quantilo.variable.tails import Tail
 
     return [
         (RowsPage, _page, "the rows"),
         (Correlations, lambda r: _matrix(r.matrix), "the association matrix"),
         (Matrix, _matrix, "the association matrix"),
+        (Structure, _structure, "the loadings of each column on the components"),
+        (Factors, _factors, "the loadings after rotation, communalities and KMO"),
         (Overview, _overview, "per-column statistics"),
         (
             Fit,
@@ -166,6 +187,11 @@ def _tables() -> list[tuple[type, Callable[[Any], pd.DataFrame], str]]:
             "laws",
         ),
         (Outliers, lambda r: _rows(r.rules), "the rule of each method"),
+        (
+            Tail,
+            lambda r: _rows(r.return_levels),
+            "the return levels (1 in 100, 1,000, 10,000 rows)",
+        ),
         (Comparison, lambda r: _rows(r.tests), "the tests"),
         (Targets, lambda r: _rows(r.candidates), "every column as a target"),
         (

@@ -9,6 +9,7 @@ import {
 import { useActiveFilters, type Condition } from "./filters";
 import {
   api,
+  ApiError,
   type ChartParams,
   type CompareParams,
   type DriverSpec,
@@ -33,6 +34,8 @@ import {
   type MlAutoRequest,
   type OutlierMethod,
   type DetectionSettings,
+  type RegressionParams,
+  type RegressionSection,
   type RowsView,
   type SourceOptions,
 } from "./client";
@@ -71,6 +74,8 @@ export const queryKeys = {
     filters: Condition[] = [],
   ) =>
     ["datasets", id, "variable", column, "outliers", method, filters] as const,
+  tail: (id: string, column: string, filters: Condition[] = []) =>
+    ["datasets", id, "variable", column, "tail", filters] as const,
   savedFilters: (id: string) => ["datasets", id, "saved-filters"] as const,
   correlations: (
     id: string,
@@ -79,6 +84,8 @@ export const queryKeys = {
     filters: Condition[],
     correction: Correction = "auto",
   ) => ["datasets", id, "correlations", method, columns, filters, correction] as const,
+  structure: (id: string, part: "pca" | "factors", columns: string[] | null, filters: Condition[]) =>
+    ["datasets", id, "correlations", "structure", part, columns, filters] as const,
   compare: (id: string, params: CompareParams, filters: Condition[]) =>
     ["datasets", id, "compare", params, filters] as const,
   series: (
@@ -118,11 +125,24 @@ export function useDatasets() {
   });
 }
 
+/** The API's answer for an id it does not know (a deleted dataset, a link from another machine). */
+export function isNotFound(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404 && error.details.code === "not_found";
+}
+
 export function useDataset(id: string | undefined) {
+  // 081: an unknown id stays unknown; asking again only delays the "not found" page. Other errors
+  // keep the client's usual retries.
+  const usual = useQueryClient().getDefaultOptions().queries?.retry ?? 3;
   return useQuery({
     queryKey: queryKeys.dataset(id ?? ""),
     queryFn: () => api.dataset(id ?? ""),
     enabled: Boolean(id),
+    retry: (failures, error) => {
+      if (isNotFound(error)) return false;
+      if (typeof usual === "function") return usual(failures, error);
+      return typeof usual === "number" ? failures < usual : usual;
+    },
     refetchInterval: (query) =>
       query.state.data?.status === "importing" ? 1_000 : false,
   });
@@ -347,6 +367,16 @@ export function useFit(id: string, column: string, enabled: boolean) {
   });
 }
 
+export function useTail(id: string, column: string, enabled: boolean) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: queryKeys.tail(id, column, filters),
+    queryFn: () => api.tail(id, column, filters),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
 export function useOutliers(
   id: string,
   column: string,
@@ -388,10 +418,12 @@ export function useKpiSuggestions(id: string, enabled: boolean) {
 export function useKpiCompute(id: string, definition: KpiDefinition | null) {
   const active = useActiveFilters(id);
   const filters = definition?.time && definition.time.page_filters === false ? [] : active;
-  const data = definition ? { ...definition, view: undefined } : null;
+  // Display needs no recompute, except the trend (053, R-SHOW-02): only that part of the view is sent.
+  const view = definition?.view?.show_as === "trend" ? { show_as: "trend" as const } : undefined;
+  const data = definition ? { ...definition, view } : null;
   return useQuery({
     queryKey: ["datasets", id, "kpi", "compute", data, filters],
-    queryFn: () => api.kpiCompute(id, { ...(definition as KpiDefinition), view: undefined }, filters),
+    queryFn: () => api.kpiCompute(id, { ...(definition as KpiDefinition), view }, filters),
     enabled: Boolean(definition),
     staleTime: 60_000,
     placeholderData: (previous) => previous,
@@ -945,6 +977,70 @@ export function useCorrelations(
     enabled,
     staleTime: 60_000,
     placeholderData: (previous) => previous,
+  });
+}
+
+/** The Structure section (078): fetched only once the section is opened (`enabled`). */
+export function useStructure(id: string, columns: string[] | null, enabled: boolean) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: queryKeys.structure(id, "pca", columns, filters),
+    queryFn: () => api.structure(id, columns, filters),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+/** Advanced › More of the Structure section: never fetched before it is opened. */
+export function useFactors(id: string, columns: string[] | null, enabled: boolean) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: queryKeys.structure(id, "factors", columns, filters),
+    queryFn: () => api.factors(id, columns, filters),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+/** The first plane of the Regression tab (068); waits for the target. */
+export function useRegression(id: string, params: RegressionParams | null) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: ["datasets", id, "regression", params, filters] as const,
+    queryFn: () => api.regression(id, params as RegressionParams, filters),
+    enabled: Boolean(params?.target),
+    staleTime: 60_000,
+    placeholderData: (previous) => previous,
+    retry: false,
+  });
+}
+
+/** R-REG-20 / R-REG-21: the target and columns the page starts from. */
+export function useRegressionSuggestion(id: string, target: string | undefined, enabled: boolean) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: ["datasets", id, "regression-suggestion", target ?? null, filters] as const,
+    queryFn: () => api.regressionSuggestion(id, target, filters),
+    enabled,
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/** An Advanced section: asked for only once it is opened (onion rule, R-REGUI-02). */
+export function useRegressionSection<S extends RegressionSection>(
+  id: string,
+  section: S,
+  params: RegressionParams | null,
+  enabled: boolean,
+) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: ["datasets", id, "regression", section, params, filters] as const,
+    queryFn: () => api.regressionSection(id, section, params as RegressionParams, filters),
+    enabled: enabled && Boolean(params?.target),
+    staleTime: 60_000,
+    retry: false,
   });
 }
 

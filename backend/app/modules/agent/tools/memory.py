@@ -9,7 +9,17 @@ from app.modules.agent.engine.tools import Tool, ToolContext, ToolError, ToolOut
 from app.modules.agent.repository import MAX_NOTE_CHARS, NoteError, NoteRepository
 
 PLAYBOOKS = Path(__file__).resolve().parent.parent / "playbooks"
-Topic = Literal["eda", "statistics", "ml", "panel", "kpi", "timeseries", "synthetic", "experiments"]
+Topic = Literal[
+    "eda",
+    "statistics",
+    "regression",
+    "ml",
+    "panel",
+    "kpi",
+    "timeseries",
+    "synthetic",
+    "experiments",
+]
 TOPICS: tuple[str, ...] = get_args(Topic)
 
 
@@ -60,7 +70,8 @@ class GetPlaybook(Tool[PlaybookInput]):
     name: ClassVar[str] = "get_playbook"
     description: ClassVar[str] = (
         "The method to follow for a broad request, written by a statistician: eda (first look "
-        "at a dataset), statistics (reading tests), ml (preparing and judging a model), panel "
+        "at a dataset), statistics (reading tests), regression (effects other things equal, "
+        "standard errors, checks), ml (preparing and judging a model), panel "
         "(a model on entities seen period after period: walk-forward, per-period scores), kpi "
         "(indicators over time), timeseries (trend, seasonality, forecasts), synthetic (fake "
         "data that stays faithful and private), experiments (A/B tests and their sample size). "

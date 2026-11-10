@@ -100,3 +100,15 @@ def test_network_paths_are_rejected_by_every_endpoint(local_client: TestClient, 
     for name, response in (("browse", browse), ("preview", preview), ("import", imported)):
         assert response.status_code == 422, name
         assert "Only local paths" in response.json()["error"]["message"], name
+
+
+def test_every_response_carries_the_security_headers(local_client: TestClient) -> None:
+    with local_client:
+        allowed = local_client.get("/api/v1/health", headers={"Sec-Fetch-Site": "same-origin"})
+        refused = local_client.get("/api/v1/health", headers={"Sec-Fetch-Site": "cross-site"})
+
+    for response in (allowed, refused):
+        assert response.headers["X-Content-Type-Options"] == "nosniff"
+        assert response.headers["X-Frame-Options"] == "DENY"
+        assert response.headers["Content-Security-Policy"] == "frame-ancestors 'none'"
+        assert response.headers["Referrer-Policy"] == "no-referrer"

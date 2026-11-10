@@ -482,6 +482,10 @@ export function BreaksBody({
                 </option>
               ),
             )}
+            {/* niche and slower (a model fit): one level deeper (064, onion rule) */}
+            <optgroup label={t("ts.advancedMore")}>
+              <option value="kalman">{t("ts.anomalies.kalman")}</option>
+            </optgroup>
           </Select>
           <label className="flex items-center gap-1.5 text-ink-2">
             {t("ts.anomalies.threshold")}

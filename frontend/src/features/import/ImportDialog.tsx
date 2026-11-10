@@ -73,6 +73,8 @@ export function ImportDialog({ path, onClose, onImported }: ImportDialogProps) {
         name: name ?? null,
         options: {
           ...sourceOptions,
+          // The header row the preview detected (feature 080): the import reads what was shown.
+          header_row: data?.header_row ?? null,
           columns: excluded.size > 0 ? selectedColumns.map((column) => column.name) : null,
           sample_pct: sampling ? samplePct : 100,
         },

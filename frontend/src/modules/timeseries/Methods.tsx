@@ -1,5 +1,5 @@
 import { Check, CircleCheck, CircleMinus, Plus, X } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import type { MethodResult } from "../../api/client";
 import { formatNumber } from "../../charts/figures";
@@ -80,6 +80,7 @@ export const CATALOGUE = {
       "sarima",
       "sarimax",
       "tslm",
+      "structural",
       "gbm_lags",
       "mlp_lags",
       "croston",
@@ -89,6 +90,18 @@ export const CATALOGUE = {
       "combination",
     ],
     defaults: ["naive", "seasonal_naive", "ets_auto", "arima_auto"],
+  },
+  smooth: {
+    all: [
+      "moving_average",
+      "ewma",
+      "kalman_filtered",
+      "kalman_smoothed",
+      "lowess",
+      "savgol",
+      "hp",
+    ],
+    defaults: ["moving_average"],
   },
   autocorrelation: {
     all: [
@@ -105,10 +118,20 @@ export const CATALOGUE = {
 } as const;
 export type Section = keyof typeof CATALOGUE;
 
-/** Headings of the "+ Add method" list, for the sections with many kinds of method. */
-const GROUPS: Partial<
-  Record<Section, { label: MessageKey; keys: string[] }[]>
-> = {
+/** Headings of the "+ Add method" list, for the sections with many kinds of method. `fold`
+ *  puts a group under "Advanced" (folded) or "Advanced › More" (folded inside it): the more
+ *  niche or slow a method is for a modest gain, the deeper it goes (owner's onion rule, 064). */
+type Group = { label: MessageKey; keys: string[]; fold?: "advanced" | "more" };
+const GROUPS: Partial<Record<Section, Group[]>> = {
+  smooth: [
+    { label: "ts.group.simple", keys: ["moving_average"] },
+    {
+      label: "ts.group.models",
+      keys: ["ewma", "kalman_filtered", "kalman_smoothed", "lowess"],
+      fold: "advanced",
+    },
+    { label: "ts.group.filters", keys: ["savgol", "hp"], fold: "more" },
+  ],
   forecast: [
     {
       label: "ts.group.baselines",
@@ -134,6 +157,7 @@ const GROUPS: Partial<
       keys: ["croston", "sba", "tsb", "adida"],
     },
     { label: "ts.group.combination", keys: ["combination"] },
+    { label: "ts.group.stateSpace", keys: ["structural"], fold: "more" },
   ],
 };
 
@@ -169,32 +193,93 @@ export function MethodsRow({
   section,
   chosen,
   onChange,
+  badge,
+  unavailable = {},
+  addLabel,
+  label,
+  align = "start",
 }: {
   section: Section;
   chosen: string[];
   onChange: (keys: string[]) => void;
+  /** A tag after a chosen method's name (Smooth: causal or not). */
+  badge?: (key: string) => ReactNode;
+  /** Methods that do not apply here, with the reason (shown instead of their sentence). */
+  unavailable?: Record<string, string>;
+  /** Accessible name of "+ Add method" when a section has two rows. */
+  addLabel?: string;
+  /** The row's name (default "Methods"). */
+  label?: string;
+  /** "end" when "+ Add method" sits far right of its row: the list then opens leftwards. */
+  align?: "start" | "end";
 }) {
   const [open, setOpen] = useState(false);
   const all = CATALOGUE[section].all as readonly string[];
+  const blocked = (key: string) => LOCKED.has(key) || key in unavailable;
   const toggle = (key: string) => {
     const next = chosen.includes(key)
       ? chosen.filter((k) => k !== key)
       : [...chosen, key];
     if (next.length) onChange(all.filter((k) => next.includes(k)));
   };
+  const groups = GROUPS[section];
+  const plain = groups?.filter((g) => !g.fold) ?? [];
+  const advanced = groups?.filter((g) => g.fold === "advanced") ?? [];
+  const more = groups?.filter((g) => g.fold === "more") ?? [];
+  const keysOf = (list: Group[]) => list.flatMap((g) => g.keys);
+  const item = (key: string, list: Group[]) => {
+    const on = chosen.includes(key);
+    const group = list.find((g) => g.keys[0] === key);
+    const locked = blocked(key);
+    return (
+      <li key={key}>
+        {group && (
+          <p className="px-2.5 pt-2 pb-0.5 text-[11px] font-medium tracking-wide text-ink-3 uppercase">
+            {t(group.label)}
+          </p>
+        )}
+        <button
+          type="button"
+          role="menuitemcheckbox"
+          aria-checked={on}
+          aria-disabled={locked || undefined}
+          onClick={() => !locked && toggle(key)}
+          className={`flex w-full items-start gap-2 rounded-md px-2.5 py-1.5 text-left ${locked ? "cursor-not-allowed opacity-60" : "hover:bg-surface-2"}`}
+        >
+          <span className="mt-0.5 size-3.5 shrink-0 text-accent">
+            {on && <Check size={14} strokeWidth={2} aria-hidden />}
+          </span>
+          <span className="min-w-0">
+            <span className="flex items-center gap-1.5 text-[13px] text-ink-1">
+              {name(key)}
+              {LOCKED.has(key) && <LockBadge />}
+              {badge?.(key)}
+            </span>
+            <span className="block text-xs text-ink-3">
+              {LOCKED.has(key)
+                ? t("lite.methodLocked")
+                : (unavailable[key] ?? t(`tsm.${key}.what` as MessageKey))}
+            </span>
+          </span>
+        </button>
+      </li>
+    );
+  };
+  const folded = (list: Group[]) => keysOf(list).some((key) => chosen.includes(key));
   return (
     <div
       className="flex flex-wrap items-center gap-1.5 text-xs"
       role="group"
-      aria-label={t("ts.methods")}
+      aria-label={label ?? t("ts.methods")}
     >
-      <span className="mr-1 text-ink-3">{t("ts.methods")}</span>
+      <span className="mr-1 text-ink-3">{label ?? t("ts.methods")}</span>
       {chosen.map((key) => (
         <span
           key={key}
           className="inline-flex h-6 items-center gap-1 rounded-full border border-line bg-surface-1 pr-1 pl-2.5 text-ink-1"
         >
           {name(key)}
+          {badge?.(key)}
           {chosen.length > 1 && (
             <button
               type="button"
@@ -211,12 +296,14 @@ export function MethodsRow({
         open={open}
         onOpenChange={setOpen}
         label={t("ts.addMethod")}
-        align="start"
+        align={align}
+        pinBelowLaptop
         trigger={
           <button
             type="button"
             onClick={() => setOpen(!open)}
             aria-expanded={open}
+            aria-label={addLabel}
             className="inline-flex h-6 items-center gap-1 rounded-full px-2 text-accent hover:bg-accent-soft"
           >
             <Plus size={12} strokeWidth={2} aria-hidden />
@@ -225,42 +312,29 @@ export function MethodsRow({
         }
       >
         <ul className="max-h-80 overflow-y-auto p-1">
-          {(GROUPS[section]?.flatMap((g) => g.keys) ?? all).map((key) => {
-            const on = chosen.includes(key);
-            const group = GROUPS[section]?.find((g) => g.keys[0] === key);
-            return (
-              <li key={key}>
-                {group && (
-                  <p className="px-2.5 pt-2 pb-0.5 text-[11px] font-medium tracking-wide text-ink-3 uppercase">
-                    {t(group.label)}
-                  </p>
-                )}
-                <button
-                  type="button"
-                  role="menuitemcheckbox"
-                  aria-checked={on}
-                  aria-disabled={LOCKED.has(key) || undefined}
-                  onClick={() => !LOCKED.has(key) && toggle(key)}
-                  className={`flex w-full items-start gap-2 rounded-md px-2.5 py-1.5 text-left ${LOCKED.has(key) ? "cursor-not-allowed opacity-60" : "hover:bg-surface-2"}`}
-                >
-                  <span className="mt-0.5 size-3.5 shrink-0 text-accent">
-                    {on && <Check size={14} strokeWidth={2} aria-hidden />}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="flex items-center gap-1.5 text-[13px] text-ink-1">
-                      {name(key)}
-                      {LOCKED.has(key) && <LockBadge />}
-                    </span>
-                    <span className="block text-xs text-ink-3">
-                      {LOCKED.has(key)
-                        ? t("lite.methodLocked")
-                        : t(`tsm.${key}.what` as MessageKey)}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
+          {(groups ? keysOf(plain) : all).map((key) => item(key, plain))}
+          {(advanced.length > 0 || more.length > 0) && (
+            <li>
+              <details open={folded(advanced) || folded(more) || undefined}>
+                <summary className="cursor-pointer px-2.5 pt-2 pb-1 text-[11px] font-medium tracking-wide text-ink-2 uppercase hover:text-ink-1">
+                  {t("ts.fold.advanced")}
+                </summary>
+                <ul className="pl-2">
+                  {keysOf(advanced).map((key) => item(key, advanced))}
+                  {more.length > 0 && (
+                    <li>
+                      <details open={folded(more) || undefined}>
+                        <summary className="cursor-pointer px-2.5 pt-2 pb-1 text-[11px] font-medium tracking-wide text-ink-2 uppercase hover:text-ink-1">
+                          {t("ts.fold.more")}
+                        </summary>
+                        <ul className="pl-2">{keysOf(more).map((key) => item(key, more))}</ul>
+                      </details>
+                    </li>
+                  )}
+                </ul>
+              </details>
+            </li>
+          )}
         </ul>
       </Popover>
     </div>

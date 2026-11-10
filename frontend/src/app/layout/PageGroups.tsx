@@ -20,6 +20,7 @@ export const GROUPS: Record<PageGroup, Tab[]> = {
   relationships: [
     { labelKey: "tab.twoVariables", to: "/d/$datasetId/compare" },
     { labelKey: "nav.correlations", to: "/d/$datasetId/correlations" },
+    { labelKey: "tab.regression", to: "/d/$datasetId/regression" },
   ],
   ml: [
     // In the browser version prediction needs the full app; Segments runs there.
@@ -34,7 +35,7 @@ export function groupOf(pathname: string): PageGroup | null {
   if (!match) return null;
   const rest = match[1] ?? "";
   if (rest === "" || rest === "/" || rest === "/columns" || rest === "/data" || rest === "/changes") return "overview";
-  if (rest === "/compare" || rest === "/correlations") return "relationships";
+  if (rest === "/compare" || rest === "/correlations" || rest === "/regression") return "relationships";
   if (rest === "/ml" || rest === "/segments") return "ml";
   return null;
 }

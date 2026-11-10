@@ -15,6 +15,7 @@ from quantilo.timeseries import breaks as br
 from quantilo.timeseries import drivers as dv
 from quantilo.timeseries import groups as gr
 from quantilo.timeseries import residuals as rs
+from quantilo.timeseries import smoothing as sm
 from quantilo.timeseries import stationarity as st
 from quantilo.timeseries.forecasting import SeriesForecast
 from quantilo.timeseries.service import (
@@ -29,6 +30,7 @@ from quantilo.timeseries.service import (
     SeriesResiduals,
     SeriesSeasonality,
     SeriesSetup,
+    SeriesSmoothing,
     SeriesStationarity,
     SeriesVolatility,
     TimeSeriesService,
@@ -65,6 +67,15 @@ class TimeSeries:
     def overview(self) -> SeriesOverview:
         """The series, its rolling mean and spread, its trend (Mann-Kendall, Sen's slope)."""
         return self._service.overview(*self._args(), self._methods)
+
+    def smoothing(
+        self,
+        methods: Sequence[sm.SmoothKey] = ("moving_average", "kalman_smoothed"),
+        params: sm.SmoothParams | None = None,
+    ) -> SeriesSmoothing:
+        """Smoothed curves (EWMA, LOWESS, Savitzky-Golay, Kalman, HP), each with its automatic
+        parameters and whether it is causal, plus the methods the data suggests (064)."""
+        return self._service.smoothing(*self._args(), list(methods), params)
 
     def seasonality(self) -> SeriesSeasonality:
         return self._service.seasonality(*self._args(), self._methods)

@@ -105,3 +105,18 @@ def test_synthetic_rows_and_their_report(tmp_path: Path) -> None:
     assert copy.column("age").type == ds.column("age").type
     written = made.save(tmp_path / "synthetic.csv")
     assert len(pd.read_csv(written)) == 200
+
+
+def test_smoothing_and_kalman_gaps(sales: dx.Dataset) -> None:
+    smoothed = sales.timeseries().smoothing(["moving_average", "ewma", "kalman_smoothed"])
+    assert [c.key for c in smoothed.curves] == ["moving_average", "ewma", "kalman_smoothed"]
+    assert [c.causal for c in smoothed.curves] == [True, True, False]
+    kalman = smoothed.curves[2]
+    assert kalman.info and "AIC" in kalman.info and len(kalman.low) == len(smoothed.periods)
+    assert smoothed.unavailable == {
+        "hp": "λ is defined for monthly, quarterly and yearly data only."
+    }
+
+    filled = sales.timeseries(period="day", gaps="kalman").overview()
+    assert filled.setup.gaps == "kalman"
+    assert len(filled.analyzed.filled_low) == len(filled.periods)

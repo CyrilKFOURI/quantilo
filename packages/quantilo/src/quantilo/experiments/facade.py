@@ -3,11 +3,12 @@
 exp = ds.experiment(variant="group", metrics=["converted"], unit="user_id")
 exp.analyze()                         # SRM, a comparison per metric and variant, Holm, power
 exp.bandit()                          # P(best), expected loss, what a bandit would have done
+exp.policy()                          # who should get which variant: a rule, its value, Qini
 dx.sample_size(baseline=0.10, effect=0.05)   # units per group before running one
 dx.bandit_simulation(baseline=0.10, effect=0.05, daily=1_000)   # fixed split vs bandit
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from quantilo.experiments.analyze import (
     ExperimentDesign,
@@ -19,6 +20,9 @@ from quantilo.experiments.plan import SampleSize, SampleSizeRequest
 from quantilo.experiments.plan import sample_size as plan
 from quantilo.experiments.service import ExperimentEngine
 from quantilo.filters.model import Condition
+
+if TYPE_CHECKING:  # scikit-learn loads on first use
+    from quantilo.experiments.policy import PolicyLearning
 
 MetricLike = str | dict[str, Any] | ExperimentMetric
 
@@ -59,6 +63,16 @@ class Experiment:
         of what a Thompson-sampling bandit would have done. None for a ratio (see
         `analyze().bandit_reason`). It complements the test, it does not replace it."""
         return self.analyze().bandit
+
+    def policy(
+        self, covariates: list[str] | None = None, *, qini: bool = False
+    ) -> "PolicyLearning":
+        """Who should get which variant (055): a depth 1-3 tree grown on doubly robust scores
+        of the primary metric, its cross-validated value against everyone on each variant (with
+        bootstrap intervals) and the Qini curve. `covariates`: the columns describing the units
+        before the test (every usable one when unset); `qini=True` adds the Qini curves. A
+        hypothesis to confirm with a new test."""
+        return self._engine.policy(self._id, self.design, covariates, self._conditions, qini)
 
     def __repr__(self) -> str:
         metrics = ", ".join(m.column for m in self.design.metrics)

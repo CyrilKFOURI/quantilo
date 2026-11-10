@@ -16,6 +16,7 @@ describe("Grouped pages (046)", () => {
     expect(groupOf("/d/d1/changes")).toBe("overview");
     expect(groupOf("/d/d1/compare")).toBe("relationships");
     expect(groupOf("/d/d1/correlations")).toBe("relationships");
+    expect(groupOf("/d/d1/regression")).toBe("relationships");
     expect(groupOf("/d/d1/ml")).toBe("ml");
     expect(groupOf("/d/d1/segments")).toBe("ml");
     expect(groupOf("/d/d1/kpi")).toBeNull();
@@ -36,7 +37,7 @@ describe("Grouped pages (046)", () => {
     const nav = await screen.findByRole("navigation", { name: "Main navigation" });
     expect(within(nav).getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).getByRole("link", { name: "Relationships" })).toBeInTheDocument();
-    for (const gone of ["Columns", "Data", "Changes", "Compare", "Correlations", "Segments"]) {
+    for (const gone of ["Columns", "Data", "Changes", "Compare", "Correlations", "Regression", "Segments"]) {
       expect(within(nav).queryByRole("link", { name: gone })).not.toBeInTheDocument();
     }
 

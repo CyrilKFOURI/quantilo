@@ -559,6 +559,7 @@ class SegmentsEngine:
             columns, choices = segments.request.columns, segments.request.preparation
         shared = SegmentRequest(columns=columns, preparation=choices, seed=request.seed)
         rows, preparation = self._rows(fields, source, shared)
+        left_out = scoring.numbers_only(preparation.used) if request.method == "mahalanobis" else []
         used = preparation.used
         if not used:
             raise SegmentsError(
@@ -579,10 +580,16 @@ class SegmentsEngine:
         if request.method != "auto":
             method = request.method
             why = f"{scoring.METHODS[method]}: your choice."
+        if left_out:
+            why = (
+                f"{scoring.METHODS[method]}: your choice, on the {len(used)} numbers; "
+                f"{', '.join(left_out)} left out (it reads numbers only)."
+            )
         if method == "mahalanobis" and not all(d.type in NUMERIC_TYPES for d in used):
             raise SegmentsError(
-                "The robust Mahalanobis distance reads numbers only: leave the categories out "
-                "or pick another method.",
+                "The robust Mahalanobis distance reads numbers only: with categories, it needs "
+                f"at least {scoring.MCD_MIN_NUMBERS} numbers among the columns. Leave the "
+                "categories out or pick another method.",
                 "method_unavailable",
             )
         if should_stop():

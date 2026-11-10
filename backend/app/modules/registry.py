@@ -6,7 +6,17 @@ from typing import Any
 
 from fastapi import APIRouter, FastAPI
 
-from app.modules import agent, experiments, kpi, ml, recipes, segments, synthetic, timeseries
+from app.modules import (
+    agent,
+    clean,
+    experiments,
+    kpi,
+    ml,
+    recipes,
+    segments,
+    synthetic,
+    timeseries,
+)
 
 
 @dataclass(frozen=True)
@@ -50,6 +60,8 @@ MODULES: list[Module] = [
     Module(
         id="recipes", router=recipes.router, setup=recipes.setup, agent_tools=recipes.agent_tools
     ),
+    # Clean (065): cleaned versions, an ordinary dataset each (QUANTILO_CLEAN_ENABLED)
+    Module(id="clean", router=clean.router, setup=clean.setup, agent_tools=clean.agent_tools),
 ]
 
 

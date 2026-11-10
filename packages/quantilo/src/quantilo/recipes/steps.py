@@ -39,6 +39,7 @@ FORECAST_LABELS = {
     "theta": "Theta",
     "sarima": "SARIMA",
     "tslm": "Linear regression",
+    "structural": "Structural model (Kalman)",
     "gbm_lags": "Gradient boosting",
     "mlp_lags": "Neural network",
     "croston": "Croston",
@@ -57,6 +58,8 @@ AGG_LABELS = {
     "max": "maximum",
     "distinct": "distinct values",
     "true_share": "share of true",
+    "share": "share of values",
+    "weighted_mean": "weighted mean",
 }
 VALIDATIONS = {
     "split": "a train / test split",
@@ -79,7 +82,7 @@ def _condition_columns(conditions: list[Condition]) -> list[str]:
 
 
 def _definition_columns(definition: Definition) -> list[str]:
-    found = [m.column for m in definition.measures if m.column]
+    found = [name for m in definition.measures for name in m.columns()]
     found += [g.column for g in definition.groups]
     if definition.time is not None:
         found.append(definition.time.column)

@@ -50,5 +50,7 @@ class Settings(BaseSettings):
     keep_version_limit_mb: int = 2048
     # The browser-only build (lite/boot.py): recipes skip their machine-learning steps (030).
     lite: bool = False
+    # The Clean module (065): off, its routes answer 404 and the agent has no cleaning tools.
+    clean_enabled: bool = True
     # Host names the API answers to (protection against DNS rebinding).
     allowed_hosts: list[str] = Field(default_factory=lambda: ["localhost", "127.0.0.1", "::1"])

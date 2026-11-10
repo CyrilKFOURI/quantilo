@@ -42,6 +42,35 @@ class Preview:
     schema_mismatch: bool = False
     suggested_name: str = ""
     warnings: list[str] = field(default_factory=list)
+    # Excel sheet -> header row read (080, J1): pass it back in the import options
+    header_row: dict[str, int] | None = None
+
+
+def detected_header_rows(path: Path, sheets: list[str]) -> tuple[dict[str, int], list[str]]:
+    """W1: the header row of each sheet whose first table is detected with confidence >= 0.8,
+    when it is not the first non-empty row; with a sentence per sheet. Never raises (W4)."""
+    from quantilo.ingestion.layout import detect_layout
+
+    try:
+        layout = detect_layout(path, sheets)
+    except Exception:
+        return {}, []
+    rows: dict[str, int] = {}
+    notes: list[str] = []
+    for sheet in layout.sheets:
+        row = sheet.preview_header()
+        if row is not None:
+            rows[sheet.name] = row
+            above = (
+                f"row {sheet.first_row}"
+                if row - sheet.first_row == 1
+                else (f"rows {sheet.first_row} to {row - 1}")
+            )
+            notes.append(
+                f"Header read from row {row} of '{sheet.name}' (confidence "
+                f"{sheet.tables[0].confidence:.0%}): {above} above it (title, notes) skipped."
+            )
+    return rows, notes
 
 
 def estimate_rows(reader: SourceReader, file: SourceFile) -> int:
@@ -68,6 +97,13 @@ def preview_source(path: Path, options: SourceOptions) -> Preview:
     with readable_errors():
         all_files = list_source_files(path)
         files = list_source_files(path, options.files) if options.files else all_files
+        header_rows: dict[str, int] = {}
+        notes: list[str] = []
+        if len(files) == 1 and files[0].format == "excel" and options.header_row is None:
+            read = options.sheets or excel_sheets(files[0].path)[:1]
+            header_rows, notes = detected_header_rows(files[0].path, read)
+            if header_rows:
+                options = options.model_copy(update={"header_row": header_rows})
         connection = duckdb.connect()
         try:
             reader = SourceReader(connection, options)
@@ -92,6 +128,8 @@ def preview_source(path: Path, options: SourceOptions) -> Preview:
                 sheets=excel_sheets(first.path) if first.format == "excel" else None,
                 schema_mismatch=reader.schema_mismatch(files),
                 suggested_name=path.stem if path.is_file() else path.name,
+                warnings=notes,
+                header_row=options.header_row,
             )
         finally:
             connection.close()

@@ -1,6 +1,7 @@
 """Ready-made KPIs, ranked and explained, and the best columns to split them by.
 
-Spec 022, section 1 (rules R-SUG-01 to R-SUG-08), revised by spec 048 (R-SUG-09 to R-SUG-19):
+Spec 022, section 1 (rules R-SUG-01 to R-SUG-08), revised by spec 048 (R-SUG-09 to R-SUG-19)
+and spec 053 (R-SUG-20 to R-SUG-24: margin, profit margin, share of a status, weighted mean, delay):
 the column roles give the candidates, a score ranks them, and every suggestion carries its reasons.
 What only the rows can tell (a column that fixes another, two measures that move together) comes
 in `Facts`, measured on a sample by `kpi.probe`; without them the rules still work, on names alone.
@@ -12,7 +13,7 @@ from typing import Any, Protocol
 
 from quantilo.kpi.definition import Definition, Group, Measure, Ratio, Time
 from quantilo.kpi.rules import measure_label, ratio_label
-from quantilo.typing.knowledge_base import name_tokens
+from quantilo.typing.knowledge_base import load, name_tokens
 from quantilo.typing.types import AnalysisType
 
 MAX_SUGGESTIONS = 12  # the page shows 6 and lists the rest under "More (n)" (048)
@@ -77,6 +78,25 @@ DATE_TIERS: tuple[frozenset[str], ...] = (
     frozenset({"updated", "update", "modified", "modification", "last", "changed", "edited"}),
 )
 NEVER_DATES: frozenset[str] = frozenset({"birth", "birthday", "dob", "born", "naissance"})
+# P16b: the dates a delay runs between (R-SUG-24).
+DELAY_STARTS: frozenset[str] = DATE_TIERS[0] | frozenset(
+    [
+        *("start", "started", "opened", "open", "submitted", "received", "requested", "request"),
+        *("admission", "admitted", "checkin", "reported", "logged"),
+    ]
+)
+DELAY_ENDS: frozenset[str] = DATE_TIERS[2] | frozenset(
+    [
+        *("resolved", "resolution", "closed", "close", "completed", "completion", "end", "ended"),
+        *("finished", "solved", "fulfilled", "discharge", "discharged", "checkout", "arrival"),
+        *("arrived", "paid", "payment", "returned"),
+    ]
+)
+# R-SUG-21: a flow whose name says it is what is left after the costs.
+PROFIT_WORDS: frozenset[str] = frozenset(
+    ["profit", "profits", "margin", "marge", "benefice", "earnings", "ebit", "ebitda"]
+)
+WEIGHTED_ROLES = ("percentage",)  # R-SUG-23: rates weighted by a quantity, like unit prices
 # P8: a column fixes another on at least this share of the rows (R-SUG-18, R-SUG-08 bis).
 DEPENDS = 0.98
 REDUNDANT = 0.95  # |r| above which a measure repeats a better-ranked one (R-SUG-16)
@@ -84,6 +104,10 @@ CONFIDENCE = {"high": 1.0, "medium": 0.9, "low": 0.75}
 NO_DATE = 0.9
 WEIGHTS = {
     "R-SUG-02": 90,
+    "R-SUG-20": 82,
+    "R-SUG-21": 80,
+    "R-SUG-22": 72,
+    "R-SUG-24": 64,
     "R-SUG-12": 85,
     "R-SUG-10": 80,
     "R-SUG-11": 78,
@@ -302,6 +326,7 @@ class _Candidate:
     ratio: Ratio | None = None
     money: bool = False  # an amount: split by currency when there are several
     single: Column | None = None  # the numeric column of a one-measure KPI (redundancy check)
+    more: list[str] = field(default_factory=list)  # reasons after the first one (053)
 
 
 def _count(value: int) -> str:
@@ -358,6 +383,7 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
         found.append(
             _Candidate("R-SUG-02", "", [sums(column)], reason, [column], COST, None, True, column)
         )
+    quantities = _numbers(columns, ("quantity",))[:1]
     for column in [c for c in _numbers(columns, ("amount", "unit_price")) if is_level(c)][:1]:
         what = (
             "a unit price"
@@ -365,13 +391,21 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
             else f"a price or level (its name says {sorted(_tokens(column) & LEVEL_WORDS)[0]})"
         )
         reason = f"R-SUG-09 · {column.name} is {what}: averaged, as a sum of prices means nothing"
-        measure = Measure(id="m1", agg="mean", column=column.name)
+        measure, more = _averaged(column, quantities)
         found.append(
             _Candidate(
-                "R-SUG-09", "", [measure], reason, [column], WEIGHTS["R-SUG-09"], None, True, column
+                "R-SUG-09",
+                "",
+                [measure],
+                reason,
+                [column],
+                WEIGHTS["R-SUG-09"],
+                None,
+                True,
+                column,
+                more,
             )
         )
-    quantities = _numbers(columns, ("quantity",))[:1]
     for column in quantities:
         reason = f"R-SUG-03 · {column.name} is a quantity: units add up, so it is summed"
         found.append(
@@ -383,6 +417,7 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
 
     flow = (amounts or costs or [None])[0]
     quantity = quantities[0] if quantities else None
+    found += _margins(columns)
     orders = _keys(columns, "order_key")[:1]
     customers = _keys(columns, "customer_key")[:1]
     if orders and customers and facts and facts.twins(orders[0].name, customers[0].name):
@@ -532,10 +567,19 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
                     True,
                 )
             )
+    found += _shares(columns, orders)
+    found += _delays(columns)
     booleans = [c for c in columns if c.type == "boolean" and c.name not in used]
+    outcomes = load().outcome_names
+    booleans.sort(key=lambda c: not (_tokens(c) & outcomes))  # 053: "Churn" before "Partner"
     if booleans:
         column = booleans[0]
         reason = f"R-SUG-06 · {column.name} is yes or no: the share of yes"
+        if _tokens(column) & outcomes:
+            reason = (
+                f"R-SUG-06 · {column.name} is yes or no and its name says an outcome: "
+                "the share of yes"
+            )
         found.append(
             _Candidate(
                 "R-SUG-06",
@@ -549,18 +593,145 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
     levels = [c for c in _numbers(columns, LEVEL_ROLES) if c.name not in used][:1]
     for column in levels:
         reason = f"R-SUG-07 · {column.name} is a {column.role}: averaged"
+        measure, more = _averaged(column, quantities if column.role in WEIGHTED_ROLES else [])
         found.append(
             _Candidate(
                 "R-SUG-07",
                 "",
-                [Measure(id="m1", agg="mean", column=column.name)],
+                [measure],
                 reason,
                 [column],
                 WEIGHTS["R-SUG-07"],
                 single=column,
+                more=more,
             )
         )
     return found
+
+
+def _averaged(column: Column, quantities: list[Column]) -> tuple[Measure, list[str]]:
+    """A mean, weighted by the first quantity when there is one (R-SUG-23, P18)."""
+    if not quantities:
+        return Measure(id="m1", agg="mean", column=column.name), []
+    weight = quantities[0]
+    reason = (
+        f"R-SUG-23 · Weighted by {weight.name}: Σ({column.name} x {weight.name}) ÷ "
+        f"Σ {weight.name}, so a value on 100 units counts 100 times (rows without a positive "
+        f"{weight.name} are left out)"
+    )
+    measure = Measure(id="m1", agg="weighted_mean", column=column.name, weight=weight.name)
+    return measure, [reason]
+
+
+def _margins(columns: Sequence[Column]) -> list[_Candidate]:
+    """R-SUG-20 (revenue and cost) and R-SUG-21 (profit and revenue), P4."""
+    found: list[_Candidate] = []
+    flows = [c for c in _numbers(columns, ("amount",)) if not is_level(c)]
+    profits = [c for c in flows if _tokens(c) & PROFIT_WORDS]
+    revenues = [c for c in flows if c not in profits]
+    costs = _numbers(columns, ("cost",))[:1]
+    if revenues and costs:
+        revenue, cost = revenues[0], costs[0]
+        measures = [
+            Measure(id="m1", agg="sum", column=revenue.name),
+            Measure(id="m2", agg="sum", column=cost.name),
+        ]
+        reason = (
+            f"R-SUG-20 · {revenue.name} and the cost {cost.name}: the margin "
+            f"(Σ {revenue.name} - Σ {cost.name}) ÷ Σ {revenue.name}, in percent"
+        )
+        found.append(
+            _Candidate(
+                "R-SUG-20",
+                "Margin",
+                measures,
+                reason,
+                [revenue, cost],
+                WEIGHTS["R-SUG-20"],
+                Ratio(numerator="m1", denominator="m2", kind="margin"),
+                True,
+            )
+        )
+    if profits and revenues:
+        profit, revenue = profits[0], revenues[0]
+        measures = [
+            Measure(id="m1", agg="sum", column=profit.name),
+            Measure(id="m2", agg="sum", column=revenue.name),
+        ]
+        reason = (
+            f"R-SUG-21 · {profit.name} is what is left of {revenue.name}: "
+            f"Σ {profit.name} ÷ Σ {revenue.name} is the margin, in percent"
+        )
+        found.append(
+            _Candidate(
+                "R-SUG-21",
+                "Profit margin",
+                measures,
+                reason,
+                [profit, revenue],
+                WEIGHTS["R-SUG-21"],
+                Ratio(numerator="m1", denominator="m2", percent=True),
+                True,
+            )
+        )
+    return found
+
+
+def _levels(column: Column) -> list[str]:
+    """The most frequent values of a column, from its summary (8 at most)."""
+    return [str(bar.get("label")) for bar in _summary(column).get("histogram") or []]
+
+
+def _shares(columns: Sequence[Column], orders: list[Column]) -> list[_Candidate]:
+    """R-SUG-22 (P5): the share of a status's tracked outcome (% paid, % churned)."""
+    statuses = [
+        c
+        for c in columns
+        if c.type in ("categorical_nominal", "categorical_ordinal")
+        and MIN_LEVELS <= _distinct(c) <= MAX_LEVELS
+    ]
+    statuses.sort(key=lambda c: c.role != "status")
+    key = next((o for o in orders if _distinct(o) < REPEATED * _valid(o)), None)
+    found: list[_Candidate] = []
+    for column in statuses:
+        levels = _levels(column)
+        lowered = {level.lower().strip(): level for level in levels}
+        for share, other in load().outcomes:
+            tracked = [lowered[word] for word in lowered if word in share]
+            opposite = [lowered[word] for word in lowered if word in other]
+            if not tracked or not opposite:
+                continue
+            counted = f"distinct {key.name}" if key else "rows"
+            reason = (
+                f"R-SUG-22 · {column.name} is a status ({', '.join(tracked)} against "
+                f"{', '.join(opposite)}): the share of {counted} that are {' or '.join(tracked)}"
+            )
+            measure = Measure(
+                id="m1",
+                agg="share",
+                column=column.name,
+                values=tracked,
+                key=key.name if key else None,
+            )
+            used = [column, key] if key else [column]
+            found.append(_Candidate("R-SUG-22", "", [measure], reason, used, WEIGHTS["R-SUG-22"]))
+            break
+        if len(found) >= 2:
+            break
+    return found
+
+
+def _delays(columns: Sequence[Column]) -> list[_Candidate]:
+    """R-SUG-24 (P16b): the average delay from a start date to an end date."""
+    dates = [c for c in columns if c.type == "datetime" and not _tokens(c) & NEVER_DATES]
+    starts = [c for c in dates if _tokens(c) & DELAY_STARTS and not _tokens(c) & DELAY_ENDS]
+    ends = [c for c in dates if _tokens(c) & DELAY_ENDS and not _tokens(c) & DELAY_STARTS]
+    if not starts or not ends:
+        return []
+    start, end = starts[0], ends[0]
+    reason = f"R-SUG-24 · {start.name} then {end.name}: the average number of days between the two"
+    measure = Measure(id="m1", agg="mean", column=start.name, until=end.name)
+    return [_Candidate("R-SUG-24", "", [measure], reason, [start, end], WEIGHTS["R-SUG-24"])]
 
 
 def _score(candidate: _Candidate, has_date: bool) -> tuple[int, str]:
@@ -599,7 +770,7 @@ def suggest(columns: Sequence[Column], facts: Facts | None = None) -> list[Sugge
     scored: list[tuple[int, int, _Candidate, list[str]]] = []
     for order, candidate in enumerate(_candidates(columns, facts)):
         score, score_reason = _score(candidate, time is not None)
-        reasons = [candidate.reason, score_reason]
+        reasons = [candidate.reason, score_reason, *candidate.more]
         if date_reason:
             reasons.append(date_reason)
         scored.append((score, order, candidate, reasons))

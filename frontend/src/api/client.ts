@@ -56,6 +56,9 @@ export type Fit = Complete<Schemas["Fit"]>;
 export type Law = Fit["laws"][number];
 export type Transform = Fit["transforms"][number];
 export type Outliers = Complete<Schemas["Outliers"]>;
+export type Tail = Complete<Schemas["Tail"]>;
+export type TailSeries = NonNullable<Tail["hill"]>;
+export type Robust = NonNullable<NumericProfile["robust"]>;
 export type ColumnSummary = Schemas["ColumnSummary"];
 export type SavedFilter = Schemas["SavedFilter"];
 export type Comparison = Complete<Schemas["Comparison"]>;
@@ -69,6 +72,47 @@ export type Correlations = Complete<Schemas["Correlations"]>;
 export type AssociationMatrix = Correlations["matrix"];
 export type Insight = Correlations["insights"][number];
 export type CorrelationMethod = AssociationMatrix["method"];
+/** The structure of the numeric columns (078): PCA with parallel analysis, then factor analysis. */
+export type Structure = Complete<Schemas["Structure"]>;
+export type StructureRule = NonNullable<Correlations["structure"]>;
+export type Factors = Complete<Schemas["Factors"]>;
+// Regression (067, 068)
+export type Regression = Complete<Schemas["RegressionReport"]>;
+export type RegressionTerm = Regression["terms"][number];
+export type RegressionCheck = Regression["checks"][number];
+export type RegressionSuggestion = Complete<Schemas["RegressionSuggestion"]>;
+export type RegressionStandardErrors = Complete<Schemas["StandardErrorTable"]>;
+export type RegressionInfluence = Complete<Schemas["InfluenceTable"]>;
+export type RegressionTerms = Complete<Schemas["TermsTable"]>;
+export type RegressionMore = Complete<Schemas["MoreChecks"]>;
+export type RegressionSe = Regression["se"]["kind"];
+export type RegressionSection = "standard-errors" | "influence" | "terms" | "more";
+export type RegressionSections = {
+  "standard-errors": RegressionStandardErrors;
+  influence: RegressionInfluence;
+  terms: RegressionTerms;
+  more: RegressionMore;
+};
+/** What the page asks for: absent fields follow the rules (R-REG-20, 21, SE-04). */
+export type RegressionParams = {
+  target?: string;
+  columns?: string[];
+  weights?: string;
+  cluster?: string;
+  se?: RegressionSe | "auto";
+  focus?: string;
+};
+
+function regressionQuery(params: RegressionParams, filters?: Condition[]): URLSearchParams {
+  const query = new URLSearchParams(filtersParam(filters));
+  if (params.target) query.set("target", params.target);
+  if (params.columns) query.set("columns", params.columns.join(","));
+  if (params.weights !== undefined) query.set("weights", params.weights);
+  if (params.cluster) query.set("cluster", params.cluster);
+  if (params.se && params.se !== "auto") query.set("se", params.se);
+  if (params.focus) query.set("focus", params.focus);
+  return query;
+}
 export type SeriesOverview = Complete<Schemas["SeriesOverview"]>;
 export type SeriesSeasonality = Complete<Schemas["SeriesSeasonality"]>;
 export type SeriesDecomposition = Complete<Schemas["SeriesDecomposition"]>;
@@ -77,6 +121,8 @@ export type SeriesAutocorrelation = Complete<Schemas["SeriesAutocorrelation"]>;
 export type SeriesVolatility = Complete<Schemas["SeriesVolatility"]>;
 export type SeriesResiduals = Complete<Schemas["SeriesResiduals"]>;
 export type SeriesBreaks = Complete<Schemas["SeriesBreaks"]>;
+export type SeriesSmoothing = Complete<Schemas["SeriesSmoothing"]>;
+export type SmoothCurve = SeriesSmoothing["curves"][number];
 export type ForecastJob = Complete<Schemas["ForecastJob"]>;
 export type SeriesDrivers = Complete<Schemas["SeriesDrivers"]>;
 /** A driver of a forecast (028 A4): a column, a 0/1 flag or a calendar part. */
@@ -185,6 +231,7 @@ export type MethodResult = SeriesOverview["methods"][number];
 export type SeasonalProfile = SeriesSeasonality["profiles"][number];
 export type SeriesSectionKey =
   | "overview"
+  | "smoothing"
   | "seasonality"
   | "decomposition"
   | "stationarity"
@@ -479,6 +526,11 @@ export const api = {
       "GET",
       `/datasets/${id}/variable/outliers?${new URLSearchParams({ column, method, ...filtersParam(filters) })}`,
     ),
+  tail: (id: string, column: string, filters?: Condition[]) =>
+    request<Tail>(
+      "GET",
+      `/datasets/${id}/variable/tail?${new URLSearchParams({ column, ...filtersParam(filters) })}`,
+    ),
   compare: (id: string, params: CompareParams, filters?: Condition[]) => {
     const query = new URLSearchParams({
       x: params.x,
@@ -728,6 +780,25 @@ export const api = {
       `/datasets/${id}/correlations?${query}`,
     );
   },
+  structure: (id: string, columns: string[] | null, filters?: Condition[]) => {
+    const query = new URLSearchParams(filtersParam(filters));
+    if (columns) query.set("columns", columns.join(","));
+    return request<Structure>("GET", `/datasets/${id}/correlations/structure?${query}`);
+  },
+  factors: (id: string, columns: string[] | null, filters?: Condition[]) => {
+    const query = new URLSearchParams(filtersParam(filters));
+    if (columns) query.set("columns", columns.join(","));
+    return request<Factors>("GET", `/datasets/${id}/correlations/factors?${query}`);
+  },
+  regression: (id: string, params: RegressionParams, filters?: Condition[]) =>
+    request<Regression>("GET", `/datasets/${id}/regression?${regressionQuery(params, filters)}`),
+  regressionSuggestion: (id: string, target: string | undefined, filters?: Condition[]) =>
+    request<RegressionSuggestion>(
+      "GET",
+      `/datasets/${id}/regression/suggestion?${regressionQuery({ target }, filters)}`,
+    ),
+  regressionSection: <S extends RegressionSection>(id: string, section: S, params: RegressionParams, filters?: Condition[]) =>
+    request<RegressionSections[S]>("GET", `/datasets/${id}/regression/${section}?${regressionQuery(params, filters)}`),
   rows: (
     id: string,
     view: RowsView,

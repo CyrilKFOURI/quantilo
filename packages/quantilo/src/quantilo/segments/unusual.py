@@ -34,6 +34,7 @@ MCD_ROWS = 20_000
 LOF_ROWS = 50_000
 LOF_NEIGHBOURS = 20
 MCD_COLUMNS = 30
+MCD_MIN_NUMBERS = 3  # among categories, the distance reads the numbers alone from 3 of them
 ELLIPTICAL_SKEW = 1.0
 LIST_ROWS = 500  # rows listed (with their reasons), most unusual first
 TOP_SHARE = 0.01  # without a clear break, the 1 % most unusual rows
@@ -109,6 +110,27 @@ def auto_method(used: list[Decision], x: np.ndarray) -> tuple[UnusualMethod, str
     else:
         why = "skewed columns even once prepared"
     return "isolation_forest", f"Isolation Forest (200 trees): {why}."
+
+
+def numbers_only(used: list[Decision]) -> list[str]:
+    """R-UNU-MCD-1 (056): the robust Mahalanobis distance asked for on numbers mixed with other
+    columns reads the numbers alone when there are at least MCD_MIN_NUMBERS of them. The other
+    columns are left out with their reason; returns their names (none when nothing changes)."""
+    numbers = [d for d in used if d.type in NUMERIC]
+    if len(numbers) == len(used) or len(numbers) < MCD_MIN_NUMBERS:
+        return []
+    left = []
+    for decision in used:
+        if decision.type in NUMERIC:
+            continue
+        decision.use = False
+        decision.apply(
+            "R-UNU-MCD-1",
+            f"Left out: the robust Mahalanobis distance reads numbers only "
+            f"({len(numbers)} numbers kept).",
+        )
+        left.append(decision.column)
+    return left
 
 
 def _sample(n: int, limit: int, seed: int) -> np.ndarray:

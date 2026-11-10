@@ -31,6 +31,7 @@ def test_migrations_create_tables(tmp_path: Path) -> None:
         "0020_ml_predictions",
         "0022_ts_analyses",
         "0023_recipes",
+        "0024_cleaning",
     ]
     expected = {
         "schema_migrations",
@@ -56,6 +57,8 @@ def test_migrations_create_tables(tmp_path: Path) -> None:
         "recipes",
         "recipe_versions",
         "recipe_runs",
+        "clean_versions",
+        "clean_drafts",
     }
     assert expected <= tables
 

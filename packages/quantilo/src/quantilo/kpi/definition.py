@@ -9,7 +9,18 @@ from typing import Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-Agg = Literal["count", "sum", "mean", "median", "min", "max", "distinct", "true_share"]
+Agg = Literal[
+    "count",
+    "sum",
+    "mean",
+    "median",
+    "min",
+    "max",
+    "distinct",
+    "true_share",
+    "share",  # 053: share of the rows (or distinct keys) whose value is in `values`
+    "weighted_mean",  # 053: Σ(x·w) ÷ Σw
+]
 Grain = Literal["day", "week", "month", "quarter", "year"]
 Chart = Literal[
     "bars",
@@ -32,6 +43,8 @@ ShowAs = Literal[
     "change_pct",
     "change_yoy",
     "running",
+    "rolling",  # 053: trailing mean over a window set by the grain (R-SHOW-01)
+    "trend",  # 053: STL or LOWESS trend, computed by the engine (R-SHOW-02)
 ]
 Layout = Literal["periods_rows", "periods_columns", "groups_rows", "crosstab", "single"]
 Switch = Literal["auto", "on", "off"]
@@ -42,7 +55,10 @@ CHARTS: tuple[Chart, ...] = get_args(Chart)
 # Rows and sums add up: the value of a whole is the sum of its parts. Nothing else does
 # (a customer bought in two countries counts once in the total).
 ADDITIVE: frozenset[Agg] = frozenset({"count", "sum"})
-NUMERIC_AGGS: frozenset[Agg] = frozenset({"sum", "mean", "median", "min", "max"})
+NUMERIC_AGGS: frozenset[Agg] = frozenset({"sum", "mean", "median", "min", "max", "weighted_mean"})
+# 053, P16b: a delay between two dates is read as a level (R-MES-07).
+DELAY_AGGS: frozenset[Agg] = frozenset({"mean", "median", "min", "max"})
+RatioKind = Literal["ratio", "margin", "difference"]
 MAX_MEASURES = 4
 MAX_GROUPS = 2
 RATIO_ID = "ratio"
@@ -68,9 +84,16 @@ class Format(Strict):
 class Measure(Strict):
     id: str = Field(pattern=r"^m[0-9]{1,2}$")
     agg: Agg
-    column: str | None = None  # None for "count"
+    column: str | None = None  # None for "count"; the start date of a delay
     label: str | None = Field(default=None, max_length=80)
     format: Format = Field(default_factory=Format)
+    # 053: the values a "share" counts, and the key it counts distinct (None: the rows).
+    values: list[str] = Field(default_factory=list, max_length=50)
+    key: str | None = None
+    # 053: the weight of a "weighted_mean".
+    weight: str | None = None
+    # 053: a delay from `column` to `until`, in days (mean, median, min or max).
+    until: str | None = None
 
     @model_validator(mode="after")
     def _column(self) -> "Measure":
@@ -78,12 +101,31 @@ class Measure(Strict):
             self.column = None
         elif not self.column:
             raise ValueError(f"A {self.agg} needs a column.")
+        # A field of another aggregate is dropped, not refused: changing the aggregate in the
+        # builder keeps the definition valid.
+        if self.agg != "share":
+            self.values, self.key = [], None
+        elif not self.values:
+            raise ValueError("A share needs the values it counts.")
+        if self.agg != "weighted_mean":
+            self.weight = None
+        elif not self.weight:
+            raise ValueError("A weighted average needs a weight column.")
+        if self.until is not None and self.agg not in DELAY_AGGS:
+            raise ValueError("A delay is averaged: mean, median, min or max.")
         return self
+
+    def columns(self) -> list[str]:
+        """Every column the measure reads."""
+        named = [self.column, self.key, self.weight, self.until]
+        return [name for name in named if name]
 
 
 class Ratio(Strict):
     numerator: str
     denominator: str
+    # 053, P4: ΣA ÷ ΣB, (ΣA - ΣB) ÷ ΣA in percent, or ΣA - ΣB.
+    kind: RatioKind = "ratio"
     label: str | None = Field(default=None, max_length=80)
     percent: bool = False
     format: Format = Field(default_factory=Format)
@@ -168,5 +210,12 @@ class Definition(Strict):
 
     def additive(self, measure_id: str) -> bool:
         if measure_id == RATIO_ID:
-            return False
+            # R-MES-04: (A₁ - B₁) + (A₂ - B₂) = ΣA - ΣB; a ratio or a margin never adds up.
+            ratio = self.ratio
+            return (
+                ratio is not None
+                and ratio.kind == "difference"
+                and self.additive(ratio.numerator)
+                and self.additive(ratio.denominator)
+            )
         return next(m.agg for m in self.measures if m.id == measure_id) in ADDITIVE

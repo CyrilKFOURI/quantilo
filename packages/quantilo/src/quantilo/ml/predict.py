@@ -196,9 +196,13 @@ def version_warnings(card: ModelCard) -> list[str]:
     return found
 
 
-def _unknown_rule(step: Any, categories: list[str]) -> str:
-    """What the preparation does with a category it never saw."""
+def _unknown_rule(step: Any, categories: list[str]) -> str | None:
+    """What the preparation does with a category it never saw; None: the next step decides."""
     name = type(step).__name__
+    if name == "RareGrouper":  # 063: rare categories grouped before codes or a target encoding
+        return "grouped with the rare categories (Other)" if step.other_ else None
+    if name == "FrequencyEncoder":
+        return "counted as never seen (frequency 0)"
     if name == "OneHotEncoder":
         if (
             getattr(step, "infrequent_categories_", None)
@@ -222,15 +226,19 @@ def _encoders(pipeline: Any) -> dict[str, tuple[list[str], str]]:
     for name, step, columns in getattr(prepare, "transformers_", []):
         if name == "remainder" or step == "drop" or not hasattr(step, "steps"):
             continue
+        categories: list[str] | None = None
         for _, inner in step.steps:
             learned = getattr(inner, "categories_", None)
             if learned is None or not len(learned):
                 continue
-            categories = [
-                str(c) for c in learned[0] if not (isinstance(c, float) and math.isnan(c))
-            ]
-            found[str(columns[0])] = (categories, _unknown_rule(inner, categories))
-            break
+            if categories is None:  # the categories of the first step that learnt some
+                categories = [
+                    str(c) for c in learned[0] if not (isinstance(c, float) and math.isnan(c))
+                ]
+            rule = _unknown_rule(inner, categories)
+            if rule is not None:
+                found[str(columns[0])] = (categories, rule)
+                break
     return found
 
 

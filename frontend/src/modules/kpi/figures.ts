@@ -6,7 +6,8 @@ import { withAlpha } from "../../charts/figures";
 import { paletteById } from "../../lib/palettes";
 import type { Format, ShowAs } from "./definition";
 import { formatShown, PERCENT_MODES } from "./format";
-import { DIVERGING_MODES, seriesIndex, shownOverall, shownValues } from "./pivot";
+import { DIVERGING_MODES, SMOOTH_MODES, seriesIndex, shownOverall, shownValues } from "./pivot";
+import { signalMarks } from "./signals";
 
 const OTHER = "Other";
 const MARKERS_MAX = 60; // R-VIS-34
@@ -17,6 +18,8 @@ const BARS = new Set(["bars", "stacked_bars", "grouped_bars"]);
 const SPACING = { narrow: 0.12, normal: 0.3, wide: 0.5 } as const;
 const GROUP_SPACING = { narrow: 0.2, normal: 0.38, wide: 0.55 } as const;
 const STACKED = new Set(["stacked_bars", "stacked_area", "hbar_stacked"]);
+/** 053: under a smoothed curve, the values stay readable but step back. */
+const FADED = 0.35;
 
 export type ChartInput = {
   result: KpiResult;
@@ -161,20 +164,26 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
     }
 
     // Over time: one trace per label of the split drawn (the second one inside a panel).
+    // 053: a smoothed mode draws the values, faded, and its curve over them.
+    const smooth = SMOOTH_MODES.has(mode);
+    const base: ShowAs = smooth ? "value" : mode;
     const drawn = input.panel !== undefined && input.panel !== null ? splits[1] : splits[0];
-    const traces: { name: string; color: string; values: (number | null)[] }[] = drawn
-      ? visible(drawn.levels).map((label) => {
-          const s = input.panel ? find(measure, input.panel, label) : find(measure, label);
-          return {
-            name: label,
-            color: levelColor(drawn.levels, label, drawn.ordinal, tokens),
-            values: s ? shownValues(result, s, mode) : [],
-          };
-        })
-      : [{ name: "", color: tokens.palette[0] ?? tokens.ink2, values: (() => {
-          const s = find(measure, input.panel ?? null);
-          return s ? shownValues(result, s, mode) : [];
-        })() }];
+    type Trace = { name: string; color: string; values: (number | null)[]; smoothed: (number | null)[] };
+    const traceOf = (name: string, color: string, s: ReturnType<typeof find>): Trace => ({
+      name,
+      color,
+      values: s ? shownValues(result, s, base) : [],
+      smoothed: s && smooth ? shownValues(result, s, mode) : [],
+    });
+    const traces: Trace[] = drawn
+      ? visible(drawn.levels).map((label) =>
+          traceOf(
+            label,
+            levelColor(drawn.levels, label, drawn.ordinal, tokens),
+            input.panel ? find(measure, input.panel, label) : find(measure, label),
+          ),
+        )
+      : [traceOf("", tokens.palette[0] ?? tokens.ink2, find(measure, input.panel ?? null))];
 
     if (chart === "heatmap") {
       const rows = traces.map((t) => t.name);
@@ -188,6 +197,7 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
     const barLabels =
       input.labels === "on" || (input.labels === "auto" && !many && periods.length <= BAR_LABELS_MAX);
     const data: Data[] = traces.map((trace, i) => {
+      const color = smooth ? withAlpha(trace.color, FADED) : trace.color;
       const common = {
         legendgroup: many ? trace.name : undefined,
         name: trace.name || undefined,
@@ -201,7 +211,7 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
           ...common,
           type: "bar",
           marker: {
-            color: trace.color,
+            color,
             line: { color: tokens.surface, width: chart === "stacked_bars" ? 1 : 0 },
             // incomplete periods hatched (R-TIME-05)
             pattern: { shape: partial.map((p) => (p ? "/" : "")), fgcolor: tokens.surface, solidity: 0.4 },
@@ -219,27 +229,32 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
         ...common,
         type: "scatter",
         mode: periods.length <= MARKERS_MAX ? "lines+markers" : "lines",
-        line: { color: trace.color, width: 2 },
+        line: { color, width: 2 },
         marker: {
           size: 6,
-          color: trace.color,
+          color,
           symbol: partial.map((p) => (p ? "circle-open" : "circle")),
         },
         fill: chart === "stacked_area" ? (i === 0 ? "tozeroy" : "tonexty") : area ? "tozeroy" : "none",
-        fillcolor: area ? withAlpha(trace.color, chart === "stacked_area" ? 0.55 : 0.18) : undefined,
+        fillcolor: area ? withAlpha(trace.color, (chart === "stacked_area" ? 0.55 : 0.18) * (smooth ? FADED : 1)) : undefined,
         stackgroup: chart === "stacked_area" ? "one" : undefined,
-        text: direct ? trace.values.map((_, j) => (j === last ? (common.customdata[j] ?? "") : "")) : undefined,
+        text: direct && !smooth ? trace.values.map((_, j) => (j === last ? (common.customdata[j] ?? "") : "")) : undefined,
         textposition: "middle right",
         textfont: { color: tokens.ink2, size: 11 },
       } as Data;
     });
+    // 053: the smoothed curve over the values, one per category (it replaces the line over bars).
+    if (smooth) data.push(...linesOver(input, tokens, traces.map((t) => ({ ...t, values: t.smoothed })), x, chart, true));
     // 045: a line over the bars, one per category through its own bars.
-    if (input.line && BARS.has(chart)) data.push(...linesOver(input, tokens, traces, x, chart));
+    else if (input.line && BARS.has(chart)) data.push(...linesOver(input, tokens, traces, x, chart));
     const zero = chart !== "line"; // R-VIS-31: bars and areas start at 0, lines fit the data
     const spacing = input.spacing ?? "normal";
+    // 054: unusual periods and level shifts of the total, on the chart that is not a panel
+    const marks = input.panel ? null : signalMarks(result, measure, tokens);
     return {
       data,
       layout: {
+        ...marks,
         barmode: chart === "stacked_bars" ? "stack" : chart === "grouped_bars" ? "group" : undefined,
         bargap: chart === "grouped_bars" ? GROUP_SPACING[spacing] : SPACING[spacing],
         bargroupgap: chart === "grouped_bars" ? 0.06 : undefined,
@@ -261,19 +276,26 @@ export function kpiFigure(input: ChartInput): (tokens: ChartTokens) => Built {
 }
 
 /** One line per category, in its bars' colour, along the top of its own bars: its bar in a group,
- *  its segment in a stack (047). A plain line, no points, no second hover (the bars carry it). */
+ *  its segment in a stack (047). A plain line, no points, no second hover (the bars carry it).
+ *  A smoothed curve (053) has its own hover: the values under it are not its own. */
 function linesOver(
   input: ChartInput,
   tokens: ChartTokens,
   traces: { name: string; color: string; values: (number | null)[] }[],
   x: string[],
   chart: string,
+  smoothed = false,
 ): Data[] {
   const single = traces.length <= 1;
   const grouped = chart === "grouped_bars";
-  const tops = chart === "stacked_bars" ? stackTops(traces.map((trace) => trace.values)) : traces.map((trace) => trace.values);
+  const stacked = chart === "stacked_bars" || chart === "stacked_area";
+  const tops = stacked ? stackTops(traces.map((trace) => trace.values)) : traces.map((trace) => trace.values);
+  const what = input.mode === "trend" ? "Trend" : "Rolling mean";
   return traces.map((trace, i) => {
     const color = single ? tokens.ink1 : trace.color;
+    const hover = smoothed
+      ? { customdata: text(input, trace.values), hovertemplate: `${trace.name ? `${trace.name} · ` : ""}${what}: %{customdata}<extra></extra>` }
+      : { hoverinfo: "skip" };
     return {
       type: "scatter",
       mode: "lines",
@@ -283,9 +305,9 @@ function linesOver(
       offsetgroup: grouped ? String(i) : undefined,
       x,
       y: scaled(input, tops[i] ?? []),
-      hoverinfo: "skip",
-      connectgaps: true,
-      line: { color, width: 2 },
+      ...hover,
+      connectgaps: !smoothed,
+      line: { color, width: smoothed ? 2.5 : 2 },
     } as Data;
   });
 }

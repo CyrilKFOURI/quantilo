@@ -11,6 +11,7 @@ from quantilo.timeseries import forecast as fc
 from quantilo.timeseries import groups as gr
 from quantilo.timeseries import methods
 from quantilo.timeseries import residuals as rs
+from quantilo.timeseries import smoothing as sm
 from quantilo.timeseries import stationarity as st
 from quantilo.timeseries import volatility as vo
 from quantilo.timeseries.decomposition import Method
@@ -26,6 +27,7 @@ from quantilo.timeseries.service import (
     SeriesOverview,
     SeriesResiduals,
     SeriesSeasonality,
+    SeriesSmoothing,
     SeriesStationarity,
     SeriesVolatility,
     TimeSeriesError,
@@ -87,6 +89,35 @@ def overview(
 ) -> SeriesOverview:
     """The series, its rolling statistics, key figures and trend methods."""
     return service.overview(dataset_id, request, filters, chosen_methods(methods_, methods.TREND))
+
+
+@router.get("/datasets/{dataset_id}/smoothing")
+def smoothing(
+    dataset_id: str,
+    service: Service,
+    request: Series,
+    filters: Filters,
+    methods_: Methods = None,
+    ewma_alpha: Annotated[float | None, Query(gt=0, lt=1)] = None,
+    lowess_frac: Annotated[float | None, Query(gt=0, le=1)] = None,
+    savgol_window: Annotated[int | None, Query(ge=5, le=401)] = None,
+    savgol_order: Annotated[int | None, Query(ge=1, le=5)] = None,
+    kalman_model: sm.KalmanForm | Literal["auto"] = "auto",
+    hp_lambda: Annotated[float | None, Query(gt=0, le=1e9)] = None,
+) -> SeriesSmoothing:
+    """Smoothed curves of the series (EWMA, Kalman filtered / smoothed, LOWESS, Savitzky-Golay,
+    Hodrick-Prescott), each with its automatic parameters and whether it is causal, and the
+    methods the data suggests (rules only: no model is fitted without a method)."""
+    keys = chosen_methods(methods_, {key: None for key in sm.SMOOTHERS})
+    params = sm.SmoothParams(
+        ewma_alpha=ewma_alpha,
+        lowess_frac=lowess_frac,
+        savgol_window=savgol_window,
+        savgol_order=savgol_order,
+        kalman_model=kalman_model,
+        hp_lambda=hp_lambda,
+    )
+    return service.smoothing(dataset_id, request, filters, keys, params)
 
 
 @router.get("/datasets/{dataset_id}/seasonality")

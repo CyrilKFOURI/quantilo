@@ -121,8 +121,10 @@ class ProfileColumn(Tool[ColumnInput]):
     name: ClassVar[str] = "profile_column"
     description: ClassVar[str] = (
         "One column in depth: key statistics, distribution shape, normality tests, outliers "
-        "(IQR rule) for numbers; top categories and balance for categories; range and gaps for "
-        "dates. Use it before choosing a test that assumes normality, or to describe a variable."
+        "(IQR rule) for numbers, with a robust center (median, Huber) when outliers pull the "
+        "mean and the right tail (GPD shape, 1-in-1,000 levels, VaR / ES) when it is heavy; top "
+        "categories and balance for categories; range and gaps for dates. Use it before choosing "
+        "a test that assumes normality, or to describe a variable."
     )
     Input: ClassVar[type[BaseModel]] = ColumnInput
 
@@ -150,6 +152,7 @@ class ProfileColumn(Tool[ColumnInput]):
                     "low_fence": _r(rule.low),
                     "high_fence": _r(rule.high),
                 }
+            content |= self._robust_and_tail(ctx, view.name, profile)
             d = profile.numeric.describe
             summary = (
                 f"{view.name}: mean {_r(d.mean)}, median {_r(d.median)}, skew {_r(d.skewness, 3)}"
@@ -217,6 +220,45 @@ class ProfileColumn(Tool[ColumnInput]):
             }
         link = AppLink("variable", {"column": view.name}, f"Open {view.name}")
         return ToolOutput(summary, content, link)
+
+    def _robust_and_tail(
+        self, ctx: ToolContext, column: str, profile: VariableProfile
+    ) -> dict[str, Any]:
+        """056: the robust center when outliers pull the mean, the right tail when it is heavy."""
+        assert profile.numeric is not None
+        found: dict[str, Any] = {}
+        robust = profile.numeric.robust
+        if robust is not None and robust.fires:
+            found["robust"] = {
+                "why": robust.reason,
+                "median": _r(robust.median),
+                "mad_sigma": _r(robust.mad_sigma),
+                "huber_center": _r(robust.huber_center),
+                "huber_scale": _r(robust.huber_scale),
+            }
+        rule = profile.numeric.tail_rule
+        if rule is None or not rule.fires:
+            return found
+        tail = self.services.variable.tail(ctx.dataset_id, column, ctx.conditions)
+        if tail.xi is None or tail.threshold is None:
+            return found
+        found["tail"] = {
+            "conclusion": tail.conclusion,
+            "xi": _r(tail.xi, 3),
+            "xi_95": [_r(tail.xi_low, 3), _r(tail.xi_high, 3)],
+            "threshold": _r(tail.threshold.value),
+            "exceedances": tail.threshold.exceedances,
+            "return_levels": [
+                {"one_in_rows": r.period, "value": _r(r.value), "ci_95": [_r(r.low), _r(r.high)]}
+                for r in tail.return_levels
+            ],
+            "var_es": [
+                {"level": r.level, "var": _r(r.var), "expected_shortfall": _r(r.es)}
+                for r in tail.risk
+            ],
+            "notes": tail.notes,
+        }
+        return found
 
     @staticmethod
     def _numeric(profile: VariableProfile) -> dict[str, Any]:

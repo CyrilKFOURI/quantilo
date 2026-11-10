@@ -44,6 +44,8 @@ type SidebarProps = {
 export function Sidebar({ collapsed, onToggle, modules, drawer = false, onNavigate }: SidebarProps) {
   const { datasetId } = useParams({ strict: false });
   const current = groupOf(useRouterState({ select: (state) => state.location.pathname }));
+  const datasetModules = modules.filter((module): module is DatasetModule => module.scope === "dataset" && module.section === "dataset");
+  const analyses = modules.filter((module) => module.nav !== false && module.section !== "dataset");
   return (
     <nav
       aria-label={t("nav.label")}
@@ -103,7 +105,15 @@ export function Sidebar({ collapsed, onToggle, modules, drawer = false, onNaviga
         </ul>
 
         <NavSection title={t("nav.section.dataset")} collapsed={collapsed}>
-          {DATASET_PAGES.map(({ labelKey, icon: Icon, group }) => (
+          {DATASET_PAGES.map(({ labelKey, icon: Icon, group }, index) => [
+            // 065: the dataset's own modules (Clean) come right under Overview
+            ...(index === 1
+              ? datasetModules.map((module) => (
+                  <li key={module.id}>
+                    <DatasetModuleLink module={module} datasetId={datasetId} collapsed={collapsed} active={false} />
+                  </li>
+                ))
+              : []),
             <li key={labelKey}>
               {datasetId ? (
                 <Link
@@ -129,13 +139,13 @@ export function Sidebar({ collapsed, onToggle, modules, drawer = false, onNaviga
                   {!collapsed && t(labelKey)}
                 </span>
               )}
-            </li>
-          ))}
+            </li>,
+          ])}
         </NavSection>
 
-        {modules.length > 0 && (
+        {analyses.length > 0 && (
           <NavSection title={t("nav.section.modules")} collapsed={collapsed}>
-            {modules.filter((module) => module.nav !== false).map((module) => (
+            {analyses.map((module) => (
               <li key={module.id}>
                 {module.scope === "global" ? (
                   <NavLink

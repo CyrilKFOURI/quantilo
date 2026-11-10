@@ -1,6 +1,6 @@
 import type { ExperimentDesign } from "./api";
 
-export type ExperimentsTab = "analyze" | "plan";
+export type ExperimentsTab = "analyze" | "plan" | "policies";
 
 /** URL of the Experiments page: the tab, the experiment described (as edited), or simple seeds
  *  from another page (Compare, the assistant): a variant, a metric and a unit. */
@@ -27,7 +27,7 @@ function isDesign(value: unknown): value is ExperimentDesign {
 
 export function validateExperimentsSearch(search: Record<string, unknown>): ExperimentsSearch {
   const result: ExperimentsSearch = {};
-  if (search.tab === "plan" || search.tab === "analyze") result.tab = search.tab;
+  if (search.tab === "plan" || search.tab === "analyze" || search.tab === "policies") result.tab = search.tab;
   if (isDesign(search.design)) result.design = search.design;
   const variant = text(search.variant);
   const metric = text(search.metric);

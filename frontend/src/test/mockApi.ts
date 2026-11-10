@@ -18,6 +18,7 @@ export function mockApi(routes: Routes) {
     const route = routes[key];
     const payload = typeof route === "function" ? (route as Handler)(body) : route;
     if (payload instanceof Error) throw payload;
+    if (payload instanceof Response) return payload;
     return Response.json(payload);
   });
   vi.stubGlobal("fetch", fetchMock);

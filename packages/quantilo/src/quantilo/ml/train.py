@@ -18,7 +18,7 @@ from statsmodels.stats.diagnostic import het_breuschpagan
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 from quantilo.ml import classes as binning
-from quantilo.ml import error_analysis, evaluate, steps
+from quantilo.ml import encoding, error_analysis, evaluate, steps
 from quantilo.ml import models as catalogue
 from quantilo.ml import panel as panels
 from quantilo.ml import preparation as prep
@@ -283,6 +283,47 @@ def panel_roles(validation: evaluate.Validation) -> dict[str, str]:
     return roles
 
 
+def target_folds(validation: evaluate.Validation) -> encoding.TargetFolds:
+    """How target encodings are cross-fitted under this validation (R-CAT-08)."""
+    return encoding.target_folds(
+        validation.method, validation.period_column, validation.group, validation.time_column
+    )
+
+
+GRAINS = [(1.5, "day", 7), (8.0, "week", 13), (32.0, "month", 12), (95.0, "quarter", 4)]
+
+
+def order_for(frame: pd.DataFrame, validation: evaluate.Validation) -> prep.Order | None:
+    """Ordered rows (panel walk-forward or time-based split): the period and entity a lag
+    follows, its shift (1 + the embargo) and its window by the grain of the period (R-LAG-01):
+    7 days, 13 weeks, 12 months, 4 quarters, 3 years, else 5 periods."""
+    if validation.panel and validation.period_column in frame.columns:
+        period, entity, embargo = (
+            validation.period_column,
+            validation.entity_column,
+            validation.embargo,
+        )
+    elif validation.method == "time_split" and validation.time_column in frame.columns:
+        period, entity, embargo = validation.time_column, None, 0
+    else:
+        return None
+    assert period is not None
+    grain, window = "period", 5
+    values = cast(pd.Series, frame[period])
+    if pd.api.types.is_datetime64_any_dtype(values):
+        moments = pd.Series(pd.to_datetime(values).dropna().unique()).sort_values()
+        gaps = moments.diff().dt.total_seconds().dropna() / 86_400
+        if len(gaps):
+            step = float(gaps.median())
+            grain, window = next(
+                ((name, size) for limit, name, size in GRAINS if step <= limit),
+                ("year", 3),
+            )
+            if step < 0.9:
+                grain, window = "period", 5
+    return prep.Order(period, entity, 1 + embargo, window, grain)
+
+
 def _counts(y: pd.Series) -> dict[str, int]:
     return {str(k): int(v) for k, v in y.value_counts().items()}
 
@@ -389,10 +430,15 @@ def _setup(
         choices,
         source_numeric=classes is not None,
         panel_columns=panel_roles(validation),
+        folds=target_folds(validation),
+        order=order_for(frame, validation),
     )
     if not preparation.used:
         raise TrainingError("No usable feature: every column was left out (see Preparation).")
-    features = [d.column for d in preparation.used]
+    if preparation.folds is not None:
+        preparation.fold_keys = encoding.fold_keys(frame, preparation.folds)
+    # a lag also reads the period and entity, which stay out of the inputs (R-SEL-09)
+    features = [d.column for d in preparation.used] + prep.context_columns(preparation)
     positions = np.arange(len(frame))
     periods = None
     if validation.panel:

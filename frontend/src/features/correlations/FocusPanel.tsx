@@ -11,6 +11,8 @@ import { EvidenceBadge, evidenceRank, type Evidence } from "./evidence";
 import { METRIC_LABELS } from "./figures";
 
 const SHOWN = 15;
+/** Targets the Regression tab can model: numbers and yes/no (068). */
+const MODELLED = new Set(["numeric_continuous", "numeric_discrete", "boolean"]);
 
 type FocusPanelProps = {
   datasetId: string;
@@ -63,6 +65,21 @@ export function FocusPanel({ datasetId, matrix, focus, onFocus, typeOf }: FocusP
           ))}
         </Select>
       </header>
+
+      {index >= 0 && MODELLED.has(matrix.columns[index]?.type ?? "") && (
+        <div className="border-b border-line px-4 py-2">
+          {/* 068: the regression of the focus on its strongest links (R-REG-21 picks them) */}
+          <Link
+            to={"/d/$datasetId/regression" as never}
+            params={{ datasetId } as never}
+            search={{ target: focus } as never}
+            className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+          >
+            {t("correlations.focusModel", { name: focus })}
+            <ArrowRight size={12} strokeWidth={1.75} aria-hidden />
+          </Link>
+        </div>
+      )}
 
       {index < 0 ? (
         <div className="flex flex-wrap gap-1.5 px-4 py-4">

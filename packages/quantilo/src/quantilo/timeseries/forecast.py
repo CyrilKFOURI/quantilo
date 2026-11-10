@@ -223,6 +223,33 @@ def theta(y: np.ndarray, h: int, season: int | None) -> Prediction:
     )
 
 
+# --- Structural model (Kalman, 064) -------------------------------------------------------------
+
+
+def structural(y: np.ndarray, h: int, season: int | None) -> Prediction:
+    """Unobserved components: local level or local linear trend, with a fixed seasonal pattern
+    over two full cycles, the form with the lowest AIC (`smoothing.kalman`); native intervals."""
+    from quantilo.timeseries import smoothing as sm
+
+    try:
+        fit = sm.kalman(y, season)
+    except sm.KalmanError as error:
+        raise ModelError(str(error)) from error
+    forecast = _quiet(lambda: fit.results.get_forecast(h))
+    mean = np.asarray(forecast.predicted_mean, dtype=float) * fit.scale + fit.center
+    i80 = np.asarray(forecast.conf_int(alpha=0.2), dtype=float) * fit.scale + fit.center
+    i95 = np.asarray(forecast.conf_int(alpha=0.05), dtype=float) * fit.scale + fit.center
+    return Prediction(
+        mean,
+        i80[:, 0],
+        i80[:, 1],
+        i95[:, 0],
+        i95[:, 1],
+        f"UCM({fit.label})",
+        (np.asarray(y, dtype=float) - fit.predicted)[fit.burn :],
+    )
+
+
 # --- ARIMA ---------------------------------------------------------------------------------------
 
 
@@ -739,6 +766,7 @@ MODELS: dict[str, Model] = {
     "theta": theta,
     "sarima": naive,  # replaced by sarima_manual(...) with the user's orders
     "tslm": linear_trend_season,
+    "structural": structural,
     "gbm_lags": _lag_model("gbm"),
     "mlp_lags": _lag_model("mlp"),
     "croston": croston,

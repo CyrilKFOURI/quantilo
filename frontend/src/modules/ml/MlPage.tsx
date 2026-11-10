@@ -18,6 +18,7 @@ import {
   useMlTrain,
 } from "../../api/hooks";
 import { formatNumber } from "../../charts/figures";
+import { DecisionsBanner } from "../../features/decisions/DecisionsBanner";
 import { t, type MessageKey } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
 import { ErrorNote, Select, TextInput } from "../../ui/fields";
@@ -62,6 +63,7 @@ export function MlPage() {
         <h1 className="text-xl font-semibold tracking-tight">{t("ml.title")}</h1>
         <p className="mt-1 text-ink-2">{t("ml.description")}</p>
       </header>
+      <DecisionsBanner datasetId={datasetId} ready={ready} />
       {targets.isError ? (
         <ErrorNote>{targets.error.message}</ErrorNote>
       ) : !targets.data ? (

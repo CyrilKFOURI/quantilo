@@ -219,3 +219,51 @@ label = "Address"
 names = ["address", "addresses", "adresse", "addr", "street", "street address", "address line",
          "adresse postale", "rue", "direccion", "dirección", "indirizzo", "anschrift", "strasse",
          "straße"]
+
+[[role]]
+id = "hour"
+label = "Hour of day"
+# a number that goes round (063, R-DATE-04): 23 h is next to 0 h. "hours" is a duration.
+names = ["hour", "heure", "hr", "hour of day", "heure du jour"]
+min = 0
+max = 23
+
+[[role]]
+id = "angle"
+label = "Angle"
+# a direction in degrees (063, R-DATE-04): 350 is next to 10.
+names = ["angle", "bearing", "heading", "azimuth", "azimut", "wind direction", "wind dir",
+         "direction du vent"]
+min = 0
+max = 360
+
+# --- 055: logged decisions (spec 055, R-PO1) ------------------------------------------------------
+# The decision taken for each unit and the probability it had of being taken: together with a
+# reward and covariates, they make a log of decisions that the Experiments page can evaluate.
+
+[[role]]
+id = "action"
+label = "Action"
+# no forced type: an action keeps the type its values give (categories, codes)
+names = ["action", "actions", "treatment", "treatments", "offer", "offers", "arm", "arms",
+         "campaign", "decision", "decisions", "chosen action", "action taken", "intervention"]
+
+[[role]]
+id = "propensity"
+label = "Propensity"
+names = ["propensity", "propensity score", "pscore", "p score", "p action", "action prob",
+         "action probability", "logging prob", "logging probability", "prob", "probability"]
+type = "numeric_continuous"
+min = 0
+max = 1
+
+[[role]]
+id = "weight"
+label = "Row weight"
+# how many units a row stands for (067, R-REG-SE-04: weighted least squares). Never "weight" alone:
+# that is a parcel's or a person's weight, a value to explain, not a weight of the row.
+names = ["sample weight", "sampling weight", "survey weight", "row weight", "obs weight",
+         "observation weight", "frequency weight", "pweight", "fweight", "aweight", "wgt",
+         "poids de sondage", "poids sondage", "ponderation", "pondération"]
+type = "numeric_continuous"
+min = 0

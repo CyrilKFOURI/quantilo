@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { GitCompareArrows, Pencil, RefreshCw, Trash2, X } from "lucide-react";
 import { useState } from "react";
@@ -7,8 +8,10 @@ import { useDeleteDataset, useReimportDataset, useRenameDataset } from "../../ap
 import { formatBytes, formatCount, formatRelativeTime } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
+import { cleanKeys, useLineage } from "../../modules/clean/api";
+import { groupFamilies, type FamilyRow } from "../../modules/clean/lineage";
 import { Dialog } from "../../ui/Dialog";
-import { ErrorNote, TextInput } from "../../ui/fields";
+import { Checkbox, ErrorNote, TextInput } from "../../ui/fields";
 import { StatusBadge } from "./StatusBadge";
 
 /** Of two datasets, the one imported last is the new version; the other is the reference. */
@@ -18,7 +21,11 @@ export function versionsOrder(first: Dataset, second: Dataset): [Dataset, Datase
 }
 
 export function DatasetList({ datasets }: { datasets: Dataset[] }) {
-  const [deleting, setDeleting] = useState<Dataset | null>(null);
+  const [deleting, setDeleting] = useState<FamilyRow | null>(null);
+  const [withVersions, setWithVersions] = useState(false);
+  // 065: each original followed by its cleaned versions, indented
+  const rows = groupFamilies(datasets, useLineage());
+  const client = useQueryClient();
   const [selected, setSelected] = useState<string[]>([]);
   const navigate = useNavigate();
   const chosen = datasets.filter((dataset) => selected.includes(dataset.id) && dataset.status === "ready");
@@ -35,7 +42,15 @@ export function DatasetList({ datasets }: { datasets: Dataset[] }) {
   const reimport = useReimportDataset();
   const error = remove.error ?? reimport.error;
   // Deleting a dataset that is still importing cancels its import.
-  const cancelling = deleting?.status === "importing";
+  const cancelling = deleting?.dataset.status === "importing";
+  const versions = deleting?.children ?? [];
+  const confirmDelete = (row: FamilyRow) => {
+    const doomed = [row.dataset, ...(withVersions ? row.children : [])];
+    void Promise.all(doomed.map((dataset) => remove.mutateAsync(dataset.id))).then(() => {
+      setDeleting(null);
+      void client.invalidateQueries({ queryKey: cleanKeys.lineage });
+    });
+  };
 
   return (
     <section>
@@ -72,14 +87,18 @@ export function DatasetList({ datasets }: { datasets: Dataset[] }) {
             </tr>
           </thead>
           <tbody>
-            {datasets.map((dataset) => (
+            {rows.map((row) => (
               <DatasetRow
-                key={dataset.id}
-                dataset={dataset}
-                checked={selected.includes(dataset.id)}
-                onToggle={() => toggle(dataset.id)}
-                onDelete={() => setDeleting(dataset)}
-                onReimport={() => reimport.mutate(dataset.id)}
+                key={row.dataset.id}
+                dataset={row.dataset}
+                version={row.version}
+                checked={selected.includes(row.dataset.id)}
+                onToggle={() => toggle(row.dataset.id)}
+                onDelete={() => {
+                  setWithVersions(false);
+                  setDeleting(row);
+                }}
+                onReimport={() => reimport.mutate(row.dataset.id)}
               />
             ))}
           </tbody>
@@ -90,7 +109,7 @@ export function DatasetList({ datasets }: { datasets: Dataset[] }) {
         <Dialog
           open
           onOpenChange={(open) => !open && setDeleting(null)}
-          title={t(cancelling ? "datasets.cancelImportTitle" : "datasets.deleteTitle", { name: deleting.name })}
+          title={t(cancelling ? "datasets.cancelImportTitle" : "datasets.deleteTitle", { name: deleting.dataset.name })}
           size="sm"
           footer={
             <>
@@ -100,7 +119,7 @@ export function DatasetList({ datasets }: { datasets: Dataset[] }) {
               <Button
                 variant="danger"
                 disabled={remove.isPending}
-                onClick={() => remove.mutate(deleting.id, { onSuccess: () => setDeleting(null) })}
+                onClick={() => confirmDelete(deleting)}
               >
                 {t(cancelling ? "datasets.cancelImport" : "datasets.delete")}
               </Button>
@@ -108,6 +127,14 @@ export function DatasetList({ datasets }: { datasets: Dataset[] }) {
           }
         >
           <p className="text-ink-2">{t(cancelling ? "datasets.cancelImportBody" : "datasets.deleteBody")}</p>
+          {versions.length > 0 && (
+            <Checkbox
+              className="mt-3 text-[13px] text-ink-1"
+              checked={withVersions}
+              onChange={(event) => setWithVersions(event.target.checked)}
+              label={versions.length === 1 ? t("clean.home.alsoDeleteOne") : t("clean.home.alsoDelete", { count: String(versions.length) })}
+            />
+          )}
         </Dialog>
       )}
     </section>
@@ -116,12 +143,15 @@ export function DatasetList({ datasets }: { datasets: Dataset[] }) {
 
 function DatasetRow({
   dataset,
+  version,
   checked,
   onToggle,
   onDelete,
   onReimport,
 }: {
   dataset: Dataset;
+  /** 065: a cleaned version, shown indented under its original. */
+  version?: FamilyRow["version"];
   checked: boolean;
   onToggle: () => void;
   onDelete: () => void;
@@ -149,7 +179,7 @@ function DatasetRow({
           aria-label={t("changes.selectDataset", { name: dataset.name })}
         />
       </td>
-      <td className="max-w-0 px-3 py-2">
+      <td className={`max-w-0 py-2 pr-3 ${version ? "pl-8" : "pl-3"}`}>
         {editing ? (
           <form
             onSubmit={(event) => {
@@ -180,9 +210,22 @@ function DatasetRow({
             ) : (
               <span className="block truncate font-medium text-ink-2">{dataset.name}</span>
             )}
-            <span className="block truncate font-mono text-[11px] text-ink-3" title={dataset.source_path}>
-              {dataset.source_path}
-            </span>
+            {version ? (
+              <span className="block truncate text-[11px] text-ink-3">
+                {[
+                  t("clean.home.version", { seq: String(version.seq) }),
+                  version.origin === "auto" && t("clean.versions.auto"),
+                  version.latest && t("clean.versions.latest"),
+                  version.outOfDate && t("clean.versions.outOfDate"),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            ) : (
+              <span className="block truncate font-mono text-[11px] text-ink-3" title={dataset.source_path}>
+                {dataset.source_path}
+              </span>
+            )}
             <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-ink-2 tabular-nums md:hidden">
               <span>
                 {formatCount(dataset.row_count)} × {formatCount(dataset.col_count)}

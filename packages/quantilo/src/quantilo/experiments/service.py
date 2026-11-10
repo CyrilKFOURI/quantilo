@@ -4,14 +4,18 @@ active filters (results cached in memory), a metric's current value for planning
 import json
 import re
 from collections import OrderedDict
-from dataclasses import dataclass
-from typing import Any, Literal
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING, Any, Literal
 
 import duckdb
+import numpy as np
+import pandas as pd
 
 from quantilo.catalog import Catalog, ColumnView
 from quantilo.compare.analyze import label_sql, number_label_sql, number_sql
 from quantilo.errors import ColumnNotFound
+from quantilo.experiments import decisions as dec
+from quantilo.experiments import policy_offer as po
 from quantilo.experiments.analyze import (
     MAX_LEVELS,
     MIN_LEVELS,
@@ -32,8 +36,15 @@ from quantilo.experiments.bandit import BanditSimulation, simulate
 from quantilo.experiments.plan import SampleSize, SampleSizeRequest, sample_size
 from quantilo.filters.model import Condition, filters_key
 from quantilo.filters.scope import scoped_source, where_for
+from quantilo.ml import data as ml_data
+from quantilo.ml.data import CATEGORICAL, NUMERIC
+from quantilo.ml.data import Field as DataField
 from quantilo.typing.parsers import typed_sql
 from quantilo.typing.types import KEY_ROLES, NUMERIC_TYPES
+
+if TYPE_CHECKING:  # scikit-learn loads on first use, not with `import quantilo`
+    from quantilo.experiments import offpolicy as op
+    from quantilo.experiments import policy as pl
 
 CACHE_SIZE = 16
 MAX_SEGMENT_LEVELS = 20
@@ -45,6 +56,17 @@ UNIT_HINT = re.compile(
 )
 LEVEL_TYPES = ("categorical_nominal", "categorical_ordinal", "boolean", "numeric_discrete", "text")
 UNIT_TYPES = ("identifier", "numeric_discrete", "categorical_nominal", "text")
+COVARIATE_TYPES = NUMERIC | CATEGORICAL
+PROPENSITY_HINT = re.compile(r"propens|pscore|prob|p_action|logging", re.I)
+
+
+@dataclass
+class PolicyModel:
+    """A saved ML model (037) evaluated as a policy: its name, fitted pipeline and model card."""
+
+    label: str
+    pipeline: Any
+    card: Any  # quantilo.ml.predict.ModelCard
 
 
 @dataclass
@@ -134,9 +156,13 @@ class ExperimentEngine:
     def __init__(self, columns: Catalog) -> None:
         self.columns = columns
         self._cache: OrderedDict[tuple[Any, ...], ExperimentResult] = OrderedDict()
+        self._policies: OrderedDict[tuple[Any, ...], tuple[pl.PolicyScores, pl.PolicyLearning]] = (
+            OrderedDict()
+        )
 
     def clear(self) -> None:
         self._cache.clear()
+        self._policies.clear()
 
     def _views(self, dataset_id: str) -> dict[str, ColumnView]:
         return {v.name: v for v in self.columns.columns(dataset_id) if not v.excluded}
@@ -311,6 +337,7 @@ class ExperimentEngine:
             else None
         )
         result = analyze(frame, design, inputs, repeated)
+        result.policy_offer = self._policy_offer(views, result, taken)
         self._cache[key] = result
         if len(self._cache) > CACHE_SIZE:
             self._cache.popitem(last=False)
@@ -351,3 +378,374 @@ class ExperimentEngine:
     @staticmethod
     def bandit_simulation(request: SampleSizeRequest) -> BanditSimulation:
         return simulate(request)
+
+    # --- Who should get which variant (055 § B) -----------------------------------------------
+
+    @staticmethod
+    def _covariate_candidates(views: list[ColumnView], taken: set[str]) -> list[str]:
+        """Columns that may describe a unit: numbers, categories and yes/no, not a key, with at
+        least two values (the preparation rules decide once the data is read)."""
+        return [
+            v.name
+            for v in sorted(views, key=lambda v: v.position)
+            if v.name not in taken
+            and v.type in COVARIATE_TYPES
+            and v.role not in KEY_ROLES
+            and (_distinct(v) or 2) >= 2
+        ]
+
+    def _policy_offer(
+        self, views: dict[str, ColumnView], result: ExperimentResult, taken: set[str]
+    ) -> po.PolicyOffer:
+        primary = next(m for m in result.metrics if m.primary)
+        candidates = self._covariate_candidates(list(views.values()), taken)
+        units = {v.label: v.units for v in result.variants}
+        return po.offer(primary.kind, candidates, units)
+
+    def policy(
+        self,
+        dataset_id: str,
+        design: ExperimentDesign,
+        covariates: list[str] | None,
+        conditions: list[Condition],
+        qini: bool = False,
+    ) -> "pl.PolicyLearning":
+        """Who should get which variant (R-PL1 to R-PL8), on the experiment as analyzed: the
+        same units, the same primary metric. `qini`: add the Qini curve ("Advanced › More"),
+        from the scores kept in memory, without a new cross-fitting."""
+        from quantilo.experiments import policy as pl
+
+        result = self.analyze(dataset_id, design, conditions)
+        offer = result.policy_offer
+        if offer is None or not offer.available:
+            raise ExperimentError((offer.reason if offer else None) or "Not available.", "policy")
+        resolved = result.design
+        chosen = list(covariates) if covariates is not None else offer.covariates
+        unknown = [name for name in chosen if name not in offer.covariates]
+        if unknown:
+            raise ExperimentError(
+                f"{', '.join(unknown)} cannot describe the units here (a key, a date, a column "
+                "of the experiment itself, or a type that is not used).",
+                "covariates",
+            )
+        dataset = self.columns.ready(dataset_id)
+        key = (
+            dataset_id,
+            dataset.imported_at,
+            json.dumps(resolved.model_dump(mode="json"), sort_keys=True),
+            tuple(chosen),
+            filters_key(conditions),
+        )
+        if key in self._policies:
+            self._policies.move_to_end(key)
+            return self._with_qini(key, qini)
+        views = self._views(dataset_id)
+        metric = next(m for m in resolved.metrics if m.column == resolved.primary)
+        fields = [self._field(self._view(views, name)) for name in chosen]
+        selected = [
+            f"{level_sql(self._view(views, resolved.variant))} AS {VARIANT}",
+            f"{value_sql(self._view(views, metric.column))} AS {po.VALUE}",
+            *(f"{ml_data._expression(f)} AS c{i}" for i, f in enumerate(fields)),
+        ]
+        if resolved.unit:
+            selected.append(f"{level_sql(self._view(views, resolved.unit))} AS {UNIT}")
+        connection = duckdb.connect()
+        try:
+            source = scoped_source(
+                dataset.storage_path, where_for(list(views.values()), conditions), numbered=True
+            )
+            frame = connection.execute(
+                f"SELECT * FROM (SELECT {', '.join(selected)}, file_row_number FROM {source}) "
+                f"WHERE {VARIANT} IS NOT NULL ORDER BY file_row_number"
+            ).df()
+        finally:
+            connection.close()
+        frame = _typed(
+            frame.rename(columns={f"c{i}": f.name for i, f in enumerate(fields)}), fields
+        )
+        if resolved.unit:
+            frame = _units(frame, fields, metric.kind == "rate")
+        frame, sampled = _sample_by_variant(frame)
+        order = [v.label for v in result.variants]
+        kind: Literal["rate", "mean", "count"] = (
+            "mean" if metric.kind not in ("rate", "count") else metric.kind
+        )
+        found = pl.scores(frame, fields, kind, order)
+        if isinstance(found, pl.PolicyUnavailable):
+            raise ExperimentError(found.reason, "policy")
+        learnt = pl.learn_scores(found, metric.column, sampled, resolved.alpha)
+        self._policies[key] = (found, learnt)
+        if len(self._policies) > CACHE_SIZE:
+            self._policies.popitem(last=False)
+        return self._with_qini(key, qini)
+
+    def _with_qini(self, key: tuple[Any, ...], qini: bool) -> "pl.PolicyLearning":
+        from quantilo.experiments import policy as pl
+
+        found, learnt = self._policies[key]
+        if not qini:
+            return learnt
+        return replace(learnt, qini=pl.qini_curves(found))
+
+    @staticmethod
+    def _field(view: ColumnView) -> DataField:
+        return DataField(view.name, view.type, view.parser, view.role, view.order)
+
+    # --- Evaluate a policy from logged decisions (055 § C) ------------------------------------
+
+    def decisions(self, dataset_id: str, conditions: list[Condition]) -> dec.LoggedDecisions:
+        """R-PO1: does the dataset look like a log of decisions (an action, its reward,
+        covariates, optionally the propensity)?"""
+        dataset = self.columns.ready(dataset_id)
+        views = self._views(dataset_id)
+        ordered = sorted(views.values(), key=lambda v: v.position)
+        levels = {v.name: _distinct(v) or 0 for v in ordered}
+        maybe = [
+            v
+            for v in ordered
+            if v.type in NUMERIC_TYPES
+            and (v.role == dec.PROPENSITY_ROLE or PROPENSITY_HINT.search(v.name))
+        ]
+        valid: set[str] = set()
+        connection = duckdb.connect()
+        try:
+            source = scoped_source(
+                dataset.storage_path, where_for(list(views.values()), conditions)
+            )
+            for view in maybe:
+                number = number_sql(view)
+                low, high = connection.execute(
+                    f"SELECT min({number}), max({number}) FROM {source}"
+                ).fetchone() or (None, None)
+                if low is not None and high is not None and low > 0 and high <= 1:
+                    valid.add(view.name)
+            found = dec.detect(ordered, levels, valid)
+            if found.action:
+                view = views[found.action]
+                rows = connection.execute(
+                    f"SELECT DISTINCT l FROM (SELECT {level_sql(view)} AS l FROM {source}) "
+                    "WHERE l IS NOT NULL ORDER BY l LIMIT 11"
+                ).fetchall()
+                found.actions = [str(level) for (level,) in rows]
+        finally:
+            connection.close()
+        return found
+
+    def evaluate_policy(
+        self,
+        dataset_id: str,
+        request: dec.DecisionsRequest,
+        conditions: list[Condition],
+        models: list[PolicyModel] | None = None,
+    ) -> "op.PolicyEvaluation":
+        """R-PO2 to R-PO6: diagnostics, then DM, IPS, SNIPS and DR for the logged decisions,
+        every constant policy, the learnt rule and each saved model."""
+        from quantilo.experiments import offpolicy as op
+
+        dataset = self.columns.ready(dataset_id)
+        views = self._views(dataset_id)
+        action = self._view(views, request.action)
+        reward = self._view(views, request.reward)
+        if request.action == request.reward:
+            raise ExperimentError("The action and the reward must be two columns.", "reward")
+        taken = {name for name in (request.action, request.reward, request.propensity) if name}
+        candidates = self._covariate_candidates(list(views.values()), taken)
+        chosen = list(request.covariates) if request.covariates is not None else candidates
+        unknown = [name for name in chosen if name not in candidates]
+        if unknown:
+            raise ExperimentError(
+                f"{', '.join(unknown)} cannot describe the units here.", "covariates"
+            )
+        fields = [self._field(self._view(views, name)) for name in chosen]
+        selected = [
+            f"{level_sql(action)} AS {dec.ACTION}",
+            f"{value_sql(reward)} AS {dec.REWARD}",
+            *(f"{ml_data._expression(f)} AS c{i}" for i, f in enumerate(fields)),
+        ]
+        if request.propensity:
+            propensity = self._view(views, request.propensity)
+            if propensity.type not in NUMERIC_TYPES:
+                raise ExperimentError(f"{propensity.name} is not a number.", "propensity")
+            selected.append(f"{number_sql(propensity)} AS {dec.PROPENSITY}")
+        connection = duckdb.connect()
+        try:
+            source = scoped_source(
+                dataset.storage_path, where_for(list(views.values()), conditions), numbered=True
+            )
+            frame = connection.execute(
+                f"SELECT * FROM (SELECT {', '.join(selected)}, file_row_number AS __row "
+                f"FROM {source}) WHERE {dec.ACTION} IS NOT NULL AND {dec.REWARD} IS NOT NULL "
+                "ORDER BY __row"
+            ).df()
+            frame = _typed(
+                frame.rename(columns={f"c{i}": f.name for i, f in enumerate(fields)}), fields
+            )
+            dropped = 0
+            if request.propensity:
+                p: Any = pd.Series(pd.to_numeric(frame[dec.PROPENSITY], errors="coerce"))
+                ok = p.gt(0) & p.le(1)
+                dropped = int((~ok).sum())
+                frame = frame[ok].reset_index(drop=True)
+            frame, sampled = _sample(frame)
+            extra, skipped = _model_policies(
+                connection, source, list(views.values()), frame, request, models or []
+            )
+        finally:
+            connection.close()
+        evaluated = op.evaluate(
+            frame,
+            fields,
+            request.action,
+            request.reward,
+            bool(request.propensity),
+            sampled,
+            extra,
+            skipped,
+            dropped,
+            request.alpha,
+            request.learn,
+        )
+        if isinstance(evaluated, op.EvaluationUnavailable):
+            raise ExperimentError(evaluated.reason, "action")
+        return evaluated
+
+
+def _model_policies(
+    connection: duckdb.DuckDBPyConnection,
+    source: str,
+    views: list[ColumnView],
+    frame: Any,
+    request: dec.DecisionsRequest,
+    models: list[PolicyModel],
+) -> "tuple[list[op.CandidatePolicy], list[str]]":
+    """Each saved model as a policy on the rows of the log (R-PO5), or why it cannot be one."""
+    if not models:
+        return [], []
+    from quantilo.experiments import offpolicy as op
+    from quantilo.ml import predict as use
+
+    actions = sorted(frame[dec.ACTION].dropna().astype(str).unique())
+    names = {v.name for v in views}
+    connection.register("__policy_rows", pd.DataFrame({"r": frame["__row"].to_numpy()}))
+    extra: list[op.CandidatePolicy] = []
+    skipped: list[str] = []
+    try:
+        for i, model in enumerate(models):
+            card = model.card
+            inputs = [c.name for c in card.columns]
+            missing = [name for name in inputs if name not in names]
+            if missing:
+                skipped.append(f"{model.label}: the log has no {', '.join(missing[:3])}.")
+                continue
+            rows = use.read_rows(
+                connection,
+                source,
+                card,
+                views,
+                where="WHERE file_row_number IN (SELECT r FROM __policy_rows)",
+            )
+            rows = rows.set_index("__row").reindex(frame["__row"].to_numpy()).reset_index(drop=True)
+            numeric = {c.name for c in card.columns if c.type in NUMERIC}
+
+            def predict(
+                data: pd.DataFrame,
+                card: Any = card,
+                pipeline: Any = model.pipeline,
+                numeric: set[str] = numeric,
+            ) -> Any:
+                x = data[[c.name for c in card.columns]].copy()
+                for name in numeric:
+                    x[name] = pd.Series(pd.to_numeric(x[name], errors="coerce"), dtype=float)
+                if card.task == "regression":
+                    return pipeline.predict(x)
+                return pipeline.predict_proba(x)
+
+            try:
+                probabilities = op.model_policy(
+                    predict,
+                    card.task,
+                    card.target.name,
+                    [str(label) for label in card.labels],
+                    card.positive,
+                    inputs,
+                    rows,
+                    request.action,
+                    actions,
+                    request.reward,
+                )
+            except ValueError as error:
+                skipped.append(f"{model.label}: {error}")
+                continue
+            how = (
+                f"the action {model.label} predicts"
+                if card.target.name == request.action
+                else f"the action that maximizes {model.label}'s predicted {request.reward}"
+            )
+            extra.append(
+                op.CandidatePolicy(
+                    f"model:{i}", model.label, f"For each unit, {how}.", probabilities
+                )
+            )
+    finally:
+        connection.unregister("__policy_rows")
+    return extra, skipped
+
+
+def _typed(frame: Any, fields: list[DataField]) -> Any:
+    """Numbers as floats, as `ml_data.load` reads them."""
+    for f in fields:
+        if f.type in NUMERIC and f.name in frame:
+            frame[f.name] = pd.Series(pd.to_numeric(frame[f.name], errors="coerce"), dtype=float)
+    return frame
+
+
+def _units(frame: Any, fields: list[DataField], rate: bool) -> Any:
+    """One row per unit, as the analysis (R-PL3): a unit seen in two variants is left out; the
+    metric is 1 if any row is (a rate), else summed; each covariate keeps the first value."""
+    frame = frame[frame[UNIT].notna()]
+    mixed = frame.groupby(UNIT, observed=True)[VARIANT].nunique()
+    frame = frame[~frame[UNIT].isin(mixed[mixed > 1].index)]
+    rules: dict[str, str] = {VARIANT: "first", po.VALUE: "max" if rate else "sum"}
+    rules.update({f.name: "first" for f in fields})
+    grouped = frame.groupby(UNIT, sort=False, observed=True)
+    out = grouped.agg(rules)
+    out.loc[grouped[po.VALUE].count() == 0, po.VALUE] = np.nan
+    return out.reset_index(drop=True)
+
+
+def _sample(frame: Any) -> tuple[Any, bool]:
+    """At most MAX_UNITS rows, drawn reproducibly (R-PC6), kept in file order."""
+    from quantilo.experiments import policy_core as core
+
+    if len(frame) <= core.MAX_UNITS:
+        return frame.reset_index(drop=True), False
+    rng = np.random.default_rng(core.SEED)
+    keep = np.sort(rng.choice(len(frame), core.MAX_UNITS, replace=False))
+    return frame.iloc[keep].reset_index(drop=True), True
+
+
+def _sample_by_variant(frame: Any) -> tuple[Any, bool]:
+    """At most MAX_UNITS units of a randomized test, small variants kept whole (R-PC6): each
+    variant gets an equal share of the room, a smaller one gives what it does not use to the
+    others. A random part of each variant keeps the units' profile, so the observed shares stay
+    the propensities."""
+    from quantilo.experiments import policy_core as core
+
+    if len(frame) <= core.MAX_UNITS:
+        return frame.reset_index(drop=True), False
+    sizes = frame[VARIANT].value_counts().sort_values()
+    room, left = core.MAX_UNITS, len(sizes)
+    quota: dict[Any, int] = {}
+    for label, size in sizes.items():
+        quota[label] = min(int(size), room // left)
+        room -= quota[label]
+        left -= 1
+    rng = np.random.default_rng(core.SEED)
+    keep: list[int] = []
+    labels = frame[VARIANT].to_numpy()
+    for label, count in quota.items():
+        rows = np.flatnonzero(labels == label)
+        keep += (
+            rng.choice(rows, count, replace=False).tolist() if count < len(rows) else rows.tolist()
+        )
+    return frame.iloc[np.sort(np.array(keep))].reset_index(drop=True), True

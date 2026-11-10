@@ -10,6 +10,7 @@ import type {
   SeriesDecomposition,
   SeriesOverview,
   SeriesSeasonality,
+  SeriesSmoothing,
 } from "../../api/client";
 import { useDataset, useSeriesSection } from "../../api/hooks";
 import { Plot } from "../../charts/Plot";
@@ -38,8 +39,9 @@ import {
 } from "./Memory";
 import { ForecastSection } from "./Forecast";
 import { MethodsRow, MethodsTable, useMethods } from "./Methods";
-import { RollingControls } from "./RollingControls";
+import { RollingControls, type Layers } from "./RollingControls";
 import { SavedAnalyses } from "./SavedAnalyses";
+import { SmoothRow } from "./Smooth";
 import { parseWindows, rolling } from "./Windows";
 import {
   BreaksBody,
@@ -55,6 +57,7 @@ import {
   GAPS,
   PERIODS,
   seriesParams,
+  smoothParams,
   type TimeSeriesSearch,
 } from "./search";
 import { Loading } from "../../ui/Loading";
@@ -140,6 +143,19 @@ export function TimeSeriesPage() {
     ready,
   );
   const okay = Boolean(overview.data);
+  // Smooth row (064): only the ticked methods are computed; without any, the call returns the
+  // suggestions (rules, no model fit), so nothing slow runs when the page opens.
+  const [smoothMethods, setSmoothMethods] = useMethods("smooth");
+  const smoothing = useSeriesSection<SeriesSmoothing>(
+    datasetId,
+    "smoothing",
+    params,
+    {
+      methods: smoothMethods.filter((key) => key !== "moving_average").join(","),
+      ...smoothParams(search),
+    },
+    ready && okay,
+  );
   const seasonality = useSeriesSection<SeriesSeasonality>(
     datasetId,
     "seasonality",
@@ -304,6 +320,10 @@ export function TimeSeriesPage() {
                 onChange={set}
                 methods={trendMethods}
                 onMethods={setTrendMethods}
+                smoothing={smoothing.data}
+                smoothError={smoothing.isError ? (smoothing.error?.message ?? "") : null}
+                smoothMethods={smoothMethods}
+                onSmoothMethods={setSmoothMethods}
               />
               <Section
                 id="seasonality"
@@ -631,18 +651,40 @@ function ConfigBar({
     )}
     </>
   );
+  const empty = data.figures.missing;
   const note = (
-    <p className="mt-1 text-xs text-ink-3">
-      {t("ts.rows", {
-        rows: formatCount(setup.rows),
-        total: formatCount(setup.total),
-        periods: formatCount(setup.periods),
-        period: periodName(setup.period),
-      })}
-      {setup.coarsened
-        ? ` · ${t("time.coarsened", { period: periodName(setup.period) })}`
-        : ""}
-    </p>
+    <>
+      <p className="mt-1 text-xs text-ink-3">
+        {t("ts.rows", {
+          rows: formatCount(setup.rows),
+          total: formatCount(setup.total),
+          periods: formatCount(setup.periods),
+          period: periodName(setup.period),
+        })}
+        {setup.coarsened
+          ? ` · ${t("time.coarsened", { period: periodName(setup.period) })}`
+          : ""}
+      </p>
+      {setup.gaps === "leave" && empty > 0 && (
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-ink-2">
+          {t("ts.gaps.suggest", { count: formatCount(empty) })}
+          <button
+            type="button"
+            onClick={() => onChange({ gaps: "kalman" })}
+            className="inline-flex h-6 items-center rounded-full px-2 text-accent hover:bg-accent-soft"
+          >
+            {t("ts.gaps.useKalman")}
+          </button>
+        </p>
+      )}
+      {setup.gaps === "kalman" && data.analyzed.filled_by && (
+        <p className="mt-1 text-xs text-ink-3">
+          {t(setup.group ? "ts.gaps.filledByGroups" : "ts.gaps.filledBy", {
+            how: data.analyzed.filled_by,
+          })}
+        </p>
+      )}
+    </>
   );
   if (phone) {
     // 041: on a phone the settings fold into one line, so the analysis keeps the screen.
@@ -748,18 +790,32 @@ function OverviewSection({
   onChange,
   methods,
   onMethods,
+  smoothing,
+  smoothError,
+  smoothMethods,
+  onSmoothMethods,
 }: {
   data: SeriesOverview;
   search: TimeSeriesSearch;
   onChange: (patch: Partial<TimeSeriesSearch>) => void;
   methods: string[];
   onMethods: (keys: string[]) => void;
+  smoothing: SeriesSmoothing | undefined;
+  smoothError: string | null;
+  smoothMethods: string[];
+  onSmoothMethods: (keys: string[]) => void;
 }) {
-  const [layers, setLayers] = useState({
+  const [chosenLayers, setLayers] = useState<Layers>({
     values: true,
     mean: true,
     band: true,
+    bands: true,
   });
+  const average = smoothMethods.includes("moving_average");
+  const layers = useMemo(
+    () => (average ? chosenLayers : { ...chosenLayers, mean: false, band: false }),
+    [average, chosenLayers],
+  );
   const setup = data.setup;
   const what = valueLabel(data);
   const rolled = data.window
@@ -771,6 +827,22 @@ function OverviewSection({
   const showAll = Boolean(search.all);
   const windows = parseWindows(search.windows ?? (search.window ? String(search.window) : undefined));
   const extraKey = windows.slice(1).join(",");
+  const smoothed = useMemo(
+    () =>
+      (smoothing?.curves ?? [])
+        .filter((curve) => curve.key !== "moving_average" && smoothMethods.includes(curve.key))
+        .map((curve, i) => ({
+          name: t(`tsm.${curve.key}` as MessageKey),
+          values: curve.values,
+          low: curve.low,
+          high: curve.high,
+          color: Math.max(windows.length, 1) + 1 + i,
+        })),
+    [smoothing, smoothMethods, windows.length],
+  );
+  const hasBands =
+    smoothed.some((curve) => curve.low.some((v) => v !== null)) ||
+    (data.analyzed.filled_low ?? []).some((v) => v !== null);
   const figure = useMemo(() => {
     const others = showAll
       ? data.lines.filter((line) => line.label !== data.analyzed.label)
@@ -790,8 +862,10 @@ function OverviewSection({
           period: periodName(setup.period),
         }).replace(" ± 1σ", ""),
       })),
+      smoothed,
+      t("ts.gaps.filled"),
     );
-  }, [data, showAll, layers, what, rolled, extraKey, setup.period]);
+  }, [data, showAll, layers, what, rolled, extraKey, setup.period, smoothed]);
   const figures = data.figures;
   const unit = t("ts.perPeriod", { period: periodName(setup.period) });
   return (
@@ -833,6 +907,19 @@ function OverviewSection({
               }
               onAlign={(next) => onChange({ align: next === "centered" ? "centered" : undefined })}
               onLayers={setLayers}
+              average={average}
+              hasBands={hasBands}
+              smooth={
+                <SmoothRow
+                  chosen={smoothMethods}
+                  onChosen={onSmoothMethods}
+                  data={smoothing}
+                  failed={smoothError}
+                  align={data.align}
+                  search={search}
+                  onChange={onChange}
+                />
+              }
             />
           )}
           {setup.group && (

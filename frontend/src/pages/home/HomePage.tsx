@@ -2,6 +2,7 @@ import { useDatasets } from "../../api/hooks";
 import { DatasetList } from "../../features/datasets/DatasetList";
 import { HealthIndicator } from "../../features/health/HealthIndicator";
 import { ImportPanel } from "../../features/import/ImportPanel";
+import { LegalLinks } from "../../features/legal/LegalLinks";
 import { t } from "../../lib/i18n";
 import { ErrorNote } from "../../ui/fields";
 import { PageHeader } from "../../ui/PageHeader";
@@ -16,8 +17,9 @@ export function HomePage() {
       <ImportPanel compact={hasDatasets} />
       {datasets.isError && <ErrorNote>{datasets.error.message}</ErrorNote>}
       {hasDatasets && datasets.data && <DatasetList datasets={datasets.data} />}
-      <div className="mt-auto">
+      <div className="mt-auto space-y-3">
         <HealthIndicator />
+        <LegalLinks statement />
       </div>
     </div>
   );

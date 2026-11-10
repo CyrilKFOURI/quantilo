@@ -1,0 +1,408 @@
+order_id,customer_id,description,city,product,brand,title,status,region,price,weight,income,age,quantity,signup_date,end_date,zip_code,is_member,newsletter,country,empty_col,notes,score,category,sku
+O00001,17407.0,BIG SPOON,Berlin,Spoon,Nestlé,Simple Title,delivered,South,$1684.94,6.0,37655.0,35,11,05/12/2021,2022-12-05,58033,0,Yes,FR,,Arrived late.,4.8,Technology,SKU-3505
+O00002,17887.0,  GREEN   CUP ,New York,Bowl,Häagen,Rock &#39;n&#39; Roll,#N/A,West,$1549.88,22.3,33473.85,56,9,2023-10-12,2024-10-12,18570,N,Yes,FR,,Great value for money!,1.3,Office,SKU-8068
+O00003,17271.0,RED PLATE,Madrid,Bowl,Café Noir,Fish & Chips,pending,East,2494.86,25.9,45596.19,20,2,2023-06-26,2024-06-26,44750,yes,Yes,FR,,Would buy again.,7.9,Office,SKU-4937
+O00004,17702.0,WHITE MUG,London,Plate,Plain Brand,Fish &amp; Chips,delivered,West,666.83,15.8,31449.1,51,5,24/06/2019,2020-06-24,31235,N,Yes,FR,,Arrived late.,0.8,Technology,SKU-9778
+O00005,17493.0,WHITE MUG,madrid,Mug,Plain Brand,Fish &amp; Chips,shipped,West,$2655.80,11.0,26893.26,45,3,22/03/2022,2023-03-22,28987,no,No,FR,,Would buy again.,8.6,Furniture,SKU-5151
+O00006,17153.0,  WHITE   MUG ,Paris,Plate,Plain Brand,Tom & Jerry,shipped,East,2291.09,23.3,40951.5,39,12,43836,2020-11-02,28643,0,Yes,FR,,Arrived late.,2.1,Technology,SKU-3649
+O00007,17785.0,BIG SPOON,Madrid,Plate,Nestlé,Simple Title,pending,North,2310.51,28.4,49394.79,20,5,2023-05-18,2024-05-18,83222,N,Yes,FR,,Would buy again.,4.4,Technology,SKU-2304
+O00008,17452.0,WHITE MUG,London,Spoon,Häagen,Simple Title,shipped,South,202.14,11.8,37994.84,37,5,02/11/2022,2023-11-02,97028,yes,No,FR,,Great value for money!,4.4,Technology,SKU-2835
+O00009,17077.0,WHITE MUG,New York,Cup,Nestlé,Rock 'n' Roll,pending,North,1917.88,6.8,21908.72,41,9,2020-05-05,2021-05-05,22987,0,Yes,FR,,Great value for money!,0.3,Technology,SKU-2907
+O00010,17698.0,WHITE MUG,Paris,Spoon,Crème Brûlée,Simple Title,#N/A,South,1418.38,26.6,41543.66,37,9,2019-12-09,2020-12-09,14950,N,Yes,FR,,Would buy again.,9.9,Technology,SKU-8363
+O00011,17633.0,RED PLATE,New York,Mug,Plain Brand,Salt &amp; Pepper,pending,South,$1204.56,14.9,26335.47,82,11,2021-03-25,2022-03-25,81439,yes,No,FR,,Great value for money!,2.9,Furniture,SKU-3756
+O00012,17226.0,GREEN CUP,london,Bowl,Nestlé,Tom & Jerry,pending,North,$1099.18,?kg,48007.76,43,9,2020-01-25,2021-01-25,55745,1,No,FR,,Great value for money!,4.0,Furniture,SKU-8497
+O00013,17103.0,GREEN CUP,New York,Plate,Crème Brûlée,Tom &amp; Jerry,pending,West,239.53,7.8,42080.82,40,2,2021-07-05,2022-07-05,61300,no,Yes,FR,,Would buy again.,4.6,Furniture,SKU-7507
+O00014,17492.0,RED PLATE,London,Spoon,Crème Brûlée,Tom & Jerry,shipped,West,588.85,2.9,37881.31,28,2,07/12/2020,2021-12-07,64986,N,No,FR,,Great value for money!,5.0,Furniture,SKU-3598
+O00015,17185.0,GREEN CUP,Paris,Plate,Café Noir,Salt & Pepper,shipped,South,"1,236.08",21.0,47063.4,47,2,2021-11-26,2022-11-26,44420,0,Yes,FR,,Great value for money!,4.4,Technology,SKU-1244
+O00016,17648.0,WHITE MUG,Madrid,Plate​,CrÃ¨me BrÃ»lÃ©e,Simple Title,delivered,North,"2,976.47",29.0,33007.71,48,11,21/02/2021,9999-12-31,63544,0,No,FR,,Would buy again.,0.2,Technology,SKU-3840
+O00017,17851.0,RED PLATE,Madrid,Bowl,Nestlé,Tom & Jerry,shipped,unknown,193.27,28.5,53647.07,54,8,12/11/2023,2024-11-12,17445,Y,No,FR,,Would buy again.,9.9,Technology,SKU-3369
+O00018,17272.0,  WHITE   MUG ,New York,Bowl,Häagen,Salt & Pepper,pending,West,$174.55,7.6,21081.3,230,4,26/05/2023,2024-05-26,33005,N,No,FR,,Arrived late.,9.4,Furniture,SKU-4079
+O00019,17015.0,BIG SPOON,Madrid,Spoon,Nestlé,Rock &#39;n&#39; Roll,pending,West,"2,301.78",7.5,41891.13,82,6,10/10/2023,2024-10-10,95055,0,No,FR,,Would buy again.,6.3,Office,SKU-2406
+O00020,17375.0,GREEN CUP,New York,Plate,Häagen,Fish & Chips,pending,South,$236.13,17.0,48932.53,22,3,2019-03-24,2020-03-24,67155,1,No,FR,,Would buy again.,5.5,Office,SKU-9011
+O00021,17532.0,BIG SPOON,NEW YORK,Bowl,Plain Brand,Tom & Jerry,delivered,South,829.35,28.5,42378.71,83,8,23/12/2020,2021-12-23,21042,no,Yes,FR,,Great value for money!,9.0,Office,SKU-1864
+O00022,17155.0,BIG SPOON,London,Bowl,Plain Brand,Fish &amp; Chips,shipped,South,2193.29,13.1,40174.43,42,12,05/01/2023,2024-01-05,81304,no,No,FR,,Would buy again.,7.1,Furniture,SKU-6003
+O00023,17362.0,BIG SPOON,madrid,Bowl,Plain Brand,Rock 'n' Roll,shipped,North,$1272.39,22.3,36138.16,65,8,2021-08-08,2022-08-08,18794,0,No,FR,,Arrived late.,7.3,Furniture,SKU-1593
+O00024,17250.0,  WHITE   MUG ,New York,Spoon,Crème Brûlée,Simple Title,shipped,South,"2,465.58",15.6,47699.27,31,10,26/01/2022,2023-01-26,44217,no,Yes,FR,,Great value for money!,8.2,Technology,SKU-1286
+O00025,17781.0,WHITE MUG,NEW YORK,Cup,Crème Brûlée,Tom & Jerry,shipped,North,$2028.67,0.6,53578.59,27,10,2021-01-13,9999-12-31,90866,1,No,FR,,Arrived late.,1.5,Office,SKU-1109
+O00026,17240.0,RED PLATE,London,Mug,CafÃ© Noir,Rock 'n' Roll,pending,East,$398.32,16.1,36224.07,23,11,07/01/2023,9999-12-31,45032,1,No,FR,,Great value for money!,6.6,Technology,SKU-4441
+O00027,17603.0,  WHITE   MUG ,London,Plate,Häagen,Fish &amp; Chips,delivered,East,$1386.32,11.1,44345.18,19,12,24/06/2019,2020-06-24,97126,N,Yes,FR,,Great value for money!,5.9,Office,SKU-1139
+O00028,17827.0,GREEN CUP,London,Mug,Café Noir,Tom &amp; Jerry,delivered,unknown,437.93,7.3,48245.53,22,3,2020-09-19,2021-09-19,27320,1,Yes,FR,,Would buy again.,3.7,Furniture,SKU-3953
+O00029,17857.0,BLUE BOWL,New York,Bowl​,Nestlé,Simple Title,shipped,East,"1,572.85",see note,37062.6,29,5,2021-10-17,2022-10-17,10854,yes,Yes,FR,,Arrived late.,3.9,Furniture,SKU-8512
+O00030,17715.0,WHITE MUG,Berlin,Spoon,Café Noir,Rock 'n' Roll,pending,East,1751.15,25.1,37588.52,56,2,27/04/2019,2020-04-27,11560,1,No,FR,,Great value for money!,8.3,Furniture,SKU-7046
+O00031,17737.0,RED PLATE,Berlin,Plate,NestlÃ©,Simple Title,pending,West,$903.62,11.1,21749.24,60,8,2021-06-15,2022-06-15,66310,Y,Yes,FR,,Would buy again.,6.8,Office,SKU-9195
+O00032,17627.0,RED PLATE,Madrid,Bowl,Plain Brand,Salt &amp; Pepper,delivered,North,2141.51,8.5,42030.45,19,8,2019-06-07,2020-06-07,69281,0,Yes,FR,,Great value for money!,9.2,Office,SKU-2528
+O00033,17640.0,  GREEN   CUP ,Madrid,Plate,Nestlé,Tom & Jerry,pending,unknown,2134.38,21.6,40758.25,38,8,13/09/2020,2021-09-13,37172,1,Yes,FR,,Would buy again.,6.9,Office,SKU-4968
+O00034,17622.0,BLUE BOWL,London,Cup,Crème Brûlée,Rock 'n' Roll,shipped,South,"2,036.66",0.6,47298.68,73,8,2022-07-10,2023-07-10,53834,no,No,FR,,Great value for money!,9.7,Office,SKU-5681
+O00035,17106.0,BLUE BOWL,New York,Bowl,CafÃ© Noir,Rock 'n' Roll,delivered,East,2793.21,22.1,44136.29,39,5,26/08/2022,2023-08-26,56851,no,Yes,FR,,Great value for money!,6.8,Office,SKU-6989
+O00036,17184.0,  BLUE   BOWL ,Paris,Mug,Nestlé,Fish & Chips,delivered,North,2350.23,3.9,31540.97,49,12,2020-08-11,2021-08-11,98832,N,Yes,FR,,Arrived late.,4.3,Technology,SKU-6035
+O00037,17312.0,RED PLATE,Berlin,Mug,HÃ¤agen,Tom &amp; Jerry,shipped,East,"1,527.87",20.6,46062.95,90,6,2019-04-03,2020-04-03,82862,0,No,FR,,Arrived late.,1.9,Furniture,SKU-1747
+O00038,17185.0,BIG SPOON,New York,Spoon,Crème Brûlée,Tom & Jerry,shipped,North,$1649.36,15.3,30386.23,80,9,24/12/2019,2020-12-24,87413,N,No,FR,,Great value for money!,0.3,Technology,SKU-4377
+O00039,17496.0,BIG SPOON,Paris,Plate,Häagen,Rock &#39;n&#39; Roll,pending,East,2890.24,29.6,28066.85,75,9,04/04/2019,2020-04-04,45331,yes,Yes,FR,,Great value for money!,1.0,Office,SKU-7918
+O00040,17297.0,RED PLATE,Madrid,Spoon,Häagen,Salt & Pepper,delivered,West,"1,008.38",0.8,38403.47,56,7,2023-02-24,2024-02-24,69939,yes,Yes,FR,,Arrived late.,7.0,Office,SKU-2645
+O00041,17202.0,  WHITE   MUG ,Madrid,Bowl,Nestlé,Fish &amp; Chips,delivered,North,"2,787.39",14.6,42099.23,66,-3,2020-12-13,2021-12-13,84598,1,No,FR,,Would buy again.,5.7,Office,SKU-2006
+O00042,17036.0,BIG SPOON,madrid,Bowl,Plain Brand,Simple Title,shipped,East,1795.49,25.8,34861.53,72,6,2020-04-18,2021-04-18,32239,no,Yes,FR,,Arrived late.,4.2,Technology,SKU-2248
+O00043,17721.0,RED PLATE,Paris,Mug,Nestlé,Salt &amp; Pepper,delivered,West,"2,125.18",21.7,-999,90,2,2022-04-24,2023-04-24,88288,N,No,FR,,Would buy again.,8.8,Office,SKU-7741
+O00044,17892.0,GREEN CUP,Berlin,Bowl,Crème Brûlée,Fish & Chips,#N/A,North,1738.57,16.7,49529.18,30,2,2023-04-22,2024-04-22,63084,no,No,FR,,Great value for money!,6.7,Furniture,SKU-8901
+O00045,17408.0,BIG SPOON,Madrid,Cup,Crème Brûlée,Rock 'n' Roll,pending,West,$2988.87,20.1,36636.13,50,10,18/09/2023,2024-09-18,35246,yes,No,FR,,Arrived late.,2.0,Furniture,SKU-3459
+O00046,17768.0,WHITE MUG,Madrid,Spoon,Crème Brûlée,Simple Title,shipped,East,"1,606.52",25.5,58018.28,75,12,28/10/2022,2023-10-28,13803,1,No,FR,,Great value for money!,4.8,Office,SKU-8343
+O00047,17530.0,WHITE MUG,NEW YORK,Cup,Nestlé,Salt & Pepper,shipped,unknown,1677.58,6.8,25882.55,55,3,2022-07-01,2023-07-01,99322,0,Yes,FR,,Arrived late.,5.7,Office,SKU-8398
+O00048,17447.0,BIG SPOON,Berlin,Spoon,Crème Brûlée,Salt &amp; Pepper,shipped,South,"2,873.79",8.0,34021.55,25,5,16/12/2023,2024-12-16,28708,Y,Yes,FR,,Arrived late.,8.3,Technology,SKU-1268
+O00049,17060.0,  BIG   SPOON ,Berlin,Spoon,Häagen,Simple Title,pending,East,"2,085.00",24.1,50509.07,27,8,15/04/2021,2022-04-15,82156,1,Yes,FR,,Arrived late.,3.0,Office,SKU-3958
+O00050,17303.0,RED PLATE,new york,Bowl,HÃ¤agen,Rock 'n' Roll,shipped,East,"1,947.84",3.5,32524.3,53,-5,13/07/2019,2020-07-13,87873,1,No,FR,,Would buy again.,9.2,Office,SKU-7675
+O00051,17344.0,GREEN CUP,Madrid,Bowl,Plain Brand,Salt & Pepper,delivered,East,2996.81,14.8,29389.09,66,1,12/10/2023,2024-10-12,21016,0,Yes,FR,,Great value for money!,2.6,Office,SKU-7560
+O00052,17594.0,RED PLATE,Berlin,Spoon,Café Noir,Tom & Jerry,delivered,North,"1,736.29",23.8,40008.96,51,2,2022-09-28,2023-09-28,50979,yes,Yes,FR,,Arrived late.,3.5,Technology,SKU-2002
+O00053,17229.0,  GREEN   CUP ,New York,Cup,Häagen,Fish &amp; Chips,delivered,West,$2258.89,5.7,35102.58,30,5,2022-10-07,2023-10-07,89612,N,No,FR,,Would buy again.,3.1,Technology,SKU-9560
+O00054,17495.0,BLUE BOWL,Paris,Cup,Crème Brûlée,Simple Title,pending,North,$2583.59,0.7,51663.21,40,9,2023-06-05,2024-06-05,94191,no,Yes,FR,,Great value for money!,1.0,Technology,SKU-3409
+O00055,17515.0,BLUE BOWL,New York,Cup,Café Noir,Fish & Chips,shipped,North,$2795.54,11.5,45467.69,37,8,04/05/2023,2024-05-04,34235,N,No,FR,,Arrived late.,0.9,Technology,SKU-5857
+O00056,17606.0,RED PLATE,BERLIN,Cup,CrÃ¨me BrÃ»lÃ©e,Rock 'n' Roll,shipped,South,$995.04,13.7,43622.82,84,5,13/12/2020,2021-12-13,25359,Y,Yes,FR,,Great value for money!,1.4,Office,SKU-7617
+O00057,17337.0,RED PLATE,New York,Bowl,CafÃ© Noir,Rock 'n' Roll,pending,East,$2375.29,18.7,34481.09,84,1,2023-12-22,2024-12-22,31467,0,No,FR,,Would buy again.,9.5,Furniture,SKU-4423
+O00058,17834.0,RED PLATE,Madrid,Cup,Nestlé,Rock &#39;n&#39; Roll,shipped,East,1732.84,26.7,39132.27,52,1,2021-08-21,2022-08-21,48345,0,Yes,FR,,Arrived late.,9.6,Technology,SKU-4106
+O00059,17813.0,BIG SPOON,Paris,Plate,Nestlé,Salt & Pepper,delivered,North,$323.27,0.5,33990.47,30,3,01/11/2023,2024-11-01,10818,yes,No,FR,,Great value for money!,4.2,Office,SKU-8280
+O00060,17498.0,WHITE MUG,Berlin,Mug,CrÃ¨me BrÃ»lÃ©e,Simple Title,shipped,North,"2,879.47",6.2,31778.49,34,9,04/05/2019,2020-05-04,86597,0,No,FR,,Great value for money!,7.1,Furniture,SKU-5426
+O00061,17305.0,RED PLATE,New York,Cup,Café Noir,Fish &amp; Chips,shipped,West,$2178.88,13.2,59888.24,53,4,2022-01-09,2023-01-09,88725,1,No,FR,,Great value for money!,1.3,Furniture,SKU-3258
+O00062,17739.0,BIG SPOON,Berlin,Bowl,Café Noir,Simple Title,pending,South,994.56,4.3,27912.88,30,12,2021-09-10,2022-09-10,13468,1,No,FR,,Great value for money!,2.3,Furniture,SKU-5607
+O00063,17450.0,GREEN CUP,New York,Mug,Plain Brand,Fish & Chips,shipped,East,$2088.64,6.1,46506.06,88,11,2022-02-22,2023-02-22,37803,0,No,FR,,Great value for money!,4.3,Furniture,SKU-2292
+O00064,17481.0,GREEN CUP,New York,Plate,Plain Brand,Rock 'n' Roll,shipped,South,$2297.12,19.4,32454.21,39,5,03/06/2019,2020-06-03,6447,1,Yes,FR,,Great value for money!,2.8,Office,SKU-4790
+O00065,17029.0,BIG SPOON,Paris,Spoon,Nestlé,Simple Title,delivered,North,"2,475.40",23.5,33867.33,33,6,2023-11-21,2024-11-21,46436,Y,No,FR,,Great value for money!,6.5,Furniture,SKU-2204
+O00066,17166.0,BIG SPOON,Madrid,Bowl,Café Noir,Tom & Jerry,pending,West,"2,549.08",7.1,48828.77,19,2,04/06/2023,2024-06-04,57953,Y,No,FR,,Great value for money!,8.0,Technology,SKU-9526
+O00067,17571.0,  GREEN   CUP ,New York,Bowl,Plain Brand,Salt & Pepper,delivered,unknown,1434.06,22.0,43204.33,31,5,2021-06-14,2022-06-14,29511,0,Yes,FR,,Great value for money!,2.8,Technology,SKU-3325
+O00068,17049.0,RED PLATE,NEW YORK,Cup,Plain Brand,Simple Title,delivered,South,304.09,12.7,47848.73,87,8,10/04/2021,2022-04-10,10075,no,Yes,FR,,Great value for money!,1.1,Furniture,SKU-3886
+O00069,17877.0,RED PLATE,London,Mug,Häagen,Tom & Jerry,pending,East,"2,821.18",21.9,47662.37,73,7,2021-07-21,2022-07-21,42601,N,No,FR,,Arrived late.,6.7,Furniture,SKU-8264
+O00070,17388.0,RED PLATE,Berlin,Spoon,Crème Brûlée,Rock 'n' Roll,shipped,South,590.12,20.3,40714.37,30,11,2021-06-22,2022-06-22,79444,0,No,FR,,Great value for money!,1.1,Office,SKU-5871
+O00071,17643.0,  BIG   SPOON ,Berlin,Bowl,CrÃ¨me BrÃ»lÃ©e,Salt & Pepper,delivered,North,732.10,23.2,26017.27,25,2,14/07/2023,2024-07-14,13016,yes,No,FR,,Great value for money!,9.3,Office,SKU-3020
+O00072,17385.0,  BIG   SPOON ,London,Mug,Nestlé,Fish & Chips,pending,East,"1,959.88",29.2,45966.48,60,7,2019-09-11,2020-09-11,57086,0,No,FR,,Great value for money!,7.7,Technology,SKU-6903
+O00073,17045.0,GREEN CUP,Madrid,Plate,Crème Brûlée,Tom &amp; Jerry,pending,West,2118.51,24.1,25960.77,73,3,27/04/2019,2020-04-27,73367,N,Yes,FR,,Arrived late.,2.4,Furniture,SKU-7122
+O00074,17290.0,BLUE BOWL,Berlin,Cup,Häagen,Rock 'n' Roll,delivered,North,70.32,9.8,41962.68,75,3,2023-09-23,2024-09-23,19369,1,Yes,FR,,Great value for money!,3.3,Furniture,SKU-2186
+O00075,17379.0,WHITE MUG,London,Spoon,NestlÃ©,Rock 'n' Roll,n/a,West,901.17,10.8,47874.17,89,5,23/08/2020,2021-08-23,78429,1,Yes,FR,,Would buy again.,6.9,Technology,SKU-2595
+O00076,17076.0,BLUE BOWL,PARIS,Cup,HÃ¤agen,Tom & Jerry,shipped,West,"2,734.74",5.7,35130.55,65,12,2019-07-07,2020-07-07,46354,1,No,FR,,Arrived late.,3.4,Office,SKU-3476
+O00077,17177.0,GREEN CUP,New York,Mug,CrÃ¨me BrÃ»lÃ©e,Tom & Jerry,shipped,East,1216.37,0.7,35246.17,25,5,2021-02-19,9999-12-31,74228,no,Yes,FR,,Great value for money!,4.6,Office,SKU-8079
+O00078,17647.0,BLUE BOWL,New York,Cup,Plain Brand,Salt & Pepper,shipped,East,$2827.37,17.1,40864.41,85,4,17/02/2019,2020-02-17,59124,N,No,FR,,Arrived late.,4.9,Furniture,SKU-8858
+O00079,17607.0,  RED   PLATE ,Berlin,Spoon​,Nestlé,Simple Title,shipped,West,2363.58,27.8,51873.98,58,3,2022-05-26,2023-05-26,81970,1,Yes,FR,,Arrived late.,6.6,Office,SKU-8094
+O00080,17164.0,BLUE BOWL,Madrid,Spoon​,CrÃ¨me BrÃ»lÃ©e,Tom & Jerry,pending,North,$52.11,18.7,36479.85,76,1,2022-12-15,2023-12-15,37040,yes,No,FR,,Would buy again.,6.3,Technology,SKU-2363
+O00081,17405.0,WHITE MUG,Berlin,Bowl,Plain Brand,Tom & Jerry,shipped,South,$547.91,22.8,25331.96,25,4,2019-12-17,2020-12-17,21426,1,No,FR,,Arrived late.,9.9,Office,SKU-2510
+O00082,17376.0,BLUE BOWL,New York,Spoon,Häagen,Rock &#39;n&#39; Roll,delivered,South,2675.40,16.7,51113.68,82,1,2019-06-10,2020-06-10,15705,yes,Yes,FR,,Arrived late.,8.7,Furniture,SKU-6186
+O00083,17016.0,BIG SPOON,London,Spoon,Plain Brand,Rock 'n' Roll,pending,West,808.75,14.7,39099.55,80,5,09/08/2021,2022-08-09,19590,N,No,FR,,Great value for money!,9.4,Office,SKU-4404
+O00084,17802.0,GREEN CUP,New York,Mug,CafÃ© Noir,Salt & Pepper,pending,North,2267.25,27.3,36887.76,20,1,2022-04-22,2023-04-22,7893,yes,No,FR,,Would buy again.,9.2,Technology,SKU-5904
+O00085,17366.0,BLUE BOWL,Paris,Spoon,Café Noir,Simple Title,delivered,South,$2290.68,0.3,35253.75,83,-1,18/05/2019,9999-12-31,51466,no,No,FR,,Arrived late.,8.5,Office,SKU-5662
+O00086,17331.0,GREEN CUP,Madrid,Bowl,Plain Brand,Salt & Pepper,pending,North,$2542.33,14.7,38779.53,34,6,2020-09-03,2021-09-03,7726,yes,Yes,FR,,Arrived late.,1.6,Technology,SKU-5107
+O00087,17335.0,RED PLATE,New York,Spoon,Café Noir,Rock 'n' Roll,delivered,South,$2923.15,1.1,32608.21,63,7,2019-05-02,2020-05-02,12265,Y,No,FR,,Would buy again.,5.7,Furniture,SKU-6382
+O00088,17001.0,GREEN CUP,Madrid,Bowl,Café Noir,Tom &amp; Jerry,delivered,South,"1,464.14",20.0,33205.67,36,10,22/07/2023,2024-07-22,60007,N,Yes,FR,,Arrived late.,0.5,Furniture,SKU-1436
+O00089,17566.0,GREEN CUP,Paris,Plate,Häagen,Simple Title,delivered,East,2723.74,27.9,25464.09,46,10,26/10/2020,2021-10-26,15942,N,Yes,FR,,Great value for money!,4.6,Office,SKU-8201
+O00090,17124.0,GREEN CUP,paris,Cup,Nestlé,Tom & Jerry,shipped,North,2250.84,10.5,44076.34,46,11,2023-06-11,2024-06-11,84262,1,No,FR,,Great value for money!,2.0,Technology,SKU-2548
+O00091,17859.0,GREEN CUP,PARIS,Mug,Plain Brand,Rock 'n' Roll,pending,North,$1522.61,29.1,18779.84,85,5,13/05/2023,2024-05-13,74378,0,No,FR,,Would buy again.,7.3,Furniture,SKU-8240
+O00092,17541.0,BLUE BOWL,Paris,Spoon,Plain Brand,Rock 'n' Roll,shipped,South,$1765.24,1.0,46464.15,20,3,2022-05-14,2023-05-14,45788,1,Yes,FR,,Would buy again.,3.6,Office,SKU-4439
+O00093,17493.0,RED PLATE,London,Cup,Plain Brand,Rock &#39;n&#39; Roll,delivered,North,$149.01,24.3,24934.58,77,3,18/01/2020,2021-01-18,67607,no,Yes,FR,,Would buy again.,6.1,Office,SKU-3439
+O00094,17866.0,BIG SPOON,London,Plate,Nestlé,Fish & Chips,shipped,West,"1,744.81",24.8,27158.41,82,2,2022-02-26,2023-02-26,9023,0,Yes,FR,,Great value for money!,9.6,Furniture,SKU-3572
+O00095,17569.0,BLUE BOWL,Madrid,Bowl,Häagen,Fish &amp; Chips,shipped,East,$2721.89,18.9,38740.22,54,12,06/07/2023,2024-07-06,3642,no,No,FR,,Great value for money!,7.4,Technology,SKU-1864
+O00096,17867.0,BIG SPOON,Berlin,Plate,Plain Brand,Simple Title,shipped,North,"1,090.26",10.2,50975.12,43,4,25/01/2019,2020-01-25,37704,1,No,FR,,Arrived late.,6.5,Technology,SKU-6875
+O00097,17480.0,RED PLATE,Berlin,Plate​,CrÃ¨me BrÃ»lÃ©e,Salt &amp; Pepper,shipped,West,1257.22,16.6,39622.22,62,8,16/01/2022,9999-12-31,15265,yes,No,FR,,Arrived late.,3.3,Office,SKU-7213
+O00098,17844.0,GREEN CUP,Berlin,Cup,Crème Brûlée,Fish & Chips,pending,South,"2,515.51",24.9,44413.96,52,8,24/10/2021,2022-10-24,61582,1,Yes,FR,,Arrived late.,6.5,Office,SKU-3713
+O00099,17045.0,BLUE BOWL,Madrid,Cup,Crème Brûlée,Salt &amp; Pepper,shipped,West,2286.25,2.0,32333.83,90,5,2019-04-02,9999-12-31,93947,yes,No,FR,,Would buy again.,1.0,Office,SKU-3892
+O00100,17338.0,BIG SPOON,Paris,Bowl,Nestlé,Tom & Jerry,delivered,South,2508.03,18.6,53460.96,86,7,18/07/2022,2023-07-18,19992,N,No,FR,,Great value for money!,8.1,Technology,SKU-6957
+O00101,17032.0,BIG SPOON,London,Bowl,Nestlé,Rock &#39;n&#39; Roll,pending,East,292.92,4.9,43983.93,33,1,2019-09-05,2020-09-05,58016,1,No,FR,,Arrived late.,5.8,Office,SKU-2353
+O00102,17058.0,WHITE MUG,paris,Plate,Crème Brûlée,Tom & Jerry,pending,West,2487.55,9.1,43376.56,19,12,2021-01-23,2022-01-23,50022,N,Yes,FR,,Great value for money!,4.8,Technology,SKU-1339
+O00103,17355.0,GREEN CUP,London,Spoon,Café Noir,Tom &amp; Jerry,delivered,North,1065.82,14.7,32699.15,24,9,43933,2024-01-24,37946,no,No,FR,,Great value for money!,9.6,Office,SKU-9145
+O00104,17053.0,BLUE BOWL,Madrid,Plate,Café Noir,Fish &amp; Chips,delivered,North,"2,356.70",20.5,45422.33,85,2,2022-01-18,2023-01-18,20540,1,No,FR,,Arrived late.,7.4,Technology,SKU-8645
+O00105,17798.0,  BIG   SPOON ,Berlin,Mug,Crème Brûlée,Fish &amp; Chips,delivered,East,2676.61,26.7,36595.71,51,10,20/02/2019,2020-02-20,70693,1,Yes,FR,,Arrived late.,1.1,Office,SKU-2496
+O00106,17883.0,GREEN CUP,Madrid,Plate,Plain Brand,Salt & Pepper,delivered,North,"2,425.72",8.2,49529.16,66,5,2022-12-23,2023-12-23,64169,N,No,FR,,Would buy again.,9.2,Office,SKU-9824
+O00107,17595.0,  GREEN   CUP ,Berlin,Bowl,Häagen,Salt & Pepper,pending,North,558.95,?kg,37734.49,44,-2,05/11/2020,2021-11-05,90738,no,No,FR,,Arrived late.,4.8,Technology,SKU-7272
+O00108,17208.0,BIG SPOON,Berlin,Bowl,Plain Brand,Tom & Jerry,shipped,West,$513.33,26.2,40749.51,36,2,2022-08-21,2023-08-21,88044,1,Yes,FR,,Arrived late.,0.5,Furniture,SKU-2003
+O00109,17820.0,RED PLATE,London,Spoon,Plain Brand,Tom &amp; Jerry,pending,North,968.59,6.8,34114.16,68,1,02/09/2020,2021-09-02,78007,yes,Yes,FR,,Arrived late.,7.1,Office,SKU-8729
+O00110,17601.0,BIG SPOON,London,Cup,Nestlé,Simple Title,shipped,West,598.98,12.7,57955.89,60,11,13/06/2023,2024-06-13,16306,yes,Yes,FR,,Would buy again.,1.5,Furniture,SKU-4382
+O00111,17312.0,WHITE MUG,Paris,Plate,Nestlé,Rock 'n' Roll,delivered,North,1595.42,18.1,42170.69,48,3,23/05/2020,2021-05-23,43724,0,Yes,FR,,Arrived late.,6.5,Furniture,SKU-5234
+O00112,17794.0,BLUE BOWL,Berlin,Mug,Café Noir,Rock &#39;n&#39; Roll,delivered,South,542.87,21.9,37215.77,58,11,2020-01-26,9999-12-31,71980,1,No,FR,,Arrived late.,4.1,Office,SKU-7818
+O00113,17598.0,BLUE BOWL,PARIS,Mug,HÃ¤agen,Simple Title,delivered,North,1864.70,14.5,38305.29,42,5,2023-06-01,2024-06-01,10116,0,Yes,FR,,Great value for money!,0.3,Office,SKU-5666
+O00114,17860.0,  BLUE   BOWL ,New York,Mug,Café Noir,Simple Title,shipped,North,26.04,10.6,47453.97,33,3,2022-08-25,2023-08-25,87213,Y,No,FR,,Would buy again.,6.8,Technology,SKU-1319
+O00115,17069.0,RED PLATE,Berlin,Mug,Crème Brûlée,Rock &#39;n&#39; Roll, ,West,$2114.56,21.8,22891.49,66,9,24/04/2021,2022-04-24,7342,yes,Yes,FR,,Arrived late.,0.3,Office,SKU-9350
+O00116,17733.0,  GREEN   CUP ,New York,Cup,Plain Brand,Simple Title,delivered,West,$2464.70,28.6,51423.44,35,1,03/06/2019,2020-06-03,17564,yes,Yes,FR,,Would buy again.,0.9,Office,SKU-2321
+O00117,17344.0,WHITE MUG,London,Spoon,Plain Brand,Rock &#39;n&#39; Roll,shipped,East,1265.05,12.2,53200.58,54,5,17/12/2021,2022-12-17,83536,N,No,FR,,Great value for money!,1.9,Furniture,SKU-1369
+O00118,17738.0,BIG SPOON,London,Spoon,Nestlé,Tom &amp; Jerry,delivered,North,$117.09,7.6,27022.44,39,5,2020-11-21,2021-11-21,97532,no,Yes,FR,,Would buy again.,1.7,Furniture,SKU-3728
+O00119,17141.0,RED PLATE,Berlin,Bowl,Häagen,Salt & Pepper,pending,South,$354.75,5.0,36001.58,69,11,10/09/2019,2020-09-10,21025,0,Yes,FR,,Great value for money!,2.4,Furniture,SKU-3987
+O00120,17096.0,BLUE BOWL,Madrid,Plate,Plain Brand,Rock 'n' Roll,shipped,North,$2533.17,10.8,42258.24,18,10,2020-02-23,2021-02-23,28547,no,No,FR,,Great value for money!,2.2,Technology,SKU-3940
+O00121,17467.0,WHITE MUG,MADRID,Spoon,Crème Brûlée,Fish & Chips,pending,North,2842.66,heavy,42369.52,80,5,21/12/2023,2024-12-21,3880,0,Yes,FR,,Arrived late.,2.2,Technology,SKU-7935
+O00122,17078.0,  WHITE   MUG ,paris,Cup,Café Noir,Fish & Chips,pending,North,"2,802.99",18.8,41114.23,85,4,2022-12-22,2023-12-22,64528,Y,No,FR,,Would buy again.,1.6,Office,SKU-2743
+O00123,17224.0,RED PLATE,NEW YORK,Mug,Nestlé,Tom & Jerry,delivered,West,1101.85,7.5,44925.39,66,9,2022-03-22,2023-03-22,71160,yes,No,FR,,Arrived late.,4.3,Technology,SKU-6098
+O00124,17703.0,BLUE BOWL,Paris,Spoon,Nestlé,Simple Title,delivered,South,$2099.55,12.0,50143.79,74,3,12/07/2023,2024-07-12,54514,Y,Yes,FR,,Great value for money!,2.3,Office,SKU-8037
+O00125,17227.0,BLUE BOWL,Paris,Mug,Plain Brand,Fish & Chips,pending,South,486.26,26.2,46594.16,60,1,26/11/2020,2021-11-26,42540,1,No,FR,,Would buy again.,7.8,Office,SKU-7277
+O00126,17624.0,BLUE BOWL,Berlin,Spoon,Crème Brûlée,Tom &amp; Jerry,pending,West,$2875.14,8.1,42634.59,28,1,20/11/2019,2020-11-20,87695,1,No,FR,,Would buy again.,0.8,Furniture,SKU-7099
+O00127,17325.0,BIG SPOON,Paris,Spoon,Häagen,Salt & Pepper,shipped,South,588.15,?kg,46332.02,26,8,18/12/2021,2022-12-18,98734,0,Yes,FR,,Would buy again.,7.1,Office,SKU-7553
+O00128,17497.0,BIG SPOON,New York,Mug,Crème Brûlée,Salt & Pepper,delivered,East,1473.99,10.8,54757.64,42,-4,06/09/2021,2022-09-06,78738,0,No,FR,,Arrived late.,0.3,Office,SKU-2004
+O00129,17622.0,GREEN CUP,New York,Plate,Café Noir,Salt & Pepper,delivered,East,$1598.91,14.7,44008.19,79,6,09/11/2021,2022-11-09,82636,1,No,FR,,Great value for money!,1.2,Furniture,SKU-3630
+O00130,17117.0,WHITE MUG,Madrid,Cup,CrÃ¨me BrÃ»lÃ©e,Salt & Pepper,shipped,East,$12.84,4.2,34565.39,25,4,2020-01-01,2021-01-01,66988,Y,No,FR,,Great value for money!,7.3,Office,SKU-7062
+O00131,17432.0,BIG SPOON,Paris,Spoon,Nestlé,Salt & Pepper,delivered,South,"2,840.00",25.1,41935.72,19,10,2022-07-12,2023-07-12,95814,yes,Yes,FR,,Would buy again.,3.7,Office,SKU-2831
+O00132,17016.0,RED PLATE,London,Spoon,Häagen,Tom & Jerry,delivered,South,2637.45,16.8,25158.93,83,3,13/01/2020,2021-01-13,84520,1,No,FR,,Would buy again.,2.3,Furniture,SKU-8778
+O00133,17220.0,RED PLATE,New York,Spoon,Plain Brand,Fish & Chips,pending,West,$2070.81,2.0,32665.68,85,3,2021-03-16,2022-03-16,31874,Y,No,FR,,Great value for money!,5.8,Technology,SKU-8536
+O00134,17087.0,BLUE BOWL,London,Spoon,Café Noir,Salt & Pepper,pending,unknown,"1,392.56",18.8,27910.28,53,-2,26/09/2020,2021-09-26,33957,yes,No,FR,,Would buy again.,7.0,Technology,SKU-9428
+O00135,17658.0,BIG SPOON,London,Plate,CrÃ¨me BrÃ»lÃ©e,Fish &amp; Chips,pending,West,$1189.98,0.1,40269.75,39,3,11/09/2023,2024-09-11,46412,no,No,FR,,Would buy again.,3.0,Furniture,SKU-8464
+O00136,17852.0,RED PLATE,LONDON,Spoon,Häagen,Salt & Pepper,pending,East,$2410.88,18.7,32615.81,89,5,2023-04-10,2024-04-10,21936,0,Yes,FR,,Arrived late.,3.2,Technology,SKU-3082
+O00137,17120.0,BLUE BOWL,Madrid,Spoon,Café Noir,Rock 'n' Roll,delivered,West,$1829.69,24.7,28338.24,33,2,2020-06-25,2021-06-25,50098,no,No,FR,,Great value for money!,2.6,Office,SKU-7501
+O00138,17526.0,WHITE MUG,Paris,Cup,Café Noir,Simple Title,shipped,unknown,1807.30,13.7,38052.98,61,12,14/10/2022,2023-10-14,20238,1,Yes,FR,,Would buy again.,7.2,Furniture,SKU-9581
+O00139,17593.0,BLUE BOWL,Madrid,Spoon,Crème Brûlée,Fish & Chips,shipped,North,808.17,3.8,56565.54,88,11,12/11/2020,2021-11-12,93854,0,Yes,FR,,Would buy again.,5.2,Office,SKU-1405
+O00140,17610.0,RED PLATE,London,Spoon,CafÃ© Noir,Salt &amp; Pepper,pending,North,$1197.62,15.2,34711.55,31,2,23/12/2021,2022-12-23,25335,N,No,FR,,Arrived late.,3.8,Technology,SKU-9362
+O00141,17254.0,GREEN CUP,Berlin,Mug,Crème Brûlée,Simple Title,delivered,North,2901.85,28.4,40239.15,78,5,2021-02-23,2022-02-23,49744,yes,No,FR,,Would buy again.,5.4,Office,SKU-9429
+O00142,17739.0,BIG SPOON,Madrid,Plate,Café Noir,Fish &amp; Chips,pending,South,2059.33,7.0,34267.95,71,4,13/07/2020,2021-07-13,21882,N,Yes,FR,,Would buy again.,7.0,Technology,SKU-4486
+O00143,17726.0,WHITE MUG,New York,Cup,Plain Brand,Tom &amp; Jerry,shipped,South,1509.46,18.3,44632.67,46,10,10/02/2019,2020-02-10,72581,Y,No,FR,,Great value for money!,5.0,Furniture,SKU-3803
+O00144,17658.0,BLUE BOWL,New York,Mug,HÃ¤agen,Tom & Jerry,delivered,East,844.75,13.2,29352.05,89,2,2020-09-11,2021-09-11,50843,0,No,FR,,Arrived late.,7.0,Technology,SKU-3104
+O00145,17505.0,BIG SPOON,London,Bowl,NestlÃ©,Tom & Jerry,pending,West,2166.27,9.8,47206.99,81,2,01/05/2023,2024-05-01,54023,N,Yes,FR,,Arrived late.,9.4,Furniture,SKU-6424
+O00146,17888.0,BIG SPOON,London,Bowl,Café Noir,Rock &#39;n&#39; Roll,pending,North,127.22,2.6,49936.43,78,8,2022-11-27,2023-11-27,51113,yes,No,FR,,Great value for money!,8.9,Office,SKU-1560
+O00147,17290.0,WHITE MUG,London,Spoon,HÃ¤agen,Simple Title,shipped,unknown,10.66,6.6,-999,72,11,13/12/2021,2022-12-13,30145,N,No,FR,,Great value for money!,8.5,Office,SKU-7655
+O00148,17224.0,GREEN CUP,London,Spoon,Plain Brand,Fish & Chips,delivered,North,1305.40,16.8,42121.88,88,8,19/08/2023,2024-08-19,25278,0,Yes,FR,,Great value for money!,0.8,Office,SKU-7521
+O00149,17027.0,WHITE MUG,Madrid,Bowl,NestlÃ©,Fish & Chips,delivered,West,2835.50,15.4,24352.26,85,3,12/01/2023,2024-01-12,61281,yes,No,FR,,Great value for money!,2.5,Technology,SKU-1192
+O00150,17546.0,WHITE MUG,Madrid,Cup,NestlÃ©,Simple Title,shipped,North,2011.76,9.1,31881.06,18,5,19/09/2020,2021-09-19,6881,yes,Yes,FR,,Arrived late.,4.2,Office,SKU-5318
+O00151,17522.0,RED PLATE,Madrid,Spoon,Nestlé,Salt &amp; Pepper,delivered,unknown,343.51,4.7,48085.45,89,7,2023-04-07,2024-04-07,60655,1,No,FR,,Would buy again.,8.2,Furniture,SKU-1611
+O00152,17250.0,BIG SPOON,berlin,Mug,Häagen,Rock &#39;n&#39; Roll,pending,South,1378.07,26.9,52106.37,69,4,20/09/2023,2024-09-20,3483,Y,Yes,FR,,Arrived late.,8.4,Office,SKU-2266
+O00153,17029.0,GREEN CUP,London,Mug,Häagen,Salt &amp; Pepper,pending,East,"1,778.30",28.5,38649.51,63,10,18/06/2022,2023-06-18,42158,0,No,FR,,Great value for money!,5.0,Office,SKU-5536
+O00154,17502.0,BIG SPOON,Berlin,Plate,Crème Brûlée,Rock 'n' Roll,shipped,South,47.45,18.2,41875.88,25,1,21/07/2020,2021-07-21,18251,Y,Yes,FR,,Would buy again.,9.3,Furniture,SKU-1976
+O00155,17643.0,WHITE MUG,Paris,Bowl,Nestlé,Simple Title,delivered,South,"1,234.49",29.1,40579.26,21,5,2023-03-04,2024-03-04,65940,yes,Yes,FR,,Great value for money!,4.2,Furniture,SKU-6793
+O00156,17007.0,BLUE BOWL,New York,Spoon,Crème Brûlée,Tom & Jerry,shipped,South,1671.81,22.1,24749.12,59,4,2022-12-13,2023-12-13,55592,Y,No,FR,,Arrived late.,6.3,Furniture,SKU-2749
+O00157,17519.0,BLUE BOWL,Madrid,Cup,Crème Brûlée,Salt & Pepper,shipped,North,$1059.31,16.6,38583.88,58,1,2023-11-19,2024-11-19,34997,no,Yes,FR,,Would buy again.,2.6,Technology,SKU-6336
+O00158,17302.0,RED PLATE,London,Mug,Nestlé,Simple Title,pending,West,"2,751.67",29.4,47993.24,60,4,2023-09-21,2024-09-21,16222,yes,Yes,FR,,Arrived late.,8.7,Office,SKU-1479
+O00159,17343.0,  RED   PLATE ,London,Bowl,Café Noir,Rock &#39;n&#39; Roll,delivered,East,2468.63,17.7,50771.26,87,12,2020-07-10,2021-07-10,14723,1,Yes,FR,,Would buy again.,1.1,Office,SKU-2625
+O00160,17237.0,GREEN CUP,Madrid,Bowl,Plain Brand,Salt & Pepper,pending,South,$1897.35,25.9,34614.25,64,7,20/08/2022,2023-08-20,40242,yes,Yes,FR,,Would buy again.,0.6,Office,SKU-6732
+O00161,17739.0,GREEN CUP,Berlin,Spoon,Plain Brand,Rock 'n' Roll,pending,East,2612.76,17.9,37076.55,55,7,2019-10-26,2020-10-26,88985,1,No,FR,,Arrived late.,5.9,Technology,SKU-8855
+O00162,17269.0,WHITE MUG,Berlin,Mug,Nestlé,Fish & Chips,delivered,South,$1584.93,15.7,58963.38,56,3,13/08/2020,9999-12-31,51773,N,Yes,FR,,Would buy again.,7.5,Technology,SKU-5673
+O00163,17537.0,BIG SPOON,Berlin,Cup,Häagen,Fish &amp; Chips,delivered,West,$1596.31,heavy,28634.86,53,3,2021-06-13,2022-06-13,86470,0,No,FR,,Arrived late.,1.2,Office,SKU-1611
+O00164,17893.0,  WHITE   MUG ,London,Plate,CafÃ© Noir,Simple Title,delivered,South,"1,054.15",7.5,40324.85,48,10,16/07/2019,2020-07-16,94944,0,Yes,FR,,Great value for money!,5.1,Furniture,SKU-2663
+O00165,17554.0,  BLUE   BOWL ,New York,Bowl,Häagen,Salt & Pepper,pending,West,2748.31,8.8,38637.01,24,9,2021-11-27,2022-11-27,70951,Y,No,FR,,Great value for money!,6.0,Technology,SKU-6173
+O00166,17706.0,RED PLATE,Madrid,Cup,Plain Brand,Salt & Pepper,delivered,North,"2,606.20",9.3,36107.47,70,3,14/01/2023,2024-01-14,83563,Y,Yes,FR,,Great value for money!,7.8,Office,SKU-4160
+O00167,17806.0,WHITE MUG,London,Mug,Plain Brand,Simple Title,pending,West,381.58,3.7,-999,82,5,2019-05-05,2020-05-05,61858,1,No,FR,,Arrived late.,6.9,Office,SKU-9727
+O00168,17227.0,BIG SPOON,New York,Spoon,Häagen,Simple Title,shipped,South,1456.26,25.8,39275.48,58,5,26/12/2023,2024-12-26,45891,N,No,FR,,Would buy again.,3.8,Technology,SKU-9666
+O00169,17718.0,BLUE BOWL,Berlin,Mug,Nestlé,Rock &#39;n&#39; Roll, ,South,1700.75,12.6,49023.91,82,1,04/10/2019,2020-10-04,11658,1,Yes,FR,,Would buy again.,2.9,Furniture,SKU-2095
+O00170,17884.0,BIG SPOON,Madrid,Mug,Café Noir,Salt & Pepper,delivered,West,$100.89,see note,24644.5,43,6,2021-05-25,2022-05-25,52290,no,No,FR,,Arrived late.,6.5,Technology,SKU-6534
+O00171,17790.0,BIG SPOON,new york,Bowl,Häagen,Simple Title,shipped,West,"2,206.13",29.0,16453.32,65,9,2022-04-06,2023-04-06,77336,0,Yes,FR,,Great value for money!,3.6,Office,SKU-3397
+O00172,17541.0,WHITE MUG,Madrid,Bowl,Café Noir,Rock 'n' Roll,delivered,West,2356.29,29.0,58196.38,21,3,2022-07-12,2023-07-12,53925,1,Yes,FR,,Great value for money!,9.6,Technology,SKU-8586
+O00173,17589.0,RED PLATE,Paris,Mug,Nestlé,Salt & Pepper,delivered,East,"1,842.78",8.3,35791.95,27,8,09/10/2022,2023-10-09,92200,N,No,FR,,Great value for money!,4.0,Furniture,SKU-5987
+O00174,17268.0,BIG SPOON,paris,Spoon,Crème Brûlée,Rock 'n' Roll,pending,North,"1,077.13",20.0,30231.56,59,7,19/04/2019,2020-04-19,14670,1,Yes,FR,,Great value for money!,8.6,Office,SKU-6443
+O00175,17377.0,RED PLATE,New York,Mug,Häagen,Fish & Chips,shipped,East,451.52,29.9,30953.08,34,5,16/09/2021,2022-09-16,38191,Y,Yes,FR,,Arrived late.,4.8,Technology,SKU-8744
+O00176,17005.0,RED PLATE,London,Spoon,Café Noir,Fish & Chips,delivered,East,$1818.65,8.7,38259.2,19,9,2019-09-18,2020-09-18,46269,1,Yes,FR,,Great value for money!,2.5,Furniture,SKU-7677
+O00177,17881.0,BIG SPOON,Madrid,Spoon​,Crème Brûlée,Salt & Pepper,delivered,East,1896.62,18.7,30530.49,68,6,2021-05-06,2022-05-06,71474,N,No,FR,,Great value for money!,9.2,Technology,SKU-1252
+O00178,17767.0,BLUE BOWL,New York,Bowl,Café Noir,Simple Title,shipped,North,"2,006.00",7.4,38600.63,66,1,08/04/2020,2021-04-08,96848,yes,Yes,FR,,Great value for money!,8.3,Furniture,SKU-5714
+O00179,17594.0,RED PLATE,Berlin,Bowl,Plain Brand,Tom & Jerry,delivered,West,"2,620.21",19.1,32294.87,86,7,04/08/2021,2022-08-04,85110,N,Yes,FR,,Would buy again.,9.7,Furniture,SKU-2922
+O00180,17113.0,GREEN CUP,Berlin,Mug,Café Noir,Simple Title,delivered,North,"2,590.34",12.1,44543.53,53,1,2023-03-23,2024-03-23,56818,yes,Yes,FR,,Arrived late.,9.8,Furniture,SKU-6879
+O00181,17781.0,BIG SPOON,Madrid,Mug,Nestlé,Fish &amp; Chips,pending,North,970.06,15.5,33406.71,48,6,24/10/2021,9999-12-31,98403,no,No,FR,,Great value for money!,6.0,Technology,SKU-7348
+O00182,17351.0,GREEN CUP,London,Plate,Plain Brand,Rock 'n' Roll,delivered,South,1697.00,22.1,-999,78,6,2020-04-16,2021-04-16,76160,Y,No,FR,,Arrived late.,8.4,Furniture,SKU-9400
+O00183,17053.0,  GREEN   CUP ,Madrid,Cup,Nestlé,Salt & Pepper,pending,South,"1,775.24",26.0,30068.04,76,4,24/10/2020,2021-10-24,38090,no,Yes,FR,,Great value for money!,4.2,Technology,SKU-2930
+O00184,17720.0,BIG SPOON,New York,Cup,Plain Brand,Simple Title,pending,East,$710.72,4.8,30713.12,53,4,17/06/2022,2023-06-17,57890,1,No,FR,,Would buy again.,6.0,Technology,SKU-5610
+O00185,17580.0,GREEN CUP,London,Plate,Café Noir,Tom & Jerry,delivered,South,"1,699.62",5.2,20958.53,77,5,01/11/2020,2021-11-01,7424,no,No,FR,,Would buy again.,5.9,Office,SKU-1117
+O00186,17377.0,  WHITE   MUG ,NEW YORK,Bowl,Nestlé,Salt &amp; Pepper,delivered,East,$815.56,15.8,44235.15,30,7,28/07/2020,2021-07-28,71553,no,Yes,FR,,Arrived late.,1.9,Technology,SKU-7454
+O00187,17035.0,BLUE BOWL,Berlin,Plate,Crème Brûlée,Salt & Pepper,delivered,South,$843.98,10.9,36240.06,19,3,24/08/2020,2021-08-24,88667,0,Yes,FR,,Arrived late.,5.2,Office,SKU-4045
+O00188,17740.0,BIG SPOON,London,Plate,Plain Brand,Salt & Pepper,delivered,West,"1,778.67",5.9,48808.34,70,7,2022-03-21,2023-03-21,67332,yes,No,FR,,Would buy again.,2.2,Technology,SKU-7107
+O00189,17314.0,BIG SPOON,New York,Cup,Nestlé,Rock 'n' Roll,delivered,North,"1,121.67",26.7,55479.15,80,2,21/08/2023,2024-08-21,20116,N,No,FR,,Great value for money!,7.7,Furniture,SKU-9561
+O00190,17747.0,GREEN CUP,Paris,Spoon,Crème Brûlée,Fish & Chips,pending,East,"2,842.68",14.8,34458.94,21,3,2019-05-18,2020-05-18,7472,Y,No,FR,,Arrived late.,9.8,Technology,SKU-9025
+O00191,17188.0,  BLUE   BOWL ,Berlin,Plate,Nestlé,Salt & Pepper,delivered,South,"1,064.29",0.1,-999,82,9,15/11/2021,2022-11-15,59495,yes,No,FR,,Arrived late.,1.2,Technology,SKU-5879
+O00192,17772.0,GREEN CUP,Paris,Mug​,Nestlé,Tom &amp; Jerry,pending,North,$771.13,25.5,54720.94,83,2,2019-01-19,2020-01-19,94112,0,No,FR,,Great value for money!,8.1,Technology,SKU-1682
+O00193,17658.0,WHITE MUG,PARIS,Bowl,Plain Brand,Tom &amp; Jerry,delivered,East,1522.01,7.2,64991.98,18,1,22/09/2021,2022-09-22,1105,0,No,FR,,Would buy again.,6.5,Office,SKU-4684
+O00194,17862.0,RED PLATE,New York,Cup,Häagen,Salt &amp; Pepper,pending,West,$561.83,20.8,36731.91,58,3,07/01/2021,2022-01-07,86854,no,No,FR,,Arrived late.,2.1,Technology,SKU-7509
+O00195,17514.0,BIG SPOON,Madrid,Bowl,Crème Brûlée,Salt & Pepper,delivered,South,2605.73,4.8,35113.06,85,7,25/07/2022,2023-07-25,90478,0,Yes,FR,,Great value for money!,7.2,Technology,SKU-3203
+O00196,17091.0,BIG SPOON,Berlin,Mug,Plain Brand,Tom & Jerry,shipped,South,"1,278.61",10.7,31444.31,86,1,2021-01-03,2022-01-03,52867,N,No,FR,,Arrived late.,5.2,Technology,SKU-5345
+O00197,17565.0,RED PLATE,London,Bowl,Plain Brand,Tom & Jerry,shipped,South,$538.16,19.5,37869.07,76,4,25/04/2021,2022-04-25,52817,no,Yes,FR,,Arrived late.,9.6,Office,SKU-1446
+O00198,17464.0,  BIG   SPOON ,Paris,Cup,Plain Brand,Simple Title,shipped,South,"1,049.07",14.9,28123.45,75,6,27/04/2019,2020-04-27,15866,0,Yes,FR,,Would buy again.,9.7,Furniture,SKU-7864
+O00199,17526.0,BIG SPOON,London,Spoon,CafÃ© Noir,Simple Title,shipped,North,$2566.72,28.6,54726.32,32,9,12/10/2021,2022-10-12,98503,Y,Yes,FR,,Great value for money!,6.2,Office,SKU-1942
+O00200,17327.0,BIG SPOON,Berlin,Plate,Häagen,Fish &amp; Chips,shipped,unknown,$875.08,27.9,33516.5,56,1,44030,2020-06-21,78347,Y,No,FR,,Would buy again.,0.5,Technology,SKU-1793
+,,,,,,,,,,,,,,,,,,,,,,,,
+O00201,17390.0,WHITE MUG,BERLIN,Plate,Plain Brand,Rock 'n' Roll,shipped,East,848.64,24.5,58437.71,67,5,2021-06-26,2022-06-26,48385,yes,No,FR,,Arrived late.,9.3,Technology,SKU-6009
+O00202,17061.0,GREEN CUP,Paris,Spoon,Crème Brûlée,Salt &amp; Pepper, ,East,$2502.14,18.3,44963.2,78,5,06/07/2021,2022-07-06,81113,Y,Yes,FR,,Would buy again.,3.7,Technology,SKU-5211
+O00203,17141.0,WHITE MUG,New York,Spoon,Crème Brûlée,Rock &#39;n&#39; Roll,pending,North,2693.60,26.3,47084.17,60,6,20/05/2023,2024-05-20,19245,Y,No,FR,,Would buy again.,6.6,Furniture,SKU-8733
+O00204,17322.0,  BIG   SPOON ,New York,Bowl,Plain Brand,Fish & Chips,delivered,East,$824.43,0.3,29356.12,43,5,2019-11-12,2020-11-12,86122,0,Yes,FR,,Would buy again.,4.4,Furniture,SKU-6409
+O00205,17737.0,GREEN CUP,berlin,Mug,Nestlé,Rock 'n' Roll,delivered,East,512.02,17.0,29849.89,57,11,03/11/2021,2022-11-03,19293,1,Yes,FR,,Great value for money!,2.6,Furniture,SKU-1820
+O00206,17441.0,RED PLATE,London,Mug,Plain Brand,Simple Title,delivered,East,939.71,7.9,32265.5,71,9,27/08/2022,2023-08-27,81191,no,No,FR,,Arrived late.,0.5,Office,SKU-3797
+O00207,17397.0,BIG SPOON,Berlin,Cup,Plain Brand,Simple Title,n/a,West,$581.80,22.5,43489.17,34,3,17/01/2022,2023-01-17,15863,0,Yes,FR,,Great value for money!,9.0,Technology,SKU-6008
+O00208,17690.0,BIG SPOON,London,Spoon,CrÃ¨me BrÃ»lÃ©e,Simple Title,pending,East,870.56,11.5,44585.74,68,12,2020-06-28,2021-06-28,35522,0,No,FR,,Great value for money!,7.5,Technology,SKU-5629
+O00209,17702.0,GREEN CUP,London,Bowl,Crème Brûlée,Salt & Pepper,pending,West,95.16,20.8,59602.79,33,1,02/01/2019,2020-01-02,45084,N,No,FR,,Arrived late.,7.3,Office,SKU-6974
+O00210,17625.0,GREEN CUP,Berlin,Cup,Plain Brand,Fish &amp; Chips,shipped,South,766.05,24.6,26792.12,31,5,18/11/2020,2021-11-18,36071,N,No,FR,,Would buy again.,7.4,Furniture,SKU-9682
+O00211,17046.0,GREEN CUP,Berlin,Spoon,Crème Brûlée,Simple Title,shipped,East,"1,508.90",16.1,29387.48,73,11,05/09/2023,2024-09-05,82464,yes,No,FR,,Arrived late.,1.1,Office,SKU-9052
+O00212,17247.0,BIG SPOON,Paris,Mug,Nestlé,Fish & Chips,shipped,South,2273.21,7.5,47288.29,230,-3,01/05/2020,2021-05-01,53399,1,No,FR,,Arrived late.,7.0,Technology,SKU-2196
+O00213,17146.0,GREEN CUP,Madrid,Mug,Häagen,Simple Title,shipped,West,783.72,0.8,40867.31,72,3,2019-11-18,2020-11-18,45503,0,No,FR,,Great value for money!,2.7,Technology,SKU-3213
+O00214,17427.0,BLUE BOWL,Madrid,Mug,Nestlé,Rock 'n' Roll,pending,West,$1317.80,9.1,54350.2,37,12,2021-04-24,2022-04-24,28121,1,No,FR,,Arrived late.,7.1,Furniture,SKU-4219
+O00215,17782.0,BLUE BOWL,New York,Mug,Plain Brand,Rock 'n' Roll,delivered,South,$735.01,6.1,36147.01,69,10,2023-09-28,2024-09-28,28591,yes,No,FR,,Arrived late.,5.7,Office,SKU-2507
+O00216,17238.0,BLUE BOWL,New York,Mug,Café Noir,Simple Title,shipped,North,$2728.88,27.7,37621.36,68,11,02/11/2019,2020-11-02,77104,0,No,FR,,Arrived late.,4.6,Technology,SKU-1601
+O00217,17351.0,  BIG   SPOON ,Paris,Cup,Plain Brand,Fish &amp; Chips,pending,unknown,$136.39,12.3,35641.95,22,9,17/01/2023,2024-01-17,17383,no,No,FR,,Great value for money!,2.9,Office,SKU-5834
+O00218,17487.0,GREEN CUP,Madrid,Spoon​,Plain Brand,Fish & Chips,pending,East,$1077.76,8.1,39164.69,61,2,09/04/2023,2024-04-09,32737,yes,Yes,FR,,Would buy again.,4.9,Office,SKU-1345
+O00219,17765.0,BIG SPOON,Berlin,Mug,Café Noir,Tom &amp; Jerry,pending,East,"1,048.72",28.7,43545.11,63,-2,02/10/2023,2024-10-02,72437,Y,No,FR,,Arrived late.,4.6,Furniture,SKU-8562
+O00220,17574.0,WHITE MUG,madrid,Plate,Häagen,Rock 'n' Roll,pending,South,2260.34,24.7,43421.96,28,11,2019-05-26,2020-05-26,56817,Y,No,FR,,Arrived late.,9.6,Office,SKU-6599
+O00221,17052.0,RED PLATE,New York,Cup,Nestlé,Salt & Pepper,delivered,North,27.79,6.3,32508.82,83,12,2022-04-04,2023-04-04,97915,Y,No,FR,,Great value for money!,3.4,Office,SKU-9729
+O00222,17600.0,BIG SPOON,madrid,Plate,Café Noir,Rock 'n' Roll,delivered,West,229.23,7.0,49383.36,77,10,2022-01-14,2023-01-14,30971,N,Yes,FR,,Arrived late.,7.6,Office,SKU-3074
+O00223,17112.0,RED PLATE,Madrid,Cup,NestlÃ©,Fish &amp; Chips,pending,West,2555.13,22.5,41318.07,73,11,2021-03-14,2022-03-14,64333,Y,Yes,FR,,Arrived late.,2.0,Office,SKU-8475
+O00224,17741.0,GREEN CUP,Berlin,Cup,Plain Brand,Tom & Jerry,shipped,North,$1725.36,8.7,42835.07,33,8,22/05/2019,9999-12-31,47816,Y,Yes,FR,,Arrived late.,0.9,Office,SKU-9774
+O00225,17741.0,BIG SPOON,NEW YORK,Spoon,CafÃ© Noir,Fish &amp; Chips,delivered,East,"1,262.02",24.6,28939.72,53,12,05/03/2021,2022-03-05,55708,N,No,FR,,Arrived late.,3.0,Office,SKU-7721
+O00226,17123.0,WHITE MUG,Madrid,Bowl​,HÃ¤agen,Rock 'n' Roll,delivered,West,$346.92,0.1,54120.77,19,1,12/03/2020,2021-03-12,33240,0,No,FR,,Would buy again.,1.8,Office,SKU-2728
+O00227,17154.0,BIG SPOON,Berlin,Cup,Nestlé,Salt & Pepper,pending,unknown,"1,541.79",18.2,53458.96,62,1,2022-01-04,2023-01-04,51533,1,No,FR,,Great value for money!,0.2,Office,SKU-4589
+O00228,17825.0,BIG SPOON,Berlin,Bowl,HÃ¤agen,Rock &#39;n&#39; Roll,shipped,North,"2,330.60",23.4,28038.9,40,4,2021-06-14,2022-06-14,59677,N,No,FR,,Great value for money!,9.3,Technology,SKU-4168
+O00229,17150.0,RED PLATE,Paris,Spoon,Nestlé,Rock 'n' Roll,shipped,East,957.58,25.8,55337.92,72,4,2021-09-11,2022-09-11,27046,yes,Yes,FR,,Arrived late.,8.4,Office,SKU-6122
+O00230,17786.0,  GREEN   CUP ,PARIS,Spoon,Plain Brand,Rock &#39;n&#39; Roll,shipped,West,549.54,6.0,32077.87,60,7,17/08/2023,2024-08-17,70588,yes,No,FR,,Arrived late.,2.1,Furniture,SKU-1862
+O00231,17047.0,BIG SPOON,Paris,Spoon,Café Noir,Tom &amp; Jerry,delivered,South,$328.32,21.6,52840.78,33,2,2023-03-04,2024-03-04,80734,no,No,FR,,Arrived late.,0.7,Office,SKU-8974
+O00232,17630.0,BLUE BOWL,London,Cup,Nestlé,Fish &amp; Chips,pending,East,1671.94,26.6,46604.94,28,7,2020-04-10,2021-04-10,95942,0,Yes,FR,,Would buy again.,3.3,Furniture,SKU-9377
+O00233,17126.0,RED PLATE,Madrid,Spoon,Café Noir,Tom & Jerry,delivered,East,491.47,24.4,37971.07,87,8,2021-02-02,2022-02-02,24973,N,Yes,FR,,Great value for money!,8.1,Office,SKU-2649
+O00234,17331.0,BIG SPOON,Madrid,Bowl,Plain Brand,Rock 'n' Roll,shipped,South,2672.04,6.4,34134.35,22,6,10/08/2019,2020-08-10,15811,N,Yes,FR,,Great value for money!,5.7,Technology,SKU-2075
+O00235,17258.0,BLUE BOWL,NEW YORK,Plate,Nestlé,Fish & Chips,pending,East,767.11,24.1,18918.16,82,2,26/04/2019,2020-04-26,58048,no,No,FR,,Arrived late.,9.4,Technology,SKU-4995
+O00236,17390.0,RED PLATE,Berlin,Plate,Nestlé,Simple Title,pending,South,$1746.97,25.0,28712.73,85,6,2019-12-26,2020-12-26,42588,1,Yes,FR,,Arrived late.,9.5,Technology,SKU-8630
+O00237,17479.0,BLUE BOWL,Berlin,Cup,Café Noir,Tom &amp; Jerry,pending,South,$2117.72,28.3,32376.96,56,6,2019-06-04,2020-06-04,99166,0,Yes,FR,,Would buy again.,9.3,Office,SKU-1218
+O00238,17880.0,BIG SPOON,New York,Cup,Nestlé,Fish & Chips,delivered,West,1514.62,23.6,41436.99,23,6,2020-02-03,2021-02-03,39752,1,Yes,FR,,Great value for money!,6.7,Office,SKU-1504
+O00239,17073.0,BLUE BOWL,London,Plate,CrÃ¨me BrÃ»lÃ©e,Fish & Chips,delivered,East,$2167.16,10.9,67484.55,52,8,2023-07-11,2024-07-11,28776,0,No,FR,,Great value for money!,4.6,Technology,SKU-9484
+O00240,17674.0,  BIG   SPOON ,MADRID,Bowl,Plain Brand,Tom & Jerry,shipped,East,$1944.08,25.8,29807.42,88,12,01/07/2020,2021-07-01,57529,0,Yes,FR,,Would buy again.,2.8,Furniture,SKU-5999
+O00241,17140.0,RED PLATE,BERLIN,Cup,Häagen,Simple Title,pending,South,$583.68,13.7,34086.6,21,3,09/11/2021,2022-11-09,29570,no,Yes,FR,,Would buy again.,3.7,Technology,SKU-2841
+O00242,17563.0,GREEN CUP,new york,Spoon​,Häagen,Salt & Pepper,pending,North,1570.69,27.3,46727.73,61,8,22/03/2020,2021-03-22,72784,1,No,FR,,Arrived late.,7.2,Furniture,SKU-5224
+O00243,17342.0,  WHITE   MUG ,Paris,Plate,Café Noir,Tom &amp; Jerry,shipped,East,939.84,22.7,34957.85,54,10,17/01/2019,2020-01-17,63951,0,No,FR,,Great value for money!,6.6,Furniture,SKU-5275
+O00244,17427.0,BLUE BOWL,New York,Mug,Café Noir,Tom &amp; Jerry,pending,unknown,"1,767.32",7.1,36519.2,85,1,27/07/2021,2022-07-27,12389,1,Yes,FR,,Would buy again.,6.1,Office,SKU-9088
+O00245,17630.0,BIG SPOON,Paris,Plate​,Café Noir,Tom & Jerry,pending,South,410.63,8.7,39304.15,59,4,2022-05-11,2023-05-11,63446,N,Yes,FR,,Arrived late.,4.4,Technology,SKU-1287
+O00246,17533.0,GREEN CUP,PARIS,Plate,Café Noir,Tom & Jerry,shipped,North,334.78,11.5,51048.98,64,9,2019-06-13,2020-06-13,99562,0,No,FR,,Arrived late.,2.1,Office,SKU-9550
+O00247,17546.0,GREEN CUP,London,Mug,Plain Brand,Rock 'n' Roll,delivered,South,"1,473.13",25.7,34596.69,73,8,2023-12-26,2024-12-26,92625,0,No,FR,,Would buy again.,8.8,Office,SKU-4681
+O00248,17888.0,RED PLATE,Madrid,Plate,Crème Brûlée,Salt &amp; Pepper,n/a,North,597.42,16.2,43260.52,65,2,20/02/2022,2023-02-20,63844,N,Yes,FR,,Arrived late.,5.2,Furniture,SKU-9402
+O00249,17051.0,GREEN CUP,Berlin,Plate,Nestlé,Simple Title,delivered,South,1940.88,27.9,26213.71,36,5,2022-04-24,2023-04-24,52075,yes,No,FR,,Would buy again.,3.6,Furniture,SKU-1342
+O00250,17635.0,  BLUE   BOWL ,Berlin,Mug,Crème Brûlée,Tom & Jerry,shipped,East,$1205.50,4.7,38820.45,50,8,17/12/2019,2020-12-17,83347,N,No,FR,,Arrived late.,8.7,Office,SKU-3812
+O00251,17555.0,RED PLATE,london,Spoon,Crème Brûlée,Fish & Chips,shipped,South,2119.33,19.1,24944.11,88,10,12/12/2020,9999-12-31,93782,Y,Yes,FR,,Would buy again.,4.5,Technology,SKU-4593
+O00252,17271.0,WHITE MUG,Madrid,Cup,Café Noir,Simple Title,n/a,West,"1,160.55",29.7,30878.52,74,6,2021-07-24,2022-07-24,89553,1,Yes,FR,,Arrived late.,0.0,Office,SKU-7712
+O00253,17068.0,BLUE BOWL,New York,Bowl,Café Noir,Fish & Chips,shipped,East,"2,220.65",17.2,37966.53,71,9,2019-08-01,2020-08-01,33301,Y,No,FR,,Great value for money!,10.0,Technology,SKU-2887
+O00254,17622.0,BIG SPOON,BERLIN,Cup,Nestlé,Simple Title,delivered,South,253.86,29.4,41550.02,42,12,2021-01-05,9999-12-31,27790,1,Yes,FR,,Would buy again.,1.6,Furniture,SKU-6113
+O00255,17110.0,WHITE MUG,Berlin,Plate,CrÃ¨me BrÃ»lÃ©e,Tom & Jerry,shipped,North,$815.95,18.6,40078.42,20,5,08/03/2023,2024-03-08,98925,1,No,FR,,Arrived late.,9.4,Technology,SKU-1496
+O00256,17435.0,GREEN CUP,Paris,Bowl,Plain Brand,Simple Title,pending,South,"2,843.48",14.1,46739.87,45,-1,28/04/2021,2022-04-28,17665,no,No,FR,,Would buy again.,4.1,Technology,SKU-7114
+O00257,17047.0,  BLUE   BOWL ,London,Cup,Café Noir,Tom &amp; Jerry,shipped,West,1039.40,26.5,40241.81,76,11,2022-11-05,2023-11-05,10813,no,No,FR,,Great value for money!,0.3,Office,SKU-1021
+O00258,17016.0,GREEN CUP,London,Cup,Café Noir,Rock 'n' Roll,shipped,unknown,$310.58,18.4,44174.84,74,6,2020-08-05,2021-08-05,95485,0,Yes,FR,,Arrived late.,2.5,Office,SKU-1490
+O00259,17703.0,GREEN CUP,LONDON,Bowl,Crème Brûlée,Fish & Chips,shipped,South,1765.19,16.2,45467.04,27,8,2022-08-25,2023-08-25,89466,yes,Yes,FR,,Arrived late.,0.3,Office,SKU-6120
+O00260,17322.0,GREEN CUP,Berlin,Bowl,Café Noir,Simple Title,delivered,East,$2897.61,21.4,49232.69,70,4,2019-09-09,2020-09-09,81839,N,No,FR,,Great value for money!,0.2,Furniture,SKU-1288
+O00261,17323.0,RED PLATE,New York,Spoon,Häagen,Tom & Jerry,pending,South,"1,636.47",12.5,44792.28,18,2,2022-05-07,2023-05-07,16945,Y,Yes,FR,,Great value for money!,5.1,Furniture,SKU-4252
+O00262,17079.0,WHITE MUG,London,Bowl,Nestlé,Rock 'n' Roll,delivered,South,"2,543.94",21.8,47461.08,55,9,2022-07-23,2023-07-23,3241,1,No,FR,,Great value for money!,8.0,Technology,SKU-4278
+O00263,17746.0,BLUE BOWL,New York,Spoon,NestlÃ©,Simple Title,delivered,South,"2,318.07",20.9,54259.78,28,3,05/05/2022,2023-05-05,54498,Y,Yes,FR,,Would buy again.,0.7,Furniture,SKU-4497
+O00264,17795.0,BLUE BOWL,MADRID,Cup,Häagen,Fish &amp; Chips,delivered,East,451.01,22.2,39635.03,29,10,2020-08-11,2021-08-11,95551,no,No,FR,,Arrived late.,4.1,Office,SKU-7183
+O00265,17020.0,BLUE BOWL,MADRID,Plate,Nestlé,Salt & Pepper,pending,South,"2,904.02",15.7,45344.09,63,10,26/07/2022,2023-07-26,27835,1,No,FR,,Would buy again.,1.4,Office,SKU-2717
+O00266,17102.0,WHITE MUG,New York,Spoon,Crème Brûlée,Tom & Jerry,shipped,West,718.50,17.7,44521.44,76,10,20/07/2020,9999-12-31,98143,no,Yes,FR,,Arrived late.,6.7,Furniture,SKU-4528
+O00267,17281.0,WHITE MUG,Berlin,Bowl,Plain Brand,Salt & Pepper,shipped,East,"2,877.19",23.4,41284.65,71,1,2020-10-18,2021-10-18,21249,no,No,FR,,Great value for money!,5.7,Technology,SKU-4283
+O00268,17407.0,BIG SPOON,Madrid,Cup,Nestlé,Fish & Chips,delivered,West,2891.88,21.0,43437.51,53,2,2023-11-19,2024-11-19,92742,0,Yes,FR,,Great value for money!,1.4,Office,SKU-2864
+O00269,17673.0,BLUE BOWL,Paris,Cup,Crème Brûlée,Fish &amp; Chips,delivered,West,"2,110.31",3.2,27230.71,88,11,2019-07-22,2020-07-22,92901,no,No,FR,,Arrived late.,2.4,Office,SKU-9357
+O00270,17332.0,WHITE MUG,Berlin,Cup,Crème Brûlée,Tom &amp; Jerry,pending,North,115.54,17.6,55066.61,35,10,2020-10-12,2021-10-12,80901,N,Yes,FR,,Arrived late.,5.0,Technology,SKU-3445
+O00271,17165.0,WHITE MUG,New York,Mug,Häagen,Simple Title,pending,East,678.12,10.9,39099.18,25,6,20/07/2023,2024-07-20,1612,0,Yes,FR,,Great value for money!,6.8,Office,SKU-1606
+O00272,17306.0,WHITE MUG,Madrid,Mug,Nestlé,Salt &amp; Pepper,delivered,North,$1344.08,9.0,32261.67,55,6,04/07/2022,2023-07-04,44999,0,Yes,FR,,Great value for money!,1.5,Office,SKU-9371
+O00273,17848.0,GREEN CUP,London,Cup,Plain Brand,Simple Title,shipped,West,2276.02,15.2,37013.77,77,1,2020-12-07,2021-12-07,14383,N,No,FR,,Great value for money!,0.8,Office,SKU-3171
+O00274,17323.0,RED PLATE,Madrid,Plate,Crème Brûlée,Tom & Jerry,delivered,South,"1,854.96",see note,53635.1,42,2,24/02/2021,2022-02-24,60222,yes,No,FR,,Would buy again.,6.5,Technology,SKU-3720
+O00275,17040.0,  GREEN   CUP ,London,Spoon,Café Noir,Simple Title,delivered,West,634.41,22.5,-999,49,8,2020-08-22,2021-08-22,43374,N,Yes,FR,,Great value for money!,8.6,Technology,SKU-9451
+O00276,17020.0,RED PLATE,London,Cup,Plain Brand,Tom &amp; Jerry,pending,South,$2683.50,9.0,52496.25,76,1,19/08/2022,2023-08-19,77646,0,No,FR,,Would buy again.,6.1,Office,SKU-7462
+O00277,17622.0,BLUE BOWL,BERLIN,Cup,Nestlé,Simple Title,delivered,South,1511.48,29.1,36404.54,62,1,2019-03-06,2020-03-06,22783,1,No,FR,,Would buy again.,9.9,Technology,SKU-2945
+O00278,17752.0,BLUE BOWL,New York,Plate,HÃ¤agen,Simple Title,pending,North,"1,995.06",8.8,35555.44,38,7,2021-08-11,2022-08-11,64766,yes,Yes,FR,,Great value for money!,3.9,Office,SKU-9041
+O00279,17173.0,BIG SPOON,Berlin,Spoon,Nestlé,Tom & Jerry,pending,South,767.24,25.1,32458.36,59,2,18/03/2023,2024-03-18,75849,yes,Yes,FR,,Arrived late.,2.2,Furniture,SKU-7439
+O00280,17387.0,BIG SPOON,Berlin,Spoon,Café Noir,Simple Title,pending,North,"2,779.47",22.0,48354.25,40,-1,16/02/2023,2024-02-16,93874,no,Yes,FR,,Great value for money!,7.4,Furniture,SKU-4507
+O00281,17612.0,BLUE BOWL,Madrid,Cup,Crème Brûlée,Salt & Pepper,shipped,unknown,"2,619.47",8.3,-999,79,10,2019-08-28,2020-08-28,67681,Y,No,FR,,Arrived late.,4.6,Office,SKU-2174
+O00282,17129.0,RED PLATE,New York,Plate,Café Noir,Tom &amp; Jerry,pending,North,2948.54,26.0,44716.04,51,8,19/11/2021,2022-11-19,18439,1,Yes,FR,,Arrived late.,7.6,Furniture,SKU-2100
+O00283,17114.0,  BLUE   BOWL ,New York,Plate,Häagen,Tom & Jerry,pending,East,2004.59,2.3,47309.74,45,1,2019-11-20,2020-11-20,37280,Y,Yes,FR,,Would buy again.,5.5,Office,SKU-2634
+O00284,17066.0,WHITE MUG,Paris,Plate,Plain Brand,Rock 'n' Roll,pending,East,$2943.90,4.5,42853.0,29,6,01/07/2020,2021-07-01,40868,no,Yes,FR,,Would buy again.,9.1,Technology,SKU-1886
+O00285,17793.0,BIG SPOON,Paris,Mug,Crème Brûlée,Tom & Jerry,delivered,East,615.61,6.5,39959.67,78,3,15/01/2022,2023-01-15,45859,1,No,FR,,Great value for money!,5.4,Furniture,SKU-1761
+O00286,17421.0,WHITE MUG,Berlin,Mug,Nestlé,Rock 'n' Roll,pending,East,391.03,19.7,41309.57,53,2,2023-01-13,2024-01-13,55245,no,Yes,FR,,Would buy again.,5.5,Office,SKU-5650
+O00287,17242.0,RED PLATE,berlin,Spoon,Crème Brûlée,Salt & Pepper,shipped,South,"1,580.96",7.3,34327.43,73,3,2020-09-21,2021-09-21,54490,1,Yes,FR,,Arrived late.,0.5,Office,SKU-6103
+O00288,17342.0,RED PLATE,Paris,Cup,Crème Brûlée,Rock &#39;n&#39; Roll,delivered,South,806.83,0.7,42524.79,77,9,2021-03-26,2022-03-26,22881,N,Yes,FR,,Arrived late.,2.2,Technology,SKU-4742
+O00289,17526.0,GREEN CUP,London,Plate,Plain Brand,Simple Title,pending,East,$1201.78,28.2,28318.92,62,1,16/01/2022,2023-01-16,25430,no,Yes,FR,,Arrived late.,6.9,Furniture,SKU-1969
+O00290,17342.0,GREEN CUP,Madrid,Spoon,Crème Brûlée,Fish & Chips,shipped,West,$1220.09,13.1,35494.4,19,-2,25/06/2021,2022-06-25,18224,yes,No,FR,,Great value for money!,7.4,Technology,SKU-8222
+O00291,17404.0,BIG SPOON,New York,Spoon,Häagen,Tom & Jerry,pending,unknown,2524.92,12.3,39087.21,67,11,2023-06-14,2024-06-14,56347,0,No,FR,,Arrived late.,8.5,Office,SKU-9533
+O00292,17639.0,WHITE MUG,Paris,Plate,Häagen,Simple Title,pending,unknown,"1,524.83",13.2,30095.89,43,6,2019-01-02,2020-01-02,33542,no,No,FR,,Great value for money!,4.2,Furniture,SKU-1648
+O00293,17720.0,WHITE MUG,MADRID,Cup,Häagen,Simple Title,delivered,East,$1923.98,7.5,36811.74,88,4,18/05/2020,2021-05-18,16370,N,Yes,FR,,Arrived late.,6.6,Furniture,SKU-7206
+O00294,17663.0,GREEN CUP,London,Mug,Café Noir,Tom & Jerry,delivered,North,"1,675.51",28.4,39109.47,87,9,19/04/2020,2021-04-19,71716,yes,Yes,FR,,Great value for money!,4.8,Technology,SKU-4917
+O00295,17714.0,RED PLATE,london,Spoon,Häagen,Tom &amp; Jerry,pending,West,325.14,27.4,33659.01,33,12,11/02/2020,2021-02-11,97573,1,No,FR,,Great value for money!,6.8,Furniture,SKU-6892
+O00296,17068.0,RED PLATE,Paris,Plate,Plain Brand,Rock 'n' Roll,shipped,South,$2132.13,10.8,51998.75,75,8,09/05/2022,2023-05-09,50338,Y,Yes,FR,,Great value for money!,4.3,Furniture,SKU-2950
+O00297,17591.0,GREEN CUP,Berlin,Bowl,Häagen,Fish &amp; Chips,delivered,North,$2704.73,22.5,44360.82,49,10,44127,2020-05-02,16468,0,Yes,FR,,Great value for money!,4.7,Technology,SKU-4513
+O00298,17713.0,BIG SPOON,New York,Spoon,Nestlé,Simple Title,#N/A,unknown,986.52,3.0,49936.03,29,9,20/07/2020,2021-07-20,24247,Y,No,FR,,Arrived late.,1.3,Office,SKU-9843
+O00299,17667.0,BIG SPOON,London,Plate,Häagen,Tom & Jerry,delivered,North,194.88,29.2,35194.63,44,6,2021-08-23,2022-08-23,95951,0,Yes,FR,,Great value for money!,5.3,Furniture,SKU-9562
+O00300,17637.0,GREEN CUP,Madrid,Plate,Häagen,Simple Title,delivered,West,615.26,1.1,38519.32,77,5,2019-11-27,2020-11-27,56817,yes,No,FR,,Great value for money!,3.7,Technology,SKU-2319
+O00301,17679.0,WHITE MUG,London,Bowl,Häagen,Tom & Jerry,pending,West,517.92,8.3,30405.76,46,8,11/09/2020,2021-09-11,38390,N,No,FR,,Would buy again.,9.1,Furniture,SKU-4586
+O00302,17271.0,GREEN CUP,Paris,Cup,Nestlé,Salt & Pepper,shipped,North,$1415.97,29.2,34518.7,22,9,2023-09-22,2024-09-22,30149,no,Yes,FR,,Arrived late.,7.6,Office,SKU-6408
+O00303,17514.0,RED PLATE,Paris,Mug,Plain Brand,Rock 'n' Roll,shipped,South,912.47,17.4,27751.57,63,11,2019-07-23,2020-07-23,26461,N,Yes,FR,,Would buy again.,3.2,Office,SKU-8699
+O00304,17801.0,RED PLATE,Paris,Bowl,Plain Brand,Tom & Jerry,pending,East,46.06,2.8,49821.94,32,6,2022-09-27,2023-09-27,31073,Y,No,FR,,Arrived late.,6.4,Technology,SKU-7825
+O00305,17766.0,WHITE MUG,New York,Bowl,Crème Brûlée,Rock &#39;n&#39; Roll,delivered,North,154.24,18.7,43504.36,37,12,2021-09-15,2022-09-15,75870,Y,Yes,FR,,Would buy again.,1.9,Technology,SKU-5375
+O00306,17502.0,BLUE BOWL,Paris,Plate,Café Noir,Fish &amp; Chips,shipped,North,1420.99,28.9,38583.33,-4,7,2023-01-26,2024-01-26,55540,yes,Yes,FR,,Would buy again.,4.0,Furniture,SKU-4548
+O00307,17869.0,GREEN CUP,London,Bowl,CafÃ© Noir,Salt & Pepper,shipped,West,2488.65,1.8,52573.04,51,1,12/09/2021,2022-09-12,79962,0,Yes,FR,,Great value for money!,2.0,Furniture,SKU-8549
+O00308,17111.0,WHITE MUG,berlin,Bowl,Nestlé,Tom &amp; Jerry,delivered,East,$767.04,11.9,39305.92,66,12,2023-06-18,2024-06-18,16674,Y,Yes,FR,,Great value for money!,7.2,Furniture,SKU-5197
+O00309,17228.0,RED PLATE,Madrid,Mug,Café Noir,Rock 'n' Roll,delivered,South,"1,881.75",28.8,37014.44,47,12,2022-11-25,2023-11-25,17269,0,No,FR,,Arrived late.,6.3,Technology,SKU-2603
+O00310,17687.0,  RED   PLATE ,Paris,Plate,NestlÃ©,Simple Title,delivered,North,$2039.08,28.5,44280.2,37,11,2019-02-21,2020-02-21,47055,yes,No,FR,,Great value for money!,2.7,Technology,SKU-4876
+O00311,17780.0,RED PLATE,Paris,Bowl,CrÃ¨me BrÃ»lÃ©e,Simple Title,shipped,South,"1,739.72",7.7,40127.68,55,12,2023-04-13,2024-04-13,3432,no,No,FR,,Great value for money!,5.1,Furniture,SKU-9633
+O00312,17200.0,GREEN CUP,new york,Bowl,Nestlé,Simple Title,delivered,unknown,2266.32,27.3,49599.48,19,11,08/09/2019,2020-09-08,71009,1,Yes,FR,,Great value for money!,3.1,Furniture,SKU-1429
+O00313,17014.0,BIG SPOON,Berlin,Spoon,Plain Brand,Tom & Jerry,pending,East,"2,833.93",2.0,-999,27,6,17/03/2019,9999-12-31,85203,Y,Yes,FR,,Great value for money!,2.0,Technology,SKU-1341
+O00314,17564.0,RED PLATE,Madrid,Mug,HÃ¤agen,Salt &amp; Pepper,delivered,West,2588.67,10.9,49028.79,67,7,20/11/2019,2020-11-20,33438,0,No,FR,,Arrived late.,4.5,Office,SKU-1093
+O00315,17300.0,  BIG   SPOON ,Madrid,Cup,Plain Brand,Rock &#39;n&#39; Roll,delivered,West,"1,890.24",5.1,39420.06,60,8,2022-10-18,2023-10-18,10097,0,No,FR,,Great value for money!,0.8,Technology,SKU-9307
+O00316,17351.0,WHITE MUG,New York,Mug,Crème Brûlée,Tom & Jerry,delivered,East,"1,603.71",8.6,25459.24,78,2,19/09/2022,2023-09-19,85876,N,Yes,FR,,Arrived late.,7.6,Furniture,SKU-2258
+O00317,17666.0,RED PLATE,Paris,Mug,HÃ¤agen,Fish &amp; Chips,shipped,South,"2,913.85",4.4,36651.01,54,2,24/05/2022,2023-05-24,13021,Y,Yes,FR,,Great value for money!,6.6,Furniture,SKU-9905
+O00318,17466.0,WHITE MUG,London,Cup,Plain Brand,Fish & Chips,pending,East,1854.16,22.3,36134.54,32,-1,26/03/2023,2024-03-26,53791,yes,No,FR,,Arrived late.,3.3,Furniture,SKU-2185
+O00319,17013.0,GREEN CUP,london,Cup,Café Noir,Rock &#39;n&#39; Roll,pending,unknown,"2,707.70",18.2,35914.55,55,1,2020-04-24,2021-04-24,98612,no,Yes,FR,,Great value for money!,9.9,Office,SKU-4201
+O00320,17303.0,GREEN CUP,Madrid,Plate,Nestlé,Simple Title,shipped,East,770.58,8.5,41265.44,37,7,11/12/2019,2020-12-11,36747,yes,No,FR,,Arrived late.,3.9,Technology,SKU-5298
+O00321,17487.0,BLUE BOWL,Paris,Plate,Café Noir,Rock &#39;n&#39; Roll,shipped,East,"1,806.47",1.8,34751.03,36,9,2022-02-23,2023-02-23,31103,Y,No,FR,,Great value for money!,4.5,Technology,SKU-5466
+O00322,17627.0,  WHITE   MUG ,Paris,Plate,Plain Brand,Rock 'n' Roll,delivered,West,$108.58,19.2,38816.39,67,2,06/02/2021,2022-02-06,30061,Y,No,FR,,Great value for money!,5.6,Office,SKU-8045
+O00323,17316.0,GREEN CUP,Berlin,Mug,Plain Brand,Simple Title,shipped,North,$2399.33,18.6,52165.78,54,5,02/04/2021,2022-04-02,55288,0,No,FR,,Arrived late.,8.1,Technology,SKU-2674
+O00324,17652.0,GREEN CUP,PARIS,Bowl,Café Noir,Fish & Chips,delivered,unknown,249.13,27.1,46768.54,55,3,22/05/2023,9999-12-31,36967,Y,Yes,FR,,Great value for money!,1.1,Office,SKU-7823
+O00325,17519.0,GREEN CUP,London,Cup,Nestlé,Fish & Chips,pending,South,$2730.75,20.5,44754.96,63,1,2021-03-24,9999-12-31,1818,Y,Yes,FR,,Arrived late.,3.3,Furniture,SKU-6329
+O00326,17394.0,  BIG   SPOON ,London,Spoon,Plain Brand,Fish & Chips,shipped,South,$143.80,8.6,41829.61,75,1,19/06/2021,2022-06-19,73186,N,No,FR,,Arrived late.,1.8,Office,SKU-4273
+O00327,17364.0,WHITE MUG,Berlin,Spoon,Häagen,Salt &amp; Pepper,pending,North,$1659.25,6.1,35573.19,50,11,2023-10-25,2024-10-25,49137,Y,No,FR,,Arrived late.,3.9,Technology,SKU-3640
+O00328,17518.0,GREEN CUP,New York,Mug,Café Noir,Rock &#39;n&#39; Roll,pending,South,2118.04,17.3,43024.34,57,11,13/12/2019,2020-12-13,49706,Y,No,FR,,Great value for money!,5.2,Technology,SKU-7996
+O00329,17443.0,WHITE MUG,London,Spoon,Nestlé,Fish &amp; Chips,pending,East,$1394.67,21.0,34298.34,27,1,07/04/2021,9999-12-31,50752,Y,Yes,FR,,Arrived late.,4.4,Office,SKU-2499
+O00330,17469.0,GREEN CUP,Paris,Mug,Häagen,Fish & Chips,delivered,West,1203.27,15.2,34070.77,34,12,04/08/2020,2021-08-04,37974,1,No,FR,,Great value for money!,0.0,Furniture,SKU-4244
+O00331,17555.0,  WHITE   MUG ,New York,Spoon,Plain Brand,Tom & Jerry,delivered,North,$2894.06,8.6,24247.98,43,10,2020-09-12,2021-09-12,31318,0,Yes,FR,,Great value for money!,0.2,Furniture,SKU-5981
+O00332,17892.0,BIG SPOON,Berlin,Plate,Café Noir,Tom & Jerry,pending,South,"1,250.53",11.1,25429.39,76,11,10/11/2020,2021-11-10,58447,N,Yes,FR,,Great value for money!,2.6,Office,SKU-4071
+O00333,17683.0,BLUE BOWL,New York,Mug,Plain Brand,Rock &#39;n&#39; Roll,pending,South,2113.72,21.6,46538.69,52,7,2019-03-09,2020-03-09,36603,no,Yes,FR,,Great value for money!,0.6,Furniture,SKU-1435
+O00334,17628.0,GREEN CUP,London,Mug,Häagen,Tom &amp; Jerry,delivered,North,"2,826.80",23.2,40231.04,50,11,2023-11-25,2024-11-25,39423,0,No,FR,,Arrived late.,7.0,Technology,SKU-2977
+O00335,17414.0,GREEN CUP,Paris,Plate,Café Noir,Rock &#39;n&#39; Roll,pending,East,1651.65,heavy,-999,43,1,2019-08-02,2020-08-02,63321,no,Yes,FR,,Arrived late.,7.7,Office,SKU-9837
+O00336,17494.0,RED PLATE,Berlin,Bowl,Café Noir,Fish &amp; Chips,pending,East,"1,816.76",16.1,44887.91,63,6,27/01/2021,2022-01-27,93875,no,Yes,FR,,Great value for money!,8.5,Furniture,SKU-1113
+O00337,17837.0,WHITE MUG,Berlin,Spoon,Crème Brûlée,Fish &amp; Chips,#N/A,East,"1,238.70",7.8,34171.24,49,10,2020-07-24,2021-07-24,45304,yes,No,FR,,Great value for money!,2.1,Technology,SKU-8277
+O00338,17363.0,BIG SPOON,LONDON,Plate,Plain Brand,Rock 'n' Roll,shipped,West,"1,874.66",23.2,41233.18,55,3,16/07/2022,2023-07-16,15287,yes,No,FR,,Great value for money!,9.3,Furniture,SKU-5703
+O00339,17620.0,RED PLATE,BERLIN,Mug,Plain Brand,Salt & Pepper,pending,West,1296.52,13.8,46068.91,27,2,10/02/2020,2021-02-10,61488,yes,No,FR,,Would buy again.,9.9,Office,SKU-3609
+O00340,17598.0,GREEN CUP,Madrid,Plate,HÃ¤agen,Tom & Jerry,shipped,North,"1,723.02",26.0,30560.47,60,10,28/12/2019,2020-12-28,35658,N,No,FR,,Arrived late.,6.7,Technology,SKU-1909
+O00341,17442.0,WHITE MUG,Madrid,Bowl,CafÃ© Noir,Salt & Pepper,pending,East,1954.24,26.8,28418.28,37,8,2021-10-04,2022-10-04,18013,0,Yes,FR,,Great value for money!,5.4,Office,SKU-1652
+O00342,17485.0,  BLUE   BOWL ,Paris,Mug​,Häagen,Tom & Jerry,#N/A,East,9.51,3.6,36070.71,30,4,2019-03-17,2020-03-17,2793,N,Yes,FR,,Great value for money!,1.4,Office,SKU-7297
+O00343,17871.0,BIG SPOON,Paris,Bowl,Café Noir,Tom &amp; Jerry,delivered,East,1876.47,21.4,25131.94,87,9,2023-05-14,2024-05-14,26678,1,No,FR,,Great value for money!,6.0,Technology,SKU-4050
+O00344,17760.0,  GREEN   CUP ,New York,Cup,Häagen,Rock &#39;n&#39; Roll,#N/A,North,$1880.21,1.9,37771.49,26,9,16/08/2020,2021-08-16,64535,N,Yes,FR,,Great value for money!,8.7,Office,SKU-8510
+O00345,17444.0,BLUE BOWL,London,Plate,Häagen,Tom & Jerry,pending,North,"2,368.69",7.0,53375.84,70,-1,18/02/2021,2022-02-18,8338,1,No,FR,,Arrived late.,0.0,Technology,SKU-8384
+O00346,17268.0,BLUE BOWL,Berlin,Mug,Plain Brand,Rock 'n' Roll,shipped,West,$98.38,7.7,42750.53,83,7,12/04/2021,2022-04-12,33603,Y,Yes,FR,,Arrived late.,7.6,Furniture,SKU-2224
+O00347,17799.0,  BIG   SPOON ,London,Bowl,Nestlé,Rock 'n' Roll,pending,North,$2628.96,21.0,36340.47,79,9,08/01/2022,2023-01-08,82615,1,Yes,FR,,Would buy again.,0.1,Office,SKU-1831
+O00348,17082.0,BLUE BOWL,New York,Cup,Häagen,Simple Title,delivered,South,"1,441.78",27.8,48831.66,61,4,2023-09-28,9999-12-31,60910,0,No,FR,,Would buy again.,5.6,Technology,SKU-6911
+O00349,17467.0,RED PLATE,New York,Plate,Plain Brand,Fish & Chips,shipped,North,2883.69,10.2,24752.06,58,9,2022-02-09,2023-02-09,31542,N,No,FR,,Would buy again.,9.2,Office,SKU-7396
+O00350,17164.0,BIG SPOON,London,Spoon,HÃ¤agen,Fish &amp; Chips,shipped,West,"1,851.53",7.1,50966.28,66,3,07/10/2020,2021-10-07,98226,0,No,FR,,Great value for money!,2.9,Technology,SKU-4021
+O00351,17745.0,GREEN CUP,Berlin,Bowl,Café Noir,Tom & Jerry,shipped,South,269.37,14.8,45185.69,20,5,2019-10-07,9999-12-31,39115,yes,Yes,FR,,Arrived late.,0.9,Technology,SKU-5552
+O00352,17772.0,  BIG   SPOON ,Paris,Mug,Crème Brûlée,Rock &#39;n&#39; Roll,pending,West,"2,315.45",7.9,29351.77,56,4,19/03/2020,2021-03-19,40426,1,Yes,FR,,Would buy again.,3.5,Office,SKU-6472
+O00353,17606.0,BLUE BOWL,New York,Plate,Crème Brûlée,Salt & Pepper,pending,East,$893.44,26.4,39885.35,58,2,19/08/2019,2020-08-19,94212,0,Yes,FR,,Great value for money!,8.1,Technology,SKU-7451
+O00354,17557.0,BLUE BOWL,new york,Plate​,Häagen,Salt & Pepper,shipped,North,$2554.24,7.4,43397.67,71,5,2019-10-15,2020-10-15,44300,yes,No,FR,,Would buy again.,6.7,Technology,SKU-8053
+O00355,17870.0,WHITE MUG,Berlin,Bowl,Café Noir,Fish &amp; Chips,pending,West,$80.96,23.3,50863.36,70,6,18/05/2021,2022-05-18,73974,N,Yes,FR,,Great value for money!,1.5,Office,SKU-1465
+O00356,17421.0,RED PLATE,Berlin,Mug,Café Noir,Rock 'n' Roll,shipped,North,$2891.23,20.5,45956.83,28,1,2020-08-10,2021-08-10,68646,no,No,FR,,Would buy again.,5.3,Technology,SKU-3457
+O00357,17687.0,  GREEN   CUP ,Paris,Plate,Häagen,Salt & Pepper,delivered,East,1415.24,27.5,38537.18,33,10,01/08/2022,2023-08-01,25397,1,Yes,FR,,Would buy again.,3.9,Technology,SKU-7412
+O00358,17721.0,RED PLATE,Paris,Cup,Nestlé,Salt & Pepper,delivered,West,$2161.65,9.0,58380.85,82,12,02/12/2023,2024-12-02,95735,no,Yes,FR,,Would buy again.,8.2,Office,SKU-4715
+O00359,17271.0,BIG SPOON,Paris,Cup,CrÃ¨me BrÃ»lÃ©e,Simple Title,delivered,West,"2,342.66",8.7,45604.3,87,4,16/12/2022,2023-12-16,73338,1,No,FR,,Great value for money!,7.5,Office,SKU-2832
+O00360,17259.0,GREEN CUP,New York,Cup,Café Noir,Salt & Pepper, ,South,$2134.76,13.7,32395.42,78,4,2019-03-15,2020-03-15,47275,0,Yes,FR,,Would buy again.,0.5,Furniture,SKU-9953
+O00361,17194.0,  GREEN   CUP ,Madrid,Plate,Nestlé,Tom & Jerry,delivered,North,$1994.28,4.3,40727.98,55,9,03/04/2022,2023-04-03,92507,no,Yes,FR,,Arrived late.,3.8,Furniture,SKU-1262
+O00362,17227.0,RED PLATE,Madrid,Mug,Crème Brûlée,Tom &amp; Jerry,shipped,East,2700.71,13.6,36969.53,26,3,2021-02-16,2022-02-16,93307,yes,Yes,FR,,Great value for money!,0.5,Furniture,SKU-1576
+O00363,17081.0,WHITE MUG,New York,Spoon,CafÃ© Noir,Simple Title,shipped,East,1723.60,7.3,42436.07,29,3,23/07/2022,2023-07-23,55227,no,Yes,FR,,Arrived late.,6.8,Office,SKU-9735
+O00364,17864.0,  RED   PLATE ,New York,Mug,Café Noir,Salt & Pepper,delivered,West,"1,944.27",11.1,33175.38,35,12,2019-03-05,2020-03-05,10726,1,Yes,FR,,Would buy again.,3.8,Furniture,SKU-2469
+O00365,17577.0,WHITE MUG,Madrid,Spoon,CafÃ© Noir,Tom & Jerry,delivered,South,$1346.59,18.7,35048.78,58,4,23/11/2022,2023-11-23,10955,N,Yes,FR,,Would buy again.,6.5,Furniture,SKU-3619
+O00366,17256.0,BLUE BOWL,New York,Cup,Plain Brand,Simple Title,pending,North,"2,762.53",6.0,63440.87,40,12,02/02/2020,2021-02-02,44518,no,No,FR,,Great value for money!,3.8,Technology,SKU-4220
+O00367,17333.0,GREEN CUP,Berlin,Mug,Häagen,Fish & Chips,pending,West,$1059.68,9.7,34302.15,18,4,2023-03-02,2024-03-02,16801,0,No,FR,,Arrived late.,4.7,Office,SKU-1791
+O00368,17437.0,RED PLATE,Berlin,Mug,Plain Brand,Tom & Jerry,#N/A,North,324.23,29.3,55079.5,53,9,2022-12-19,2023-12-19,62327,Y,No,FR,,Great value for money!,9.4,Furniture,SKU-7650
+O00369,17476.0,  RED   PLATE ,New York,Spoon,NestlÃ©,Fish & Chips,pending,West,"1,719.52",6.4,38133.95,56,3,22/11/2023,2024-11-22,67377,Y,No,FR,,Great value for money!,8.9,Technology,SKU-4894
+O00370,17271.0,BIG SPOON,New York,Mug,Häagen,Fish &amp; Chips,delivered,West,$2313.40,28.2,29221.77,20,9,11/10/2019,2020-10-11,64742,0,No,FR,,Would buy again.,8.0,Technology,SKU-5134
+O00371,17524.0,WHITE MUG,London,Cup,Häagen,Fish & Chips,delivered,West,1309.28,0.5,42692.67,75,9,06/03/2023,2024-03-06,73958,no,No,FR,,Great value for money!,5.3,Furniture,SKU-2184
+O00372,17211.0,BLUE BOWL,Madrid,Mug,Crème Brûlée,Simple Title,#N/A,North,"1,348.57",18.6,35129.98,45,1,2020-11-01,2021-11-01,31434,no,No,FR,,Great value for money!,5.8,Office,SKU-9427
+O00373,17428.0,WHITE MUG,Berlin,Cup,Crème Brûlée,Tom & Jerry,delivered,South,"2,114.16",2.3,25226.07,49,7,2019-07-08,2020-07-08,69130,yes,Yes,FR,,Arrived late.,0.3,Office,SKU-1547
+O00374,17885.0,GREEN CUP,New York,Plate,Crème Brûlée,Simple Title,pending,West,"1,342.95",2.3,42273.37,88,4,2019-11-09,2020-11-09,77050,0,Yes,FR,,Would buy again.,6.3,Furniture,SKU-8427
+O00375,17900.0,  GREEN   CUP ,MADRID,Bowl,Nestlé,Rock 'n' Roll,shipped,unknown,1584.99,23.9,47346.38,62,10,04/11/2021,2022-11-04,6779,1,No,FR,,Arrived late.,2.6,Furniture,SKU-4244
+O00376,17630.0,BLUE BOWL,Berlin,Mug,Nestlé,Simple Title,shipped,South,$9.38,9.5,52312.25,39,7,2021-10-10,9999-12-31,59223,Y,Yes,FR,,Great value for money!,7.4,Technology,SKU-9198
+O00377,17305.0,BIG SPOON,Madrid,Spoon,CafÃ© Noir,Tom & Jerry, ,West,249.29,9.6,52196.67,54,9,2020-12-09,2021-12-09,71822,1,No,FR,,Great value for money!,8.9,Furniture,SKU-9817
+O00378,17665.0,  BLUE   BOWL ,Madrid,Cup,Crème Brûlée,Tom & Jerry,pending,West,"2,765.26",11.0,47634.78,70,7,2019-10-20,2020-10-20,21639,no,No,FR,,Arrived late.,6.9,Technology,SKU-4524
+O00379,17493.0,BLUE BOWL,Paris,Spoon,CrÃ¨me BrÃ»lÃ©e,Simple Title,pending,West,2487.97,18.0,30997.55,57,3,04/02/2023,2024-02-04,1434,Y,Yes,FR,,Great value for money!,6.3,Technology,SKU-4728
+O00380,17620.0,BIG SPOON,Berlin,Cup,Crème Brûlée,Fish &amp; Chips,delivered,South,"2,260.88",1.6,49515.49,55,8,2020-08-13,2021-08-13,99629,Y,No,FR,,Would buy again.,7.3,Office,SKU-6950
+O00381,17486.0,WHITE MUG,Paris,Spoon,Häagen,Salt & Pepper,pending,West,"2,871.24",5.8,42842.72,42,5,05/08/2023,2024-08-05,13797,1,No,FR,,Would buy again.,0.3,Office,SKU-7085
+O00382,17221.0,  BLUE   BOWL ,London,Spoon,Crème Brûlée,Tom &amp; Jerry,pending,West,"1,199.50",23.9,-999,55,12,2020-01-08,2021-01-08,34427,1,Yes,FR,,Arrived late.,8.1,Office,SKU-6058
+O00383,17336.0,  GREEN   CUP ,Berlin,Bowl,Häagen,Rock &#39;n&#39; Roll,delivered,North,$2895.12,see note,31895.63,78,4,2022-04-03,2023-04-03,59536,Y,Yes,FR,,Would buy again.,6.8,Furniture,SKU-6015
+O00384,17867.0,BIG SPOON,London,Plate,Plain Brand,Tom &amp; Jerry,delivered,West,2677.04,12.0,45011.22,75,2,2022-03-25,2023-03-25,41156,0,Yes,FR,,Arrived late.,1.4,Office,SKU-9117
+O00385,17229.0,RED PLATE,Berlin,Plate,Häagen,Rock 'n' Roll,delivered,South,$1609.33,7.0,44964.02,24,1,10/04/2023,2024-04-10,57820,no,No,FR,,Arrived late.,1.4,Technology,SKU-4047
+O00386,17103.0,WHITE MUG,paris,Cup,Nestlé,Simple Title,shipped,East,1910.05,3.2,38642.44,50,12,06/05/2020,2021-05-06,74911,Y,Yes,FR,,Great value for money!,0.3,Technology,SKU-7628
+O00387,17625.0,BIG SPOON,London,Spoon,HÃ¤agen,Salt & Pepper,delivered,North,"1,962.55",5.9,27860.11,90,4,23/03/2023,2024-03-23,94935,1,No,FR,,Would buy again.,1.5,Furniture,SKU-7662
+O00388,17191.0,WHITE MUG,Madrid,Mug,Crème Brûlée,Fish & Chips,n/a,West,$1085.09,17.2,38885.3,32,6,28/09/2020,2021-09-28,29803,Y,No,FR,,Arrived late.,9.9,Technology,SKU-9277
+O00389,17739.0,WHITE MUG,Madrid,Mug,Plain Brand,Simple Title,delivered,East,$2686.76,23.7,45635.09,61,5,2019-06-22,2020-06-22,12021,yes,No,FR,,Arrived late.,3.9,Technology,SKU-1294
+O00390,17234.0,WHITE MUG,Berlin,Plate,NestlÃ©,Fish &amp; Chips,delivered,West,"2,415.55",7.2,38772.37,81,2,2022-04-22,2023-04-22,40692,N,Yes,FR,,Would buy again.,0.3,Office,SKU-3632
+O00391,17616.0,GREEN CUP,London,Mug,Plain Brand,Simple Title,pending,West,$980.12,4.0,-999,66,8,2022-04-10,2023-04-10,62662,yes,No,FR,,Arrived late.,5.7,Office,SKU-1123
+O00392,17203.0,BIG SPOON,London,Mug,HÃ¤agen,Salt & Pepper,shipped,North,$2804.70,21.1,33192.01,45,12,08/11/2020,2021-11-08,99409,yes,No,FR,,Arrived late.,3.6,Furniture,SKU-7352
+O00393,17633.0,BLUE BOWL,Madrid,Bowl,Café Noir,Rock &#39;n&#39; Roll,shipped,North,96.41,4.5,31335.1,33,12,03/01/2019,2020-01-03,28100,yes,Yes,FR,,Arrived late.,1.2,Furniture,SKU-7070
+O00394,17368.0,BLUE BOWL,Paris,Mug,HÃ¤agen,Salt & Pepper,delivered,East,"2,511.57",18.1,-999,78,8,44224,2020-02-01,87588,yes,No,FR,,Arrived late.,4.0,Furniture,SKU-2166
+O00395,17448.0,BIG SPOON,Berlin,Spoon,HÃ¤agen,Salt &amp; Pepper,pending,East,$579.62,14.2,-999,39,8,04/01/2021,2022-01-04,3623,N,No,FR,,Arrived late.,2.0,Office,SKU-4285
+O00396,17716.0,BIG SPOON,Madrid,Cup,Nestlé,Tom &amp; Jerry,pending,East,$304.72,14.7,36621.94,21,9,19/04/2021,2022-04-19,86864,Y,Yes,FR,,Would buy again.,0.1,Office,SKU-2788
+O00397,17541.0,GREEN CUP,Berlin,Mug,CrÃ¨me BrÃ»lÃ©e,Salt &amp; Pepper,n/a,North,2863.58,7.2,55265.35,79,3,01/02/2019,2020-02-01,85865,0,Yes,FR,,Great value for money!,7.3,Technology,SKU-3999
+O00398,17180.0,  BIG   SPOON ,Madrid,Cup,Plain Brand,Tom &amp; Jerry,pending,East,$1145.19,11.0,40171.76,26,6,22/12/2019,2020-12-22,22384,1,Yes,FR,,Would buy again.,4.0,Furniture,SKU-1803
+O00399,17164.0,RED PLATE,PARIS,Bowl,Café Noir,Salt & Pepper,pending,South,"2,171.48",12.2,41765.42,84,11,2020-12-17,2021-12-17,10687,1,Yes,FR,,Arrived late.,8.0,Technology,SKU-1947
+O00400,17659.0,WHITE MUG,Berlin,Bowl,Häagen,Simple Title,delivered,South,"1,558.05",25.6,48752.82,45,10,2021-10-26,2022-10-26,17047,Y,No,FR,,Arrived late.,1.2,Furniture,SKU-1737
+O00034,17622.0,BLUE BOWL,London,Cup,Crème Brûlée,Rock 'n' Roll,shipped,South,"2,036.66",0.6,47298.68,73,8,2022-07-10,2023-07-10,53834,no,No,FR,,Great value for money!,9.7,Office,SKU-5681
+O00114,17860.0,  BLUE   BOWL ,New York,Mug,Café Noir,Simple Title,shipped,North,26.04,10.6,47453.97,33,3,2022-08-25,2023-08-25,87213,Y,No,FR,,Would buy again.,6.8,Technology,SKU-1319
+O00254,17622.0,BIG SPOON,BERLIN,Cup,Nestlé,Simple Title,delivered,South,253.86,29.4,41550.02,42,12,2021-01-05,9999-12-31,27790,1,Yes,FR,,Would buy again.,1.6,Furniture,SKU-6113
+O00327,17364.0,WHITE MUG,Berlin,Spoon,Häagen,Salt &amp; Pepper,pending,North,$1659.25,6.1,35573.19,50,11,2023-10-25,2024-10-25,49137,Y,No,FR,,Arrived late.,3.9,Technology,SKU-3640
+O00371,17524.0,WHITE MUG,London,Cup,Häagen,Fish & Chips,delivered,West,1309.28,0.5,42692.67,75,9,06/03/2023,2024-03-06,73958,no,No,FR,,Great value for money!,5.3,Furniture,SKU-2184
+O00393,17633.0,BLUE BOWL,Madrid,Bowl,Café Noir,Rock &#39;n&#39; Roll,shipped,North,96.41,4.5,31335.1,33,12,03/01/2019,2020-01-03,28100,yes,Yes,FR,,Arrived late.,1.2,Furniture,SKU-7070

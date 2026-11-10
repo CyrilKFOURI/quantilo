@@ -200,3 +200,119 @@ describe("Correlations page", () => {
     );
   });
 });
+
+const structure = {
+  columns: ["units", "revenue", "cost", "weight", "volume"],
+  left_out: [{ name: "flat", reason: "Constant: it carries no variance." }],
+  rows: 100,
+  total: 100,
+  sampled: false,
+  dropped: 0,
+  filled: 0,
+  components: [
+    { index: 1, eigenvalue: 2.6, explained: 0.52, cumulative: 0.52, threshold: 1.3, retained: true, label: "units, revenue, cost" },
+    { index: 2, eigenvalue: 1.4, explained: 0.28, cumulative: 0.8, threshold: 1.15, retained: true, label: "weight, volume" },
+    { index: 3, eigenvalue: 0.6, explained: 0.12, cumulative: 0.92, threshold: 1.0, retained: false, label: "cost" },
+  ],
+  retained: 2,
+  kaiser: 2,
+  loadings: [
+    [0.9, 0.1],
+    [0.88, 0.05],
+    [0.8, -0.1],
+    [0.1, 0.9],
+    [0.05, 0.85],
+  ],
+  shown: 2,
+  biplot: { x: [0.1, -0.2], y: [0.3, 0.1], points: 2, of: 100, arrows: [{ column: "units", x: 0.9, y: 0.1 }] },
+  conclusion: "2 components explain 80% of the variance of 5 numeric columns: PC1 = units, revenue, cost; PC2 = weight, volume.",
+  permutations: 100,
+  parallel_rows: 100,
+  notes: [],
+  reason: null,
+};
+
+const factors = {
+  columns: structure.columns,
+  left_out: [],
+  rows: 100,
+  sampled: false,
+  k: 2,
+  rotation: "varimax",
+  loadings: structure.loadings,
+  communalities: [0.82, 0.78, 0.65, 0.82, 0.73],
+  uniqueness: [0.18, 0.22, 0.35, 0.18, 0.27],
+  variance: [0.45, 0.31],
+  labels: ["units, revenue, cost", "weight, volume"],
+  kmo: 0.71,
+  kmo_label: "middling",
+  msa: [0.75, 0.72, 0.68, 0.45, 0.7],
+  bartlett_chi2: 312.4,
+  bartlett_df: 10,
+  bartlett_p: 0.00001,
+  conclusion: "KMO = 0.71 (middling): the columns share enough to be factored.",
+  notes: [],
+  reason: null,
+};
+
+function openFold(text: string) {
+  const details = screen.getByText(text).closest("details") as HTMLDetailsElement;
+  details.open = true;
+  fireEvent(details, new Event("toggle"));
+}
+
+describe("Correlations page: Structure (078)", () => {
+  const proposed = { proposed: true, numeric: 5, strong: 4, reason: "5 numeric columns, 4 pairs with |r| ≥ 0.5: they may measure fewer underlying dimensions." };
+
+  function withStructure(rule = proposed) {
+    return mockApi({
+      "GET /health": health,
+      "GET /datasets/d1": dataset(),
+      "GET /datasets/d1/columns": columns,
+      "GET /column-roles": roles,
+      "GET /datasets/d1/correlations": { ...correlations, structure: rule },
+      "GET /datasets/d1/correlations/structure": structure,
+      "GET /datasets/d1/correlations/factors": factors,
+    });
+  }
+
+  it("is proposed with its reason, folded, and computed only once opened", async () => {
+    const calls = withStructure();
+    renderAt("/d/d1/correlations");
+
+    expect(await screen.findByText(/they may measure fewer underlying dimensions/)).toBeInTheDocument();
+    expect(calls.some((c) => c.key === "GET /datasets/d1/correlations/structure")).toBe(false);
+
+    openFold("Structure");
+    expect(await screen.findByText(/2 components explain 80% of the variance/)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Scree plot" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Loadings" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Biplot" })).toBeInTheDocument();
+    expect(screen.getByText(/keep 80% of the variance/)).toBeInTheDocument();
+    expect(screen.getByText("flat")).toBeInTheDocument();
+    expect(calls.some((c) => c.key === "GET /datasets/d1/correlations/factors")).toBe(false);
+  });
+
+  it("computes the factor analysis only once More is opened", async () => {
+    const calls = withStructure();
+    renderAt("/d/d1/correlations");
+    await screen.findByText(/they may measure fewer underlying dimensions/);
+    openFold("Structure");
+    await screen.findByText(/2 components explain/);
+
+    openFold("More: factor analysis, KMO, Bartlett");
+    expect(await screen.findByText(/KMO = 0.71 \(middling\)/)).toBeInTheDocument();
+    expect(calls.some((c) => c.key === "GET /datasets/d1/correlations/factors")).toBe(true);
+    const table = screen.getByRole("table", { name: "Loadings after rotation" });
+    expect(within(table).getAllByRole("row")).toHaveLength(7); // header, 5 columns, share of variance
+    expect(within(table).getByText("45%")).toBeInTheDocument();
+    expect(screen.getByText("312")).toBeInTheDocument();
+  });
+
+  it("is not shown when the rule does not propose it", async () => {
+    withStructure({ ...proposed, proposed: false, reason: "Needs at least 3 pairs with |r| ≥ 0.5 (1 here)." });
+    renderAt("/d/d1/correlations");
+    await screen.findByRole("img", { name: "Association matrix" });
+    expect(screen.queryByText("Structure")).not.toBeInTheDocument();
+  });
+});

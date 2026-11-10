@@ -3,6 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { request } from "../../api/client";
 import { filtersParam, useActiveFilters } from "../../api/filters";
 import type { components } from "../../api/schema";
+import { fetchLoggedDecisions, useLoggedDecisions, type LoggedDecisions } from "../../features/decisions/api";
+
+export { useLoggedDecisions, type LoggedDecisions };
 
 type Schemas = components["schemas"];
 /** Every field present (the server always sends them), as the shared client does. */
@@ -27,6 +30,13 @@ export type BanditSimulation = Complete<Schemas["BanditSimulation"]>;
 export type MetricBaseline = Complete<Schemas["MetricBaseline"]>;
 export type SampleSize = Complete<Schemas["SampleSize"]>;
 export type SampleSizeRequest = Partial<Schemas["SampleSizeRequest"]> & Pick<Schemas["SampleSizeRequest"], "baseline" | "effect">;
+export type PolicyOffer = NonNullable<ExperimentResult["policy_offer"]>;
+export type PolicyLearning = Complete<Schemas["PolicyLearning"]>;
+export type PolicyQini = PolicyLearning["qini"][number];
+export type PolicyEvaluation = Complete<Schemas["PolicyEvaluation"]>;
+export type PolicyEstimate = PolicyEvaluation["policies"][number];
+/** What the Policies tab sends: the action and the reward are required. */
+export type DecisionsRequest = Pick<Schemas["DecisionsRequest"], "action" | "reward"> & Partial<Omit<Schemas["DecisionsRequest"], "action" | "reward">>;
 
 const BASE = "/modules/experiments";
 const query = (filters: Parameters<typeof filtersParam>[0], extra: Record<string, string> = {}) => {
@@ -43,6 +53,11 @@ export const experimentsApi = {
     request<MetricBaseline>("GET", `${BASE}/datasets/${id}/baseline${query(filters, { column })}`),
   sampleSize: (plan: SampleSizeRequest) => request<SampleSize>("POST", `${BASE}/sample-size`, plan),
   banditSimulation: (plan: SampleSizeRequest) => request<BanditSimulation>("POST", `${BASE}/bandit-simulation`, plan),
+  policy: (id: string, design: ExperimentDesign, covariates: string[] | null, qini: boolean, filters?: Parameters<typeof filtersParam>[0]) =>
+    request<PolicyLearning>("POST", `${BASE}/datasets/${id}/policy${query(filters)}`, { design, covariates, qini }),
+  decisions: fetchLoggedDecisions,
+  evaluatePolicy: (id: string, body: DecisionsRequest, filters?: Parameters<typeof filtersParam>[0]) =>
+    request<PolicyEvaluation>("POST", `${BASE}/datasets/${id}/evaluate-policy${query(filters)}`, body),
 };
 
 export function useExperimentCandidates(id: string, enabled: boolean) {
@@ -95,6 +110,32 @@ export function useBanditSimulation(plan: SampleSizeRequest | null, enabled: boo
     queryKey: ["experiments", "bandit-simulation", plan],
     queryFn: () => experimentsApi.banditSimulation(plan as SampleSizeRequest),
     enabled: Boolean(plan) && enabled,
+    staleTime: Infinity,
+    placeholderData: (previous) => previous,
+    retry: false,
+  });
+}
+
+/** "Who should get which variant" (055): computed only once its "Advanced" section is open; the
+ *  Qini curves ("Advanced › More") only once theirs is. */
+export function usePolicy(id: string, design: ExperimentDesign, covariates: string[] | null, enabled: boolean, qini = false) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: ["datasets", id, "experiments", "policy", design, covariates, qini, filters],
+    queryFn: () => experimentsApi.policy(id, design, covariates, qini, filters),
+    enabled,
+    staleTime: Infinity,
+    placeholderData: (previous) => previous,
+    retry: false,
+  });
+}
+
+export function useEvaluatePolicy(id: string, body: DecisionsRequest | null) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: ["datasets", id, "experiments", "evaluate-policy", body, filters],
+    queryFn: () => experimentsApi.evaluatePolicy(id, body as DecisionsRequest, filters),
+    enabled: Boolean(body),
     staleTime: Infinity,
     placeholderData: (previous) => previous,
     retry: false,

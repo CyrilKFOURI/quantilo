@@ -402,6 +402,29 @@ const drivers = {
   calendar: [],
 };
 
+const smoothing = (keys: string[]) => ({
+  setup,
+  periods,
+  curves: keys.map((key) => ({
+    key,
+    causal: key === "kalman_filtered",
+    values: periods.map((_, i) => 100 + 10 * i),
+    low: periods.map((_, i) => 90 + 10 * i),
+    high: periods.map((_, i) => 110 + 10 * i),
+    params: [
+      { key: "model", value: "llevel_seasonal", auto: true, reason: "lowest AIC among local level, local linear trend" },
+    ],
+    info: "Local level + seasonal (12), chosen by AIC · noise σ = 4.1",
+    notes: [],
+    error: null,
+  })),
+  suggestions: keys.length
+    ? []
+    : [{ key: "kalman_smoothed", reason: "2 of 12 periods are empty (17%): Kalman estimates them with an uncertainty band." }],
+  unavailable: {},
+  message: null,
+});
+
 const columns = [
   column({
     name: "day",
@@ -420,6 +443,7 @@ function setupApi() {
     "GET /datasets/d1/columns": columns,
     "GET /column-roles": roles,
     "GET /modules/timeseries/datasets/d1/overview": overview,
+    "GET /modules/timeseries/datasets/d1/smoothing": smoothing([]),
     "GET /modules/timeseries/datasets/d1/seasonality": seasonality,
     "GET /modules/timeseries/datasets/d1/decomposition": decomposition,
     "GET /modules/timeseries/datasets/d1/stationarity": stationarity,
@@ -702,3 +726,69 @@ describe("Time series page", () => {
     ).toHaveAttribute("href", "/d/d1/timeseries");
   });
 });
+
+describe("Smooth row and Kalman gaps (064)", () => {
+  it("starts with the moving average, suggests Kalman and adds it on demand", async () => {
+    const calls = setupApi();
+    renderAt("/d/d1/timeseries");
+    const overviewSection = await screen.findByRole("region", { name: "Overview" });
+    const row = within(overviewSection).getByRole("group", { name: "Smooth" });
+
+    expect(within(row).getByText("Moving average")).toBeInTheDocument();
+    expect(within(row).getByText("Causal")).toBeInTheDocument();
+    // nothing but the rules is asked for when the page opens
+    await waitFor(() => {
+      const sent = calls.find((c) => c.key.endsWith("/smoothing"));
+      expect(sent?.params.get("methods")).toBe("");
+    });
+    expect(await within(overviewSection).findByText(/2 of 12 periods are empty/)).toBeInTheDocument();
+
+    fireEvent.click(within(overviewSection).getByRole("button", { name: "Add Kalman (smoothed)" }));
+    await waitFor(() => {
+      const last = calls.filter((c) => c.key.endsWith("/smoothing")).at(-1);
+      expect(last?.params.get("methods")).toBe("kalman_smoothed");
+    });
+    expect(within(row).getByText("Uses future values")).toBeInTheDocument();
+  });
+
+  it("keeps niche smoothers two folds deep", async () => {
+    setupApi();
+    renderAt("/d/d1/timeseries");
+    const overviewSection = await screen.findByRole("region", { name: "Overview" });
+    fireEvent.click(within(overviewSection).getByRole("button", { name: "Add a smoothing method" }));
+
+    const more = screen.getByText("More").closest("details");
+    const advanced = screen.getByText("Advanced").closest("details");
+    expect(advanced).not.toHaveAttribute("open");
+    expect(more).not.toHaveAttribute("open");
+    expect(advanced?.contains(more ?? null)).toBe(true);
+    expect(more?.textContent).toMatch(/Savitzky–Golay/);
+    expect(more?.textContent).toMatch(/Hodrick–Prescott/);
+    expect(advanced?.textContent).toMatch(/EWMA/);
+  });
+
+  it("suggests Kalman for empty periods and fills them on request", async () => {
+    const calls = mockApi({
+      "GET /health": health,
+      "GET /datasets": [dataset()],
+      "GET /datasets/d1": dataset(),
+      "GET /datasets/d1/columns": columns,
+      "GET /column-roles": roles,
+      "GET /modules/timeseries/datasets/d1/overview": {
+        ...overview,
+        figures: { ...overview.figures, missing: 2 },
+      },
+      "GET /modules/timeseries/datasets/d1/smoothing": smoothing([]),
+    });
+    const router = renderAt("/d/d1/timeseries");
+
+    expect(await screen.findByText("2 empty periods. Kalman fills them with an uncertainty band.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use Kalman" }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ gaps: "kalman" }));
+    await waitFor(() => {
+      const last = calls.filter((c) => c.key.endsWith("/overview")).at(-1);
+      expect(last?.params.get("gaps")).toBe("kalman");
+    });
+  });
+});
+

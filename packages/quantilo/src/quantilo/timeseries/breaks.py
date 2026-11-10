@@ -25,7 +25,15 @@ Cost = Literal["mean", "mean_var", "trend"]  # trend: a straight line per segmen
 Sensitivity = Literal["low", "medium", "high"]
 PENALTY_FACTOR: dict[Sensitivity, float] = {"high": 0.5, "medium": 1.0, "low": 2.0}
 Anomaly = Literal[
-    "robust_z", "iqr", "rolling_z", "hampel", "gesd", "isolation_forest", "lof", "autoencoder"
+    "robust_z",
+    "iqr",
+    "rolling_z",
+    "hampel",
+    "gesd",
+    "isolation_forest",
+    "lof",
+    "autoencoder",
+    "kalman",
 ]
 ANOMALIES: tuple[Anomaly, ...] = (
     "robust_z",
@@ -36,6 +44,7 @@ ANOMALIES: tuple[Anomaly, ...] = (
     "isolation_forest",
     "lof",
     "autoencoder",
+    "kalman",  # one-step-ahead errors of a structural model (064)
 )
 GESD_ALPHA = 0.05
 GESD_MAX_SHARE = 0.1  # at most 10 % of the periods tested as outliers
@@ -413,6 +422,39 @@ def _learned_scores(
     return error, np.ones(len(error))  # the masked centre is already the period's own error
 
 
+def _kalman_fit(series: np.ndarray, season: int | None):
+    from quantilo.timeseries import smoothing as sm
+
+    try:
+        return sm.kalman(series, season)
+    except sm.KalmanError:
+        return None
+
+
+def kalman_source(series: np.ndarray, season: int | None) -> str:
+    """How the Kalman anomalies were scored, for the line under the method."""
+    fit = _kalman_fit(series, season)
+    return f"Kalman one-step errors ({fit.label})" if fit else "Kalman: model could not be fitted"
+
+
+def kalman_anomalies(
+    series: np.ndarray, threshold: float, season: int | None
+) -> list[AnomalyPoint]:
+    """Periods whose one-step-ahead prediction error, divided by its predicted standard
+    deviation, is beyond `threshold` robust z-scores (064). Causal; empty periods are skipped."""
+    from quantilo.timeseries import smoothing as sm
+
+    fit = _kalman_fit(series, season)
+    if fit is None:
+        return []
+    scores = sm.innovation_scores(fit)
+    flagged = [i for i in np.argsort(-scores) if scores[i] > threshold][:MAX_ANOMALIES]
+    return [
+        AnomalyPoint(int(i), float(series[i]), float(fit.predicted[i]), float(scores[i]))
+        for i in flagged
+    ]
+
+
 def anomalies(
     resid: np.ndarray,
     series: np.ndarray,
@@ -428,6 +470,8 @@ def anomalies(
     """
     n = len(resid)
     scores = np.zeros(n)
+    if method == "kalman":
+        return kalman_anomalies(series, threshold, season)
     if method == "gesd":
         scores = gesd_scores(resid)
         flagged = [i for i in np.argsort(-scores) if scores[i] > 1][:MAX_ANOMALIES]

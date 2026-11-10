@@ -1,0 +1,28 @@
+{
+  "about": "Feature 065 (M0): every Basic suggestion samples/dirty_traps.csv must produce (100 % recall), with its mode. Controls (clean columns) must get none.",
+  "expected": [
+    {"id": "B-15:empty", "mode": "A", "trap": "one row with no value"},
+    {"id": "B-02:product", "mode": "A", "trap": "zero-width space after some products"},
+    {"id": "B-01:description", "mode": "A", "trap": "spaces at the ends and doubled"},
+    {"id": "B-01:status", "mode": "A", "trap": "a blank string ' '"},
+    {"id": "B-05:brand", "mode": "A", "trap": "UTF-8 read as Windows-1252 ('CafÃ© Noir')"},
+    {"id": "B-06:title", "mode": "A", "trap": "HTML entities ('&amp;', '&#39;')"},
+    {"id": "B-04:status", "mode": "A", "trap": "'#N/A', 'n/a' and blank"},
+    {"id": "B-04:region:maybe", "mode": "S", "trap": "'unknown': maybe a real category"},
+    {"id": "B-03:city", "mode": "A", "trap": "'NEW YORK', 'new york', 'New York'"},
+    {"id": "B-12:customer_id", "mode": "A", "trap": "identifier read as decimals ('17407.0')"},
+    {"id": "B-13:zip_code", "mode": "A", "trap": "postal codes that lost their leading zero"},
+    {"id": "B-07:price", "mode": "A", "trap": "numbers stored as text ('$1,684.94')"},
+    {"id": "B-07:weight", "mode": "S", "trap": "numbers stored as text, a few unreadable ('see note')"},
+    {"id": "B-11:signup_date", "mode": "A", "trap": "two date formats and Excel serial numbers"},
+    {"id": "B-18:is_member", "mode": "A", "trap": "Y, yes, 1, N, no, 0 mixed"},
+    {"id": "B-09:income:-999", "mode": "S", "trap": "-999 for missing"},
+    {"id": "B-16:end_date:9999-12-31", "mode": "A", "trap": "9999-12-31 for 'no end date'"},
+    {"id": "B-10:age", "mode": "S", "trap": "ages 230 and -4"},
+    {"id": "B-10:quantity", "mode": "S", "trap": "negative quantities (returns?)"},
+    {"id": "B-14:rows", "mode": "A", "trap": "six rows copied, identifier included"},
+    {"id": "B-19:country", "mode": "S", "trap": "always 'FR'"},
+    {"id": "B-19:empty_col", "mode": "S", "trap": "no value at all"}
+  ],
+  "controls": ["order_id", "newsletter", "notes", "score", "category", "sku"]
+}

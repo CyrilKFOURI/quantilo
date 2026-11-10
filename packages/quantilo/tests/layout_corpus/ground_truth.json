@@ -1,0 +1,97 @@
+{
+  "_about": "Ground truth for the table detection (feature 080), from excel-corpus/GROUND_TRUTH.md. Only ranges and header rows: the corpus files themselves stay outside the repository (licences). Ranges are 1-based Excel notation; header_rows = every row from the table's top to its first data row (names, units, column numbers). Bottoms marked 'profiled' in GROUND_TRUTH.md were set to the last row with at least 2 cells before the footer. 'no_table' sheets must not give a table of high confidence.",
+  "files": [
+    {"path": "owner/Kiwi_Market_TAM_Exits.xlsx", "family": "OWNER", "sheets": {
+      "1_Market_Players": [{"range": "A4:L14", "header_rows": [4]}, {"range": "A17:C23", "header_rows": [17]}],
+      "2_AMMC_TAM": [{"range": "A4:C20", "header_rows": [4]}, {"range": "A23:F28", "header_rows": [23]}, {"range": "A31:F35", "header_rows": []}],
+      "3_Comparable_Exits": [{"range": "A4:K24", "header_rows": [4]}, {"range": "A28:B32", "header_rows": []}, {"range": "A34:B36", "header_rows": []}]
+    }},
+    {"path": "census/NST-EST2023-POP.xlsx", "family": "STAT", "sheets": {
+      "NST-EST2023-POP": [{"range": "A3:F62", "header_rows": [3, 4]}]
+    }},
+    {"path": "census/CO-EST2023-POP-06.xlsx", "family": "STAT", "sheets": {
+      "CO-EST2023-POP-06": [{"range": "A3:F63", "header_rows": [3, 4]}]
+    }},
+    {"path": "census/h08-median-income-by-state.xlsx", "family": "STAT", "sheets": {
+      "h08": [{"range": "A8:CK116", "header_rows": [8, 9]}]
+    }},
+    {"path": "census/hstpov2-poverty-by-family.xlsx", "family": "STAT", "sheets": {
+      "pov02": [{"range": "A5:M581", "header_rows": [5, 6, 7, 8]}]
+    }},
+    {"path": "nces/tabn203.20.xlsx", "family": "STAT", "sheets": {
+      "Digest 2023 Table 203.20": [{"range": "A2:Z70", "header_rows": [2, 3, 4]}]
+    }},
+    {"path": "nces/tabn236.10.xlsx", "family": "STAT", "sheets": {
+      "Digest 2023 Table 236.10": [{"range": "A2:L76", "header_rows": [2, 3, 4]}]
+    }},
+    {"path": "nces/tabn318.10.xlsx", "family": "STAT", "sheets": {
+      "Digest 2023 Table 318.10": [{"range": "A2:T68", "header_rows": [2, 3, 4]}]
+    }},
+    {"path": "nces/tabn502.30.xlsx", "family": "STAT", "sheets": {
+      "Digest 2023 Table 502.30": [{"range": "A3:AB146", "header_rows": [3, 4]}]
+    }},
+    {"path": "bls/cpi-u-202409.xlsx", "family": "STAT", "sheets": {
+      "US": [{"range": "A4:AR394", "header_rows": [4, 5, 6]}],
+      "Regional": [{"range": "A4:W67", "header_rows": [4, 5]}]
+    }},
+    {"path": "eia/MER_T01_01.xlsx", "family": "STAT", "sheets": {
+      "Monthly Data": [{"range": "A11:M655", "header_rows": [11, 12]}],
+      "Annual Data": [{"range": "A11:M89", "header_rows": [11, 12]}]
+    }},
+    {"path": "eia/MER_T03_01.xlsx", "family": "STAT", "sheets": {
+      "Monthly Data": [{"range": "A11:N657", "header_rows": [11, 12]}],
+      "Annual Data": [{"range": "A11:N89", "header_rows": [11, 12]}]
+    }},
+    {"path": "worldbank/CMO-Historical-Data-Annual.xlsx", "family": "STAT", "sheets": {
+      "AFOSHEET": "no_table",
+      "Annual Prices (Nominal)": [{"range": "A7:BR73", "header_rows": [7, 8]}],
+      "Annual Prices (Real)": [{"range": "A7:BS73", "header_rows": [7, 8]}],
+      "Annual Indices (Nominal)": [{"range": "A6:Q74", "header_rows": [6, 7, 8, 9]}],
+      "Annual Indices (Real)": [{"range": "A6:R74", "header_rows": [6, 7, 8, 9]}]
+    }},
+    {"path": "insee/1_Pop_annu_compo_evol.xlsx", "family": "STAT", "sheets": {
+      "FR": [{"range": "A3:L74", "header_rows": [3, 4]}],
+      "FM": [{"range": "A3:L130", "header_rows": [3, 4]}],
+      "FM-histo": [{"range": "A4:D99", "header_rows": [4]}]
+    }},
+    {"path": "insee/4_Pop1janv_grages_quinquennal.xlsx", "family": "STAT", "sheets": {
+      "FR-Ensemble": [{"range": "A3:Y40", "header_rows": [3, 4]}],
+      "FR-Femmes": [{"range": "A3:Y40", "header_rows": [3, 4]}],
+      "FR-Hommes": [{"range": "A3:Y40", "header_rows": [3, 4]}],
+      "FM-Ensemble": [{"range": "A3:Y130", "header_rows": [3, 4]}],
+      "FM-Femmes": [{"range": "A3:Y130", "header_rows": [3, 4]}],
+      "FM-Hommes": [{"range": "A3:Y130", "header_rows": [3, 4]}]
+    }},
+    {"path": "datagouv/legislatives2024-t1-par-departements.xlsx", "family": "STAT", "sheets": {
+      "resultats-definitifs-par depart": [{"range": "A1:BX108", "header_rows": [1]}]
+    }},
+    {"path": "ons/opn-wellbeing-loneliness-aug2026.xlsx", "family": "SURVEY", "sheets": {
+      "Notes": [{"range": "A4:B8", "header_rows": [4]}],
+      "Table_1": [{"range": "A10:G17", "header_rows": [10]}],
+      "Table_2": [{"range": "A10:G17", "header_rows": [10]}],
+      "Table_16": [{"range": "A10:D180", "header_rows": [10]}]
+    }},
+    {"path": "sec/apple-10k-2023-Financial_Report.xlsx", "family": "FIN", "sheets": {
+      "CONSOLIDATED STATEMENTS OF OPER": [{"range": "A1:D26", "header_rows": [1, 2]}],
+      "CONSOLIDATED STATEMENTS OF COMP": [{"range": "A1:D16", "header_rows": [1, 2]}],
+      "CONSOLIDATED BALANCE SHEETS": [{"range": "A1:C36", "header_rows": [1]}]
+    }},
+    {"path": "bookkeeping/Free_Excel_Cash_Book_Easy.xlsx", "family": "BOOK", "sheets": {
+      "About": "no_table",
+      "Links": "no_table",
+      "Example Sole Owner": [{"range": "B3:AA20", "header_rows": [3, 4]}]
+    }},
+    {"path": "fed/H15-ddp.csv", "family": "CSV-V", "sheets": {
+      "": [{"range": "A1:L36", "header_rows": [1, 2, 3, 4, 5, 6]}]
+    }},
+    {"path": "eurostat/tps00001.tsv", "family": "CSV-V", "sheets": {
+      "": [{"range": "A1:M52", "header_rows": [1]}]
+    }},
+    {"path": "datagouv/legislatives2024-t1-par-departements.csv", "family": "CTRL", "sheets": {
+      "": [{"range": "A1:BX108", "header_rows": [1]}]
+    }},
+    {"path": "statcan/1810000401-cpi-as-displayed.csv", "family": "CTRL", "sheets": {
+      "": [{"range": "A1:O76", "header_rows": [1]}]
+    }}
+  ]
+}

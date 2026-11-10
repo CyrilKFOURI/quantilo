@@ -145,8 +145,8 @@ def rolling(
     return means, stds
 
 
-Gaps = Literal["leave", "interpolate", "zero", "carry"]
-GAPS: tuple[Gaps, ...] = ("leave", "interpolate", "zero", "carry")
+Gaps = Literal["leave", "interpolate", "zero", "carry", "kalman"]
+GAPS: tuple[Gaps, ...] = ("leave", "interpolate", "zero", "carry", "kalman")
 # One full cycle, in periods: a week of days, a year of weeks or months…
 SEASON: dict[Period, int] = {"hour": 24, "day": 7, "week": 52, "month": 12, "quarter": 4}
 
@@ -155,10 +155,17 @@ def season_length(period: Period) -> int | None:
     return SEASON.get(period)
 
 
-def fill_gaps(values: list[float | None], how: Gaps) -> list[float | None]:
-    """Empty periods left as they are, linearly interpolated, set to 0 or carried forward."""
+def fill_gaps(
+    values: list[float | None], how: Gaps, season: int | None = None
+) -> list[float | None]:
+    """Empty periods left as they are, linearly interpolated, set to 0, carried forward or
+    estimated by a structural model (Kalman smoother, `smoothing.kalman_fill`, 064)."""
     if how == "leave":
         return list(values)
+    if how == "kalman":
+        from quantilo.timeseries.smoothing import kalman_fill
+
+        return kalman_fill(values, season).values
     if how == "zero":
         return [0.0 if v is None else v for v in values]
     filled: list[float | None] = list(values)

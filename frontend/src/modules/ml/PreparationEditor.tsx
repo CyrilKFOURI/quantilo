@@ -19,6 +19,9 @@ type Global = Exclude<keyof MlChoicesInput, "columns" | "selection">;
 const KEYS: Key[] = ["impute", "transform", "encoding", "scaling"];
 const METHODS = ["variance", "correlation", "vif", "mutual_info", "univariate", "l1", "rfe", "permutation"] as const;
 const label = (key: string, value: string) => t(`ml.prep.${key}.${value}` as MessageKey);
+/** Causal smoothed lags (063): chosen in Advanced › More only. */
+const LAGS = ["past_mean", "past_ewm"];
+const isLag = (value: string | null | undefined) => value != null && LAGS.includes(value);
 
 /** The value a decision applies for a setting, as the options name it ("none" = nothing). */
 function current(decision: MlDecision, key: Key): string {
@@ -190,6 +193,59 @@ function ColumnsTab({ preparation, target, onColumn }: { preparation: MlPreparat
           ))}
         </tbody>
       </table>
+      <AdvancedEncodings preparation={preparation} onColumn={onColumn} />
+    </div>
+  );
+}
+
+/** Causal smoothed lags (063, R-LAG-01): niche and rarely worth it, so they live in
+ * Advanced › More, folded twice and not rendered before the user opens them. */
+export function AdvancedEncodings({ preparation, onColumn }: { preparation: MlPreparation; onColumn: OnColumn }) {
+  const [more, setMore] = useState(false);
+  return (
+    <details className="mt-3 border-t border-line pt-3 text-xs">
+      <summary className="cursor-pointer text-[13px] text-accent select-none hover:underline">{t("ml.prep.advanced")}</summary>
+      {preparation.folds && <p className="mt-2 max-w-prose text-ink-2">{preparation.folds.why}</p>}
+      <details className="mt-2" onToggle={(event) => setMore(event.currentTarget.open)}>
+        <summary className="cursor-pointer text-[13px] text-accent select-none hover:underline">{t("ml.prep.more")}</summary>
+        {more && <LagChoices preparation={preparation} onColumn={onColumn} />}
+      </details>
+    </details>
+  );
+}
+
+function LagChoices({ preparation, onColumn }: { preparation: MlPreparation; onColumn: OnColumn }) {
+  const numbers = preparation.decisions.filter((d) => d.use && d.options.transform?.some((o) => isLag(o.value)));
+  const reason = numbers[0]?.options.transform?.find((o) => isLag(o.value))?.reason ?? null;
+  return (
+    <div className="mt-2 space-y-2">
+      <p className="max-w-prose text-ink-2">{t("ml.prep.lags.intro")}</p>
+      {reason && <p className="max-w-prose text-ink-3">{reason}</p>}
+      {numbers.length === 0 ? (
+        <p className="text-ink-3">{t("ml.prep.lags.empty")}</p>
+      ) : (
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,14rem),1fr))] gap-2">
+          {numbers.map((d) => (
+            <li key={d.column} className="flex min-w-0 items-center gap-2">
+              <span className="min-w-0 truncate font-mono text-ink-1">{d.column}</span>
+              <Select
+                aria-label={t("ml.prep.lags.for", { column: d.column })}
+                value={isLag(d.transform) ? (d.transform ?? "") : ""}
+                disabled={Boolean(reason)}
+                onChange={(event) => onColumn(d.column, "transform", event.target.value || undefined)}
+                className="ml-auto h-7 max-w-36 text-xs"
+              >
+                <option value="">{t("ml.prep.lags.off")}</option>
+                {LAGS.map((value) => (
+                  <option key={value} value={value}>
+                    {label("transform", value)}
+                  </option>
+                ))}
+              </Select>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -228,7 +284,8 @@ function UsedRow({ decision, onColumn }: { decision: MlDecision; onColumn: OnCol
 }
 
 function ChoiceCell({ decision, settingKey, onColumn }: { decision: MlDecision; settingKey: Key; onColumn: OnColumn }) {
-  const options = decision.options[settingKey];
+  // lags are chosen in Advanced › More; the cell only shows one once it is chosen
+  const options = decision.options[settingKey]?.filter((o) => !isLag(o.value) || o.value === decision.transform);
   const auto = decision.auto[settingKey] ?? "none";
   if (!options || options.length === 0) {
     if (auto === "none") return <span className="text-ink-3">—</span>;

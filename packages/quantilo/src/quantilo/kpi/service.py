@@ -91,6 +91,7 @@ class KpiEngine:
         if definition.time is not None and not definition.time.page_filters:
             conditions = []  # the KPI only sees its own period
         data = definition.model_dump(mode="json", exclude={"view"})  # display needs no recompute
+        data["trend"] = definition.view.show_as == "trend"  # except the trend (053, R-SHOW-02)
         key = (
             dataset_id,
             dataset.imported_at,

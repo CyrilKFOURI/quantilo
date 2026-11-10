@@ -6,6 +6,7 @@ from typing import Any
 from quantilo.compare.service import CompareService
 from quantilo.correlations.service import CorrelationService
 from quantilo.profiling.service import ProfilingService
+from quantilo.regression.service import RegressionService
 from quantilo.variable.service import VariableService
 
 from app.modules.agent.engine.tools import Tool, ToolRegistry
@@ -26,6 +27,7 @@ class AppServices:
     correlations: CorrelationService
     reports: ReportService
     versions: VersionService | None = None  # what changed between two versions (031)
+    regression: RegressionService | None = None  # the Regression tab (068)
 
 
 def default_registry(
@@ -40,9 +42,11 @@ def default_registry(
         ProfileColumn,
     )
     from app.modules.agent.tools.memory import GetPlaybook, Remember
+    from app.modules.agent.tools.regression import FitRegression
     from app.modules.agent.tools.relations import (
         CompareColumns,
         GetCorrelations,
+        GetStructure,
         RankAssociationsWith,
     )
     from app.modules.agent.tools.report import ExportReport
@@ -56,6 +60,8 @@ def default_registry(
             CompareColumns(services),
             GetCorrelations(services),
             RankAssociationsWith(services),
+            GetStructure(services),
+            FitRegression(services),
             ExportReport(services),
             WhatChanged(services),
             GetPlaybook(),

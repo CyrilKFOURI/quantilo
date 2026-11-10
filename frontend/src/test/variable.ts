@@ -187,3 +187,54 @@ export const outliers = {
     { row: 168, value: 2165 },
   ],
 };
+
+/** 056: the right tail of a heavy column. */
+export const tail = {
+  n: 1190,
+  sample: 1190,
+  sampled: false,
+  rule: { fires: true, reason: "Heavy tail: excess kurtosis 12.0 (above 3), 60 values above the threshold.", kurtosis: 12, xi: null },
+  reason: null,
+  threshold: { value: 300, level: 0.95, exceedances: 60, linear_r2: 0.93, why: "95th percentile: the mean excess is roughly linear above it (R² 0.93)." },
+  xi: 0.37,
+  xi_low: 0.2,
+  xi_high: 0.58,
+  sigma: 120,
+  rate: 0.05,
+  endpoint: null,
+  stability: [
+    { level: 0.9, threshold: 200, exceedances: 119, xi: 0.4 },
+    { level: 0.95, threshold: 300, exceedances: 60, xi: 0.37 },
+    { level: 0.975, threshold: 420, exceedances: 30, xi: null },
+  ],
+  return_levels: [
+    { period: 100, value: 1015, low: 990, high: 1040, beyond_data: false, empirical: 1020 },
+    { period: 1000, value: 2966, low: 2800, high: 3100, beyond_data: false, empirical: 2980 },
+    { period: 10000, value: 7559, low: 6900, high: null, beyond_data: true, empirical: null },
+  ],
+  risk: [
+    { level: 0.95, var: 365, es: 828.8, rows: 60 },
+    { level: 0.99, var: 1018, es: 1833, rows: 12 },
+  ],
+  hill: { x: [10, 60], y: [0.5, 0.45], low: [0.2, 0.33], high: [0.8, 0.57], count: [] },
+  mean_excess: { x: [100, 300], y: [200, 260], low: [], high: [], count: [400, 60] },
+  curve: { x: [20, 1000], y: [300, 2966], low: [], high: [], count: [] },
+  observed: { x: [20, 1190], y: [300, 3348], low: [], high: [], count: [] },
+  conclusion: "Heavy right tail (ξ = 0.37): the 1-in-1,000 value is 2.9× the 99th percentile.",
+  notes: [],
+};
+
+export const robust = {
+  fires: true,
+  reason: "6.8 % of values are outliers by the IQR rule (above 1 %): the mean and the standard deviation are pulled by them.",
+  outliers: 81,
+  outlier_share: 0.068,
+  median: 90,
+  mad_sigma: 60,
+  iqr_sigma: 58,
+  huber_center: 95,
+  huber_scale: 62,
+  mean_shift: 0.38,
+  sample: 1190,
+  note: null,
+};

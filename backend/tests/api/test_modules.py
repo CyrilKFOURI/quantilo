@@ -24,6 +24,7 @@ def test_modules_are_registered() -> None:
         "experiments",
         "agent",
         "recipes",
+        "clean",
     ]
 
 

@@ -99,6 +99,55 @@ class Regression:
 
 
 @dataclass
+class Lowess:
+    """LOWESS curve of a scatter (064, R-SM-12): drawn by default when it bends away from the
+    straight line, i.e. explains clearly more of Y than the line on the same points."""
+
+    x: list[float]
+    y: list[float]
+    r2: float  # share of Y's variance the curve explains
+    line_r2: float  # the same for the least-squares line, on the same points
+    suggested: bool
+    reason: str
+
+
+LOWESS_MIN_POINTS = 30
+LOWESS_POINTS = 2_000  # points fitted at most (cost)
+LOWESS_GAIN = 0.05  # R² gained over the line to call the relation non-linear
+
+
+def lowess_curve(xs: np.ndarray, ys: np.ndarray) -> Lowess | None:
+    """Cleveland's robust LOWESS (frac 2/3, 3 passes) on at most LOWESS_POINTS points, on a grid
+    of 100 x values; None under LOWESS_MIN_POINTS points or for a constant column."""
+    from statsmodels.nonparametric.smoothers_lowess import lowess
+
+    xs, ys = xs[:LOWESS_POINTS], ys[:LOWESS_POINTS]
+    n = len(xs)
+    if n < LOWESS_MIN_POINTS or np.ptp(xs) == 0 or np.ptp(ys) == 0:
+        return None
+    delta = 0.01 * float(np.ptp(xs))
+    fitted = np.asarray(
+        lowess(ys, xs, frac=2 / 3, it=3, delta=delta, return_sorted=False), dtype=float
+    )
+    total = float(((ys - ys.mean()) ** 2).sum())
+    slope, intercept = np.polyfit(xs, ys, 1)
+    line_r2 = 1 - float(((ys - (slope * xs + intercept)) ** 2).sum()) / total
+    usable = np.isfinite(fitted)
+    r2 = 1 - float(((ys[usable] - fitted[usable]) ** 2).sum()) / total
+    order = np.argsort(xs[usable])
+    grid = np.linspace(float(xs.min()), float(xs.max()), 100)
+    curve = np.interp(grid, xs[usable][order], fitted[usable][order])
+    suggested = r2 - line_r2 >= LOWESS_GAIN
+    shares = f"LOWESS explains {r2:.0%} of Y's variance, the line {line_r2:.0%}"
+    reason = (
+        f"{shares}: the relation bends." if suggested else f"{shares}: a straight line is enough."
+    )
+    return Lowess(
+        [float(v) for v in grid], [float(v) for v in curve], r2, line_r2, suggested, reason
+    )
+
+
+@dataclass
 class Density:
     x_edges: list[float]
     y_edges: list[float]
@@ -339,6 +388,7 @@ class Comparison:
     group_axis: Literal["x", "y"] | None = None
     points: Points | None = None
     regression: Regression | None = None
+    lowess: Lowess | None = None  # scatter: LOWESS curve and whether to draw it (064)
     density: Density | None = None
     groups: list[Group] = field(default_factory=list)
     contingency: Contingency | None = None
@@ -527,6 +577,7 @@ class Comparer:
         xs = np.array([row[0] for row in tested], dtype=float)
         ys = np.array([row[1] for row in tested], dtype=float)
         result.tests = [pearson(clean(r), int(n)), *rank_correlations(xs, ys)]
+        result.lowess = lowess_curve(xs, ys)
         if result.tests[0].p_value is not None and r2 is not None:
             result.tests[
                 0

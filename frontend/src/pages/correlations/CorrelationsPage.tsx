@@ -10,6 +10,7 @@ import { FocusPanel } from "../../features/correlations/FocusPanel";
 import { matrixFigure, METRIC_LABELS } from "../../features/correlations/figures";
 import { TYPE_META } from "../../features/columns/columnTypes";
 import { InsightsList } from "../../features/correlations/InsightsList";
+import { StructureSection } from "../../features/correlations/StructureSection";
 import { MultipleTestingNote, NoLongerHolds, noLongerHolds } from "../../features/inference/MultipleTesting";
 import { formatP } from "../../features/variable/normality";
 import { formatCount } from "../../lib/format";
@@ -137,6 +138,9 @@ export function CorrelationsPage() {
       )}
 
       {matrix && matrix.pairs.length > 0 && <StrongestPairs datasetId={datasetId} matrix={matrix} typeOf={typeOf} />}
+      {correlations.data?.structure?.proposed && (
+        <StructureSection datasetId={datasetId} rule={correlations.data.structure} columns={chosen} />
+      )}
     </div>
   );
 }

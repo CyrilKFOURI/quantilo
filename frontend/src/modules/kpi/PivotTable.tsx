@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowLeftRight, ArrowUp, Copy, Download } from "lucide-react";
+import { Activity, ArrowDown, ArrowLeftRight, ArrowUp, Copy, Download, TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { KpiResult } from "../../api/client";
@@ -15,6 +15,17 @@ function background(cell: TableCell): string | undefined {
     return `color-mix(in oklab, ${color} ${Math.round(Math.abs(cell.shade) * 32)}%, transparent)`;
   }
   return `color-mix(in oklab, var(--chart-1) ${Math.round(4 + cell.shade * 30)}%, transparent)`;
+}
+
+/** 054: an icon before the value and the sentence for screen readers; never colour alone. */
+function CellMark({ flag }: { flag: NonNullable<TableCell["flag"]> }) {
+  const Icon = flag.kind === "anomaly" ? Activity : TriangleAlert;
+  return (
+    <>
+      <Icon size={11} strokeWidth={2} aria-hidden className={`mr-1 inline align-[-1px] ${flag.severity === "warning" ? "text-warn" : "text-ink-3"}`} />
+      <span className="sr-only">{flag.message} </span>
+    </>
+  );
 }
 
 export function PivotTable({
@@ -150,7 +161,9 @@ export function PivotTable({
                         key={i}
                         className={`border-b border-line px-3 py-1.5 text-right whitespace-nowrap ${cell.total || strong ? "font-semibold" : ""} ${cell.partial ? "italic text-ink-2" : "text-ink-1"}`}
                         style={{ background: background(cell) }}
+                        title={cell.flag?.message}
                       >
+                        {cell.flag && <CellMark flag={cell.flag} />}
                         {auto ? formatShown(cell.value, cell.mode, auto, formats[cell.measure] ?? {}, "full") : ""}
                       </td>
                     );

@@ -39,10 +39,12 @@ from quantilo.compare.multiple import Correction
 from quantilo.compare.service import CompareService
 from quantilo.correlations.matrix import Method
 from quantilo.correlations.service import Correlations, CorrelationService
+from quantilo.correlations.structure import Factors, Structure
 from quantilo.errors import ColumnNotFound, ExplorerError
 from quantilo.experiments.analyze import ExperimentDesign
+from quantilo.experiments.decisions import DecisionsRequest, LoggedDecisions
 from quantilo.experiments.facade import Experiment, MetricLike, metric_of
-from quantilo.experiments.service import ExperimentCandidates, ExperimentEngine
+from quantilo.experiments.service import ExperimentCandidates, ExperimentEngine, PolicyModel
 from quantilo.filters.model import Condition, Operator
 from quantilo.filters.scope import scoped_source, where_for
 from quantilo.ingestion.importer import import_to_parquet
@@ -54,6 +56,17 @@ from quantilo.kpi.definition import Definition
 from quantilo.kpi.service import KpiEngine, Suggestions
 from quantilo.profiling.overview import Overview
 from quantilo.profiling.service import ProfilingService
+from quantilo.regression.analyze import (
+    InfluenceTable,
+    MoreChecks,
+    RegressionReport,
+    StandardErrorTable,
+    TermsTable,
+)
+from quantilo.regression.rules import RegressionSuggestion, SeRequest
+from quantilo.regression.service import RegressionService
+from quantilo.regression.service import Request as RegressionRequest
+from quantilo.regression.service import Section as RegressionSection
 from quantilo.report.generate import ReportServices, generate
 from quantilo.rows.export import Format
 from quantilo.rows.service import RowService
@@ -70,9 +83,12 @@ from quantilo.variable.analyze import VariableProfile
 from quantilo.variable.fitting import Fit
 from quantilo.variable.outliers import OutlierMethod, Outliers
 from quantilo.variable.service import VariableService
+from quantilo.variable.tails import Tail
 from quantilo.version import __version__
 
 if TYPE_CHECKING:  # machine learning and synthetic data load on first use (scikit-learn, Optuna)
+    from quantilo.cleaning.facade import Cleaning
+    from quantilo.experiments.offpolicy import PolicyEvaluation
     from quantilo.ml.classes import Classes
     from quantilo.ml.engine import Targets
     from quantilo.ml.evaluate import Validation
@@ -295,6 +311,13 @@ class Dataset:
             self._id, column, method, self.conditions
         )
 
+    def tail(self, column: str) -> Tail:
+        """The right tail of a numeric column: a generalised Pareto law above a threshold,
+        return levels ("1 in 1,000 rows exceed X") with intervals, Hill and mean-excess curves,
+        VaR and Expected Shortfall at 95 and 99 %. `.rule` says whether the app shows it."""
+        self._record(column)
+        return self._state.service(VariableService).tail(self._id, column, self.conditions)
+
     def chart(
         self, column: str, view: str | None = None, *, top_n: int = 10, bins: int | None = None
     ) -> Chart:
@@ -387,6 +410,71 @@ class Dataset:
         return self._state.service(CorrelationService).correlations(
             self._id, method, columns, self.conditions, correction
         )
+
+    def structure(self, columns: list[str] | None = None) -> Structure:
+        """How many real dimensions the numeric columns carry: standardised PCA, components kept
+        by Horn's parallel analysis, loadings, a sentence, a sampled biplot (078)."""
+        for name in columns or []:
+            self._record(name)
+        return self._state.service(CorrelationService).structure(self._id, columns, self.conditions)
+
+    def factors(self, columns: list[str] | None = None, k: int | None = None) -> Factors:
+        """Factor analysis of the numeric columns with varimax rotation, communalities, KMO and
+        Bartlett's test (078). `k=None`: as many factors as the parallel analysis keeps."""
+        for name in columns or []:
+            self._record(name)
+        return self._state.service(CorrelationService).factors(
+            self._id, columns, self.conditions, k
+        )
+    def _regression_service(self) -> RegressionService:
+        services = self._state._services
+        if "RegressionService" not in services:
+            correlations = self._state.service(CorrelationService)
+            services["RegressionService"] = RegressionService(self._state, correlations)
+        return services["RegressionService"]
+
+    def regression(
+        self,
+        target: str | None = None,
+        columns: list[str] | None = None,
+        *,
+        weights: str | None = None,
+        cluster: str | None = None,
+        se: SeRequest = "auto",
+        focus: str | None = None,
+    ) -> RegressionReport:
+        """Linear regression with inference (067): OLS, WLS for a weight column, logistic for a
+        yes/no target; standard errors chosen by rule (HC3, clustered for a panel or a
+        `cluster` column, HAC for a dated series), adjusted p-values, diagnostics in sentences.
+        Without `target` or `columns`, they are picked from the correlations (R-REG-20/21).
+        `weights=""` turns automatic weights off; `se` forces classic, hc0…hc3, hac, cluster,
+        cluster2 or dk."""
+        request = RegressionRequest(
+            target, tuple(columns) if columns is not None else None, weights, cluster, se, focus
+        )
+        return self._regression_service().regression(self._id, request, self.conditions)
+
+    def regression_suggestion(self, target: str | None = None) -> RegressionSuggestion:
+        """The target and up to 5 columns the regression would pick, each with its reason."""
+        return self._regression_service().suggestion(self._id, target, self.conditions)
+
+    def regression_section(
+        self,
+        section: RegressionSection,
+        target: str | None = None,
+        columns: list[str] | None = None,
+        *,
+        weights: str | None = None,
+        cluster: str | None = None,
+        se: SeRequest = "auto",
+    ) -> StandardErrorTable | InfluenceTable | TermsTable | MoreChecks:
+        """An Advanced section of the same regression: standard_errors (every kind side by side),
+        influence (the 20 most influential rows, DFBETAS), terms (references, left out, VIF),
+        more (White's test, the fit without the influential rows)."""
+        request = RegressionRequest(
+            target, tuple(columns) if columns is not None else None, weights, cluster, se
+        )
+        return self._regression_service().section(self._id, section, request, self.conditions)
 
     def rows(
         self,
@@ -513,6 +601,47 @@ class Dataset:
         engine = self._state.service(ExperimentEngine)
         return Experiment(engine, self._id, design, self.conditions)
 
+    def logged_decisions(self) -> LoggedDecisions:
+        """Does this dataset look like logged decisions (055)? An action column (2 to 10
+        actions), its reward, columns describing the units, optionally the propensity."""
+        return self._state.service(ExperimentEngine).decisions(self._id, self.conditions)
+
+    def evaluate_policy(
+        self,
+        action: str,
+        reward: str,
+        *,
+        propensity: str | None = None,
+        covariates: list[str] | None = None,
+        models: list[Any] | None = None,
+        learn: bool = False,
+        alpha: float = 0.05,
+    ) -> PolicyEvaluation:
+        """Evaluate policies from logged decisions (055): the logged one, always each action,
+        the rule learnt from the log when `learn` (slower) and each of `models` (trained or
+        reloaded with `dx.load_model`: one that
+        predicts the action, or the reward from the action), with the DM, IPS, SNIPS and DR
+        estimators and their intervals, the diagnostics first. Without `propensity`, it is
+        estimated: valid only if no hidden factor drove the decisions."""
+        for name in (action, reward, propensity, *(covariates or [])):
+            if name is not None:
+                self._record(name)
+        request = DecisionsRequest(
+            action=action,
+            reward=reward,
+            propensity=propensity,
+            covariates=covariates,
+            learn=learn,
+            alpha=alpha,
+        )
+        policies = [
+            PolicyModel(getattr(m.card, "model_label", None) or m.card.model, m.pipeline, m.card)
+            for m in models or []
+        ]
+        return self._state.service(ExperimentEngine).evaluate_policy(
+            self._id, request, self.conditions, policies
+        )
+
     def ml_targets(self) -> Targets:
         """Every column as a possible target: the problem it makes (regression, binary,
         multiclass) or why it cannot be one."""
@@ -600,6 +729,17 @@ class Dataset:
 
             services[key] = SyntheticEngine(self._state, compute)
         return Synthesizer(self.unfiltered(), services[key], self._id)
+
+    # --- Cleaning (065) ----------------------------------------------------------------------
+
+    def clean(self, steps: list[Any] | None = None) -> Cleaning:
+        """What to clean, as the app's Clean page: `.suggestions` (each with its reason and its
+        step), `.steps` (the automatic ones to start with), `.use()` / `.skip()` a suggestion,
+        `.add(op=…)` a step, `.preview()`, then `.apply()` for the cleaned dataset (this one is
+        never changed). Whole dataset: filters do not apply."""
+        from quantilo.cleaning.facade import Cleaning
+
+        return Cleaning(self, steps)
 
     # --- Versions (031) ----------------------------------------------------------------------
 

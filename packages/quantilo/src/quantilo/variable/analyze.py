@@ -14,7 +14,9 @@ from quantilo.variable.numeric import (
     normality,
     qq,
 )
+from quantilo.variable.robust import Robust, robust
 from quantilo.variable.source import VariableSource
+from quantilo.variable.tails import TailRule, tail_rule
 
 NUMERIC = ("numeric_continuous", "numeric_discrete")
 CATEGORICAL = ("categorical_nominal", "categorical_ordinal", "boolean", "numeric_discrete")
@@ -29,6 +31,8 @@ class NumericProfile:
     ecdf: Curve | None
     qq: QQ | None
     sample: list[float]  # for the violin plot
+    robust: Robust | None = None  # robust center and spread (056, R-ROB-1)
+    tail_rule: TailRule | None = None  # whether the Tail tab is shown (056, R-TAIL-1)
 
 
 @dataclass
@@ -51,6 +55,8 @@ def numeric_profile(source: VariableSource) -> NumericProfile:
         ecdf(source, summary),
         qq(source, summary),
         [float(v) for v in source.sample(VIOLIN_SAMPLE)],
+        robust(source, summary),
+        tail_rule(source, summary),
     )
 
 

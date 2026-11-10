@@ -77,3 +77,47 @@ def test_sixty_columns_on_five_million_rows(client: TestClient, tmp_path: Path) 
     assert response.status_code == 200, response.text
     assert len(response.json()["matrix"]["columns"]) == 60
     assert seconds < 10, seconds
+
+
+@pytest.fixture
+def latent(client: TestClient, tmp_path: Path) -> str:
+    """Six numbers on two latent factors (three each) and a category."""
+    import numpy as np
+    import pandas as pd
+
+    rng = np.random.default_rng(3)
+    n = 800
+    f, g = rng.normal(size=n), rng.normal(size=n)
+    frame = pd.DataFrame({f"a{i}": f + rng.normal(0, 0.5, n) for i in range(1, 4)})
+    for i in range(1, 4):
+        frame[f"b{i}"] = g + rng.normal(0, 0.5, n)
+    frame["city"] = rng.choice(["Paris", "Lyon", "Nice"], n)
+    path = tmp_path / "latent.csv"
+    frame.to_csv(path, index=False)
+    return import_path(client, path)
+
+
+def test_structure_is_proposed_then_computed_on_request(client: TestClient, latent: str) -> None:
+    rule = get(client, latent).json()["structure"]
+    assert rule["proposed"] and rule["numeric"] == 6 and rule["strong"] == 6
+    assert rule["reason"].startswith("6 numeric columns, 6 pairs")
+
+    base = f"/api/v1/datasets/{latent}/correlations"
+    found = client.get(f"{base}/structure").json()
+    assert found["retained"] == 2 and found["columns"] == ["a1", "a2", "a3", "b1", "b2", "b3"]
+    assert found["conclusion"].startswith("2 components explain")
+    assert len(found["biplot"]["x"]) == 800 and found["parallel_rows"] == 800
+
+    factors = client.get(f"{base}/factors").json()
+    assert factors["k"] == 2 and factors["rotation"] == "varimax"
+    assert factors["kmo"] > 0.6 and factors["bartlett_p"] < 0.001
+    assert client.get(f"{base}/factors", params={"k": 1}).json()["k"] == 1
+    narrow = client.get(f"{base}/structure", params={"columns": "a1,a2,a3"}).json()
+    assert narrow["columns"] == ["a1", "a2", "a3"]
+
+
+def test_structure_without_numbers_is_refused(client: TestClient, traps: str) -> None:
+    base = f"/api/v1/datasets/{traps}/correlations"
+    found = client.get(f"{base}/structure", params={"columns": "country,city"}).json()
+    assert found["reason"] == "Needs at least 3 usable numeric columns (0 here)."
+    assert client.get(f"{base}/factors", params={"k": 0}).status_code == 422

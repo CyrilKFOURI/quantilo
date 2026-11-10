@@ -38,18 +38,37 @@ class Column(Protocol):
     parser: Parser
 
 
-def value_sql(measure: Measure, column: Column | None) -> str | None:
+def value_sql(measure: Measure, column: Column | None, until: Column | None = None) -> str | None:
     if column is None:
         return None
     if measure.agg == "true_share":
         return typed_sql(column.name, column.parser)
     if measure.agg == "distinct":
         return typed_sql(column.name, column.parser)
+    if measure.agg == "share":
+        # R-MES-05: true when the label (as filters show it) is one of the values, NULL if empty
+        label = label_sql(column)
+        listed = ", ".join(lit(value) for value in measure.values)
+        return f"(CASE WHEN {label} IS NULL THEN NULL ELSE {label} IN ({listed}) END)"
+    if until is not None:
+        # R-MES-07: a delay in days, hours included
+        start = f"CAST({typed_sql(column.name, column.parser)} AS TIMESTAMP)"
+        end = f"CAST({typed_sql(until.name, until.parser)} AS TIMESTAMP)"
+        return f"((epoch({end}) - epoch({start})) / 86400.0)"
     number = number_sql(column)
     return f"(CASE WHEN isfinite({number}) THEN {number} END)"
 
 
-def aggregate_sql(agg: Agg, value: str, approximate: bool) -> str:
+def weight_sql(column: Column) -> str:
+    """R-MES-06: a weight is a size; missing, infinite or ≤ 0 is no weight."""
+    number = number_sql(column)
+    return f"(CASE WHEN isfinite({number}) AND {number} > 0 THEN {number} END)"
+
+
+def aggregate_sql(
+    agg: Agg, value: str, approximate: bool, weight: str | None = None, key: str | None = None
+) -> str:
+    """`weight` (weighted mean) and `key` (share of distinct keys) name their own columns."""
     if agg == "count":
         return "count(*)"
     if agg == "sum":
@@ -64,6 +83,13 @@ def aggregate_sql(agg: Agg, value: str, approximate: bool) -> str:
         return f"max({value})"
     if agg == "distinct":
         return f"count(DISTINCT {value})"
+    if agg == "weighted_mean" and weight is not None:
+        both = f"CASE WHEN {value} IS NOT NULL THEN {weight} END"
+        return f"(sum({value} * {weight}) / nullif(sum({both}), 0))"
+    if agg == "share" and key is not None:
+        hits = f"count(DISTINCT CASE WHEN {value} THEN {key} END)"
+        known = f"count(DISTINCT CASE WHEN {value} IS NOT NULL THEN {key} END)"
+        return f"({hits} / nullif({known}, 0))"
     return f"avg(CASE WHEN {value} THEN 1.0 WHEN NOT {value} THEN 0.0 END)"
 
 
@@ -73,19 +99,45 @@ def build_table(
     time: Column | None,
     splits: Sequence[Column],
     measures: list[tuple[Measure, Column | None]],
+    extras: dict[str, Column] | None = None,
+    order_key: Column | None = None,
 ) -> None:
-    """Typed rows: t (timestamp), g1, g2 (labels, '(empty)' for a missing one), v1… (values)."""
+    """Typed rows: t (timestamp), g1, g2 (labels, '(empty)' for a missing one), v1… (values),
+    w1… (weights) and k1… (keys) of the measures that have one. `extras` gives the weight, key
+    and end date columns by name. With `order_key`, `ok` is the order and `h` a fingerprint of
+    the whole source row, to find rows repeated exactly (054, R-SIG-06)."""
+    extras = extras or {}
     selected = []
     if time is not None:
         selected.append(f"CAST({typed_sql(time.name, time.parser)} AS TIMESTAMP) AS t")
     for index, split in enumerate(splits, start=1):
         selected.append(f"COALESCE({label_sql(split)}, {lit(EMPTY)}) AS g{index}")
     for index, (measure, column) in enumerate(measures, start=1):
-        value = value_sql(measure, column)
+        until = extras.get(measure.until) if measure.until else None
+        value = value_sql(measure, column, until)
         if value is not None:
             selected.append(f"{value} AS v{index}")
+        if measure.weight and measure.weight in extras:
+            selected.append(f"{weight_sql(extras[measure.weight])} AS w{index}")
+        if measure.key and measure.key in extras:
+            key = extras[measure.key]
+            selected.append(f"{typed_sql(key.name, key.parser)} AS k{index}")
+    if order_key is not None:
+        selected.append(f"{typed_sql(order_key.name, order_key.parser)} AS ok")
+        selected.append("hash(kpi_source_row) AS h")
     columns = ", ".join(selected) or "1 AS one"
-    connection.execute(f"CREATE OR REPLACE TEMP TABLE {TABLE} AS SELECT {columns} FROM {source}")
+    connection.execute(
+        f"CREATE OR REPLACE TEMP TABLE {TABLE} AS SELECT {columns} FROM {source} AS kpi_source_row"
+    )
+
+
+def duplicated(connection: duckdb.DuckDBPyConnection, where: str) -> tuple[int, int]:
+    """Rows with an order key, and how many of them are exact copies of another one."""
+    rows, distinct = one(
+        connection,
+        f"SELECT count(*), count(DISTINCT h) FROM {TABLE} WHERE ({where}) AND ok IS NOT NULL",
+    )
+    return int(rows or 0), int((rows or 0) - (distinct or 0))
 
 
 def one(connection: duckdb.DuckDBPyConnection, sql: str) -> tuple:

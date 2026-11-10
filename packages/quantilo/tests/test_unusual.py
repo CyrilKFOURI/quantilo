@@ -219,3 +219,38 @@ def test_table_and_plain_data(tmp_path: Path) -> None:
     assert len(table) == len(found.listed) <= unusual.LIST_ROWS
     assert dx.to_dict(found)["threshold"]["rows"] == found.threshold.rows
     assert all(r.score >= found.threshold.value for r in found.above())
+
+
+def mixed(numbers: int, seed: int = 2) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    n = 1_500
+    base = rng.normal(0, 1, n)
+    frame = pd.DataFrame(
+        {f"n{i}": base + rng.normal(0, 0.3, n) for i in range(numbers)}
+        | {"city": rng.choice(["Paris", "Lyon", "Nice"], n)}
+    )
+    frame.loc[0, [f"n{i}" for i in range(numbers)]] = [2.5, -2.5, 2.5][:numbers]
+    return frame
+
+
+def test_mahalanobis_on_a_mix_reads_its_numbers(tmp_path: Path) -> None:
+    """056, R-UNU-MCD-1: 3 numbers and a category → the distance on the 3 numbers."""
+    found = as_dataset(mixed(3), tmp_path).unusual_rows(method="mahalanobis")
+
+    assert found.method == "mahalanobis"
+    assert found.used == ["n0", "n1", "n2"]
+    assert "city left out" in found.method_why
+    city = next(d for d in found.preparation.decisions if d.column == "city")
+    assert not city.use and "R-UNU-MCD-1" in city.rules
+    assert found.listed[0].row == 0  # off the correlation of the three numbers
+
+
+def test_mahalanobis_on_two_numbers_and_a_category_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(SegmentsError) as error:
+        as_dataset(mixed(2), tmp_path).unusual_rows(method="mahalanobis")
+    assert error.value.code == "method_unavailable"
+
+
+def test_auto_on_a_mix_stays_isolation_forest(tmp_path: Path) -> None:
+    found = as_dataset(mixed(3), tmp_path).unusual_rows()
+    assert found.method == "isolation_forest"

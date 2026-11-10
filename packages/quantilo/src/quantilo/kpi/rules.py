@@ -9,7 +9,16 @@ Rules read facts computed on the result; they never touch the data.
 import math
 from dataclasses import dataclass, field
 
-from quantilo.kpi.definition import GRAINS, Agg, Chart, Grain, Layout, Measure, Ratio
+from quantilo.kpi.definition import (
+    GRAINS,
+    Agg,
+    Chart,
+    Grain,
+    Layout,
+    Measure,
+    Ratio,
+    RatioKind,
+)
 
 GRAIN_SECONDS: dict[Grain, float] = {
     "day": 86_400,
@@ -430,7 +439,7 @@ def resolve_format(
 ) -> NumberFormat:
     """`agg` None is a ratio. Values are the result's cells, used for the magnitude."""
     finite = [v for v in values if v is not None and math.isfinite(v)]
-    if agg == "true_share" or (agg is None and percent_ratio):
+    if agg in ("true_share", "share") or (agg is None and percent_ratio):
         return NumberFormat(
             1,
             100.0,
@@ -439,7 +448,7 @@ def resolve_format(
             rule="R-FMT-03",
             reason="A share, shown in percent.",
         )
-    if role == "percentage" and agg in ("sum", "mean", "median", "min", "max"):
+    if role == "percentage" and agg in ("sum", "mean", "median", "min", "max", "weighted_mean"):
         within = bool(finite) and all(0 <= v <= 1 for v in finite)
         return NumberFormat(
             1,
@@ -459,6 +468,27 @@ def resolve_format(
     )
 
 
+def delay_format(values: list[float]) -> NumberFormat:
+    """R-FMT-06 (053): a delay in days, with the decimals of its size."""
+    finite = [v for v in values if v is not None and math.isfinite(v)]
+    decimals = max(1, magnitude_decimals(finite)) if finite else 1
+    return NumberFormat(decimals, suffix=" d", rule="R-FMT-06", reason="A delay, in days.")
+
+
+# --- Ratio, margin, difference (053, R-MES-03) -------------------------------------------------
+
+
+def combine(kind: RatioKind, top: float | None, bottom: float | None) -> float | None:
+    """A cell of the KPI's second-level measure, from the two measures' cells."""
+    if top is None or bottom is None:
+        return None
+    if kind == "difference":
+        return top - bottom
+    if kind == "margin":
+        return None if not top else (top - bottom) / top
+    return None if not bottom else top / bottom
+
+
 # --- Names -----------------------------------------------------------------------------------
 
 AGG_WORDS: dict[Agg, str] = {
@@ -470,12 +500,25 @@ AGG_WORDS: dict[Agg, str] = {
     "max": "Max {}",
     "distinct": "Distinct {}",
     "true_share": "% {}",
+    "share": "% {}",
+    "weighted_mean": "Weighted average {}",
+}
+DELAY_WORDS: dict[str, str] = {
+    "mean": "Average",
+    "median": "Median",
+    "min": "Min",
+    "max": "Max",
 }
 
 
 def measure_label(measure: Measure) -> str:
     if measure.label:
         return measure.label
+    if measure.until:
+        return f"{DELAY_WORDS.get(measure.agg, 'Average')} days {measure.column} → {measure.until}"
+    if measure.agg == "share":
+        values = ", ".join(measure.values)
+        return f"% of {measure.key}: {values}" if measure.key else f"% {measure.column}: {values}"
     return AGG_WORDS[measure.agg].format(measure.column or "")
 
 
@@ -488,6 +531,11 @@ def ratio_label(ratio: Ratio, measures: list[Measure]) -> str:
         measure = by_id[measure_id]
         return measure.column or fallback
 
+    top, bottom = side(ratio.numerator, "rows"), side(ratio.denominator, "rows")
+    if ratio.kind == "margin":
+        return f"Margin ({top} - {bottom})"
+    if ratio.kind == "difference":
+        return f"{top} - {bottom}"
     return f"{side(ratio.numerator, 'rows')} per {side(ratio.denominator, 'row')}"
 
 

@@ -12,6 +12,7 @@
     dx.bandit_simulation(baseline=0.10, effect=0.05, daily=1_000)   # fixed split vs bandit
     dx.plot(ds.compare("Age", "Survived"))   # the app's chart (the plot extra)
     model = dx.load_model("churn_lightgbm.zip")   # a model exported by the app (037)
+    layout = dx.detect_tables("report.xlsx")       # the real tables of a laid-out sheet (080)
 
 The engine of the Quantilo app: the same code computes the app's results.
 """
@@ -30,6 +31,7 @@ from quantilo.typing.engine import DEFAULT_THRESHOLDS, Thresholds
 from quantilo.version import __version__
 
 if TYPE_CHECKING:
+    from quantilo.ingestion.layout import Layout
     from quantilo.ml.saved import LoadedModel
     from quantilo.recipes import Recipe
 
@@ -49,6 +51,15 @@ def plot(result: object, view: str | None = None, **options: object) -> object:
     from quantilo.plots import plot as draw
 
     return draw(result, view, **options)  # type: ignore[arg-type]
+
+
+def detect_tables(path: str | os.PathLike[str], sheets: list[str] | None = None) -> "Layout":
+    """Every real table of a workbook's sheets (or of a verbose CSV), found by rules (080): its
+    range, header rows, columns, the rows set aside and why, proposed reshapes and a confidence.
+    `layout.read(table)` gives a pyarrow Table; see `quantilo.ingestion.layout`."""
+    from quantilo.ingestion.layout import detect_layout
+
+    return detect_layout(os.fspath(path), sheets)
 
 
 def load_model(path: str | os.PathLike[str]) -> "LoadedModel":
@@ -75,6 +86,7 @@ __all__ = [
     "Thresholds",
     "__version__",
     "bandit_simulation",
+    "detect_tables",
     "from_arrow",
     "from_pandas",
     "load_model",

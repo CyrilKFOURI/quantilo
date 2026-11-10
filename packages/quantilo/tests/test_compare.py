@@ -352,3 +352,33 @@ def test_colored_groups_compare_the_axis_groups_pairwise(connection) -> None:
     result = compare(connection, "data", col("g", CAT), col("v", NUM), color=col("h", CAT))
     assert {(d.a, d.b) for d in result.differences} == {("a", "b"), ("a", "c"), ("b", "c")}
     assert all(g.ci_method in ("t", "bootstrap") for g in result.groups)
+
+
+# --- LOWESS curve on the scatter (064) ----------------------------------------------------------
+
+
+def _pairs(n: int, bend: bool) -> duckdb.DuckDBPyConnection:
+    rng = np.random.default_rng(9)
+    x = rng.uniform(-3, 3, n)
+    y = (x**2 if bend else 2 * x) + rng.normal(0, 1, n)
+    con = duckdb.connect()
+    con.register("t", pa.table({"file_row_number": pa.array(range(n)), "x": x, "y": y}))
+    con.execute("CREATE TABLE data AS SELECT * FROM t")
+    return con
+
+
+def test_lowess_is_on_for_a_bent_relation_and_off_for_a_line() -> None:
+    bent = compare(_pairs(400, True), "data", col("x", NUM), col("y", NUM)).lowess
+    straight = compare(_pairs(400, False), "data", col("x", NUM), col("y", NUM)).lowess
+
+    assert bent is not None and straight is not None
+    assert bent.suggested and not straight.suggested
+    assert bent.r2 - bent.line_r2 >= 0.05
+    assert len(bent.x) == len(bent.y) == 100 and bent.x == sorted(bent.x)
+    assert "bends" in bent.reason and "line" in straight.reason
+    assert min(bent.y) < 1.5  # the curve goes down to the bottom of the parabola
+
+
+def test_no_lowess_under_30_points() -> None:
+    result = compare(_pairs(20, True), "data", col("x", NUM), col("y", NUM))
+    assert result.lowess is None

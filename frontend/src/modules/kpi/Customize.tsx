@@ -18,15 +18,16 @@ import {
   withView,
   type ShowAs,
 } from "./definition";
-import { ADDITIVE_MODES, TIME_MODES } from "./pivot";
+import { ADDITIVE_MODES, rollingWindow, TIME_MODES } from "./pivot";
 
-const SHOW_AS: ShowAs[] = ["value", "share_total", "share_row", "share_column", "change", "change_pct", "change_yoy", "running"];
+const SHOW_AS: ShowAs[] = ["value", "share_total", "share_row", "share_column", "change", "change_pct", "change_yoy", "running", "rolling", "trend"];
+const TREND_MIN_PERIODS = 4; // R-SHOW-02
 const BARS = new Set(["bars", "stacked_bars", "grouped_bars"]);
 const field = "h-8 w-full min-w-0 text-[13px]";
 
 /** One setting in the grid (045): a short label (Auto's choice and why in its tooltip), its
- *  control, and a reset icon once it differs from Auto. */
-function Cell({
+ *  control, and a reset icon once it differs from Auto. Reused by the Regression tab (068). */
+export function Cell({
   label,
   why,
   changed,
@@ -114,12 +115,23 @@ export function Customize({
   const drawn = main ? chartFor(main, view.chart) : "none";
   const bars = Boolean(time) && BARS.has(drawn);
   const series = grouped ? (result.splits[result.splits.length === 2 ? 1 : 0]?.levels.length ?? 1) : 1;
+  const window = rollingWindow(result);
   const reasonFor = (m: ShowAs): string | null => {
     if (TIME_MODES.has(m) && !time) return t("kpi.reason.needsTime");
     if (ADDITIVE_MODES.has(m) && main && !main.additive) return t("kpi.reason.notAdditive", { measure: main.label });
     if ((m === "share_row" || m === "share_column") && !grouped) return t("kpi.reason.needsSplit");
+    if (m === "rolling" && result.periods.length <= window) return t("kpi.reason.rollingPeriods", { count: String(window + 1) });
+    if (m === "trend" && result.periods.length < TREND_MIN_PERIODS) return t("kpi.reason.trendPeriods", { count: String(TREND_MIN_PERIODS) });
     return null;
   };
+  // 053: what the smoothed modes do, in the setting's tooltip (R-SHOW-01, R-SHOW-02)
+  const grainName = result.resolved.grain ? t(`kpi.grain.${result.resolved.grain.value}` as MessageKey).toLowerCase() : "";
+  const showAsWhy =
+    view.show_as === "rolling"
+      ? t("kpi.showAs.rollingWhy", { count: String(window), grain: grainName })
+      : view.show_as === "trend"
+        ? (result.resolved.trend?.reason ?? t("kpi.showAs.trendWhy"))
+        : null;
   const layoutOptions = result.resolved.layout.options;
   const count = customised(definition);
   const summary = [main && chartName(drawn), t(`kpi.showAs.${view.show_as}` as MessageKey), view.line && t("kpi.line")]
@@ -184,7 +196,7 @@ export function Customize({
             >
               <Switch3 label={t("kpi.valueLabels")} value={view.labels} onChange={(labels) => onView(withView(definition, { labels }))} />
             </Cell>
-            <Cell label={t("kpi.showAs")} changed={view.show_as !== "value"} onReset={() => onView(withView(definition, { show_as: "value" }))}>
+            <Cell label={t("kpi.showAs")} why={showAsWhy} changed={view.show_as !== "value"} onReset={() => onView(withView(definition, { show_as: "value" }))}>
               <Select aria-label={t("kpi.showAs")} value={view.show_as} onChange={(e) => onView(withView(definition, { show_as: e.target.value as ShowAs }))} className={field}>
                 {SHOW_AS.map((m) => {
                   const reason = reasonFor(m);

@@ -6,6 +6,7 @@ import { OPEN_PALETTE_EVENT } from "../../features/command/Shortcuts";
 import { FilterButton, FilterChips } from "../../features/filters/FilterBar";
 import { t } from "../../lib/i18n";
 import { useStoredState } from "../../lib/useStoredState";
+import { DatasetName } from "../../modules/clean/FamilySelect";
 import { CyfouriLogo } from "../../ui/CyfouriLogo";
 import { Logo } from "../../ui/Logo";
 
@@ -48,9 +49,7 @@ export function TopBar({ onMenu, appMark = false }: { onMenu?: () => void; appMa
         {datasetId && dataset.data ? (
           <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
             <span className="shrink-0 text-ink-3 max-sm:hidden">{t("topbar.dataset")}</span>
-            <span className="truncate font-medium text-ink-1">
-              {dataset.data.name}
-            </span>
+            <DatasetName datasetId={datasetId} name={dataset.data.name} />
           </span>
         ) : datasetId ? (
           // Still loading (042): the name comes in a moment, "No dataset open" would be wrong.

@@ -18,6 +18,9 @@ import { formatBytes } from "../../lib/format";
 import { t, type MessageKey } from "../../lib/i18n";
 import { DEFAULT_PALETTE, palettePreference } from "../../lib/palettes";
 import { densityPreference, motionPreference, usePreference } from "../../lib/preferences";
+import { useCleanSettings, useUpdateCleanSettings, type CleanMode } from "../../modules/clean/api";
+import { CLEAN_ENABLED } from "../../modules/clean/flag";
+import { LegalLinks } from "../../features/legal/LegalLinks";
 import { Button } from "../../ui/Button";
 import { ErrorNote, Select, TextInput } from "../../ui/fields";
 import { PageHeader } from "../../ui/PageHeader";
@@ -130,6 +133,7 @@ export function SettingsPage() {
       </Section>
 
       <DetectionSection />
+      {CLEAN_ENABLED && <CleaningSection />}
       <ComputeSection />
       <StorageSection />
       <AboutSection />
@@ -199,6 +203,45 @@ function DetectionSection() {
           </div>
         </>
       )}
+    </Section>
+  );
+}
+
+const CLEAN_MODES: { value: CleanMode; label: MessageKey }[] = [
+  { value: "suggest", label: "clean.settings.suggest" },
+  { value: "auto", label: "clean.settings.auto" },
+  { value: "off", label: "clean.settings.off" },
+];
+
+/** Cleaning (065): what Clean does with a new dataset. Default "Suggest only" until the precision
+ *  of the automatic rules is measured (M4). */
+function CleaningSection() {
+  const settings = useCleanSettings();
+  const save = useUpdateCleanSettings();
+  const mode = settings.data?.mode ?? "suggest";
+  if (settings.isError) return null; // the server's Clean module is off (QUANTILO_CLEAN_ENABLED)
+  return (
+    <Section title={t("clean.settings.title")} intro={t("clean.settings.intro")}>
+      <SettingRow
+        label={t("clean.settings.mode")}
+        hint={t("clean.settings.modeHint")}
+        onReset={mode !== "suggest" ? () => save.mutate("suggest") : undefined}
+      >
+        <Select
+          aria-label={t("clean.settings.mode")}
+          value={mode}
+          disabled={!settings.data || save.isPending}
+          onChange={(event) => save.mutate(event.target.value as CleanMode)}
+          className="w-52 max-w-[55vw]"
+        >
+          {CLEAN_MODES.map(({ value, label }) => (
+            <option key={value} value={value}>
+              {t(label)}
+            </option>
+          ))}
+        </Select>
+      </SettingRow>
+      {save.isError && <ErrorNote>{save.error.message}</ErrorNote>}
     </Section>
   );
 }
@@ -292,11 +335,15 @@ function StorageSection() {
 function AboutSection() {
   const health = useHealth();
   return (
-    <Section title={t("settings.about")}>
-      <SettingRow label={t("settings.version")} hint={t("settings.licence")}>
-        <span className="font-mono text-xs text-ink-1">{health.data?.version ?? "…"}</span>
-      </SettingRow>
-    </Section>
+    <>
+      <Section title={t("settings.about")}>
+        <SettingRow label={t("settings.version")} hint={t("settings.licence")}>
+          <span className="font-mono text-xs text-ink-1">{health.data?.version ?? "…"}</span>
+        </SettingRow>
+      </Section>
+      {/* 081: the legal footer of the Settings page */}
+      <LegalLinks statement className="mt-3 max-w-2xl" />
+    </>
   );
 }
 

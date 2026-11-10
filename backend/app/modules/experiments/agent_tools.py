@@ -1,5 +1,6 @@
-"""What the Experiments module lets the AI agent do (specs 034, 049): analyze an A/B test of the
-dataset, read its bandit view, and plan one (sample size), through this module's own engine."""
+"""What the Experiments module lets the AI agent do (specs 034, 049, 055): analyze an A/B test of
+the dataset, read its bandit view, learn who should get which variant, evaluate a policy from
+logged decisions, and plan a test (sample size), through this module's own engine."""
 
 from typing import Any, ClassVar, Literal
 
@@ -10,6 +11,7 @@ from quantilo.experiments.analyze import (
     ExperimentMetric,
     ExperimentResult,
 )
+from quantilo.experiments.offpolicy import DecisionsRequest
 from quantilo.experiments.plan import SampleSizeRequest
 from quantilo.experiments.service import ExperimentEngine
 
@@ -211,6 +213,140 @@ class BanditView(Tool[AnalyzeInput]):
         )
 
 
+class PolicyInput(AnalyzeInput):
+    covariates: list[str] | None = Field(
+        None,
+        description=(
+            "Columns describing the units BEFORE the test (age, device, country); every usable "
+            "one when unset. Never a column the variant could have changed."
+        ),
+    )
+
+
+class LearnPolicy(Tool[PolicyInput]):
+    name: ClassVar[str] = "learn_policy"
+    description: ClassVar[str] = (
+        "Who should get which variant, on a randomized A/B test with at least 2 covariates and "
+        "200 units per variant: a depth 1-3 policy tree on doubly robust (AIPW) scores of the "
+        "primary metric, its cross-validated value against giving everyone each variant (with "
+        "bootstrap intervals), and the Qini curve. Use it after analyze_experiment. The rule is "
+        "a hypothesis to confirm with a new test, never a result: always say so."
+    )
+    Input: ClassVar[type[BaseModel]] = PolicyInput
+
+    def __init__(self, engine: ExperimentEngine) -> None:
+        self.engine = engine
+
+    def label(self, args: PolicyInput) -> str:
+        return f"Learning who should get which {args.variant}"
+
+    def run(self, ctx: ToolContext, args: PolicyInput) -> ToolOutput:
+        try:
+            learnt = self.engine.policy(
+                ctx.dataset_id, args.design(), args.covariates, ctx.conditions, qini=True
+            )
+        except AppError as error:
+            raise ToolError(f"No policy can be learnt here: {error.message}") from error
+        content = {
+            "rule": learnt.rule,
+            "sentence": learnt.sentence,
+            "verdict": learnt.verdict,
+            "depth": learnt.depth,
+            "leaves": [
+                {
+                    "where": leaf.conditions or "everyone",
+                    "variant": leaf.variant,
+                    "units": leaf.units,
+                }
+                for leaf in learnt.leaves
+            ],
+            "values": [
+                {"policy": v.label, "value": v.value, "ci": [v.low, v.high]} for v in learnt.values
+            ],
+            "qini": [{"variant": q.variant, "auuc": q.auuc} for q in learnt.qini],
+            "covariates": [
+                {"column": c.column, "used": c.used, "why": c.reason} for c in learnt.covariates
+            ],
+            "caveat": learnt.caveat,
+            "units": learnt.units,
+            "sampled": learnt.sampled,
+        }
+        primary = args.metrics[0]
+        params = {
+            "variant": args.variant,
+            "metric": primary if isinstance(primary, str) else primary.column,
+        }
+        if args.unit:
+            params["unit"] = args.unit
+        return ToolOutput(
+            learnt.rule,
+            compact(content, max_items=12),
+            AppLink("experiments", params, "Open in Experiments"),
+        )
+
+
+class EvaluatePolicy(Tool[DecisionsRequest]):
+    name: ClassVar[str] = "evaluate_policy"
+    description: ClassVar[str] = (
+        "Evaluate policies from logged decisions (an action column with 2 to 10 actions, its "
+        "reward, covariates, optionally the logged propensity): the logged decisions, always "
+        "each action, a learnt rule and saved ML models (run ids in models), each with the DM, "
+        "IPS, SNIPS and DR estimators and their intervals. Report the diagnostics first "
+        "(smallest propensity, clipped weights, effective sample size); a policy marked "
+        "unreliable cannot be judged. Without a propensity column, the result is observational: "
+        "valid only if no hidden factor drove the decisions. Call it a policy evaluation, never "
+        "reinforcement learning."
+    )
+    Input: ClassVar[type[BaseModel]] = DecisionsRequest
+
+    def __init__(self, engine: ExperimentEngine, app: FastAPI) -> None:
+        self.engine = engine
+        self.app = app
+
+    def label(self, args: DecisionsRequest) -> str:
+        return f"Evaluating policies on {args.action}"
+
+    def run(self, ctx: ToolContext, args: DecisionsRequest) -> ToolOutput:
+        from app.modules.experiments.router import policy_models
+
+        try:
+            models = policy_models(self.app, ctx.dataset_id, args.models)
+            result = self.engine.evaluate_policy(ctx.dataset_id, args, ctx.conditions, models)
+        except AppError as error:
+            raise ToolError(f"These decisions can't be evaluated: {error.message}") from error
+        content = {
+            "diagnostics": result.diagnostics.sentences,
+            "propensity": result.diagnostics.propensity,
+            "warnings": result.warnings,
+            "rule": result.rule,
+            "policies": [
+                {
+                    "policy": p.label,
+                    "sentence": p.sentence,
+                    "dr": [p.value, p.low, p.high],
+                    "estimates": {e.estimator: e.value for e in p.estimates},
+                    "gain_vs_logged": [p.gain, p.gain_low, p.gain_high],
+                    "effective_sample": p.ess,
+                    "reliable": p.reliable,
+                }
+                for p in result.policies
+            ],
+            "skipped_models": result.skipped,
+            "units": result.units,
+        }
+        best = max(
+            (p for p in result.policies if p.reliable and p.source != "logged"),
+            key=lambda p: p.value if p.value is not None else float("-inf"),
+            default=None,
+        )
+        summary = best.sentence if best else "No reliable policy to compare"
+        return ToolOutput(
+            summary,
+            compact(content, max_items=12),
+            AppLink("experiments", {"tab": "policies"}, "Open the Policies tab"),
+        )
+
+
 class SampleSizeInput(BaseModel):
     kind: Literal["rate", "mean"] = Field("rate", description="A rate (0/1) or a mean metric.")
     baseline: float = Field(description="Current rate (0.10 = 10 %) or mean.")
@@ -253,4 +389,10 @@ class SampleSizeTool(Tool[SampleSizeInput]):
 
 def agent_tools(app: FastAPI) -> list[Tool[Any]]:
     engine: ExperimentEngine = app.state.experiments
-    return [AnalyzeExperiment(engine), BanditView(engine), SampleSizeTool(engine)]
+    return [
+        AnalyzeExperiment(engine),
+        BanditView(engine),
+        LearnPolicy(engine),
+        EvaluatePolicy(engine, app),
+        SampleSizeTool(engine),
+    ]

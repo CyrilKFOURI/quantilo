@@ -15,6 +15,7 @@ import { ChangesPage, validateChangesSearch } from "../pages/changes/ChangesPage
 import { ColumnsPage } from "../pages/columns/ColumnsPage";
 import { HelpPage } from "../pages/help/HelpPage";
 import { HomePage } from "../pages/home/HomePage";
+import { LegalPage } from "../pages/legal/LegalPage";
 import { NotFoundPage } from "../pages/not-found/NotFoundPage";
 import { OverviewPage } from "../pages/overview/OverviewPage";
 import { RecipePage, validateRecipeSearch } from "../pages/recipes/RecipePage";
@@ -26,6 +27,7 @@ import {
 } from "../pages/compare/ComparePage";
 import { CorrelationsPage } from "../pages/correlations/CorrelationsPage";
 import { DataPage, validateDataSearch } from "../pages/data/DataPage";
+import { RegressionPage, validateRegressionSearch } from "../pages/regression/RegressionPage";
 import { VariablePage } from "../pages/variable/VariablePage";
 import { Grouped, type PageGroup } from "./layout/PageGroups";
 import { Shell } from "./layout/Shell";
@@ -57,7 +59,7 @@ export function createAppRouter({
     validateSearch: validateFilterSearch,
     search: { middlewares: [retainSearchParams<FilterSearch>(["filters"])] },
     component: () => <Shell modules={modules} panels={panels} />,
-    notFoundComponent: NotFoundPage,
+    notFoundComponent: () => <NotFoundPage />,
   });
 
   const homeRoute = createRoute({
@@ -74,6 +76,12 @@ export function createAppRouter({
     getParentRoute: () => rootRoute,
     path: "/help",
     component: HelpPage,
+  });
+  // 081: Privacy, Terms of use, Legal notice (reached from the Guide, Settings and Datasets footers).
+  const legalRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/legal/$doc",
+    component: LegalPage,
   });
   const recipesRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -112,6 +120,12 @@ export function createAppRouter({
     path: "/d/$datasetId/correlations",
     component: inGroup("relationships", CorrelationsPage),
   });
+  const regressionRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/d/$datasetId/regression",
+    validateSearch: validateRegressionSearch,
+    component: inGroup("relationships", RegressionPage),
+  });
   const dataRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/d/$datasetId/data",
@@ -140,6 +154,7 @@ export function createAppRouter({
       homeRoute,
       settingsRoute,
       helpRoute,
+      legalRoute,
       recipesRoute,
       recipeRoute,
       datasetRoute,
@@ -147,6 +162,7 @@ export function createAppRouter({
       variableRoute,
       compareRoute,
       correlationsRoute,
+      regressionRoute,
       dataRoute,
       changesRoute,
       ...moduleRoutes,

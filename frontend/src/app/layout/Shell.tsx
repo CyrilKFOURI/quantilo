@@ -6,6 +6,7 @@ import { KeyboardLayer } from "../../features/command/Shortcuts";
 import { t } from "../../lib/i18n";
 import { BELOW_LAPTOP, PHONE, useMedia } from "../../lib/useMedia";
 import type { ModuleManifest, PanelManifest } from "../../modules/types";
+import { DatasetGuard } from "../../pages/not-found/NotFoundPage";
 import { ActivityBar } from "../../ui/ActivityBar";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
@@ -81,7 +82,9 @@ export function Shell({ modules, panels = [] }: { modules: ModuleManifest[]; pan
           tabIndex={-1}
           className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain outline-none"
         >
-          <Outlet />
+          <DatasetGuard>
+            <Outlet />
+          </DatasetGuard>
         </main>
       </div>
       {panels.map(({ id, component: Panel }) => (

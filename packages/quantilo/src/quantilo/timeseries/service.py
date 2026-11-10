@@ -28,6 +28,7 @@ from quantilo.timeseries import groups as gr
 from quantilo.timeseries import hierarchy as hi
 from quantilo.timeseries import residuals as rs
 from quantilo.timeseries import series as ts
+from quantilo.timeseries import smoothing as sm
 from quantilo.timeseries import stationarity as st
 from quantilo.timeseries import volatility as vo
 from quantilo.timeseries.decomposition import (
@@ -110,6 +111,10 @@ class SeriesLine:
     counts: list[int]
     rolling_mean: list[float | None] = field(default_factory=list)
     rolling_std: list[float | None] = field(default_factory=list)
+    # Gaps filled by Kalman (064): 95 % band at the filled periods (None elsewhere), and how
+    filled_low: list[float | None] = field(default_factory=list)
+    filled_high: list[float | None] = field(default_factory=list)
+    filled_by: str | None = None
 
 
 @dataclass
@@ -131,6 +136,19 @@ class SeriesOverview:
     window: int | None
     align: ts.Align
     methods: list[MethodResult]
+    message: str | None = None
+
+
+@dataclass
+class SeriesSmoothing:
+    """Smoothed curves of the analysed series (064), the methods suggested by the data and the
+    ones that do not apply to this period."""
+
+    setup: SeriesSetup
+    periods: list[str]
+    curves: list[sm.Curve]
+    suggestions: list[sm.Suggestion]
+    unavailable: dict[str, str]
     message: str | None = None
 
 
@@ -399,8 +417,19 @@ class TimeSeriesService:
         finally:
             connection.close()
 
+        season = request.season or ts.season_length(built.period)
+        # Kalman fills the analysed series only; the other groups drawn alongside are
+        # interpolated (one structural fit per series would cost too much, 064).
+        cheap: ts.Gaps = "interpolate" if request.gaps == "kalman" else request.gaps
+
         def line(item: builder.Values) -> SeriesLine:
-            return SeriesLine(item.label, ts.fill_gaps(item.values, request.gaps), item.counts)
+            return SeriesLine(item.label, ts.fill_gaps(item.values, cheap), item.counts)
+
+        def kalman_line(item: builder.Values) -> SeriesLine:
+            filled = sm.kalman_fill(item.values, season)
+            return SeriesLine(
+                item.label, filled.values, item.counts, [], [], filled.low, filled.high, filled.info
+            )
 
         lines = [line(item) for item in built.groups]
         chosen = None
@@ -408,13 +437,17 @@ class TimeSeriesService:
             chosen = (
                 request.series if request.series in [x.label for x in lines] else lines[0].label
             )
-        analyzed = next((x for x in lines if x.label == chosen), None) or line(built.overall)
+        source = next((x for x in built.groups if x.label == chosen), None) or built.overall
+        if request.gaps == "kalman":
+            analyzed = kalman_line(source)
+            lines = [analyzed if x.label == chosen else x for x in lines]
+        else:
+            analyzed = next((x for x in lines if x.label == chosen), None) or line(built.overall)
         window = None
         if len(built.periods) >= ts.MIN_PERIODS:
             window = ts.resolve_window(options.window, built.period, len(built.periods))
             for item in {id(x): x for x in [analyzed, *lines]}.values():
                 item.rolling_mean, item.rolling_std = ts.rolling(item.values, window, options.align)
-        season = request.season or ts.season_length(built.period)
         setup = SeriesSetup(
             time,
             value,
@@ -495,6 +528,37 @@ class TimeSeriesService:
             results,
             message,
         )
+
+    def smoothing(
+        self,
+        dataset_id: str,
+        request: Request,
+        conditions: list[Condition],
+        chosen: list[str] | None = None,
+        params: sm.SmoothParams | None = None,
+    ) -> SeriesSmoothing:
+        """The chosen smoothers (none: only the suggestions, which cost no model fit)."""
+        prepared = self.prepare(dataset_id, request, conditions)
+        setup, built, analyzed = prepared.setup, prepared.built, prepared.analyzed
+        blocked = sm.unavailable(built.period)
+        view = SeriesSmoothing(
+            setup, built.periods, [], [], {str(k): v for k, v in blocked.items()}
+        )
+        if setup.periods < ts.MIN_PERIODS:
+            view.message = f"Too few periods to smooth ({ts.MIN_PERIODS} needed)."
+            return view
+        params = params or sm.SmoothParams()
+        if params.window is None:
+            params.window = prepared.window
+        params.align = request.options.align
+        keys: list[sm.SmoothKey] = [k for k in sm.SMOOTHERS if k in (chosen or [])]
+        view.curves = sm.smooth(analyzed.values, keys, built.period, setup.season, params)
+        view.suggestions = [
+            s
+            for s in sm.suggest(analyzed.values, built.period, setup.season)
+            if s.key not in keys and s.key not in blocked
+        ]
+        return view
 
     def seasonality(
         self,
@@ -691,6 +755,11 @@ class TimeSeriesService:
         view.methods = [br.BREAK_TESTS[key](values) for key in chosen or br.DEFAULT_BREAK_TESTS]
         remainder = rs.remainder(series, setup.season)
         view.residuals_from = remainder.method
+        observed = series
+        if anomaly == "kalman":
+            # The structural model has its own seasonal part and handles the empty periods.
+            observed = np.array([np.nan if v is None else v for v in prepared.core], dtype=float)
+            view.residuals_from = br.kalman_source(observed, setup.season)
         moments = starts(prepared.core_periods, built.period)
         view.anomalies = [
             AnomalyRow(
@@ -702,7 +771,7 @@ class TimeSeriesService:
                 point.expected,
                 point.score,
             )
-            for point in br.anomalies(remainder.values, series, anomaly, threshold, setup.season)
+            for point in br.anomalies(remainder.values, observed, anomaly, threshold, setup.season)
         ]
         return view
 
@@ -1216,7 +1285,9 @@ class TimeSeriesService:
         for label in order:
             values = [cells[label][p][0] if p in cells[label] else empty for p in built.periods]
             counts = [cells[label][p][1] if p in cells[label] else 0 for p in built.periods]
-            filled, _ = ts.complete(ts.fill_gaps(values, setup.gaps)[start:stop])
+            # Kalman is for the series studied; every group is interpolated (cost, 064).
+            gaps: ts.Gaps = "interpolate" if setup.gaps == "kalman" else setup.gaps
+            filled, _ = ts.complete(ts.fill_gaps(values, gaps)[start:stop])
             first = next((i for i, k in enumerate(counts[start:stop]) if k), 0)
             leaves.append(
                 gr.Node(

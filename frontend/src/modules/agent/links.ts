@@ -21,6 +21,12 @@ export function linkTarget(datasetId: string, link: AgentLink): LinkTarget | nul
       return { to: "/d/$datasetId/compare", params: { datasetId }, search: p };
     case "correlations":
       return { to: "/d/$datasetId/correlations", params: { datasetId } };
+    case "regression":
+      return {
+        to: "/d/$datasetId/regression",
+        params: { datasetId },
+        search: pick(p, ["target", "columns", "weights", "cluster", "se", "focus"]),
+      };
     case "data":
       return { to: "/d/$datasetId/data", params: { datasetId } };
     case "ml":
@@ -35,6 +41,8 @@ export function linkTarget(datasetId: string, link: AgentLink): LinkTarget | nul
       return { to: "/d/$datasetId/segments", params: { datasetId }, search: pick(p, ["section", "run", "unusual"]) };
     case "synthetic":
       return { to: "/d/$datasetId/synthetic", params: { datasetId }, search: pick(p, ["run"]) };
+    case "clean":
+      return { to: "/d/$datasetId/clean", params: { datasetId } };
     case "changes":
       return { to: "/d/$datasetId/changes", params: { datasetId }, search: pick(p, ["vs", "column"]) };
     case "recipes":
@@ -62,6 +70,7 @@ const PAGES: Record<string, string> = {
   variable: "Variable page",
   compare: "Compare",
   correlations: "Correlations",
+  regression: "Regression",
   data: "Data",
   changes: "Changes",
   timeseries: "Time series",
@@ -70,6 +79,7 @@ const PAGES: Record<string, string> = {
   kpi: "KPI builder",
   synthetic: "Synthetic data",
   experiments: "Experiments",
+  clean: "Clean",
 };
 
 /** The page the user is on, in words, so "explain this chart" makes sense to the agent. */
@@ -80,7 +90,7 @@ export function describePage(pathname: string, search: Record<string, unknown>):
   const page = PAGES[section] ?? section;
   const details: string[] = [];
   if (section === "variable" && rest) details.push(`column ${decodeURIComponent(rest)}`);
-  for (const key of ["x", "y", "z", "color", "target", "time", "value", "variant", "metric", "tab"]) {
+  for (const key of ["x", "y", "z", "color", "target", "columns", "time", "value", "variant", "metric", "tab"]) {
     const value = search[key];
     if (typeof value === "string" && value) details.push(`${key} = ${value}`);
   }

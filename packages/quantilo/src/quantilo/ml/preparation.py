@@ -21,7 +21,6 @@ from scipy import stats
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
-from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import (
     FunctionTransformer,
@@ -33,6 +32,7 @@ from sklearn.preprocessing import (
     TargetEncoder,
 )
 
+from quantilo.ml import encoding as enc
 from quantilo.ml import text as textual
 from quantilo.ml.data import CATEGORICAL, NUMERIC
 from quantilo.ml.data import Field as DataField
@@ -43,6 +43,20 @@ TARGET_ENCODING_LIMIT = 100
 MISSING = "Missing"
 DISTANCE_CATEGORIES = 20  # one-hot columns kept per category column for distances (032)
 DISTANCE_EMPTY = 0.95  # a column this empty is left out of distances
+LAGS = ("past_mean", "past_ewm")  # causal smoothed lags (R-LAG-01)
+# numbers that go round (R-DATE-04): role → (cycle length, first value), by the range of values
+CYCLES: dict[str, list[tuple[float, float, float, float]]] = {
+    # role: [(lowest, highest, period, start), …] — the first range that holds every value
+    "hour": [(0, 23, 24, 0)],
+    "month": [(1, 12, 12, 1)],
+    "weekday": [(0, 6, 7, 0), (1, 7, 7, 1)],
+    "angle": [(0, 360, 360, 0)],
+}
+NOT_CYCLIC = (
+    "Only for a column that goes round: hour 0 to 23, month 1 to 12, weekday, angle 0 to 360 "
+    "(its role in Columns)."
+)
+NEEDS_ORDER = "Needs ordered rows: choose panel walk-forward or a time-based split in Validation."
 
 # --- The user's choices --------------------------------------------------------------------------
 
@@ -121,6 +135,13 @@ class ColumnProfile:
     all_nonnegative: bool | None
     distinct_share: float  # distinct values / non-missing rows
     text: textual.TextProfile | None = None  # free text: its texts and words (052)
+    median_rows: float = 0.0  # categories: rows of the median category
+    minimum: float | None = None  # numbers
+    maximum: float | None = None
+    integer: bool = False  # numbers: every value is a whole number
+    span_days: float = 0.0  # dates: from the first to the last
+    month_days: int = 0  # dates: how many different days of the month
+    step_days: float = 0.0  # dates: median gap between two successive distinct dates
 
 
 @dataclass
@@ -148,6 +169,7 @@ class Decision:
     reactivable: bool = True  # an excluded column the user may use anyway
     leak: bool = False  # excluded because it seems to contain the answer
     missing: float = 0.0  # share of empty values
+    cycle: list[float] | None = None  # a number that goes round: [period, first value] (063)
 
     def apply(self, rule: str, sentence: str) -> None:
         self.rules.append(rule)
@@ -172,6 +194,17 @@ class Balance:
 
 
 @dataclass
+class Order:
+    """Ordered rows (panel walk-forward or time-based split): what the lags follow."""
+
+    period: str
+    entity: str | None
+    shift: int  # observations of the entity: 1 + the embargo
+    window: int
+    grain: str  # day, week, month, quarter, year, period
+
+
+@dataclass
 class Preparation:
     decisions: list[Decision]
     inputs: int = 0  # model inputs once prepared (filled after fitting)
@@ -183,6 +216,12 @@ class Preparation:
     balance: Balance | None = None
     dropped_rows: int = 0  # training rows removed as extreme outliers
     distance: bool = False  # prepared for distances between rows (no target)
+    folds: enc.TargetFolds | None = None  # how target encodings are cross-fitted (R-CAT-08)
+    order: "Order | None" = None  # ordered rows: what the lags follow (R-LAG-01)
+
+    def __post_init__(self) -> None:
+        # each row's fold key, set by the training (not a field: never sent nor saved)
+        self.fold_keys: pd.Series | None = None
 
     @property
     def used(self) -> list[Decision]:
@@ -206,7 +245,20 @@ def profile(series: pd.Series, fld: DataField) -> ColumnProfile:
     counts = labels.value_counts() if len(present) else pd.Series(dtype=int)
     distinct = int(counts.size)
     dominant = float(counts.iloc[0] / len(present)) if distinct else 1.0
-    skewness = outliers = nonnegative = None
+    skewness = outliers = nonnegative = minimum = maximum = None
+    integer = False
+    span_days, month_days, step_days = 0.0, 0, 0.0
+    if fld.type in NUMERIC and len(present):
+        numbers = present.to_numpy(dtype=float)
+        minimum, maximum = float(numbers.min()), float(numbers.max())
+        integer = bool(np.all(np.mod(numbers, 1) == 0))
+    if fld.type == "datetime" and len(present):
+        moments = cast(pd.Series, pd.to_datetime(present, errors="coerce")).dropna()
+        if len(moments):
+            span_days = float((moments.max() - moments.min()).total_seconds() / 86_400)
+            month_days = int(moments.dt.day.nunique())
+            gaps = pd.Series(moments.unique()).sort_values().diff().dropna()
+            step_days = float(gaps.dt.total_seconds().median() / 86_400) if len(gaps) else 0.0
     if fld.type in NUMERIC and len(present) > 2:
         values = present.to_numpy(dtype=float)
         if np.ptp(values) > 0:
@@ -231,6 +283,13 @@ def profile(series: pd.Series, fld: DataField) -> ColumnProfile:
         nonnegative,
         distinct / len(present) if len(present) else 0.0,
         textual.profile(series) if fld.type == "text" else None,
+        float(counts.median()) if distinct and fld.type in CATEGORICAL else 0.0,
+        minimum,
+        maximum,
+        integer,
+        span_days,
+        month_days,
+        step_days,
     )
 
 
@@ -298,9 +357,14 @@ def decide(
     choices: Choices | None = None,
     source_numeric: bool = False,
     panel_columns: dict[str, str] | None = None,
+    folds: enc.TargetFolds | None = None,
+    order: Order | None = None,
 ) -> Preparation:
     """One decision per column: the rules of the 017 spec, then the user's choices.
-    `panel_columns`: the period and entity of a panel (035), {column: "period" | "entity"}."""
+    `panel_columns`: the period and entity of a panel (035), {column: "period" | "entity"};
+    `folds`: how target encodings are cross-fitted (R-CAT-08, random by default); `order`: the
+    rows are ordered (panel or time split), so lags are possible (R-LAG-01)."""
+    folds = folds or enc.target_folds("split", None, None, None)
     choices = choices or Choices()
     decisions: list[Decision] = []
     warnings: list[str] = []
@@ -323,7 +387,7 @@ def decide(
                 (panel_columns or {}).get(fld.name),
             )
 
-        decision = _column(fld, prof, model, choices, exclude, warnings)
+        decision = _column(fld, prof, model, choices, exclude, warnings, folds, order)
         decisions.append(decision)
         choice = choices.columns.get(fld.name)
         if decision.use and choice and choice.use is True:
@@ -339,6 +403,8 @@ def decide(
         choices=choices,
         custom=custom,
         warnings=warnings,
+        folds=folds,
+        order=order,
     )
 
 
@@ -349,9 +415,11 @@ def _column(
     choices: Choices,
     exclude: Callable[[Decision], None],
     warnings: list[str],
+    folds: enc.TargetFolds | None = None,
+    order: Order | None = None,
 ) -> Decision:
     """One column: is it left out (`exclude`), then the rules of its type, then the user's
-    choices on top."""
+    choices on top, then what the chosen encoding needs said (R-CAT-08, R-LAG-01)."""
     decision = Decision(fld.name, fld.type, True)
     choice = choices.columns.get(fld.name)
     decision.missing = prof.missing_share
@@ -373,9 +441,27 @@ def _column(
             decision.manual.append("use")
             decision.apply("USER", "Left out: your choice.")
         elif choice:
-            _apply(decision, choice, prof, model, warnings)
-    decision.options = _options(decision, prof, model)
+            _apply(decision, choice, prof, model, warnings, order is not None)
+    if decision.use:
+        _encoding_notes(decision, folds, order)
+    decision.options = _options(decision, prof, model, order is not None)
     return decision
+
+
+def _encoding_notes(decision: Decision, folds: enc.TargetFolds | None, order: Order | None) -> None:
+    """R-CAT-08: which folds a target encoding is cross-fitted on; R-LAG-01: what a lag reads."""
+    if decision.encoding == "target" and folds is not None:
+        decision.apply("R-CAT-08", folds.why)
+    if decision.transform in LAGS and order is not None:
+        what = "mean" if decision.transform == "past_mean" else "exponentially weighted mean"
+        whose = f"per {order.entity}" if order.entity else f"over the rows of each {order.period}"
+        decision.apply(
+            "R-LAG-01",
+            f"Adds the {what} of the {order.window} previous {order.grain}s of "
+            f"{decision.column}, {whose}, shifted by {order.shift} "
+            f"(1 + embargo {order.shift - 1}): only values known before the row's period, "
+            "never the target.",
+        )
 
 
 def decide_distance(
@@ -481,9 +567,8 @@ def _exclusion(
             f"Behaves like an identifier ({prof.distinct:,} distinct values).",
             reactivable=False,
         )
-    if fld.type in CATEGORICAL and (
-        (prof.distinct_share > 0.5 and prof.distinct > 20) or prof.distinct > TARGET_ENCODING_LIMIT
-    ):
+    if fld.type in CATEGORICAL and prof.distinct_share > 0.5 and prof.distinct > 20:
+        # beyond TARGET_ENCODING_LIMIT categories without being an id: frequency (R-CAT-09)
         return out("R-SEL-02", f"Behaves like an identifier ({prof.distinct:,} distinct values).")
     if fld.type == "text" and prof.text is not None and prof.text.texts < textual.MIN_TEXTS:
         return out(
@@ -530,6 +615,7 @@ def _type_rules(
     decision: Decision, fld: DataField, prof: ColumnProfile, model: ModelProfile, choices: Choices
 ) -> None:
     if fld.type in NUMERIC:
+        decision.cycle = _cycle(fld, prof)
         _numeric(decision, prof, model, choices)
     elif fld.type == "boolean":
         _boolean(decision, prof, model, choices)
@@ -538,9 +624,22 @@ def _type_rules(
     elif fld.type == "categorical_nominal":
         _nominal(decision, prof, model, choices)
     elif fld.type == "datetime":
-        _date(decision, model)
+        _date(decision, prof, model)
     elif fld.type == "text":
         _text(decision, fld, prof, model)
+
+
+def _cycle(fld: DataField, prof: ColumnProfile) -> list[float] | None:
+    """[period, first value] of a number that goes round (R-DATE-04): its role says which
+    cycle, and every value must lie in the cycle's range (whole numbers, except an angle)."""
+    if fld.role not in CYCLES or prof.minimum is None or prof.maximum is None:
+        return None
+    if fld.role != "angle" and not prof.integer:
+        return None
+    for lowest, highest, period, start in CYCLES[fld.role]:
+        if lowest <= prof.minimum and prof.maximum <= highest and prof.distinct >= 3:
+            return [period, start]
+    return None
 
 
 def _numeric(
@@ -582,6 +681,18 @@ def _numeric(
         decision.apply(
             "R-NUM-10", "Trees are unaffected by monotonic transformations and scales: kept as is."
         )
+        return
+    if decision.cycle is not None:
+        period, start = decision.cycle
+        decision.transform = "cycle"
+        decision.apply(
+            "R-DATE-04",
+            f"Goes round every {period:g} (from {start:g}): replaced by its sine and cosine, so "
+            f"that {start + period - 1:g} sits next to {start:g}.",
+        )
+        if model.nonnegative_inputs:
+            decision.scaling = "minmax"
+            decision.apply("R-NUM-09", "Scaled to [0, 1]: this model needs inputs ≥ 0.")
         return
     if model.sensitive_to_skew and prof.skewness is not None and abs(prof.skewness) > 1:
         if prof.all_nonnegative and prof.skewness > 1:
@@ -686,6 +797,18 @@ def _nominal(
                 else "."
             ),
         )
+    elif prof.distinct > TARGET_ENCODING_LIMIT:
+        decision.encoding = "frequency"
+        decision.apply(
+            "R-CAT-09",
+            f"Frequency encoding: {prof.distinct:,} categories, too many to encode each one; how "
+            "common a category is (share of the training rows) reads no target, so it cannot "
+            "leak. A category never seen counts 0.",
+        )
+        if model.nonnegative_inputs:
+            decision.scaling = "minmax"
+        elif model.needs_scaling:
+            decision.scaling = "standard"
     elif model.native_categorical:
         decision.encoding = "native"
         decision.apply("R-CAT-03", "Passed as a category: the model handles categories natively.")
@@ -714,14 +837,27 @@ def _nominal(
         )
 
 
-def _date(decision: Decision, model: ModelProfile) -> None:
-    decision.transform = "date_parts"
+def _date(decision: Decision, prof: ColumnProfile, model: ModelProfile) -> None:
+    decision.transform = "date_parts" if model.tree_based else "date_cycles"
     decision.impute = "median"
     decision.apply(
         "R-DATE-01",
         "Replaced by its parts (year, month, day, weekday, weekend, hour) "
         "and days since the start.",
     )
+    if prof.span_days >= 365:
+        decision.apply(
+            "R-DATE-06",
+            f"The dates cover {prof.span_days / 365.25:.1f} years: week of the year and day of "
+            "the year added, as sine / cosine or as integers for trees (the position in the "
+            "year repeats).",
+        )
+    if prof.month_days >= 28 and 0 < prof.step_days <= 1.5:
+        decision.apply(
+            "R-DATE-07",
+            f"Daily dates ({prof.month_days} days of the month): the day of the month goes "
+            "round too (the 31st is next to the 1st) when parts are cycles.",
+        )
     if not model.tree_based:
         decision.apply(
             "R-DATE-03", "Month, weekday and hour as sine / cosine (December is next to January)."
@@ -783,7 +919,7 @@ def _text(decision: Decision, fld: DataField, prof: ColumnProfile, model: ModelP
 # --- Choices on top of the rules -----------------------------------------------------------------
 
 NO_MISSING = "This model cannot handle missing values: they must be filled."
-ONLY_ORDINAL = "Only for ordinal codes."
+ONLY_ORDINAL = "Only for ordinal codes or frequencies."
 
 
 def _value(decision: Decision, key: str) -> str:
@@ -798,9 +934,10 @@ def _snapshot(decision: Decision) -> None:
 
 
 def _options(
-    decision: Decision, prof: ColumnProfile, model: ModelProfile
+    decision: Decision, prof: ColumnProfile, model: ModelProfile, ordered: bool = False
 ) -> dict[str, list[Option]]:
-    """The choices each setting offers for this column, with the reason when one is impossible."""
+    """The choices each setting offers for this column, with the reason when one is impossible;
+    `ordered`: the rows have an order (panel or time split), so lags are possible."""
     options = {
         "use": [
             Option("yes", None if decision.reactivable else (decision.why or [""])[0]),
@@ -826,10 +963,13 @@ def _options(
                 Option("none"),
                 Option("log1p", None if prof.all_nonnegative else "Needs every value ≥ 0."),
                 Option("yeojohnson"),
+                Option("cycle", None if decision.cycle is not None else NOT_CYCLIC),
+                *(Option(v, None if ordered else NEEDS_ORDER) for v in LAGS),
             ],
             "scaling": [Option(v) for v in ("none", "standard", "robust", "minmax")],
         }
     elif decision.type == "datetime":
+        options["transform"] = [Option("date_parts"), Option("date_cycles")]
         options["scaling"] = [Option(v) for v in ("none", "standard", "minmax")]
     elif decision.type == "text":
         options["encoding"] = [Option("words"), Option("chars")]
@@ -845,6 +985,7 @@ def _options(
                 Option("onehot"),
                 Option("binary", None if prof.distinct == 2 else "Only for two categories."),
                 Option("ordinal"),
+                Option("frequency"),
                 Option(
                     "target",
                     "No target here: distances only."
@@ -862,7 +1003,7 @@ def _options(
                     else "This model does not take categories as they are.",
                 ),
             ]
-            ordinal = None if decision.encoding == "ordinal" else ONLY_ORDINAL
+            ordinal = None if decision.encoding in ("ordinal", "frequency") else ONLY_ORDINAL
             options["scaling"] = [
                 Option("none"),
                 Option("standard", ordinal),
@@ -882,7 +1023,7 @@ def _set(decision: Decision, key: str, value: str) -> None:
             decision.indicator = False
     elif key == "encoding":
         decision.encoding = value
-        if value != "ordinal" and decision.type != "text":
+        if value not in ("ordinal", "frequency") and decision.type != "text":
             decision.scaling = None
 
 
@@ -892,6 +1033,7 @@ def _apply(
     prof: ColumnProfile,
     model: ModelProfile,
     warnings: list[str],
+    ordered: bool = False,
 ) -> None:
     """The user's per-column choices, in an order where each one sees the previous ones."""
     for key in CHOICE_KEYS:
@@ -899,7 +1041,8 @@ def _apply(
         if wanted is None:
             continue
         text = ("yes" if wanted else "no") if key == "indicator" else str(wanted)
-        available = {o.value: o.reason for o in _options(decision, prof, model).get(key, [])}
+        offered = _options(decision, prof, model, ordered).get(key, [])
+        available = {o.value: o.reason for o in offered}
         if text not in available:
             warnings.append(
                 f"{decision.column}: “{text}” is not a possible {key} here; automatic choice kept."
@@ -971,10 +1114,17 @@ def _collinearity(
 
 
 class DateParts(BaseEstimator, TransformerMixin):
-    """Date → year, month, day, weekday, weekend, hour (when they vary) and days since the start."""
+    """Date → year, month, day, weekday, weekend, hour (when they vary) and days since the start;
+    `yearly`: + week and day of the year (R-DATE-06); `monthly`: the day of the month as a cycle
+    when `cyclical` (R-DATE-07). Models saved before 063 have neither: the class defaults say so."""
 
-    def __init__(self, cyclical: bool = True) -> None:
+    yearly = False
+    monthly = False
+
+    def __init__(self, cyclical: bool = True, yearly: bool = False, monthly: bool = False) -> None:
         self.cyclical = cyclical
+        self.yearly = yearly
+        self.monthly = monthly
 
     def fit(self, X, y=None):
         values = pd.to_datetime(pd.Series(np.asarray(X).ravel()))
@@ -984,8 +1134,14 @@ class DateParts(BaseEstimator, TransformerMixin):
         return self
 
     def _names(self) -> list[str]:
-        names = ["year", "day", "weekend", "days_since_start"]
-        cycles = ["month", "weekday"] + (["hour"] if self.hour_ else [])
+        day_cycle = self.cyclical and self.monthly
+        names = ["year", *([] if day_cycle else ["day"]), "weekend", "days_since_start"]
+        cycles = (
+            ["month", "weekday"]
+            + (["hour"] if self.hour_ else [])
+            + (["day"] if day_cycle else [])
+            + (["week", "day_of_year"] if self.yearly else [])
+        )
         if self.cyclical:
             names += [f"{c}_{f}" for c in cycles for f in ("sin", "cos")]
         else:
@@ -994,21 +1150,28 @@ class DateParts(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         values = pd.to_datetime(pd.Series(np.asarray(X).ravel()))
+        weekday = values.dt.day_of_week
         out = {
             "year": values.dt.year,
             "day": values.dt.day,
-            "weekend": (values.dt.weekday >= 5).astype(float),
+            "weekend": (weekday >= 5).astype(float),
             "days_since_start": (values - self.start_).dt.total_seconds() / 86_400,
         }
-        cycles = {"month": (values.dt.month - 1, 12), "weekday": (values.dt.weekday, 7)}
-        if self.hour_:
-            cycles["hour"] = (values.dt.hour, 24)
+        cycles = {
+            "month": (values.dt.month - 1, 12),
+            "weekday": (weekday, 7),
+            "hour": (values.dt.hour, 24),
+            "week": (values.dt.isocalendar().week.astype(float) - 1, 52.1775),
+            "day_of_year": (values.dt.day_of_year - 1, 365.25),
+        }
         for name, (value, period) in cycles.items():
-            if self.cyclical:
-                out[f"{name}_sin"] = np.sin(2 * np.pi * value / period)
-                out[f"{name}_cos"] = np.cos(2 * np.pi * value / period)
-            else:
-                out[name] = value
+            out[f"{name}_sin"] = np.sin(2 * np.pi * value / period)
+            out[f"{name}_cos"] = np.cos(2 * np.pi * value / period)
+            if name not in out:
+                out[name] = value + (1 if name in ("week", "day_of_year") else 0)
+        days = values.dt.days_in_month
+        out["day_sin"] = np.sin(2 * np.pi * (values.dt.day - 1) / days)
+        out["day_cos"] = np.cos(2 * np.pi * (values.dt.day - 1) / days)
         return pd.DataFrame(out)[self.names_].to_numpy(dtype=float)
 
     def get_feature_names_out(self, input_features=None):
@@ -1028,6 +1191,118 @@ def _rare(n: int, choices: Choices) -> int:
     return max(choices.rare_rows, math.ceil(choices.rare_share * n))
 
 
+def _numeric_steps(
+    d: Decision, clip: str | None, order: "Order | None"
+) -> tuple[list[tuple[str, object]], list[str]]:
+    """The steps of a number, and the columns they read (a lag also reads the order, R-LAG-01)."""
+    steps: list[tuple[str, object]] = []
+    columns = [d.column]
+    if d.transform in LAGS and order is not None:
+        kind = "mean" if d.transform == "past_mean" else "ewm"
+        steps.append(
+            (
+                "past",
+                enc.PastSmooth(kind, order.window, order.shift, entity=order.entity is not None),
+            )
+        )
+        columns += [*([order.entity] if order.entity else []), order.period]
+    if d.impute in ("mean", "median"):
+        steps.append(("impute", SimpleImputer(strategy=d.impute, add_indicator=d.indicator)))
+    elif d.impute == "constant":
+        steps.append(
+            (
+                "impute",
+                SimpleImputer(strategy="constant", fill_value=0, add_indicator=d.indicator),
+            )
+        )
+    if clip and d.transform != "cycle":
+        steps.append(("clip", Clipper(clip)))
+    if d.transform == "log1p":
+        steps.append(("log1p", FunctionTransformer(np.log1p, feature_names_out="one-to-one")))
+    elif d.transform == "yeojohnson":
+        steps.append(("yeojohnson", PowerTransformer(method="yeo-johnson", standardize=False)))
+    elif d.transform == "cycle":
+        period, start = d.cycle or [24.0, 0.0]
+        steps.append(("cycle", enc.Cycle(period, start)))
+    steps.append(("scale", _scaler(d.scaling)))
+    return steps, columns
+
+
+def _target_encoder(preparation: Preparation, task: Task) -> TargetEncoder:
+    """Cross-fitted on folds that follow the validation (R-CAT-08)."""
+    target_type = (
+        "continuous" if task == "regression" else ("binary" if task == "binary" else "multiclass")
+    )
+    folds = preparation.folds
+    cv: Any = (
+        enc.FoldPlan(folds.kind, getattr(preparation, "fold_keys", None))  # None: unpickled
+        if folds is not None and folds.kind != "random"
+        else enc.random_folds(task != "regression")
+    )
+    return TargetEncoder(
+        target_type=target_type,  # type: ignore[arg-type]
+        smooth=preparation.choices.target_smoothing,  # type: ignore[arg-type]
+        cv=cv,
+    )
+
+
+def _category_steps(
+    d: Decision, preparation: Preparation, rows: int, task: Task, drop_first: bool
+) -> list[tuple[str, object]]:
+    choices = preparation.choices
+    steps: list[tuple[str, object]] = []
+    imputer = None
+    if d.impute == "missing_category":
+        imputer = SimpleImputer(strategy="constant", fill_value=MISSING)
+    elif d.impute == "most_frequent":
+        imputer = SimpleImputer(strategy="most_frequent")
+    if imputer is not None:
+        if d.encoding == "target":  # the folds read the rows' index (R-CAT-08)
+            imputer.set_output(transform="pandas")
+        steps.append(("impute", imputer))
+    rare = enc.RareGrouper(choices.rare_rows, choices.rare_share)
+    if d.encoding == "ordinal":
+        if not d.order:  # a validated order is never regrouped
+            steps.append(("rare", rare))
+        steps.append(
+            (
+                "ordinal",
+                OrdinalEncoder(
+                    categories=[d.order] if d.order else "auto",  # type: ignore[arg-type]
+                    handle_unknown="use_encoded_value",
+                    unknown_value=-1,
+                ),
+            )
+        )
+        steps.append(("scale", _scaler(d.scaling)))
+    elif d.encoding == "target":
+        steps += [
+            ("rare", rare),
+            ("target", _target_encoder(preparation, task)),
+            ("scale", StandardScaler()),
+        ]
+    elif d.encoding == "frequency":
+        steps += [("frequency", enc.FrequencyEncoder()), ("scale", _scaler(d.scaling))]
+    else:  # binary, onehot
+        steps.append(
+            (
+                "onehot",
+                OneHotEncoder(
+                    drop="if_binary"
+                    if d.encoding == "binary"
+                    else ("first" if drop_first else None),
+                    handle_unknown="infrequent_if_exist" if d.encoding == "onehot" else "ignore",
+                    min_frequency=_rare(rows, choices) if d.encoding == "onehot" else None,
+                    max_categories=DISTANCE_CATEGORIES
+                    if preparation.distance and d.encoding == "onehot"
+                    else None,
+                    sparse_output=False,
+                ),
+            )
+        )
+    return steps
+
+
 def build(
     preparation: Preparation, rows: int, task: Task, drop_first: bool = False
 ) -> ColumnTransformer:
@@ -1036,96 +1311,39 @@ def build(
     clip = choices.outliers if choices.outliers in ("clip_percentiles", "clip_iqr") else None
     transformers = []
     for d in preparation.used:
-        steps: list[tuple[str, object]] = []
+        columns = [d.column]
         if d.type in NUMERIC:
-            if d.impute in ("mean", "median"):
-                steps.append(
-                    ("impute", SimpleImputer(strategy=d.impute, add_indicator=d.indicator))
-                )
-            elif d.impute == "constant":
-                steps.append(
-                    (
-                        "impute",
-                        SimpleImputer(strategy="constant", fill_value=0, add_indicator=d.indicator),
-                    )
-                )
-            if clip:
-                steps.append(("clip", Clipper(clip)))
-            if d.transform == "log1p":
-                steps.append(
-                    ("log1p", FunctionTransformer(np.log1p, feature_names_out="one-to-one"))
-                )
-            elif d.transform == "yeojohnson":
-                steps.append(
-                    ("yeojohnson", PowerTransformer(method="yeo-johnson", standardize=False))
-                )
-            steps.append(("scale", _scaler(d.scaling)))
+            steps, columns = _numeric_steps(d, clip, preparation.order)
         elif d.type == "datetime":
-            steps += [
-                ("parts", DateParts(cyclical="R-DATE-03" in d.rules)),
+            steps = [
+                (
+                    "parts",
+                    DateParts(
+                        cyclical=d.transform == "date_cycles",
+                        yearly="R-DATE-06" in d.rules,
+                        monthly="R-DATE-07" in d.rules,
+                    ),
+                ),
                 ("impute", SimpleImputer(strategy="median")),
                 ("scale", _scaler(d.scaling)),
             ]
         elif d.type == "text":
             analyzer = cast(textual.Analyzer, "chars" if d.encoding == "chars" else "words")
-            steps += [("text", textual.TextFeatures(analyzer)), ("scale", _scaler(d.scaling))]
+            steps = [("text", textual.TextFeatures(analyzer)), ("scale", _scaler(d.scaling))]
         else:
-            if d.impute == "missing_category":
-                steps.append(("impute", SimpleImputer(strategy="constant", fill_value=MISSING)))
-            elif d.impute == "most_frequent":
-                steps.append(("impute", SimpleImputer(strategy="most_frequent")))
-            if d.encoding == "ordinal":
-                steps.append(
-                    (
-                        "ordinal",
-                        OrdinalEncoder(
-                            categories=[d.order] if d.order else "auto",  # type: ignore[arg-type]
-                            handle_unknown="use_encoded_value",
-                            unknown_value=-1,
-                        ),
-                    )
-                )
-                steps.append(("scale", _scaler(d.scaling)))
-            elif d.encoding == "target":
-                target_type = (
-                    "continuous"
-                    if task == "regression"
-                    else ("binary" if task == "binary" else "multiclass")
-                )
-                steps.append(
-                    (
-                        "target",
-                        TargetEncoder(
-                            target_type=target_type,  # type: ignore[arg-type]
-                            smooth=choices.target_smoothing,  # type: ignore[arg-type]
-                            cv=(KFold if task == "regression" else StratifiedKFold)(  # type: ignore[arg-type]
-                                5, shuffle=True, random_state=42
-                            ),
-                        ),
-                    )
-                )
-                steps.append(("scale", StandardScaler()))
-            else:  # binary, onehot
-                steps.append(
-                    (
-                        "onehot",
-                        OneHotEncoder(
-                            drop="if_binary"
-                            if d.encoding == "binary"
-                            else ("first" if drop_first else None),
-                            handle_unknown="infrequent_if_exist"
-                            if d.encoding == "onehot"
-                            else "ignore",
-                            min_frequency=_rare(rows, choices) if d.encoding == "onehot" else None,
-                            max_categories=DISTANCE_CATEGORIES
-                            if preparation.distance and d.encoding == "onehot"
-                            else None,
-                            sparse_output=False,
-                        ),
-                    )
-                )
-        transformers.append((d.column, Pipeline(steps), [d.column]))
+            steps = _category_steps(d, preparation, rows, task, drop_first)
+        transformers.append((d.column, Pipeline(steps), columns))
     return ColumnTransformer(transformers, remainder="drop", verbose_feature_names_out=False)
+
+
+def context_columns(preparation: Preparation) -> list[str]:
+    """Columns the pipeline reads without making them inputs: the order of a lag (R-LAG-01)."""
+    order = preparation.order
+    if order is None or not any(d.transform in LAGS for d in preparation.used):
+        return []
+    used = {d.column for d in preparation.used}
+    wanted = [*([order.entity] if order.entity else []), order.period]
+    return [c for c in wanted if c not in used]
 
 
 def steps(

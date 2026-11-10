@@ -1,7 +1,11 @@
 """034 Experiments module: candidates, analysis through the filters, baseline, sample size."""
 
 import json
+import time
+from pathlib import Path
 
+import numpy as np
+import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
@@ -131,3 +135,100 @@ def test_bandit_view_in_the_analysis_and_the_plan_simulation(client: TestClient,
     assert client.post(f"{BASE}/bandit-simulation", json=plan).json() == body
     refused = client.post(f"{BASE}/bandit-simulation", json={"baseline": 2, "effect": 0.1})
     assert refused.status_code == 422
+
+
+# --- 055: policies ------------------------------------------------------------------------------
+
+
+def decisions_log(path: Path, n: int = 2_000) -> Path:
+    """A log of decisions: sms is chosen more often for young customers, and helps them."""
+    rng = np.random.default_rng(55)
+    age = rng.integers(18, 70, n)
+    young = age < 35
+    p_sms = np.where(young, 0.6, 0.2)
+    offer = np.where(rng.random(n) < p_sms, "sms", "email")
+    reward = rng.random(n) < 0.2 + np.where((offer == "sms") & young, 0.2, 0.0)
+    pd.DataFrame(
+        {
+            "customer_id": np.arange(n),
+            "offer": offer,
+            "propensity": np.where(offer == "sms", p_sms, 1 - p_sms).round(3),
+            "converted": reward.astype(int),
+            "age": age,
+            "region": rng.choice(["north", "south"], n),
+        }
+    ).to_csv(path, index=False)
+    return path
+
+
+def test_policy_on_the_sample_test(client: TestClient, ab: str) -> None:
+    design = {"variant": "variant", "metrics": [{"column": "converted"}], "unit": "user_id"}
+    analysis = client.post(f"{BASE}/datasets/{ab}/analyze", json=design).json()
+    offer = analysis["policy_offer"]
+    assert offer["covariates"] == ["device", "orders", "revenue", "spend_before"]
+    if not offer["available"]:
+        assert "200 units" in offer["reason"] or "at least 2" in offer["reason"]
+        return
+    body = {"design": design, "covariates": ["device", "spend_before"]}
+    learnt = client.post(f"{BASE}/datasets/{ab}/policy", json=body)
+    assert learnt.status_code == 200, learnt.text
+    result = learnt.json()
+    assert result["rule"].startswith("Give") and result["caveat"].startswith("Hypothesis")
+    assert [v["key"] for v in result["values"]] == ["rule", "control", "new_checkout"]
+    assert {c["column"] for c in result["covariates"] if c["used"]} == {"device", "spend_before"}
+    assert result["qini"] == []  # "Advanced > More": computed only when asked
+    with_qini = client.post(f"{BASE}/datasets/{ab}/policy", json={**body, "qini": True}).json()
+    assert with_qini["rule"] == result["rule"] and with_qini["qini"][0]["variant"] == "new_checkout"
+    refused = client.post(
+        f"{BASE}/datasets/{ab}/policy", json={"design": design, "covariates": ["date", "device"]}
+    )
+    message = refused.json()["error"]["message"]
+    assert refused.status_code == 422 and "cannot describe the units" in message
+
+
+def test_logged_decisions_detected_and_evaluated(client: TestClient, tmp_path: Path) -> None:
+    dataset = import_path(client, decisions_log(tmp_path / "decisions.csv"))
+    found = client.get(f"{BASE}/datasets/{dataset}/decisions").json()
+    assert found["detected"] and found["action"] == "offer" and found["reward"] == "converted"
+    assert found["propensity"] == "propensity" and found["actions"] == ["email", "sms"]
+
+    started = client.post(
+        "/api/v1/modules/ml/datasets/" + dataset + "/runs", params={"target": "offer"}
+    )
+    job = started.json()
+    for _ in range(600):
+        job = client.get(f"/api/v1/modules/ml/jobs/{job['id']}").json()
+        if job["status"] in ("done", "failed"):
+            break
+        time.sleep(0.1)
+    assert job["status"] == "done", job
+    body = {
+        "action": "offer",
+        "reward": "converted",
+        "propensity": "propensity",
+        "models": [job["run_id"]],
+        "learn": True,
+    }
+    result = client.post(f"{BASE}/datasets/{dataset}/evaluate-policy", json=body)
+    assert result.status_code == 200, result.text
+    evaluation = result.json()
+    keys = [p["key"] for p in evaluation["policies"]]
+    assert keys[:3] == ["logged", "always:email", "always:sms"] and "model:0" in keys
+    assert "rule" in keys and evaluation["rule"].startswith("Choose")
+    assert evaluation["diagnostics"]["propensity"] == "column"
+    assert {e["estimator"] for e in evaluation["policies"][1]["estimates"]} == {
+        "dm",
+        "ips",
+        "snips",
+        "dr",
+    }
+    estimated = client.post(
+        f"{BASE}/datasets/{dataset}/evaluate-policy",
+        json={"action": "offer", "reward": "converted"},
+    ).json()
+    assert estimated["warnings"][0].startswith("Observational")
+
+
+def test_ab_test_is_not_logged_decisions(client: TestClient, ab: str) -> None:
+    found = client.get(f"{BASE}/datasets/{ab}/decisions").json()
+    assert not found["detected"]

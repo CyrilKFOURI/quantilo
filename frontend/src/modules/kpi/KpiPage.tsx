@@ -1,5 +1,5 @@
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { ChevronDown, Copy, FolderOpen, Pencil, Plus, Trash2 } from "lucide-react";
+import { Activity, ChevronDown, Copy, FolderOpen, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { ApiError, type KpiDefinition, type KpiResult, type SavedKpi } from "../../api/client";
@@ -27,6 +27,8 @@ import { HierarchyChip, SuggestionChips } from "./SuggestionChips";
 import type { KpiSearch } from "./search";
 import { Tiles } from "./Tiles";
 import { Loading } from "../../ui/Loading";
+import { SignalLines } from "./SignalLines";
+import { byScope } from "./signals";
 
 /** Saved KPIs, in a menu of the header: open, rename, duplicate, delete, or start a new one. */
 function SavedMenu({
@@ -278,7 +280,11 @@ export function KpiPage() {
                     {w}
                   </p>
                 ))}
-                <Tiles result={result} labels={labels} formats={formats} />
+                <div className="space-y-2">
+                  <Tiles result={result} labels={labels} formats={formats} />
+                  {/* 054: what the figures rest on (empty measure, repeated rows, low n, thin periods) */}
+                  <SignalLines signals={[...byScope(result, "measure"), ...byScope(result, "cells")]} label={t("kpi.signal.quality")} />
+                </div>
                 <section aria-labelledby="kpi-chart" className="space-y-2">
                   <h2 id="kpi-chart" className="truncate text-[15px] font-semibold text-ink-1" title={result.name}>
                     {result.name}
@@ -296,9 +302,21 @@ export function KpiPage() {
                     labels={labels}
                     formats={formats}
                   />
+                  {/* 054: the rate and mix effects of a rate split by a group, Simpson's paradox */}
+                  <SignalLines signals={byScope(result, "change")} label={t("kpi.signal.change")} />
                   <p className="text-xs text-ink-3">
                     <span className="font-medium text-ink-2">{t("kpi.why")} </span>
                     {result.resolved.why.join(" · ")}
+                    {byScope(result, "series").length > 0 && (
+                      <>
+                        {" · "}
+                        <Activity size={12} strokeWidth={1.75} aria-hidden className="inline align-[-2px] text-ink-2" />{" "}
+                        <span className="font-medium text-ink-2">{t("kpi.signal.series")} </span>
+                        {byScope(result, "series")
+                          .map((s) => s.message)
+                          .join("; ")}
+                      </>
+                    )}
                   </p>
                   {splitChips.length + hierarchyChips.length > 0 && (applied.groups ?? []).length < 2 && (
                     <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t("kpi.splitSuggestions")}>

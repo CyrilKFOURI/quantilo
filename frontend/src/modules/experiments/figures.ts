@@ -2,7 +2,7 @@ import type { Data, Layout } from "plotly.js-dist-min";
 
 import { withAlpha } from "../../charts/figures";
 import type { ChartTokens } from "../../charts/theme";
-import type { BanditReplay, BanditSimulation, ExperimentCumulative, ExperimentMetricResult, MetricKind, SampleSize } from "./api";
+import type { BanditReplay, BanditSimulation, ExperimentCumulative, ExperimentMetricResult, MetricKind, PolicyQini, SampleSize } from "./api";
 
 /* The Experiments page's charts (twins: quantilo/plots/experiments.py). A variant
    keeps its colour everywhere: the i-th variant after the control takes the i-th palette colour;
@@ -258,6 +258,94 @@ export function banditSimulationFigure(simulation: BanditSimulation): (tokens: C
       layout: {
         xaxis: { ...axisTitle("Units in the test"), showgrid: true },
         yaxis: { ...axisTitle(regretAxis(simulation.kind)), rangemode: "tozero" },
+        hovermode: "x unified",
+        ...LEGEND,
+      },
+    };
+  };
+}
+
+/* --- 055: policies -------------------------------------------------------------------------- */
+
+/** One policy's value with its interval: a row of the values chart. */
+export type PolicyPoint = { label: string; value: number | null; low: number | null; high: number | null };
+
+/** Each policy's value with its interval, the reference (the logged decisions, or giving everyone
+ *  the best variant) as a dotted vertical line. */
+export function policyValuesFigure(points: PolicyPoint[], kind: string, reference: number | null): (tokens: ChartTokens) => Built {
+  return (tokens) => {
+    const k = kind === "rate" ? 100 : 1;
+    const suffix = kind === "rate" ? " %" : "";
+    const shown = points.filter((p) => p.value !== null);
+    const labels = shown.map((p) => p.label);
+    const data: Data[] = [];
+    shown.forEach((p, i) => {
+      const color = variantColor(tokens, i);
+      if (p.low !== null && p.high !== null)
+        data.push({
+          type: "scatter",
+          mode: "lines",
+          x: [p.low * k, p.high * k],
+          y: [p.label, p.label],
+          line: { color, width: 2 },
+          hoverinfo: "skip",
+        } as Data);
+      data.push({
+        type: "scatter",
+        mode: "markers",
+        x: [(p.value as number) * k],
+        y: [p.label],
+        marker: { color, size: 10, line: { color: tokens.surface, width: 2 } },
+        customdata: [[p.low === null ? "—" : short(p.low * k), p.high === null ? "—" : short(p.high * k)]],
+        hovertemplate: `${p.label}: %{x:,.3g}${suffix}<br>CI [%{customdata[0]} ; %{customdata[1]}]<extra></extra>`,
+      } as Data);
+    });
+    const shapes: Partial<Layout>["shapes"] =
+      reference === null
+        ? []
+        : [{ type: "line", x0: reference * k, x1: reference * k, yref: "paper", y0: 0, y1: 1, line: { color: tokens.ink3, width: 1, dash: "dot" } }];
+    return {
+      data,
+      layout: {
+        xaxis: { ...axisTitle(`Value per unit${kind === "rate" ? " (%)" : ""}`), showgrid: true },
+        yaxis: { type: "category", showgrid: false, autorange: "reversed", categoryorder: "array", categoryarray: labels, automargin: true },
+        shapes,
+        margin: { t: 12 },
+      },
+    };
+  };
+}
+
+/** Qini curve: the gain of treating first the units with the largest predicted uplift, against
+ *  random targeting (the diagonal). */
+export function qiniFigure(curve: PolicyQini, kind: string): (tokens: ChartTokens) => Built {
+  return (tokens) => {
+    const k = kind === "rate" ? 100 : 1;
+    const x = curve.shares.map((s) => s * 100);
+    return {
+      data: [
+        {
+          type: "scatter",
+          mode: "lines",
+          name: "Random targeting",
+          x,
+          y: curve.random.map((v) => v * k),
+          line: { color: tokens.ink3, width: 2, dash: "dot" },
+          hovertemplate: "Random: %{y:,.3g}<extra></extra>",
+        } as Data,
+        {
+          type: "scatter",
+          mode: "lines",
+          name: `Ranked by predicted gain from ${curve.variant}`,
+          x,
+          y: curve.gains.map((v) => v * k),
+          line: { color: tokens.palette[0] ?? tokens.ink1, width: 2 },
+          hovertemplate: "Ranked: %{y:,.3g}<extra></extra>",
+        } as Data,
+      ],
+      layout: {
+        xaxis: { ...axisTitle(`Share of the units given ${curve.variant} (%)`), range: [0, 100], showgrid: true },
+        yaxis: { ...axisTitle(`Gain per unit${kind === "rate" ? " (pts)" : ""}`), zeroline: true, zerolinecolor: tokens.ink3, zerolinewidth: 1 },
         hovermode: "x unified",
         ...LEGEND,
       },

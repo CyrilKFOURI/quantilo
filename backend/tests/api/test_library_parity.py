@@ -62,11 +62,29 @@ def test_analyses_are_the_same(client: TestClient, both: tuple[str, dx.Dataset])
         "fit",
     )
     same(
+        client.get(f"{base}/variable/tail", params={"column": "income"}).json(),
+        dx.to_dict(ds.tail("income")),
+        "tail",
+    )
+    same(
         client.get(f"{base}/compare", params={"x": "income", "y": "segment"}).json(),
         dx.to_dict(ds.compare("income", "segment")),
         "compare",
     )
     same(client.get(f"{base}/correlations").json(), dx.to_dict(ds.correlations()), "correlations")
+    same(
+        client.get(f"{base}/correlations/structure").json(),
+        dx.to_dict(ds.structure()),
+        "structure",
+    )
+    same(client.get(f"{base}/correlations/factors").json(), dx.to_dict(ds.factors()), "factors")
+    same(
+        client.get(
+            f"{base}/regression", params={"target": "price_eur", "columns": "age,income,segment"}
+        ).json(),
+        dx.to_dict(ds.regression("price_eur", ["age", "income", "segment"])),
+        "regression",
+    )
 
 
 def test_filtered_analyses_are_the_same(client: TestClient, both: tuple[str, dx.Dataset]) -> None:
@@ -125,6 +143,17 @@ def test_experiments_are_the_same(client: TestClient, tmp_path: Path) -> None:
         client.post("/api/v1/modules/experiments/bandit-simulation", json=plan).json(),
         dx.to_dict(dx.bandit_simulation(0.2, 0.1, daily=400)),
         "bandit simulation",
+    )
+    policy = {"variant": "variant", "metrics": [{"column": "converted"}], "unit": "user_id"}
+    same(
+        client.post(f"{base}/policy", json={"design": policy}).json(),
+        dx.to_dict(ds.experiment("variant", ["converted"], unit="user_id").policy()),
+        "policy",
+    )
+    same(
+        client.get(f"{base}/decisions").json(),
+        dx.to_dict(ds.logged_decisions()),
+        "logged decisions",
     )
 
 

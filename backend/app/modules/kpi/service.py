@@ -140,7 +140,7 @@ class KpiService(KpiEngine):
         used: dict[str, list[str]] = {}
         for kpi in self.all(dataset_id):
             definition = kpi.definition
-            columns = [m.column for m in definition.measures if m.column]
+            columns = [name for m in definition.measures for name in m.columns()]
             columns += [g.column for g in definition.groups]
             if definition.time is not None:
                 columns.append(definition.time.column)

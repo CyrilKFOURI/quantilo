@@ -16,6 +16,11 @@ const variants: Record<Variant, string> = {
   danger: "bg-bad text-surface-1 hover:brightness-95 font-medium",
 };
 
+/** The button look, for a link that acts as one (a `<Link>` to the next page). */
+export function buttonClass(variant: Variant = "secondary", className = ""): string {
+  return `inline-flex shrink-0 items-center gap-1.5 rounded-md text-[13px] max-sm:whitespace-nowrap transition-[background-color,filter] h-(--control-h) px-3 ${variants[variant]} ${className}`;
+}
+
 export function Button({
   variant = "secondary",
   icon: Icon,

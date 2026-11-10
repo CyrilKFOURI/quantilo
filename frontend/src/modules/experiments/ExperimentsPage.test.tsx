@@ -9,8 +9,8 @@ import { dataset, health, mockApi } from "../../test/mockApi";
 import { renderAt } from "../../test/render";
 import { linkTarget } from "../agent/links";
 import { modules } from "../registry";
-import type { BanditReplay, BanditSimulation, ExperimentMetricResult, SampleSize } from "./api";
-import { banditRegretFigure, banditSharesFigure, banditSimulationFigure, intervalsFigure, sampleSizeFigure } from "./figures";
+import type { BanditReplay, BanditSimulation, ExperimentMetricResult, PolicyQini, SampleSize } from "./api";
+import { banditRegretFigure, banditSharesFigure, banditSimulationFigure, intervalsFigure, policyValuesFigure, qiniFigure, sampleSizeFigure } from "./figures";
 import { validateExperimentsSearch } from "./search";
 
 vi.mock("../../charts/Plot", () => ({
@@ -20,9 +20,12 @@ vi.mock("../../charts/Plot", () => ({
 }));
 
 /* Responses written by the real engine on samples/ab_test.csv (src/test/experiments.json). */
-const { candidates, loose, byUser, srm, plan, simulation } = fixtures;
+const { candidates, loose, byUser, srm, plan, simulation, policy, policyQini, decisions, noDecisions, evaluation, learnt, estimated } = fixtures;
 
-function setup(analyze: (body: { unit?: string | null; expected?: unknown }) => unknown = (body) => (body.unit ? byUser : loose)) {
+function setup(
+  analyze: (body: { unit?: string | null; expected?: unknown }) => unknown = (body) => (body.unit ? byUser : loose),
+  logged: unknown = noDecisions,
+) {
   return mockApi({
     "GET /health": health,
     "GET /datasets": [dataset()],
@@ -34,6 +37,11 @@ function setup(analyze: (body: { unit?: string | null; expected?: unknown }) => 
     "GET /modules/experiments/datasets/d1/baseline": { column: "converted", kind: "rate", value: 0.1, sd: 0.3, rows: 4023 },
     "POST /modules/experiments/sample-size": plan,
     "POST /modules/experiments/bandit-simulation": simulation,
+    "POST /modules/experiments/datasets/d1/policy": (body: { qini?: boolean }) => (body.qini ? policyQini : policy),
+    "GET /modules/experiments/datasets/d1/decisions": logged,
+    "POST /modules/experiments/datasets/d1/evaluate-policy": (body: { propensity?: string | null; learn?: boolean }) =>
+      body.learn ? learnt : body.propensity ? evaluation : estimated,
+    "GET /modules/ml/datasets/d1/runs": [],
   });
 }
 
@@ -103,6 +111,73 @@ describe("Experiments page", () => {
 
     const alarm = await screen.findByRole("alert");
     expect(alarm).toHaveTextContent("The groups are not the size you planned: the results may be biased.");
+  });
+
+  it("learns who should get which variant under Advanced, and the Qini curve under More, each when opened", async () => {
+    const calls = setup();
+    renderAt("/d/d1/experiments");
+
+    const section = (await screen.findByRole("heading", { name: "Who should get which variant" })).closest("section") as HTMLElement;
+    const policyCalls = () => calls.filter((c) => c.key === "POST /modules/experiments/datasets/d1/policy");
+    expect(policyCalls()).toHaveLength(0);
+    const advanced = within(section).getByText("Advanced · Learn a rule").closest("details") as HTMLDetailsElement;
+    advanced.open = true;
+    fireEvent(advanced, new Event("toggle"));
+
+    expect(await within(section).findByText(policy.rule)).toBeInTheDocument();
+    expect(within(section).getByText(/Hypothesis to confirm with a new test/)).toBeInTheDocument();
+    expect(within(section).getByText(policy.sentence)).toBeInTheDocument();
+    expect(within(section).getByText("Worth a new test")).toBeInTheDocument();
+    expect(within(section).getByRole("img", { name: "Value of the rule and of each variant given to everyone, with their intervals" })).toBeInTheDocument();
+    expect(within(section).queryByRole("img", { name: /Gain of giving new_checkout first/ })).toBeNull();
+    expect(policyCalls().every((c) => !(c.body as { qini?: boolean }).qini)).toBe(true);
+    expect(within(section).queryByText(/reinforcement/i)).toBeNull();
+
+    const more = within(section).getByText("More · Qini curve: who gains most").closest("details") as HTMLDetailsElement;
+    more.open = true;
+    fireEvent(more, new Event("toggle"));
+    expect(await within(section).findByRole("img", { name: /Gain of giving new_checkout first/ })).toBeInTheDocument();
+    expect(policyCalls().at(-1)?.body).toMatchObject({ qini: true });
+
+    fireEvent.click(within(section).getByRole("button", { name: "spend_before" }));
+    await within(section).findByText(policy.rule);
+    const last = policyCalls().filter((c) => !(c.body as { qini?: boolean }).qini).at(-1);
+    expect(last?.body).toMatchObject({ design: { variant: "variant" }, covariates: ["device", "orders", "revenue"] });
+  });
+
+  it("shows the Policies tab only for logged decisions: diagnostics first, estimators under Advanced, a rule under More", async () => {
+    const calls = setup(undefined, decisions);
+    renderAt("/d/d1/experiments?tab=policies");
+
+    expect(await screen.findByRole("tab", { name: "Policies" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Diagnostics" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Decisions / Policy" })).toBeInTheDocument();
+    for (const p of evaluation.policies) expect(screen.getByText(p.sentence)).toBeInTheDocument();
+    expect(screen.getByText(evaluation.diagnostics.sentences[0] as string)).toBeInTheDocument();
+    expect(screen.queryByText(/reinforcement/i)).toBeNull();
+    const evaluations = () => calls.filter((c) => c.key === "POST /modules/experiments/datasets/d1/evaluate-policy");
+    expect(evaluations().every((c) => !(c.body as { learn?: boolean }).learn)).toBe(true);
+
+    const advanced = screen.getByText("Advanced · Every estimator and saved models").closest("details") as HTMLDetailsElement;
+    advanced.open = true;
+    const table = screen.getByRole("table", { name: "Policies by estimator" });
+    expect(within(table).getByText("Always sms")).toBeInTheDocument();
+    const more = screen.getByText("More · Learn a rule from the log").closest("details") as HTMLDetailsElement;
+    more.open = true;
+    fireEvent(more, new Event("toggle"));
+    expect(await screen.findByText(learnt.rule as string)).toBeInTheDocument();
+    expect(evaluations().at(-1)?.body).toMatchObject({ learn: true });
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Propensity" }), { target: { value: "" } });
+    expect(await screen.findByText(/Observational: valid only if no hidden factor drove the decisions/)).toBeInTheDocument();
+  });
+
+  it("hides the Policies tab when the data is not a log of decisions", async () => {
+    setup();
+    renderAt("/d/d1/experiments?tab=policies");
+
+    expect(await screen.findByText(/new_checkout reaches 25.0 %/)).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Policies" })).toBeNull();
   });
 
   it("plans the sample size: per group, total and the curve", async () => {
@@ -184,5 +259,19 @@ describe("Experiments module", () => {
     const marker = curve.data[1] as { x: number[]; y: number[] };
     expect(marker.x[0]).toBe(57_756);
     expect(marker.y[0]).toBeCloseTo(5);
+  });
+
+  it("draws the policies against their reference and the Qini curve against random targeting", () => {
+    const tokens = { ...readTokens(), palette: ["#111111", "#222222"], surface: "#ffffff", ink3: "#777777" };
+    const points = policy.values.map((v) => ({ label: v.label, value: v.value, low: v.low, high: v.high }));
+    const values = policyValuesFigure(points, "rate", 0.2)(tokens);
+    const segment = values.data[0] as { x: number[]; line: { color: string } };
+    expect(segment.x[0]).toBeCloseTo((policy.values[0]?.low ?? 0) * 100);
+    expect(segment.line.color).toBe("#111111");
+    expect(values.layout?.shapes?.[0]).toMatchObject({ x0: 20, line: { dash: "dot" } });
+    const qini = qiniFigure(policyQini.qini[0] as unknown as PolicyQini, "rate")(tokens);
+    const [random, ranked] = qini.data as { name: string; x: number[] }[];
+    expect(random?.name).toBe("Random targeting");
+    expect(ranked?.x.at(-1)).toBe(100);
   });
 });

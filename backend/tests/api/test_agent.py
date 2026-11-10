@@ -208,6 +208,11 @@ def test_tools_return_the_apps_own_figures(client: TestClient, traps: str) -> No
     )
     assert profile.content["normality"]["tests"] and "outliers_iqr" in profile.content
 
+    income = run_tool(client, traps, "profile_column", {"column": "income"})  # 056: heavy tail
+    tail = client.get(f"/api/v1/datasets/{traps}/variable/tail", params={"column": "income"})
+    assert income.content["tail"]["xi"] == pytest.approx(tail.json()["xi"], abs=1e-3)
+    assert income.content["tail"]["conclusion"] == tail.json()["conclusion"]
+
     country = run_tool(client, traps, "profile_column", {"column": "country"})
     assert country.content["most_frequent"] and country.link.page == "variable"
 
@@ -218,6 +223,13 @@ def test_tools_return_the_apps_own_figures(client: TestClient, traps: str) -> No
     ranked = run_tool(client, traps, "rank_associations_with", {"target": "income"})
     values = [abs(r["value"]) for r in ranked.content["ranked"]]
     assert values == sorted(values, reverse=True)
+
+    structure = run_tool(client, traps, "get_structure", {"factors": True})  # 078
+    reference = client.get(f"/api/v1/datasets/{traps}/correlations/structure").json()
+    assert structure.summary == reference["conclusion"]
+    assert structure.content["components_kept"] == reference["retained"]
+    assert structure.content["factor_analysis"]["kmo"] is not None
+    assert structure.link.page == "correlations"
 
     counted = run_tool(
         client,

@@ -13,7 +13,11 @@ from app.modules.kpi.service import KpiService
 
 DEFINITION_HELP = (
     "A KPI definition: measures (each {id: 'm1', agg: count|sum|mean|median|min|max|"
-    "distinct|true_share, column}), an optional ratio {numerator: 'm1', denominator: 'm2'}, "
+    "distinct|true_share|share|weighted_mean, column}; share counts the rows whose column is "
+    "in values: [..], or the distinct key: column; weighted_mean needs weight: column; a delay "
+    "is mean|median|min|max of column (start date) with until: end date, in days), an optional "
+    "ratio {numerator: 'm1', denominator: 'm2', kind: ratio|margin|difference} (margin = "
+    "(A - B) / A in percent, difference = A - B), "
     "an optional time {column, grain: day|week|month|quarter|year}, optional groups [{column}] "
     "to split by. Start "
     "from a suggestion of suggest_kpis and adapt it."
@@ -71,7 +75,11 @@ class ComputeKpi(Tool[DefinitionInput]):
     name: ClassVar[str] = "compute_kpi"
     description: ClassVar[str] = (
         "Compute a KPI over the filtered rows: its value per period and per group, the headline "
-        "tiles (total, last period, change) and warnings. Does not save it."
+        "tiles (total, last period, change, and the started period at an equal date with a "
+        "projection for sums), warnings and signals: unusual periods and level shifts, cells "
+        "resting on fewer than 30 values, thin periods, an often empty measure, rows repeated "
+        "exactly in an order, and the rate and mix effects of a rate split by a group (Simpson's "
+        "paradox included). Each signal has its rule and a sentence. Does not save it."
     )
     Input: ClassVar[type[BaseModel]] = DefinitionInput
 
@@ -89,8 +97,14 @@ class ComputeKpi(Tool[DefinitionInput]):
                 f"This KPI can't be computed: {getattr(error, 'message', error)}"
             ) from error
         content = compact(result, max_items=24)
+        # 054: the signals' sentences first, never cut by the size limit of `content`
+        content["signals"] = [
+            {"kind": s.kind, "rule": s.rule, "measure": s.measure, "message": s.message}
+            for s in result.signals
+        ]
+        signals = f", {len(result.signals)} signals" if result.signals else ""
         return ToolOutput(
-            f"{result.name}: {len(result.periods)} periods",
+            f"{result.name}: {len(result.periods)} periods{signals}",
             content,
             AppLink("kpi", {}, "Open the KPI builder"),
         )

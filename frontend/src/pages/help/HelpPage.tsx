@@ -2,6 +2,7 @@ import { useMemo } from "react";
 
 import guide from "../../../../docs/USER_GUIDE.md?raw";
 import { inline, Markdown, parse } from "../../features/help/markdown";
+import { LegalLinks } from "../../features/legal/LegalLinks";
 import { t } from "../../lib/i18n";
 
 /** The user guide (docs/USER_GUIDE.md, the single source), with a table of contents. */
@@ -27,6 +28,7 @@ export function HelpPage() {
       </nav>
       <article className="max-w-3xl min-w-0 flex-1 pb-16">
         <Markdown blocks={blocks} />
+        <LegalLinks className="mt-12 border-t border-line pt-4" />
       </article>
     </div>
   );

@@ -3,9 +3,11 @@ import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useDataset } from "../../api/hooks";
 import { t } from "../../lib/i18n";
 import { Tabs } from "../../ui/Tabs";
+import { Loading } from "../../ui/Loading";
 import { Analyze } from "./Analyze";
-import type { ExperimentDesign } from "./api";
+import { useLoggedDecisions, type ExperimentDesign } from "./api";
 import { Plan } from "./Plan";
+import { Policies } from "./Policies";
 import type { ExperimentsSearch, ExperimentsTab } from "./search";
 
 export function ExperimentsPage() {
@@ -14,7 +16,12 @@ export function ExperimentsPage() {
   const navigate = useNavigate();
   const dataset = useDataset(datasetId);
   const ready = dataset.data?.status === "ready";
-  const tab: ExperimentsTab = search.tab ?? "analyze";
+  // 055: the Policies tab exists only when the dataset looks like logged decisions
+  const decisions = useLoggedDecisions(datasetId, ready);
+  const logged = decisions.data?.detected ? decisions.data : null;
+  const asked: ExperimentsTab = search.tab ?? "analyze";
+  const waiting = asked === "policies" && !decisions.data && !decisions.isError;
+  const tab: ExperimentsTab = asked === "policies" && !logged && !waiting ? "analyze" : asked;
 
   const go = (patch: Partial<ExperimentsSearch>) =>
     void navigate({ to: ".", search: (previous: Record<string, unknown>) => ({ ...previous, ...patch }), replace: true });
@@ -34,11 +41,18 @@ export function ExperimentsPage() {
           items={[
             { value: "analyze", label: t("experiments.tab.analyze") },
             { value: "plan", label: t("experiments.tab.plan") },
+            ...(logged ? [{ value: "policies" as const, label: t("experiments.tab.policies") }] : []),
           ]}
           onChange={(next) => go({ tab: next === "analyze" ? undefined : next })}
         >
           {tab === "plan" ? (
             <Plan datasetId={datasetId} ready={ready} />
+          ) : tab === "policies" ? (
+            logged ? (
+              <Policies key={`${logged.action}-${logged.reward}`} datasetId={datasetId} decisions={logged} />
+            ) : (
+              <Loading label={t("loading.columns")} className="h-[420px]" />
+            )
           ) : (
             <Analyze datasetId={datasetId} ready={ready} search={search} onDesign={setDesign} />
           )}

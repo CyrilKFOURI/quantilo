@@ -15,6 +15,7 @@ from quantilo.variable.fitting import Fit, fit
 from quantilo.variable.numeric import describe
 from quantilo.variable.outliers import OutlierMethod, Outliers, outliers
 from quantilo.variable.source import VariableInput, VariableSource
+from quantilo.variable.tails import Tail, analyze_tail, tail_rule
 
 CACHE_SIZE = 32
 
@@ -106,3 +107,14 @@ class VariableService:
             return outliers(source, describe(source), method)
 
         return self._run(dataset_id, column, f"outliers:{method}", task, conditions or [])
+
+    def tail(self, dataset_id: str, column: str, conditions: list[Condition] | None = None) -> Tail:
+        """The right tail (056): GPD above a threshold, return levels, Hill, VaR / ES."""
+
+        def task(source: VariableSource) -> Tail:
+            self._numeric(source)
+            summary = describe(source)
+            discrete = source.column.type == "numeric_discrete"
+            return analyze_tail(source, summary, tail_rule(source, summary), discrete)
+
+        return self._run(dataset_id, column, "tail", task, conditions or [])

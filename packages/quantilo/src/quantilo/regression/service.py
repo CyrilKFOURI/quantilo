@@ -1,0 +1,417 @@
+"""Regression of a dataset over the filtered rows (067): read the columns once through DuckDB (a
+reproducible sample beyond 200 000 rows), recognise the structure of the rows, fit, and keep the
+fit so that the Advanced sections reuse it."""
+
+from collections import OrderedDict
+from dataclasses import dataclass
+from typing import Any, Literal, cast
+
+import duckdb
+import numpy as np
+import pandas as pd
+
+from quantilo.catalog import Catalog, ColumnView
+from quantilo.compare.analyze import label_sql, number_sql
+from quantilo.correlations.matrix import Matrix
+from quantilo.correlations.service import CorrelationService
+from quantilo.errors import ColumnNotFound, ExplorerError
+from quantilo.filters.model import Condition, filters_key
+from quantilo.filters.scope import Where, scoped_source, where_for
+from quantilo.ingestion.sql import ident
+from quantilo.regression import analyze as an
+from quantilo.regression.design import DesignError, LeftOutTerm, Variable, codes
+from quantilo.regression.rules import (
+    REGRESSOR_TYPES,
+    TARGET_TYPES,
+    ColumnInfo,
+    RegressionPick,
+    RegressionSuggestion,
+    RowStructure,
+    SeRequest,
+    pick_columns,
+    pick_target,
+    structure,
+)
+from quantilo.typing.parsers import typed_sql
+from quantilo.variable.source import SEED
+
+MAX_ROWS = 200_000
+FIT_CACHE = 3  # fits keep their arrays: a few only
+RESULT_CACHE = 16
+MAX_CANDIDATES = 5
+NUMERIC = ("numeric_continuous", "numeric_discrete")
+CATEGORY = ("categorical_nominal", "categorical_ordinal", "boolean")
+REFUSED = {
+    "datetime": "a date: compare it with Two variables (terms of dates will come with 070)",
+    "text": "free text has no coefficient",
+    "identifier": "an identifier: one level per row, no effect to estimate",
+}
+WEIGHT_ROLE = "weight"
+YES = ("true", "1", "yes", "oui", "y")
+Section = Literal["standard_errors", "influence", "terms", "more"]
+
+
+class RegressionError(ExplorerError):
+    def __init__(self, message: str, code: str = "regression") -> None:
+        super().__init__(message, code=code, status_code=422)
+
+
+@dataclass(frozen=True)
+class Request:
+    target: str | None = None
+    columns: tuple[str, ...] | None = None  # None: the suggestion (R-REG-21)
+    weights: str | None = None  # None: a column of role weight if any; "": none
+    cluster: str | None = None
+    se: SeRequest = "auto"
+    focus: str | None = None
+
+
+class RegressionService:
+    def __init__(self, columns: Catalog, correlations: CorrelationService | None = None) -> None:
+        self.columns = columns
+        self.correlations = correlations or CorrelationService(columns)
+        self._fits: OrderedDict[tuple[Any, ...], an.Fitted] = OrderedDict()
+        self._results: OrderedDict[tuple[Any, ...], Any] = OrderedDict()
+
+    # --- public ---------------------------------------------------------------------------------
+
+    def suggestion(
+        self, dataset_id: str, target: str | None = None, conditions: list[Condition] | None = None
+    ) -> RegressionSuggestion:
+        """R-REG-20 and R-REG-21: the target and up to 5 columns, from the correlations."""
+        conditions = conditions or []
+        views = [v for v in self.columns.columns(dataset_id) if not v.excluded]
+        infos = [ColumnInfo(v.name, v.type, v.role) for v in views]
+        candidates = [v.name for v in views if v.type in TARGET_TYPES and v.role != WEIGHT_ROLE]
+        regressors = [v.name for v in views if v.type in REGRESSOR_TYPES and v.role != WEIGHT_ROLE]
+        matrix = self._matrix(dataset_id, conditions)
+        if target is not None:
+            self._view(views, target)
+            chosen = RegressionPick(target, "Chosen in the settings.")
+        else:
+            usable = [i for i in infos if i.name in candidates]
+            chosen = pick_target(usable, matrix)
+        picks = (
+            pick_columns(chosen.column, matrix, set(regressors) - {chosen.column}) if chosen else []
+        )
+        return RegressionSuggestion(chosen, picks, candidates, regressors)
+
+    def regression(
+        self, dataset_id: str, request: Request, conditions: list[Condition] | None = None
+    ) -> an.RegressionReport:
+        return self._fit(dataset_id, request, conditions or []).result
+
+    def section(
+        self,
+        dataset_id: str,
+        name: Section,
+        request: Request,
+        conditions: list[Condition] | None = None,
+    ) -> an.StandardErrorTable | an.InfluenceTable | an.TermsTable | an.MoreChecks:
+        conditions = conditions or []
+        key = (*self._key(dataset_id, request, conditions), name)
+        if key in self._results:
+            self._results.move_to_end(key)
+            return self._results[key]
+        fit = self._fit(dataset_id, request, conditions)
+        builders = {
+            "standard_errors": an.standard_errors,
+            "influence": an.influence_table,
+            "terms": an.terms_table,
+            "more": an.more,
+        }
+        if name not in builders:
+            raise RegressionError(f"Unknown section {name!r}.", "unknown_section")
+        found = an.finite(builders[name](fit))
+        self._results[key] = found
+        if len(self._results) > RESULT_CACHE:
+            self._results.popitem(last=False)
+        return found
+
+    def clear(self) -> None:
+        self._fits.clear()
+        self._results.clear()
+
+    # --- internals ------------------------------------------------------------------------------
+
+    def _matrix(self, dataset_id: str, conditions: list[Condition]) -> Matrix | None:
+        try:
+            return self.correlations.correlations(dataset_id, "spearman", None, conditions).matrix
+        except ExplorerError:
+            return None
+
+    @staticmethod
+    def _view(views: list[ColumnView], name: str) -> ColumnView:
+        for view in views:
+            if view.name == name:
+                return view
+        raise ColumnNotFound(name, [v.name for v in views])
+
+    def _key(
+        self, dataset_id: str, request: Request, conditions: list[Condition]
+    ) -> tuple[Any, ...]:
+        dataset = self.columns.ready(dataset_id)
+        views = self.columns.columns(dataset_id)
+        return (
+            dataset_id,
+            dataset.imported_at,
+            dataset.types_version,
+            tuple((v.name, v.type, v.role, v.excluded) for v in views),
+            request,
+            filters_key(conditions),
+        )
+
+    def _resolve(self, dataset_id: str, request: Request, conditions: list[Condition]) -> Request:
+        if request.target is not None and request.columns is not None:
+            return request
+        found = self.suggestion(dataset_id, request.target, conditions)
+        if found.target is None:
+            raise RegressionError("No numeric or yes/no column to explain.", "no_target")
+        columns = request.columns
+        if columns is None:
+            columns = tuple(p.column for p in found.columns)
+        return Request(
+            found.target.column,
+            columns,
+            request.weights,
+            request.cluster,
+            request.se,
+            request.focus,
+        )
+
+    def _fit(self, dataset_id: str, request: Request, conditions: list[Condition]) -> an.Fitted:
+        request = self._resolve(dataset_id, request, conditions)
+        key = self._key(dataset_id, request, conditions)
+        if key in self._fits:
+            self._fits.move_to_end(key)
+            return self._fits[key]
+        inputs = self._load(dataset_id, request, conditions)
+        try:
+            fitted = an.run(inputs)
+        except DesignError as error:
+            raise RegressionError(str(error), "design") from error
+        self._fits[key] = fitted
+        if len(self._fits) > FIT_CACHE:
+            self._fits.popitem(last=False)
+        return fitted
+
+    def _load(self, dataset_id: str, request: Request, conditions: list[Condition]) -> an.Inputs:
+        assert request.target is not None and request.columns is not None
+        dataset = self.columns.ready(dataset_id)
+        all_views = self.columns.columns(dataset_id)
+        views = [v for v in all_views if not v.excluded]
+        target = self._view(views, request.target)
+        if target.type not in (*NUMERIC, *CATEGORY):
+            raise RegressionError(
+                f"`{target.name}` is {target.type.replace('_', ' ')}: pick a number or a "
+                "yes/no column to explain."
+            )
+        weights = self._weights(views, request)
+        refused: list[LeftOutTerm] = []
+        chosen: list[ColumnView] = []
+        for name in dict.fromkeys(request.columns):
+            if name == target.name:
+                continue
+            view = self._view(views, name)
+            if weights is not None and name == weights[0].name:
+                continue
+            if view.type in REFUSED:
+                refused.append(LeftOutTerm(name, name, REFUSED[view.type]))
+            else:
+                chosen.append(view)
+        cluster = self._view(views, request.cluster) if request.cluster else None
+        dates, periods, entities = self._candidates(views, target.name)
+        loaded = self._read(
+            dataset.storage_path,
+            where_for(all_views, conditions),
+            target,
+            chosen,
+            weights[0] if weights else None,
+            cluster,
+            dates,
+            sorted({*periods, *entities} - set(dates), key=[v.name for v in views].index),
+            {v.name: v for v in views},
+        )
+        frame, total = loaded
+        rows = len(frame)
+        shape = self._structure(frame, dates, periods, entities, rows)
+        if shape.kind == "series" and shape.date is not None:
+            frame = frame.sort_values(shape.date, kind="stable").reset_index(drop=True)
+        y, binary = self._target(target, cast(pd.Series, frame["__y"]))
+        variables = [
+            self._variable(view, cast(pd.Series, frame[f"__x{i}"])) for i, view in enumerate(chosen)
+        ]
+        inputs = an.Inputs(
+            target.name,
+            y,
+            binary,
+            variables,
+            refused,
+            frame["__row"].to_numpy(dtype=np.int64),
+            rows,
+            total,
+            total > rows,
+            shape,
+            requested=request.se,
+            focus=request.focus,
+        )
+        if weights is not None:
+            inputs.weights, inputs.weights_reason = weights[0].name, weights[1]
+            inputs.weight_values = frame["__w"].to_numpy(dtype=float, na_value=np.nan)
+        if cluster is not None:
+            inputs.cluster = cluster.name
+            inputs.cluster_codes = _codes(cast(pd.Series, frame["__g"]))
+        if shape.kind == "panel" and shape.entity and shape.period:
+            inputs.entity_codes = _codes(cast(pd.Series, frame[shape.entity]))
+            inputs.period_codes = _codes(cast(pd.Series, frame[shape.period]))
+        return inputs
+
+    def _weights(self, views: list[ColumnView], request: Request) -> tuple[ColumnView, str] | None:
+        if request.weights == "":
+            return None
+        if request.weights is not None:
+            view = self._view(views, request.weights)
+            if view.type not in NUMERIC:
+                raise RegressionError(f"`{view.name}` is not a number: it cannot weight the rows.")
+            return view, f"Rows weighted by `{view.name}`, chosen in the settings (WLS)."
+        for view in views:
+            if view.role == WEIGHT_ROLE and view.type in NUMERIC:
+                return view, (
+                    f"R-REG-SE-04: `{view.name}` has the role weight: a row that stands for 10 "
+                    "counts 10 times (WLS)."
+                )
+        return None
+
+    @staticmethod
+    def _candidates(views: list[ColumnView], target: str) -> tuple[list[str], list[str], list[str]]:
+        """Dates (a series), periods and entities (a panel) worth checking."""
+        from quantilo.ml import panel as panels
+
+        types = {v.name: v.type for v in views}
+        others = [v for v in views if v.name != target]
+        dates = [v.name for v in others if v.type == "datetime"][:MAX_CANDIDATES]
+        periods = panels.rank_period_candidates(
+            [
+                v.name
+                for v in others
+                if v.type == "datetime"
+                or (
+                    v.type in ("numeric_discrete", "categorical_ordinal", "categorical_nominal")
+                    and panels._hinted(v.name, panels.PERIOD_HINTS)
+                )
+            ],
+            types,
+        )[:MAX_CANDIDATES]
+        entities = panels.rank_entity_candidates(
+            [
+                v.name
+                for v in others
+                if v.type
+                in ("identifier", "categorical_nominal", "categorical_ordinal", "numeric_discrete")
+                and (
+                    v.role in ("entity", "customer_key", "identifier")
+                    or panels._hinted(v.name, panels.ENTITY_HINTS)
+                )
+            ],
+            types,
+        )[:MAX_CANDIDATES]
+        return dates, periods, entities
+
+    @staticmethod
+    def _read(
+        storage: str,
+        where: Where,
+        target: ColumnView,
+        chosen: list[ColumnView],
+        weights: ColumnView | None,
+        cluster: ColumnView | None,
+        dates: list[str],
+        groups: list[str],
+        by_name: dict[str, ColumnView],
+    ) -> tuple[pd.DataFrame, int]:
+        source = scoped_source(storage, where, numbered=True)
+
+        def value(view: ColumnView) -> str:
+            return number_sql(view) if view.type in NUMERIC else label_sql(view)
+
+        expressions = ["file_row_number AS __row", f"{value(target)} AS __y"]
+        expressions += [f"{value(v)} AS __x{i}" for i, v in enumerate(chosen)]
+        if weights is not None:
+            expressions.append(f"{number_sql(weights)} AS __w")
+        if cluster is not None:
+            dated = cluster.type == "datetime"
+            group = typed_sql(cluster.name, cluster.parser) if dated else label_sql(cluster)
+            expressions.append(f"{group} AS __g")
+        for name in dates:
+            expressions.append(f"{typed_sql(name, by_name[name].parser)} AS {ident(name)}")
+        for name in groups:
+            view = by_name[name]
+            expression = number_sql(view) if view.type in NUMERIC else label_sql(view)
+            expressions.append(f"{expression} AS {ident(name)}")
+        connection = duckdb.connect()
+        try:
+            (total,) = connection.execute(f"SELECT count(*) FROM {source}").fetchone() or (0,)
+            query = f"SELECT {', '.join(expressions)} FROM {source}"
+            if total > MAX_ROWS:
+                picked = (
+                    f"SELECT file_row_number FROM {source} "
+                    f"ORDER BY hash(file_row_number + {SEED}) LIMIT {MAX_ROWS}"
+                )
+                query += f" WHERE file_row_number IN ({picked})"
+            frame = connection.execute(query + " ORDER BY file_row_number").df()
+        finally:
+            connection.close()
+        return frame, int(total)
+
+    @staticmethod
+    def _structure(
+        frame: pd.DataFrame, dates: list[str], periods: list[str], entities: list[str], rows: int
+    ) -> RowStructure:
+        from quantilo.ml import panel as panels
+
+        present = [c for c in {*dates, *periods, *entities} if c in frame.columns]
+        distinct = {c: int(cast(pd.Series, frame[c]).nunique()) for c in present}
+        periods = [p for p in periods if p in frame.columns and distinct[p] >= panels.MIN_PERIODS]
+        entities = [e for e in entities if e in frame.columns and 2 <= distinct[e] < rows]
+        return structure(
+            frame, [d for d in dates if d in frame.columns], periods, entities, rows, distinct
+        )
+
+    @staticmethod
+    def _target(view: ColumnView, values: pd.Series) -> tuple[np.ndarray, tuple[str, str] | None]:
+        if view.type in NUMERIC:
+            numbers = values.to_numpy(dtype=float, na_value=np.nan)
+            distinct = np.unique(numbers[np.isfinite(numbers)])
+            if len(distinct) == 2:
+                low, high = (float(d) for d in distinct)
+                labels = (an.fmt(low), an.fmt(high))
+                return np.where(
+                    np.isfinite(numbers), (numbers == high).astype(float), np.nan
+                ), labels
+            if len(distinct) < 2:
+                raise RegressionError(f"`{view.name}` takes a single value: nothing to explain.")
+            return numbers, None
+        labels = [None if pd.isna(v) else str(v) for v in values.tolist()]
+        found, levels = codes(labels)
+        if len(levels) != 2:
+            raise RegressionError(
+                f"`{view.name}` has {len(levels)} levels: models for categories come later; "
+                "pick a number or a yes/no column."
+            )
+        positive = next((i for i, level in enumerate(levels) if level.lower() in YES), 1)
+        y = np.where(found >= 0, (found == positive).astype(float), np.nan)
+        return y, (levels[1 - positive], levels[positive])
+
+    @staticmethod
+    def _variable(view: ColumnView, values: pd.Series) -> Variable:
+        if view.type in NUMERIC:
+            return Variable(view.name, "num", values.to_numpy(dtype=float, na_value=np.nan))
+        labels = [None if pd.isna(v) else str(v) for v in values.tolist()]
+        found, levels = codes(labels)
+        return Variable(view.name, "cat", found, levels)
+
+
+def _codes(values: pd.Series) -> np.ndarray:
+    labels = values.astype(str).where(values.notna())
+    found, _ = pd.factorize(labels, use_na_sentinel=True)
+    return np.asarray(found, dtype=np.int64)

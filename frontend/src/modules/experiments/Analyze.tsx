@@ -15,6 +15,7 @@ import {
   type ExperimentDesign,
   type ExperimentMetric,
 } from "./api";
+import { PolicySection } from "./Policy";
 import { BanditSection, CumulativeSection, MetricSection, SegmentsSection } from "./Results";
 import type { ExperimentsSearch } from "./search";
 import { Loading } from "../../ui/Loading";
@@ -442,6 +443,14 @@ export function Analyze({
           ))}
           {result.bandit && <BanditSection bandit={result.bandit} />}
           {result.segments && <SegmentsSection segments={result.segments} />}
+          {result.policy_offer && (
+            <PolicySection
+              datasetId={datasetId}
+              design={design}
+              offer={result.policy_offer}
+              metric={result.metrics.find((m) => m.primary)?.label ?? ""}
+            />
+          )}
           {result.cumulative && <CumulativeSection cumulative={result.cumulative} />}
         </div>
       )}

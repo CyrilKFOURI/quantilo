@@ -98,6 +98,8 @@ def test_analyses_run_on_the_dataset(traps: dx.Dataset) -> None:
     assert "age" in [member.name for member in correlations.matrix.columns]
     assert traps.fit("age").laws
     assert traps.outliers("income").rules
+    tail = traps.tail("income")  # 600 rows: analysed when its tail is heavy enough
+    assert tail.n == 551 and tail.rule.fires and tail.xi is not None  # 49 empty
     page = traps.rows(limit=3)
     assert len(page.rows) == 3 and page.total == 600
 

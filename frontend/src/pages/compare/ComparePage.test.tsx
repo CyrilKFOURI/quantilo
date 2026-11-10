@@ -292,6 +292,21 @@ describe("Compare page", () => {
     expect(call?.params.get("y")).toBe("income");
   });
 
+  it("draws the LOWESS curve by the rule and says why (064)", async () => {
+    const reason = "LOWESS explains 31 % of Y's variance, the line 12 %: the relation bends.";
+    setup({
+      ...scatter,
+      lowess: { x: [1, 2, 3], y: [2, 3, 6], r2: 0.31, line_r2: 0.12, suggested: true, reason },
+    });
+    renderAt("/d/d1/compare?x=age&y=income");
+
+    const box = await screen.findByLabelText("LOWESS curve");
+    expect(box).toBeChecked();
+    expect(screen.getByText(reason)).toBeInTheDocument();
+    fireEvent.click(box);
+    expect(box).not.toBeChecked();
+  });
+
   it("swaps X and Y in the URL", async () => {
     setup();
     const router = renderAt("/d/d1/compare?x=age&y=income");

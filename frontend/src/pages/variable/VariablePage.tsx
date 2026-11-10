@@ -16,6 +16,8 @@ import { isNormal, type Alpha } from "../../features/variable/normality";
 import { NormalityPanel } from "../../features/variable/NormalityPanel";
 import { NumericChart } from "../../features/variable/NumericChart";
 import { OutliersPanel } from "../../features/variable/OutliersPanel";
+import { RobustBlock } from "../../features/variable/RobustBlock";
+import { TailPanel } from "../../features/variable/TailPanel";
 import {
   CategoricalPanel,
   DatePanel,
@@ -33,7 +35,7 @@ import { ErrorNote } from "../../ui/fields";
 import { Tabs } from "../../ui/Tabs";
 import { Loading } from "../../ui/Loading";
 
-type NumericTab = "summary" | "tests" | "distribution" | "outliers" | "categories";
+type NumericTab = "summary" | "tests" | "distribution" | "outliers" | "tail" | "categories";
 
 export function VariablePage() {
   const { datasetId, column: name } = useParams({ from: "/d/$datasetId/variable/$column" });
@@ -233,8 +235,11 @@ function NumericBody({ datasetId, column, profile }: { datasetId: string; column
     { value: "tests" as const, label: t("variable.tab.tests") },
     { value: "distribution" as const, label: t("variable.tab.distribution") },
     { value: "outliers" as const, label: t("variable.tab.outliers") },
+    // 056, R-TAIL-1: the Tail tab only when the profile's rule fires.
+    ...(numeric.tail_rule?.fires ? [{ value: "tail" as const, label: t("variable.tab.tail") }] : []),
     ...(profile.categorical ? [{ value: "categories" as const, label: t("variable.tab.categories") }] : []),
   ];
+  const robust = numeric.robust?.fires ? numeric.robust : null;
 
   return (
     <div className="space-y-5">
@@ -242,12 +247,16 @@ function NumericBody({ datasetId, column, profile }: { datasetId: string; column
       <NumericChart datasetId={datasetId} column={column.name} type={column.type} profile={numeric} />
       <Tabs label={t("variable.tabs")} value={tab} items={tabs} onChange={setTab}>
         {tab === "summary" && (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {GROUPS.map((group) => (
-              <StatTable key={group.title} title={t(group.title)} rows={group.keys.map((key) => statRow(summary, key))} />
-            ))}
+          <div className="space-y-5">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {GROUPS.map((group) => (
+                <StatTable key={group.title} title={t(group.title)} rows={group.keys.map((key) => statRow(summary, key))} />
+              ))}
+            </div>
+            {robust && <RobustBlock robust={robust} />}
           </div>
         )}
+        {tab === "tail" && <TailPanel datasetId={datasetId} column={column.name} />}
         {tab === "tests" && <NormalityPanel normality={numeric.normality} alpha={alpha} onAlpha={setAlpha} />}
         {tab === "distribution" && <FitPanel datasetId={datasetId} column={column.name} profile={numeric} />}
         {tab === "outliers" && (

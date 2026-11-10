@@ -38,7 +38,11 @@ function uniqueInOrder(values: string[]): string[] {
 
 // --- num × num ---------------------------------------------------------------------------------
 
-export function scatterFigure(result: Comparison, regression: boolean): Figure {
+export function scatterFigure(
+  result: Comparison,
+  regression: boolean,
+  lowess = false,
+): Figure {
   return (tokens) => {
     const points = result.points;
     if (!points) return { data: [] };
@@ -97,6 +101,18 @@ export function scatterFigure(result: Comparison, regression: boolean): Figure {
         ],
         line: { color: tokens.ink1, width: 2, dash: "dash" },
         hovertemplate: `y = ${formatNumber(line.slope)}·x + ${formatNumber(line.intercept)}<extra></extra>`,
+      } as Data);
+    }
+    const curve = result.lowess;
+    if (lowess && curve) {
+      traces.push({
+        type: "scatter",
+        mode: "lines",
+        name: "LOWESS",
+        x: curve.x,
+        y: curve.y,
+        line: { color: tokens.accent, width: 2.5 },
+        hovertemplate: "LOWESS: %{x:,.4g}, %{y:,.4g}<extra></extra>",
       } as Data);
     }
     return {

@@ -17,7 +17,7 @@ export const AGGREGATES = [
   "max",
   "count",
 ] as const;
-export const GAPS = ["leave", "interpolate", "zero", "carry"] as const;
+export const GAPS = ["leave", "interpolate", "zero", "carry", "kalman"] as const;
 export const DECOMPOSITIONS = [
   "stl",
   "mstl",
@@ -81,11 +81,35 @@ export type TimeSeriesSearch = SeriesParams & {
   segment?: "binseg"; // change-point search (default: PELT)
   cost?: "mean" | "mean_var" | "trend"; // default: chosen from the data
   sens?: "low" | "high";
-  anomaly?: "iqr" | "rolling_z" | "hampel" | "gesd" | "isolation_forest" | "lof" | "autoencoder";
+  anomaly?: "iqr" | "rolling_z" | "hampel" | "gesd" | "isolation_forest" | "lof" | "autoencoder" | "kalman";
   threshold?: number;
   all?: boolean; // overlay every group on the overview
   scen?: StoredScenario[]; // what-if scenarios of the forecast (039)
   smodel?: string; // the driver model the scenarios use
+  // Smooth row (064): parameters forced in "Options" (undefined = automatic)
+  ewma_alpha?: number;
+  lowess_frac?: number;
+  savgol_window?: number;
+  savgol_order?: number;
+  kalman_model?: (typeof KALMAN_FORMS)[number];
+  hp_lambda?: number;
+};
+
+export const KALMAN_FORMS = ["llevel", "lltrend", "llevel_seasonal", "lltrend_seasonal"] as const;
+/** The Smooth row's overridable parameters: URL key and the values offered after "Auto". */
+export const SMOOTH_OPTIONS = {
+  ewma_alpha: [0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 0.9],
+  lowess_frac: [0.1, 0.2, 0.3, 0.5, 0.67, 0.8],
+  savgol_window: [5, 7, 11, 15, 21, 31, 51],
+  savgol_order: [1, 2, 3, 4],
+  kalman_model: KALMAN_FORMS,
+  hp_lambda: [6.25, 100, 1600, 14400, 129600],
+} as const;
+export type SmoothOption = keyof typeof SMOOTH_OPTIONS;
+
+const among = (value: unknown, allowed: readonly number[]) => {
+  const number = Number(value);
+  return value !== undefined && allowed.includes(number) ? number : undefined;
 };
 
 const text = (value: unknown) =>
@@ -128,13 +152,19 @@ export function validateTimeSeriesSearch(
     segment: oneOf(search.segment, ["binseg"] as const),
     cost: oneOf(search.cost, ["mean", "mean_var", "trend"] as const),
     sens: oneOf(search.sens, ["low", "high"] as const),
-    anomaly: oneOf(search.anomaly, ["iqr", "rolling_z", "hampel", "gesd", "isolation_forest", "lof", "autoencoder"] as const),
+    anomaly: oneOf(search.anomaly, ["iqr", "rolling_z", "hampel", "gesd", "isolation_forest", "lof", "autoencoder", "kalman"] as const),
     threshold: [3, 4].includes(Number(search.threshold))
       ? Number(search.threshold)
       : undefined,
     all: search.all === true || search.all === "true" ? true : undefined,
     scen: parseScenarios(search.scen),
     smodel: oneOf(search.smodel, ["sarimax", "tslm", "gbm_lags"] as const),
+    ewma_alpha: among(search.ewma_alpha, SMOOTH_OPTIONS.ewma_alpha),
+    lowess_frac: among(search.lowess_frac, SMOOTH_OPTIONS.lowess_frac),
+    savgol_window: among(search.savgol_window, SMOOTH_OPTIONS.savgol_window),
+    savgol_order: among(search.savgol_order, SMOOTH_OPTIONS.savgol_order),
+    kalman_model: oneOf(search.kalman_model, KALMAN_FORMS),
+    hp_lambda: among(search.hp_lambda, SMOOTH_OPTIONS.hp_lambda),
   };
 }
 
@@ -161,5 +191,16 @@ export function seriesParams(search: TimeSeriesSearch): SeriesParams {
   delete params.all;
   delete params.scen;
   delete params.smodel;
+  for (const key of Object.keys(SMOOTH_OPTIONS) as SmoothOption[]) delete params[key];
   return params;
+}
+
+/** The Smooth row's forced parameters, as query values of the smoothing call. */
+export function smoothParams(search: TimeSeriesSearch): Record<string, string> {
+  const found: Record<string, string> = {};
+  for (const key of Object.keys(SMOOTH_OPTIONS) as SmoothOption[]) {
+    const value = search[key];
+    if (value !== undefined) found[key] = String(value);
+  }
+  return found;
 }

@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from quantilo.compare.service import CompareService
 from quantilo.correlations.service import CorrelationService
 from quantilo.profiling.service import ProfilingService
+from quantilo.regression.service import RegressionService
 from quantilo.rows.service import RowService
 from quantilo.variable.service import VariableService
 
@@ -23,6 +24,7 @@ from app.api import (
     health,
     jobs,
     profiling,
+    regression,
     report,
     rows,
     sources,
@@ -75,6 +77,7 @@ def create_app(settings: Settings | None = None, job_runner: JobRunner | None = 
     app.state.saved_filters = SavedFilterService(workspace, column_service)
     app.state.compare = CompareService(column_service)
     app.state.correlations = CorrelationService(column_service)
+    app.state.regression = RegressionService(column_service, app.state.correlations)
     app.state.rows = RowService(column_service)
     app.state.reports = ReportService(
         column_service,
@@ -92,6 +95,8 @@ def create_app(settings: Settings | None = None, job_runner: JobRunner | None = 
         app.state.variable._cache.clear,
         app.state.compare._cache.clear,
         app.state.correlations._cache.clear,
+        app.state.correlations._structures.clear,
+        app.state.regression.clear,
         app.state.rows._counts.clear,
     ]
     app.state.settings = settings_service
@@ -111,7 +116,7 @@ def create_app(settings: Settings | None = None, job_runner: JobRunner | None = 
 
     api = APIRouter(prefix=API_PREFIX)
     routers = (health, datasets, sources, jobs, columns, profiling, variable, filters, compare)
-    for module in (*routers, correlations, rows, report, changes, settings_api):
+    for module in (*routers, correlations, regression, rows, report, changes, settings_api):
         api.include_router(module.router)
     app.include_router(api)
     mount_modules(app, API_PREFIX)
