@@ -337,6 +337,21 @@ class TestParsersAndSummary:
 
         assert (summary["rows"], summary["null_count"], summary["invalid_count"]) == (4, 2, 1)
         assert summary["histogram"][0]["count"] + summary["histogram"][-1]["count"] == 2
+        # the filter editor shows the range (100, R-FLT-09): read through the parser
+        assert summary["numeric"] == {"min": 1.5, "max": 2.5, "median": 2.0}
+
+    def test_summary_range_only_for_numbers(self) -> None:
+        connection = duckdb.connect()
+        connection.execute(
+            "CREATE TABLE t AS SELECT * FROM "
+            "(VALUES (3, 'a'), (1, 'b'), (2, 'a'), (NULL, NULL)) v(n, s)"
+        )
+
+        discrete = summarize(connection, "t", "n", "numeric_discrete", Parser(kind="raw"))
+        category = summarize(connection, "t", "s", "categorical_nominal", Parser(kind="raw"))
+
+        assert discrete["numeric"] == {"min": 1.0, "max": 3.0, "median": 2.0}
+        assert category["numeric"] is None
 
     def test_switching_type_reuses_detected_candidates(
         self, traps: dict[str, ColumnDetection]

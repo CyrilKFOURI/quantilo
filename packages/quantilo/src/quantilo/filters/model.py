@@ -20,6 +20,7 @@ Operator = Literal[
     "starts_with",
     "is_null",
     "part_in",  # a date part (`part`) is one of `values`, e.g. day_of_week in [1]
+    "last_days",  # the `value` days up to `high` (its day included), the data's last date (100)
     "unique",  # one row per value of `column` (+ `columns`): the first or last (`keep`)
     "duplicated",  # rows whose value (+ `columns`) appears at least twice; negated: once
 ]

@@ -2,7 +2,7 @@ import { describe as group, expect, it } from "vitest";
 
 import type { Chart } from "../../api/client";
 import { validateFilterSearch } from "../../api/filters";
-import { choiceOf, choicesFor, describe } from "./conditions";
+import { choiceOf, choicesFor, choicesWith, daysBefore, describe, pastedValues, upgraded } from "./conditions";
 import { actionsFor } from "./fromChart";
 
 const click = (index: number, customdata: unknown = null) => ({ index, x: null, y: null, customdata, clientX: 0, clientY: 0 });
@@ -45,11 +45,46 @@ group("filter conditions", () => {
   it("offers the choices that fit the column type", () => {
     const ids = (type: Parameters<typeof choicesFor>[0]) => choicesFor(type).map((choice) => choice.id);
 
-    expect(ids("categorical_nominal")[0]).toBe("in");
+    // R-FLT-01 to 06: one set per type
+    expect(ids("categorical_nominal").slice(0, 4)).toEqual(["is", "is_not", "in", "not_in"]);
+    expect(ids("categorical_nominal")).not.toContain("eq");
+    expect(ids("categorical_nominal")).not.toContain("contains");
+    expect(ids("boolean")[0]).toBe("is");
     expect(ids("numeric_continuous")).not.toContain("in");
-    expect(ids("datetime")).toContain("part_in");
+    expect(ids("numeric_discrete")[0]).toBe("in");
+    expect(ids("text").slice(0, 3)).toEqual(["contains", "not_contains", "starts_with"]);
+    expect(ids("text")).not.toContain("eq");
+    expect(ids("identifier").slice(0, 3)).toEqual(["eq", "in", "not_in"]);
+    expect(choicesFor("identifier").find((c) => c.id === "in")?.input).toBe("paste");
+    expect(ids("datetime")).toEqual(expect.arrayContaining(["lt", "gt", "between", "last_days", "part_in", "is_null"]));
     expect(ids("ignored")).toEqual([]);
     expect(choiceOf({ column: "a", op: "between", negate: true }, "numeric_continuous")?.id).toBe("outside");
+  });
+
+  it("reads older conditions without changing their rows (R-FLT-07)", () => {
+    const eq = { column: "device", op: "eq" as const, value: "mobile", negate: false };
+    expect(upgraded(eq, "categorical_nominal")).toEqual({ column: "device", op: "in", values: ["mobile"], negate: false });
+    expect(upgraded(eq, "identifier")).toBe(eq);
+    expect(choiceOf(eq, "categorical_nominal")?.id).toBe("is");
+    expect(choiceOf({ column: "d", op: "in", values: ["a", "b"], negate: true }, "categorical_nominal")?.id).toBe("not_in");
+    expect(choiceOf({ column: "d", op: "in", values: ["a"], negate: true }, "categorical_nominal")?.id).toBe("is_not");
+
+    const contains = { column: "device", op: "contains" as const, value: "mob", negate: false };
+    expect(choiceOf(contains, "categorical_nominal")).toMatchObject({ legacy: true, label: "contains (older condition)", input: "value" });
+    expect(choicesWith("categorical_nominal", contains)[0]?.legacy).toBe(true);
+    expect(choicesWith("categorical_nominal", undefined).some((c) => c.legacy)).toBe(false);
+    expect(choiceOf({ column: "c", op: "in", values: ["x"], negate: false }, "text")?.input).toBe("paste");
+    expect(choiceOf({ column: "c", op: "eq", value: "x", negate: true }, "text")?.label).toBe("doesn't equal (older condition)");
+  });
+
+  it("reads pasted lists and counts days back", () => {
+    expect(pastedValues("A1\r\nA2, A3;\tA1\n\n")).toEqual(["A1", "A2", "A3"]);
+    expect(daysBefore("2024-03-01", 1)).toBe("2024-02-29");
+    expect(daysBefore("2024-12-30", 6)).toBe("2024-12-24");
+    expect(describe({ column: "date", op: "last_days", value: 30, high: "2024-12-30", negate: false })).toBe(
+      "date · last 30 days (to 2024-12-30)",
+    );
+    expect(describe({ column: "c", op: "is_null", negate: true })).toBe("c is not missing");
   });
 
   it("keeps only well-formed filters from the URL", () => {

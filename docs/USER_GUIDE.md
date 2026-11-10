@@ -19,6 +19,11 @@ Quantilo is a data analysis app: a local, offline tool to explore a table of dat
 - The list of your datasets: rows, columns, size, last opened. Rename, re-import (instant when the source file hasn't changed) or delete a dataset from its menu.
 - Tick two datasets and click **Compare versions** to see what changed between them (see *Changes*).
 - Cleaned versions (see *Clean*) are listed just under their original, indented. Deleting the original offers to delete them too; otherwise they stay as ordinary datasets.
+- **Projects** (optional) file datasets like folders. **New project** adds one; type its name and press Enter. Each project is a group you can fold, with its number of datasets; datasets in no project are listed last, under **Not in a project**. A dataset is in one project at most.
+  - **Move a dataset**: drag its row onto another project (or onto *Not in a project*), or use its **Move to…** menu (keyboard, phone and tablet). Cleaned versions always move with their original.
+  - **Open** a project (its name, or *Open* in its menu) to see only its datasets. A file imported from an open project goes into it (*Add to …* is ticked in the import dialog; untick it to keep the dataset out). Elsewhere, importing never asks for a project.
+  - **Rename** or **Delete** a project from its menu. Deleting a project never deletes a dataset: its datasets go back to *Not in a project*.
+  - In the analysis pages, the top bar shows the project before the dataset's name; the list next to the name switches to another dataset of the same project and keeps the page.
 - Import a **file** or a **folder**. Large files are converted once to Parquet; after that, every page reads the copy, which is fast even on millions of rows.
 - **How the file is read**: when a rule changes how the file is read, the preview says so above the first rows, with the rule's code, then *Check that your data was read correctly.* Times with a time zone (`+02:00`, `Z`) are stored in UTC (R-ING-01); a file separated by spaces is split on them (R-ING-02); a file without a header row gets columns named `column0…` (R-ING-03); a `.txt`, `.dat` or `.data` file holding a table is read like a CSV (R-ING-04). An old `.xls` file is refused with a message telling what it really is (Excel 97-2003, a renamed `.xlsx`, or text).
 - **Excel sheets with a title above the table**: when the app is sure where the real header is (a styled row under a title and notes, for example), the preview reads the column names from that row and skips the lines above it; the import then reads the same. A clean sheet whose names are on the first row is read as before.
@@ -123,6 +128,7 @@ Pick an **X** and a **Y**: the chart and the statistical tests follow their type
 | Date × category | Counts per period and category | — |
 
 - **Color** splits a numeric pair or a series by a category. **Swap** exchanges X and Y.
+- **Z (3D)** and **Color** only appear when the pair can use them: Z for two numbers when a third number is left to pick, Color for two numbers, a number and a category, or a pair with a date (and a category to color by). Otherwise they are hidden, and the ⓘ next to the pickers says why.
 - **LOWESS curve** (scatter): a robust local regression drawn next to the straight line. It is ticked by default when there are at least 30 points and the curve explains at least 5 points of R² more than the line — the relation bends; the ⓘ next to it gives both shares. Untick it to hide it.
 - **Time series** (date × number): rows are always **aggregated per period first** — a rolling mean over raw rows would mean nothing when a date has several rows. Above the chart, change:
   - **Period** — *Auto* uses the usual gap between dates, coarsened beyond 400 periods (3 years of daily data → weeks);
@@ -416,8 +422,17 @@ A **recipe** keeps the work done on a dataset — corrected types, filters, KPIs
 
 Press **F** or click **Filter** (top right). Filters follow you on every page, live in the URL (shareable, reload-safe) and belong to one dataset.
 
-- **AND between filters**, **OR between the values ticked** in one filter. Every condition has its opposite ("is none of", "outside", "is not empty"…). Empty values never pass a negated condition.
-- Conditions by type: numbers (=, >, ≥, <, ≤, between, outside); categories (is any of, contains, starts with, equals); dates (before, after, between, falls on a weekday / month / quarter / hour); every type: is empty.
+- **AND between filters**, **OR between the values ticked** in one filter. Every condition has its opposite ("is none of", "outside", "is not missing"…). Empty values never pass a negated condition.
+- **Conditions depend on the column's type**, so each list only holds what makes sense:
+  - **numbers**: =, ≠, >, ≥, <, ≤, between, outside; a whole number with few values (a class 1–3) also has *is any of* with its values;
+  - **categories and yes/no**: *is* / *is not* (one value, picked from the data's values with their counts), *is any of* / *is none of* (tick several); you never type a category;
+  - **free text**: contains, doesn't contain, starts with;
+  - **identifiers**: *equals*, or *is any of (paste a list)*: paste one value per line, or separated by commas — up to 1,000;
+  - **dates**: before, after, between, outside, **in the last N days**, falls on a weekday / month / quarter / hour;
+  - every type: *is missing*, *is not missing*.
+- **The editor shows where the data lies**, from the column summary made at import: *Data runs from 2022-01-01 to 2024-12-30* under a date, *In the data: 0 – 1,250 · median 48* under a number (the median is also the example in the empty field). A date picker opens inside that range and starts filled: *after* the first date, *before* the last one, *between* first → last; narrow it from there. A threshold that misses the data is flagged — *this filter keeps no row* or *keeps every row with a value* — but still allowed; *From* after *To* is refused.
+- **In the last N days** counts back from the **last date in the data**, not from today (a file is a snapshot: "today" would empty most of them). The editor says which days it keeps (*From 2024-12-24 to 2024-12-30*), and the filter keeps that end date, so it gives the same rows tomorrow.
+- **Older filters still work**: a filter saved before these lists changed (URL, saved filters, recipes) applies exactly as before. *equals* on a category opens as *is*; an operator the type no longer lists (like *contains* on a category) stays offered for that filter only, marked *(older condition)*.
 - **Unique values (one row each)** — keeps one row per value. *Based on*: **This column**, or **Several columns (key)** to tick the columns of a composite key (e.g. `vehicle_id` + `month`). *Keep*: the **first** or **last** row, in file order or **ordered by** a column (e.g. the latest date).
 - **Duplicates only** — the rows whose value (or key) appears more than once, all copies. **Values appearing once** — the opposite: values present a single time (rows of duplicated values are removed entirely; to keep one row of each, use *Unique values*).
 - Unique / duplicates conditions apply **after** the value conditions: *country = FR* + *unique vehicle_id (last)* gives the last French row of each vehicle.

@@ -64,6 +64,8 @@ class ImportRequest(BaseModel):
     path: str
     name: str | None = None
     options: ImportOptions = Field(default_factory=lambda: ImportOptions())
+    # 087, R-PRJ-05: put the new dataset in this project (an import from an open project only)
+    project_id: str | None = None
 
 
 class ImportResponse(BaseModel):

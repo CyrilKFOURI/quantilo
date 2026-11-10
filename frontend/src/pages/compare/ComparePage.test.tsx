@@ -376,11 +376,55 @@ describe("Compare page", () => {
     );
   });
 
-  it("offers Z only for two numeric columns", async () => {
+  it("hides Z and Color when the pair cannot use them, and says why (R-CMP-10/11)", async () => {
     setup();
     renderAt("/d/d1/compare?x=age&y=segment");
 
-    expect(await screen.findByLabelText("Z (3D)")).toBeDisabled();
+    expect(await screen.findByLabelText("Color")).toBeEnabled();
+    expect(screen.queryByLabelText("Z (3D)")).toBeNull();
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Z (3D) appears when X and Y are both numbers");
+    expect(screen.getByRole("tooltip")).not.toHaveTextContent("Color appears");
+  });
+
+  it("hides Z for two numbers when no third number is left", async () => {
+    setup();
+    renderAt("/d/d1/compare?x=age&y=income");
+
+    expect(await screen.findByLabelText("Color")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Z (3D)")).toBeNull();
+  });
+
+  it("shows Z for two numbers with a third one to pick", async () => {
+    mockApi({
+      "GET /health": health,
+      "GET /datasets/d1": dataset(),
+      "GET /datasets/d1/columns": [...columns, column({ name: "spend", position: 5 })],
+      "GET /column-roles": roles,
+      "GET /datasets/d1/compare": scatter,
+    });
+    renderAt("/d/d1/compare?x=age&y=income");
+
+    const z = await screen.findByLabelText("Z (3D)");
+    expect(within(z).getAllByRole("option").map((o) => o.textContent)).toEqual(["None", "spend"]);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("hides both for two categories", async () => {
+    mockApi({
+      "GET /health": health,
+      "GET /datasets/d1": dataset(),
+      "GET /datasets/d1/columns": [
+        ...columns,
+        column({ name: "device", position: 5, type: "categorical_nominal", detected_type: "categorical_nominal" }),
+      ],
+      "GET /column-roles": roles,
+      "GET /datasets/d1/compare": scatter,
+    });
+    renderAt("/d/d1/compare?x=segment&y=device");
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Color appears");
+    expect(screen.queryByLabelText("Z (3D)")).toBeNull();
+    expect(screen.queryByLabelText("Color")).toBeNull();
   });
 });
 

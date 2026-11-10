@@ -1,11 +1,23 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { GitCompareArrows, Pencil, RefreshCw, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { FolderPlus, GitCompareArrows, Pencil, RefreshCw, Trash2, X } from "lucide-react";
+import { useState, type DragEvent, type ReactNode } from "react";
 
 import type { Dataset } from "../../api/client";
 import { useDeleteDataset, useReimportDataset, useRenameDataset } from "../../api/hooks";
 import { formatBytes, formatCount, formatRelativeTime } from "../../lib/format";
+import { useStoredState } from "../../lib/useStoredState";
+import {
+  projectKeys,
+  useCreateProject,
+  useDeleteProject,
+  useMoveDatasets,
+  useProjects,
+  useRenameProject,
+  type Project,
+} from "../projects/api";
+import { familyIds, groupByProject, groupKey } from "../projects/grouping";
+import { DRAG_TYPE, EmptyGroup, MoveToMenu, NewProjectGroup, ProjectGroup } from "../projects/ProjectGroup";
 import { t } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
 import { cleanKeys, useLineage } from "../../modules/clean/api";
@@ -20,7 +32,7 @@ export function versionsOrder(first: Dataset, second: Dataset): [Dataset, Datase
   return stamp(first) >= stamp(second) ? [first, second] : [second, first];
 }
 
-export function DatasetList({ datasets }: { datasets: Dataset[] }) {
+export function DatasetList({ datasets, openProject = null }: { datasets: Dataset[]; openProject?: Project | null }) {
   const [deleting, setDeleting] = useState<FamilyRow | null>(null);
   const [withVersions, setWithVersions] = useState(false);
   // 065: each original followed by its cleaned versions, indented
@@ -40,7 +52,6 @@ export function DatasetList({ datasets }: { datasets: Dataset[] }) {
   };
   const remove = useDeleteDataset();
   const reimport = useReimportDataset();
-  const error = remove.error ?? reimport.error;
   // Deleting a dataset that is still importing cancels its import.
   const cancelling = deleting?.dataset.status === "importing";
   const versions = deleting?.children ?? [];
@@ -49,22 +60,126 @@ export function DatasetList({ datasets }: { datasets: Dataset[] }) {
     void Promise.all(doomed.map((dataset) => remove.mutateAsync(dataset.id))).then(() => {
       setDeleting(null);
       void client.invalidateQueries({ queryKey: cleanKeys.lineage });
+      void client.invalidateQueries({ queryKey: projectKeys.all });
     });
   };
 
+  // 087: projects, groups, drag and drop, Move to…
+  const projects = useProjects();
+  const createProject = useCreateProject();
+  const renameProject = useRenameProject();
+  const deleteProject = useDeleteProject();
+  const move = useMoveDatasets();
+  const [collapsed, setCollapsed] = useStoredState<string[]>("de.projects.collapsed", []);
+  // `pendingMove`: "New project…" from a dataset's Move to… menu: the dataset goes in once created
+  const [creating, setCreating] = useState<{ pendingMove: string | null } | null>(null);
+  const [deletingProject, setDeletingProject] = useState<Project | null>(null);
+  const [dragging, setDragging] = useState<FamilyRow | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+  const error = remove.error ?? reimport.error ?? move.error ?? renameProject.error ?? deleteProject.error;
+  // R-PRJ-10: no project, no group (the list of before)
+  const grouped = projects.length > 0 || creating !== null || openProject !== null;
+  const groups = groupByProject(rows, projects).filter((group) => !openProject || group.project?.id === openProject.id);
+  const projectOfRow = (row: FamilyRow) => groups.find((group) => group.rows.includes(row))?.project?.id ?? null;
+
+  const moveRow = (row: FamilyRow, projectId: string | null) => {
+    if (projectOfRow(row) === projectId) return;
+    move.mutate({ datasetIds: familyIds(row, rows), projectId });
+  };
+  const startCreate = (pendingMove: string | null = null) => {
+    createProject.reset();
+    setCreating({ pendingMove });
+  };
+  const create = (name: string) =>
+    createProject.mutate(name, {
+      onSuccess: (project) => {
+        const pending = rows.find((row) => row.dataset.id === creating?.pendingMove);
+        setCreating(null);
+        if (pending) move.mutate({ datasetIds: familyIds(pending, rows), projectId: project.id });
+      },
+    });
+  const toggleGroup = (key: string) =>
+    setCollapsed(collapsed.includes(key) ? collapsed.filter((item) => item !== key) : [...collapsed, key]);
+
+  const dropHandlers = (project: Project | null) => {
+    const key = groupKey(project);
+    const target = project?.id ?? null;
+    const accepts = (event: DragEvent) => dragging !== null && event.dataTransfer.types.includes(DRAG_TYPE);
+    return {
+      dropActive: over === key && dragging !== null && projectOfRow(dragging) !== target,
+      onDragOver: (event: DragEvent) => {
+        if (!accepts(event)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        if (over !== key) setOver(key);
+      },
+      onDragLeave: (event: DragEvent) => {
+        // only when leaving the group, not when passing from one of its rows to the next
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOver(null);
+      },
+      onDrop: (event: DragEvent) => {
+        if (!accepts(event) || !dragging) return;
+        event.preventDefault();
+        moveRow(dragging, target);
+        setOver(null);
+        setDragging(null);
+      },
+    };
+  };
+
+  const renderRows = (list: FamilyRow[]) =>
+    list.map((row) => (
+      <DatasetRow
+        key={row.dataset.id}
+        dataset={row.dataset}
+        version={row.version}
+        checked={selected.includes(row.dataset.id)}
+        onToggle={() => toggle(row.dataset.id)}
+        onDelete={() => {
+          setWithVersions(false);
+          setDeleting(row);
+        }}
+        onReimport={() => reimport.mutate(row.dataset.id)}
+        dragging={dragging !== null && familyIds(dragging, rows).includes(row.dataset.id)}
+        onDragStart={grouped ? () => setDragging(row) : undefined}
+        onDragEnd={() => {
+          setDragging(null);
+          setOver(null);
+        }}
+        moveMenu={
+          projects.length > 0 ? (
+            <MoveToMenu
+              name={row.dataset.name}
+              current={projectOfRow(row)}
+              projects={projects}
+              onMove={(projectId) => moveRow(row, projectId)}
+              onNew={() => startCreate(row.dataset.id)}
+            />
+          ) : null
+        }
+      />
+    ));
+
   return (
     <section>
-      <div className="mb-2 flex min-h-(--control-h) flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xs text-ink-3">{t("datasets.recent")}</h2>
-        {chosen.length === 2 ? (
-          <Button icon={GitCompareArrows} onClick={compare}>
-            {t("changes.compareVersions")}
-          </Button>
-        ) : (
-          datasets.length > 1 && (
-            <span className="text-xs text-ink-3">{t(chosen.length === 1 ? "changes.pickOneMore" : "changes.pickTwo")}</span>
-          )
-        )}
+      <div className="mb-2 flex min-h-(--control-h) flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <h2 className="text-xs text-ink-3">{t(openProject ? "projects.datasets" : "datasets.recent")}</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          {chosen.length === 2 ? (
+            <Button icon={GitCompareArrows} onClick={compare}>
+              {t("changes.compareVersions")}
+            </Button>
+          ) : (
+            datasets.length > 1 && (
+              <span className="text-xs text-ink-3">{t(chosen.length === 1 ? "changes.pickOneMore" : "changes.pickTwo")}</span>
+            )
+          )}
+          {!openProject && (
+            <Button icon={FolderPlus} onClick={() => startCreate()} disabled={creating !== null}>
+              {t("projects.new")}
+            </Button>
+          )}
+        </div>
       </div>
       {error && (
         <div className="mb-2">
@@ -86,24 +201,55 @@ export function DatasetList({ datasets }: { datasets: Dataset[] }) {
               <th scope="col" className="w-0 px-2 py-2"><span className="sr-only">{t("datasets.actions")}</span></th>
             </tr>
           </thead>
-          <tbody>
-            {rows.map((row) => (
-              <DatasetRow
-                key={row.dataset.id}
-                dataset={row.dataset}
-                version={row.version}
-                checked={selected.includes(row.dataset.id)}
-                onToggle={() => toggle(row.dataset.id)}
-                onDelete={() => {
-                  setWithVersions(false);
-                  setDeleting(row);
-                }}
-                onReimport={() => reimport.mutate(row.dataset.id)}
-              />
-            ))}
-          </tbody>
+          {creating && (
+            <NewProjectGroup onSubmit={create} onCancel={() => setCreating(null)} error={createProject.error?.message} />
+          )}
+          {grouped ? (
+            groups
+              // Not in a project shows when it has datasets, or while dragging (the way out of a project)
+              .filter((group) => group.project || group.rows.length > 0 || dragging !== null)
+              .map((group) => {
+                const key = groupKey(group.project);
+                const isOpen = openProject !== null && group.project?.id === openProject.id;
+                const project = group.project;
+                return (
+                  <ProjectGroup
+                    key={key}
+                    project={project}
+                    count={group.rows.length}
+                    collapsed={collapsed.includes(key)}
+                    onToggle={() => toggleGroup(key)}
+                    open={isOpen}
+                    {...dropHandlers(project)}
+                    onRename={project ? (name) => renameProject.mutate({ id: project.id, name }) : undefined}
+                    onDelete={project ? () => setDeletingProject(project) : undefined}
+                  >
+                    {group.rows.length > 0 ? renderRows(group.rows) : <EmptyGroup open={isOpen} />}
+                  </ProjectGroup>
+                );
+              })
+          ) : (
+            <tbody>{renderRows(rows)}</tbody>
+          )}
         </table>
       </div>
+
+      {deletingProject && (
+        <DeleteProjectDialog
+          project={deletingProject}
+          count={groups.find((group) => group.project?.id === deletingProject.id)?.rows.length ?? 0}
+          pending={deleteProject.isPending}
+          onCancel={() => setDeletingProject(null)}
+          onConfirm={() =>
+            deleteProject.mutate(deletingProject.id, {
+              onSuccess: () => {
+                setDeletingProject(null);
+                if (openProject) void navigate({ to: "/" });
+              },
+            })
+          }
+        />
+      )}
 
       {deleting && (
         <Dialog
@@ -141,6 +287,48 @@ export function DatasetList({ datasets }: { datasets: Dataset[] }) {
   );
 }
 
+/** R-PRJ-03: says what stays (every dataset), not only what goes. */
+function DeleteProjectDialog({
+  project,
+  count,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  project: Project;
+  count: number;
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const body =
+    count === 0
+      ? t("projects.deleteEmpty")
+      : count === 1
+        ? t("projects.deleteBodyOne")
+        : t("projects.deleteBody", { count: String(count) });
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => !open && onCancel()}
+      title={t("projects.deleteTitle", { name: project.name })}
+      size="sm"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onCancel}>
+            {t("import.cancel")}
+          </Button>
+          <Button variant="danger" disabled={pending} onClick={onConfirm}>
+            {t("projects.delete")}
+          </Button>
+        </>
+      }
+    >
+      <p className="text-ink-2">{body}</p>
+    </Dialog>
+  );
+}
+
 function DatasetRow({
   dataset,
   version,
@@ -148,6 +336,10 @@ function DatasetRow({
   onToggle,
   onDelete,
   onReimport,
+  dragging = false,
+  onDragStart,
+  onDragEnd,
+  moveMenu = null,
 }: {
   dataset: Dataset;
   /** 065: a cleaned version, shown indented under its original. */
@@ -156,6 +348,13 @@ function DatasetRow({
   onToggle: () => void;
   onDelete: () => void;
   onReimport: () => void;
+  /** 087: this row's family is being dragged. */
+  dragging?: boolean;
+  /** 087: set when projects exist: the row can be dragged onto another project. */
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
+  /** 087: the Move to… menu (keyboard, phone, tablet). */
+  moveMenu?: ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(dataset.name);
@@ -168,7 +367,17 @@ function DatasetRow({
   };
 
   return (
-    <tr className="group border-b border-line last:border-b-0 hover:bg-surface-0">
+    <tr
+      className={`group border-b border-line last:border-b-0 hover:bg-surface-0 ${onDragStart && !editing ? "cursor-grab active:cursor-grabbing" : ""} ${dragging ? "opacity-50" : ""}`}
+      draggable={Boolean(onDragStart) && !editing}
+      onDragStart={(event) => {
+        if (!onDragStart) return;
+        event.dataTransfer.setData(DRAG_TYPE, dataset.id);
+        event.dataTransfer.effectAllowed = "move";
+        onDragStart();
+      }}
+      onDragEnd={onDragEnd}
+    >
       <td className="py-2 pl-3">
         <input
           type="checkbox"
@@ -203,6 +412,7 @@ function DatasetRow({
               <Link
                 to="/d/$datasetId"
                 params={{ datasetId: dataset.id }}
+                draggable={false}
                 className="block truncate font-medium text-ink-1 hover:text-accent"
               >
                 {dataset.name}
@@ -251,6 +461,7 @@ function DatasetRow({
       </td>
       <td data-keep-line className="px-2 py-2">
         <div className="flex justify-end gap-0.5 opacity-60 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+          {moveMenu}
           <Button
             variant="ghost"
             icon={Pencil}

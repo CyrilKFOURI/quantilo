@@ -24,6 +24,7 @@ from app.api import (
     health,
     jobs,
     profiling,
+    projects,
     regression,
     report,
     rows,
@@ -41,6 +42,7 @@ from app.modules.registry import mount_modules
 from app.services.columns.service import ColumnService
 from app.services.datasets.service import DatasetService
 from app.services.filters.saved import SavedFilterService
+from app.services.projects.service import ProjectService
 from app.services.report.service import ReportService
 from app.services.settings.service import SettingsService
 from app.services.versions.service import VersionService
@@ -72,6 +74,7 @@ def create_app(settings: Settings | None = None, job_runner: JobRunner | None = 
     app.state.workspace = workspace
     app.state.datasets = dataset_service
     app.state.columns = column_service
+    app.state.projects = ProjectService(workspace, dataset_service)
     app.state.profiling = ProfilingService(column_service)
     app.state.variable = VariableService(column_service)
     app.state.saved_filters = SavedFilterService(workspace, column_service)
@@ -116,7 +119,8 @@ def create_app(settings: Settings | None = None, job_runner: JobRunner | None = 
 
     api = APIRouter(prefix=API_PREFIX)
     routers = (health, datasets, sources, jobs, columns, profiling, variable, filters, compare)
-    for module in (*routers, correlations, regression, rows, report, changes, settings_api):
+    others = (correlations, regression, rows, report, changes, settings_api, projects)
+    for module in (*routers, *others):
         api.include_router(module.router)
     app.include_router(api)
     mount_modules(app, API_PREFIX)

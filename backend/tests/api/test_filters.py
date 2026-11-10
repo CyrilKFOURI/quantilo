@@ -55,6 +55,26 @@ def test_column_summaries_are_filtered_but_types_unchanged(client: TestClient, t
     assert next(c for c in columns if c["name"] == "country")["type"] == "categorical_nominal"
 
 
+def test_the_editor_hints_come_with_the_columns_and_last_days_counts_back(
+    client: TestClient,
+) -> None:
+    sales = import_path(client, default_samples_dir() / "sales_timeseries.csv")
+    columns = {c["name"]: c for c in client.get(f"/api/v1/datasets/{sales}/columns").json()}
+
+    # 100, R-FLT-09: a number's range and a date's span are in the summary computed at import
+    units = columns["units"]["summary"]["numeric"]
+    assert units["min"] <= units["median"] <= units["max"]
+    last = columns["date"]["summary"]["date"]["max"][:10]
+    assert columns["store"]["summary"]["numeric"] is None
+
+    week = [{"column": "date", "op": "last_days", "value": 7, "high": last}]
+    rows = get(client, f"/datasets/{sales}/overview", week).json()["rows"]
+    stores = len(get(client, f"/datasets/{sales}/columns/chart", column="store").json()["bars"])
+    assert rows == 7 * stores  # one row per store and day
+    bad = [{"column": "date", "op": "last_days", "value": 0, "high": last}]
+    assert get(client, f"/datasets/{sales}/overview", bad).status_code == 422
+
+
 def test_invalid_filter_is_a_clear_422(client: TestClient, traps: str) -> None:
     bad = [{"column": "nope", "op": "eq", "value": 1}]
 

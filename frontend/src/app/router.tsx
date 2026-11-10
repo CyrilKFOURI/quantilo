@@ -14,7 +14,7 @@ import type { ModuleManifest, PanelManifest } from "../modules/types";
 import { ChangesPage, validateChangesSearch } from "../pages/changes/ChangesPage";
 import { ColumnsPage } from "../pages/columns/ColumnsPage";
 import { HelpPage } from "../pages/help/HelpPage";
-import { HomePage } from "../pages/home/HomePage";
+import { HomePage, validateHomeSearch } from "../pages/home/HomePage";
 import { LegalPage } from "../pages/legal/LegalPage";
 import { NotFoundPage } from "../pages/not-found/NotFoundPage";
 import { OverviewPage } from "../pages/overview/OverviewPage";
@@ -66,6 +66,8 @@ export function createAppRouter({
   const homeRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/",
+    // 087: `?project=<id>` opens one project
+    validateSearch: validateHomeSearch,
     component: HomePage,
   });
   const settingsRoute = createRoute({

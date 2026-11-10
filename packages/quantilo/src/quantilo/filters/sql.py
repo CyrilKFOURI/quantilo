@@ -25,7 +25,7 @@ ALLOWED: dict[str, tuple[str, ...]] = {
     "boolean": ("in", "is_null"),
     "text": ("eq", "contains", "starts_with", "in", "is_null"),
     "identifier": ("eq", "contains", "starts_with", "in", "is_null"),
-    "datetime": ("eq", "gt", "gte", "lt", "lte", "between", "part_in", "is_null"),
+    "datetime": ("eq", "gt", "gte", "lt", "lte", "between", "part_in", "last_days", "is_null"),
 }
 COMPARISONS = {"eq": "=", "gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
 
@@ -62,6 +62,39 @@ def _timestamp(value: object, column: str) -> str:
     except ValueError:
         raise InvalidFilterError(f"{column!r}: {value!r} is not an ISO date.") from None
     return f"TIMESTAMP {lit(moment.isoformat(sep=' '))}"
+
+
+MAX_DAYS = 36_500
+
+
+def _days(value: object, column: str) -> int:
+    """N of "in the last N days": a whole number from 1 to MAX_DAYS."""
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        number = math.nan
+    if not (number.is_integer() and 1 <= number <= MAX_DAYS):
+        raise InvalidFilterError(
+            f"{column!r}: the last N days needs a whole number of days from 1 to {MAX_DAYS}."
+        )
+    return int(number)
+
+
+def _last_days(condition: Condition, subject: str, column: str) -> str:
+    """Days `high - (N - 1)` to `high`, both included (R-FLT-08): `high` is the anchor kept with
+    the filter, the last date of the data when it was made, so the filter keeps the same rows."""
+    days = _days(condition.value, column)
+    if condition.high is None or condition.high == "":
+        raise InvalidFilterError(f"{column!r}: the last N days needs the last date (high).")
+    try:
+        anchor = datetime.fromisoformat(str(condition.high)).date()
+    except ValueError:
+        raise InvalidFilterError(f"{column!r}: {condition.high!r} is not an ISO date.") from None
+    end = lit(anchor.isoformat())
+    return (
+        f"{subject} >= DATE {end} - INTERVAL {days - 1} DAY "
+        f"AND {subject} < DATE {end} + INTERVAL 1 DAY"
+    )
 
 
 def _text(value: object, column: str) -> str:
@@ -129,6 +162,8 @@ def condition_sql(condition: Condition, column: FilterColumn) -> str:
     elif op == "between":
         low, high = (value_of(v, column.name) for v in (condition.low, condition.high))
         sql = f"{subject} BETWEEN {low} AND {high}"
+    elif op == "last_days":
+        sql = _last_days(condition, subject, column.name)
     elif op in ("contains", "starts_with"):
         body = _like(condition.value, column.name)
         pattern = f"%{body}%" if op == "contains" else f"{body}%"

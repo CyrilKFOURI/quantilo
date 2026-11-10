@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query, Response
 from quantilo.ingestion.preview import ColumnInfo
 
-from app.api.deps import Datasets
+from app.api.deps import Datasets, Projects
 from app.schemas.datasets import (
     DatasetOut,
     HeadOut,
@@ -27,8 +27,12 @@ def list_datasets(service: Datasets) -> list[DatasetOut]:
 
 
 @router.post("", status_code=201)
-def import_dataset(body: ImportRequest, service: Datasets) -> ImportResponse:
+def import_dataset(body: ImportRequest, service: Datasets, projects: Projects) -> ImportResponse:
+    if body.project_id is not None:
+        projects.get(body.project_id)  # 404 before anything is imported
     record, job = service.start_import(body.path, body.name, body.options)
+    if body.project_id is not None:
+        projects.move([record.id], body.project_id)
     fresh = service.get(record.id)
     return ImportResponse(
         dataset=to_out(service, fresh),

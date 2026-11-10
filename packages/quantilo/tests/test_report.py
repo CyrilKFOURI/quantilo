@@ -27,6 +27,10 @@ def test_filters_in_words() -> None:
     assert said(op="is_null", negate=True) == "Age is not empty"
     assert said(op="part_in", part="day_of_week", values=["1"]) == "day of week of Age is 1"
     assert said(op="unique", keep="last") == "one row per Age (the last)"
+    assert (
+        said(op="last_days", value=30.0, high="2024-12-30")
+        == "Age in the last 30 days up to 2024-12-30"
+    )
 
 
 def test_file_names_and_anchors_are_safe() -> None:

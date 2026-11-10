@@ -116,7 +116,7 @@ ds.export("clean.parquet")            # CSV, Parquet or Excel
 
 ## Filters
 
-`where()` returns a filtered view and leaves `ds` alone. Conditions add up (AND); the values of `in` combine with OR. The operators are the app's filter bar: `eq`, `gt`, `gte`, `lt`, `lte`, `between`, `in`, `contains`, `starts_with`, `is_null`, `part_in`, `unique`, `duplicated`.
+`where()` returns a filtered view and leaves `ds` alone. Conditions add up (AND); the values of `in` combine with OR. The operators are the app's filter bar: `eq`, `gt`, `gte`, `lt`, `lte`, `between`, `in`, `contains`, `starts_with`, `is_null`, `part_in`, `last_days` (the `value` days up to the date `high`), `unique`, `duplicated`.
 
 ```python
 women = ds.where("Sex", "in", ["female"])

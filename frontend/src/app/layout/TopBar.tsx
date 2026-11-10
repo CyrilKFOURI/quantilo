@@ -7,7 +7,7 @@ import { closeCurrentDataset, useCurrentDataset } from "../../features/datasets/
 import { FilterButton, FilterChips } from "../../features/filters/FilterBar";
 import { t } from "../../lib/i18n";
 import { useStoredState } from "../../lib/useStoredState";
-import { DatasetName } from "../../modules/clean/FamilySelect";
+import { DatasetSwitcher } from "../../features/projects/DatasetSwitcher";
 import { CyfouriLogo } from "../../ui/CyfouriLogo";
 import { Logo } from "../../ui/Logo";
 
@@ -51,7 +51,7 @@ export function TopBar({ onMenu, appMark = false }: { onMenu?: () => void; appMa
         {datasetId && dataset.data ? (
           <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
             <span className="shrink-0 text-ink-3 max-sm:hidden">{t("topbar.dataset")}</span>
-            <DatasetName datasetId={datasetId} name={dataset.data.name} />
+            <DatasetSwitcher datasetId={datasetId} name={dataset.data.name} />
             {!routed && (
               <button
                 type="button"

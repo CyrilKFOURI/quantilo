@@ -479,8 +479,9 @@ export const api = {
 
   datasets: () => request<Dataset[]>("GET", "/datasets"),
   dataset: (id: string) => request<Dataset>("GET", `/datasets/${id}`),
-  importDataset: (path: string, name: string | null, options: ImportOptions) =>
-    request<ImportResponse>("POST", "/datasets", { path, name, options }),
+  /** `projectId` (087, R-PRJ-05): put the new dataset in that project. */
+  importDataset: (path: string, name: string | null, options: ImportOptions, projectId: string | null = null) =>
+    request<ImportResponse>("POST", "/datasets", { path, name, options, ...(projectId ? { project_id: projectId } : {}) }),
   renameDataset: (id: string, name: string) =>
     request<Dataset>("PATCH", `/datasets/${id}`, { name }),
   deleteDataset: (id: string) => request<void>("DELETE", `/datasets/${id}`),

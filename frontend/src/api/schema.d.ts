@@ -1018,6 +1018,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Projects
+         * @description By name; each with its datasets, cleaned versions included.
+         */
+        get: operations["list_projects_api_v1_projects_get"];
+        put?: never;
+        /** Create Project */
+        post: operations["create_project_api_v1_projects_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move Datasets
+         * @description Put datasets (and their cleaned versions) in a project, or in none; returns all.
+         */
+        post: operations["move_datasets_api_v1_projects_move_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Project
+         * @description Its datasets are kept: they are in no project any more.
+         */
+        delete: operations["delete_project_api_v1_projects__project_id__delete"];
+        options?: never;
+        head?: never;
+        /** Rename Project */
+        patch: operations["rename_project_api_v1_projects__project_id__patch"];
+        trace?: never;
+    };
     "/api/v1/modules/timeseries/datasets/{dataset_id}/overview": {
         parameters: {
             query?: never;
@@ -5179,6 +5241,7 @@ export interface components {
             examples: string[];
             /** Histogram */
             histogram: components["schemas"]["HistogramBar"][];
+            numeric?: components["schemas"]["NumericRange"] | null;
             date?: components["schemas"]["app__schemas__columns__DateProfile"] | null;
             text?: components["schemas"]["TextSummary"] | null;
         };
@@ -5305,7 +5368,7 @@ export interface components {
              * Op
              * @enum {string}
              */
-            op: "eq" | "gt" | "gte" | "lt" | "lte" | "between" | "in" | "contains" | "starts_with" | "is_null" | "part_in" | "unique" | "duplicated";
+            op: "eq" | "gt" | "gte" | "lt" | "lte" | "between" | "in" | "contains" | "starts_with" | "is_null" | "part_in" | "last_days" | "unique" | "duplicated";
             /** Value */
             value?: string | number | null;
             /** Low */
@@ -7791,6 +7854,8 @@ export interface components {
             /** Name */
             name?: string | null;
             options?: components["schemas"]["ImportOptions"];
+            /** Project Id */
+            project_id?: string | null;
         };
         /** ImportResponse */
         ImportResponse: {
@@ -8762,6 +8827,13 @@ export interface components {
             /** Shift Sentence */
             shift_sentence: string;
         };
+        /** MoveRequest */
+        MoveRequest: {
+            /** Dataset Ids */
+            dataset_ids: string[];
+            /** Project Id */
+            project_id: string | null;
+        };
         /** MultipleTesting */
         MultipleTesting: {
             /**
@@ -8981,6 +9053,18 @@ export interface components {
             sample: number[];
             robust?: components["schemas"]["Robust"] | null;
             tail_rule?: components["schemas"]["TailRule"] | null;
+        };
+        /**
+         * NumericRange
+         * @description Where a number's values lie (100, R-FLT-09): shown next to a filter's threshold.
+         */
+        NumericRange: {
+            /** Min */
+            min: number;
+            /** Max */
+            max: number;
+            /** Median */
+            median: number;
         };
         /**
          * Order
@@ -10119,6 +10203,24 @@ export interface components {
              * @default
              */
             verdict: string;
+        };
+        /** ProjectIn */
+        ProjectIn: {
+            /** Name */
+            name: string;
+        };
+        /** ProjectOut */
+        ProjectOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /** Dataset Ids */
+            dataset_ids: string[];
         };
         /** Projection */
         Projection: {
@@ -16764,6 +16866,156 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_projects_api_v1_projects_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectOut"][];
+                };
+            };
+        };
+    };
+    create_project_api_v1_projects_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_datasets_api_v1_projects_move_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_project_api_v1_projects__project_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_project_api_v1_projects__project_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

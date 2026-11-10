@@ -192,6 +192,9 @@ def describe_condition(condition: Condition) -> str:
         text = f"{c} {'does not start' if no else 'starts'} with “{condition.value}”"
     elif op == "is_null":
         text = f"{c} {'is not empty' if no else 'is empty'}"
+    elif op == "last_days":
+        word = "not in" if no else "in"
+        text = f"{c} {word} the last {_value(condition.value)} days up to {condition.high}"
     elif op == "part_in":
         part = (condition.part or "part").replace("_", " ")
         text = f"{part} of {c} {'is not' if no else 'is'} {', '.join(condition.values)}"

@@ -25,9 +25,11 @@ type ImportDialogProps = {
   onClose: () => void;
   /** Called with the new dataset instead of opening it (e.g. a recipe run on a new file). */
   onImported?: (datasetId: string) => void;
+  /** 087, R-PRJ-05: the project open on the home page; the new dataset goes in it unless unticked. */
+  project?: { id: string; name: string } | null;
 };
 
-export function ImportDialog({ path, onClose, onImported }: ImportDialogProps) {
+export function ImportDialog({ path, onClose, onImported, project = null }: ImportDialogProps) {
   const navigate = useNavigate();
   const [csv, setCsv] = useState<CsvOptions | null>(null);
   const [sheets, setSheets] = useState<string[] | null>(null);
@@ -39,6 +41,7 @@ export function ImportDialog({ path, onClose, onImported }: ImportDialogProps) {
   const [name, setName] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [intoProject, setIntoProject] = useState(true);
 
   const sourceOptions: SourceOptions = { csv, sheets, files, folder_mode: folderMode };
   const preview = usePreview(path, sourceOptions);
@@ -72,6 +75,7 @@ export function ImportDialog({ path, onClose, onImported }: ImportDialogProps) {
       {
         path,
         name: name ?? null,
+        projectId: project && intoProject ? project.id : null,
         options: {
           ...sourceOptions,
           // The header row the preview detected (feature 080): the import reads what was shown.
@@ -157,6 +161,19 @@ export function ImportDialog({ path, onClose, onImported }: ImportDialogProps) {
                 onChange={(event) => setName(event.target.value)}
               />
             </Field>
+
+            {project && (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-ink-2">{t("projects.import.label")}</span>
+                <div className="flex h-(--control-h) items-center">
+                  <Checkbox
+                    checked={intoProject}
+                    onChange={(event) => setIntoProject(event.target.checked)}
+                    label={t("projects.import.add", { name: project.name })}
+                  />
+                </div>
+              </div>
+            )}
 
             {(csv ?? data?.csv) && (
               <CsvSettings value={(csv ?? data?.csv) as CsvOptions} onChange={setCsv} />

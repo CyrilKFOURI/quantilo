@@ -34,17 +34,42 @@ def epoch_label(value: float) -> str:
     return (EPOCH + timedelta(seconds=value)).date().isoformat()
 
 
+def _extent(
+    connection: duckdb.DuckDBPyConnection, values: str, median: bool = False
+) -> tuple[Any, Any, int, Any]:
+    """min, max, count (and the median when asked) of `x` in `values`, in one pass."""
+    middle = "median(x)" if median else "NULL"
+    row = connection.execute(f"SELECT min(x), max(x), count(x), {middle} FROM {values}").fetchone()
+    return row if row else (None, None, 0, None)  # type: ignore[return-value]
+
+
+def _values(source: str, numeric: str) -> str:
+    return f"(SELECT {numeric} AS x FROM {source}) WHERE x IS NOT NULL"
+
+
+def numeric_range(
+    connection: duckdb.DuckDBPyConnection, source: str, typed: str
+) -> tuple[dict[str, float] | None, tuple[Any, Any, int]]:
+    """{min, max, median} of a number (the filter editor's hint, 100 R-FLT-09), and the extent
+    the histogram reuses."""
+    low, high, count, median = _extent(
+        connection, _values(source, f"CAST({typed} AS DOUBLE)"), median=True
+    )
+    if low is None or high is None:
+        return None, (low, high, count)
+    return {"min": float(low), "max": float(high), "median": float(median)}, (low, high, count)
+
+
 def _bins(
     connection: duckdb.DuckDBPyConnection,
     source: str,
     numeric: str,
     label: Callable[[float], str],
+    extent: tuple[Any, Any, int] | None = None,
 ) -> list[dict[str, Any]]:
-    """Equal-width histogram of a numeric expression."""
-    values = f"(SELECT {numeric} AS x FROM {source}) WHERE x IS NOT NULL"
-    low, high, count = connection.execute(
-        f"SELECT min(x), max(x), count(x) FROM {values}"
-    ).fetchone() or (None, None, 0)
+    """Equal-width histogram of a numeric expression (`extent`: its min, max, count if known)."""
+    values = _values(source, numeric)
+    low, high, count = extent or _extent(connection, values)[:3]
     if low is None or high is None:
         return []
     if low == high:
@@ -85,9 +110,10 @@ def histogram(
     typed: str,
     analysis_type: AnalysisType,
     order: list[str] | None,
+    extent: tuple[Any, Any, int] | None = None,
 ) -> list[dict[str, Any]]:
     if analysis_type == "numeric_continuous":
-        return _bins(connection, source, f"CAST({typed} AS DOUBLE)", number_label)
+        return _bins(connection, source, f"CAST({typed} AS DOUBLE)", number_label, extent)
     if analysis_type == "datetime":
         return _bins(connection, source, f"epoch({typed})", epoch_label)
     if analysis_type == "numeric_discrete":
@@ -142,13 +168,19 @@ def summarize(
         f"FROM (SELECT {typed} AS t, {present} AS r FROM {source})"
     ).fetchone() or (0, 0, 0, 0)
     examples = _top(connection, source, typed, "c DESC, v", 5)
+    numeric, extent = (
+        numeric_range(connection, source, typed)
+        if analysis_type in ("numeric_continuous", "numeric_discrete") and valid
+        else (None, None)
+    )
     summary: dict[str, Any] = {
         "rows": int(rows),
         "null_count": int(rows - valid),
         "invalid_count": int(present_count - valid),
         "distinct_count": int(distinct),
         "examples": [example["label"] for example in examples],
-        "histogram": histogram(connection, source, typed, analysis_type, order),
+        "histogram": histogram(connection, source, typed, analysis_type, order, extent),
+        "numeric": numeric,
         "date": None,
         "text": None,
     }

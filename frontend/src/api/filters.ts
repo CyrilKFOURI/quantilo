@@ -22,6 +22,7 @@ const OPERATORS = new Set<Condition["op"]>([
   "starts_with",
   "is_null",
   "part_in",
+  "last_days",
   "unique",
   "duplicated",
 ]);

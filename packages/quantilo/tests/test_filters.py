@@ -94,6 +94,34 @@ def test_dates_and_date_parts(connection: duckdb.DuckDBPyConnection) -> None:
     assert ids(connection, c("day", "part_in", part="hour", values=["9", "10"])) == [1, 2]
 
 
+def test_last_days_counts_back_from_the_stored_anchor(
+    connection: duckdb.DuckDBPyConnection,
+) -> None:
+    # R-FLT-08: the anchor's day is included, so 7 days = Jan 2 to Jan 8 (times ignored)
+    assert ids(connection, c("day", "last_days", value=7, high="2024-01-08")) == [2, 3]
+    assert ids(connection, c("day", "last_days", value=1, high="2024-01-08")) == [3]
+    assert ids(connection, c("day", "last_days", value=40, high="2024-02-05")) == [1, 2, 3, 5]
+    # negated: older dates only, never the empty one
+    assert ids(connection, c("day", "last_days", value=7, high="2024-01-08", negate=True)) == [
+        1,
+        5,
+    ]
+
+
+@pytest.mark.parametrize(
+    ("condition", "message"),
+    [
+        (c("day", "last_days", value=0, high="2024-01-08"), "whole number of days"),
+        (c("day", "last_days", value=2.5, high="2024-01-08"), "whole number of days"),
+        (c("day", "last_days", value=7), "last date"),
+        (c("price", "last_days", value=7, high="2024-01-08"), "can't use"),
+    ],
+)
+def test_last_days_is_validated(condition: Condition, message: str) -> None:
+    with pytest.raises(InvalidFilterError, match=message):
+        where_sql([condition], COLUMNS)
+
+
 def test_values_cannot_inject_sql(connection: duckdb.DuckDBPyConnection) -> None:
     sneaky = c("country", "in", values=["FR') OR 1=1 --"])
 

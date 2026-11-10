@@ -217,8 +217,13 @@ export function useImportDataset() {
       path: string;
       name: string | null;
       options: ImportOptions;
-    }) => api.importDataset(input.path, input.name, input.options),
-    onSettled: () => client.invalidateQueries({ queryKey: queryKeys.datasets }),
+      projectId?: string | null;
+    }) => api.importDataset(input.path, input.name, input.options, input.projectId ?? null),
+    onSettled: (_data, _error, input) => {
+      void client.invalidateQueries({ queryKey: queryKeys.datasets });
+      // 087: the projects' lists (features/projects/api.ts, key ["projects"])
+      if (input.projectId) void client.invalidateQueries({ queryKey: ["projects"] });
+    },
   });
 }
 

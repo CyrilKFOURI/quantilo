@@ -305,7 +305,9 @@ class CountInput(BaseModel):
             '{"column": "Sex", "op": "in", "values": ["female"]}, '
             '{"column": "Age", "op": "between", "low": 20, "high": 40}, '
             '{"column": "Cabin", "op": "is_null"}, '
-            '{"column": "Survived", "op": "in", "values": ["True"]} (a boolean column).'
+            '{"column": "Survived", "op": "in", "values": ["True"]} (a boolean column), '
+            '{"column": "Date", "op": "last_days", "value": 30, "high": "2024-12-30"} '
+            "(the 30 days up to that date, its last date in the data)."
         ),
         max_length=10,
     )

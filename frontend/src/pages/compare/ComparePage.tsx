@@ -133,10 +133,20 @@ export function ComparePage() {
   const grouped = Boolean(
     x && y && [role(x), role(y)].includes("num") && [role(x), role(y)].includes("cat"),
   );
-  const z = bothNumeric && search.z ? byName.get(search.z) : undefined;
-  const colorAllowed = Boolean(
-    x && y && (bothNumeric || grouped || role(x) === "date" || role(y) === "date"),
-  );
+  // Z and Color only show when the pair can use them, never greyed out (100, R-CMP-10/11)
+  const zColumns = usable.filter((c) => role(c) === "num" && c !== x && c !== y);
+  const zShown = bothNumeric && zColumns.length > 0;
+  const z = zShown && search.z ? zColumns.find((c) => c.name === search.z) : undefined;
+  const colorColumns = usable.filter((c) => role(c) === "cat");
+  const colorAllowed =
+    colorColumns.length > 0 &&
+    Boolean(x && y && (bothNumeric || grouped || role(x) === "date" || role(y) === "date"));
+  const hiddenWhy =
+    x && y
+      ? [zShown ? null : t("compare.zHidden"), colorAllowed ? null : t("compare.colorHidden")]
+          .filter(Boolean)
+          .join(" ")
+      : "";
   // with a number and two categories, the server lays them out (R-CMP-04/05): any colour works
   const color = search.color ? byName.get(search.color) : undefined;
   const toggleNumbers = (name: string) => {
@@ -187,14 +197,17 @@ export function ComparePage() {
           summary={[x && y ? `${x.name} × ${y.name}` : t("compare.pickShort"), z?.name, colorAllowed && color?.name]}
           defaultOpen={!x || !y}
           footer={
-            <Button
-              variant="ghost"
-              icon={ArrowLeftRight}
-              disabled={!x || !y}
-              onClick={() => set({ x: search.y, y: search.x })}
-            >
-              {t("compare.swap")}
-            </Button>
+            <span className="inline-flex items-center gap-2">
+              <Button
+                variant="ghost"
+                icon={ArrowLeftRight}
+                disabled={!x || !y}
+                onClick={() => set({ x: search.y, y: search.x })}
+              >
+                {t("compare.swap")}
+              </Button>
+              {hiddenWhy && <InfoTip label={t("compare.hiddenLabel")} text={hiddenWhy} />}
+            </span>
           }
         >
           <div className="relative">
@@ -219,24 +232,24 @@ export function ComparePage() {
               <ReadAs column={y} asNumbers={numbers.includes(y.name)} onToggle={() => toggleNumbers(y.name)} />
             )}
           </div>
-          <ColumnPicker
-            label={t("compare.z")}
-            value={z?.name ?? ""}
-            columns={usable.filter((c) => role(c) === "num")}
-            optional
-            disabled={!bothNumeric}
-            hint={bothNumeric ? undefined : t("compare.zHint")}
-            onChange={(name) => set({ z: name || undefined })}
-          />
-          <ColumnPicker
-            label={t("compare.color")}
-            value={colorAllowed ? (color?.name ?? "") : ""}
-            columns={usable.filter((c) => role(c) === "cat")}
-            optional
-            disabled={!colorAllowed}
-            hint={colorAllowed ? undefined : t("compare.colorHint")}
-            onChange={(name) => set({ color: name || undefined })}
-          />
+          {zShown && (
+            <ColumnPicker
+              label={t("compare.z")}
+              value={z?.name ?? ""}
+              columns={zColumns}
+              optional
+              onChange={(name) => set({ z: name || undefined })}
+            />
+          )}
+          {colorAllowed && (
+            <ColumnPicker
+              label={t("compare.color")}
+              value={color?.name ?? ""}
+              columns={colorColumns}
+              optional
+              onChange={(name) => set({ color: name || undefined })}
+            />
+          )}
         </ParamPanel>
       ) : (
         <div className="flex flex-wrap items-end gap-x-3 gap-y-6 pb-4">
@@ -271,24 +284,29 @@ export function ComparePage() {
               <ReadAs column={y} asNumbers={numbers.includes(y.name)} onToggle={() => toggleNumbers(y.name)} />
             )}
           </div>
-          <ColumnPicker
-            label={t("compare.z")}
-            value={z?.name ?? ""}
-            columns={usable.filter((c) => role(c) === "num")}
-            optional
-            disabled={!bothNumeric}
-            hint={bothNumeric ? undefined : t("compare.zHint")}
-            onChange={(name) => set({ z: name || undefined })}
-          />
-          <ColumnPicker
-            label={t("compare.color")}
-            value={colorAllowed ? (color?.name ?? "") : ""}
-            columns={usable.filter((c) => role(c) === "cat")}
-            optional
-            disabled={!colorAllowed}
-            hint={colorAllowed ? undefined : t("compare.colorHint")}
-            onChange={(name) => set({ color: name || undefined })}
-          />
+          {zShown && (
+            <ColumnPicker
+              label={t("compare.z")}
+              value={z?.name ?? ""}
+              columns={zColumns}
+              optional
+              onChange={(name) => set({ z: name || undefined })}
+            />
+          )}
+          {colorAllowed && (
+            <ColumnPicker
+              label={t("compare.color")}
+              value={color?.name ?? ""}
+              columns={colorColumns}
+              optional
+              onChange={(name) => set({ color: name || undefined })}
+            />
+          )}
+          {hiddenWhy && (
+            <span className="inline-flex h-(--control-h) items-center">
+              <InfoTip label={t("compare.hiddenLabel")} text={hiddenWhy} />
+            </span>
+          )}
         </div>
 
       )}
@@ -347,8 +365,6 @@ function ColumnPicker({
   columns,
   onChange,
   optional = false,
-  disabled = false,
-  hint,
   unavailable,
 }: {
   label: string;
@@ -356,8 +372,6 @@ function ColumnPicker({
   columns: Column[];
   onChange: (name: string) => void;
   optional?: boolean;
-  disabled?: boolean;
-  hint?: string;
   /** Why a column cannot be picked here (null: it can). */
   unavailable?: (column: Column) => string | null;
 }) {
@@ -366,8 +380,6 @@ function ColumnPicker({
       <Select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        disabled={disabled}
-        title={hint}
         className="w-48"
       >
         <option value="">

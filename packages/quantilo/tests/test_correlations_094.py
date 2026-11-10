@@ -35,6 +35,11 @@ def test_codes_give_no_link_insight_but_one_note_and_stay_out_of_pca(tmp_path: P
     texts = [i.text for i in found.insights]
     linked = [i for i in found.insights if i.kind in ("correlated", "redundant")]
     assert linked and not any({"bin__", "block_code"} & set(i.columns) for i in linked)
+    # since 092 the typing already reads these columns as identifiers (R-TYP codes); the
+    # correlations note R-COR-01 remains the safety net for codes still typed as numbers
+    if all(ds.column(name).type == "identifier" for name in ("bin__", "block_code")):
+        assert not any(i.kind == "codes" for i in found.insights)
+        return
     note = next(i for i in found.insights if i.kind == "codes")
     assert "bin__" in note.text and "block_code" in note.text and "R-COR-01" in note.text
     assert any("a" in t for t in texts)

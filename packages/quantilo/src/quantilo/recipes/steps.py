@@ -208,6 +208,10 @@ def _list(items: list[str]) -> str:
     return f"{', '.join(items[:-1])} and {items[-1]}"
 
 
+def _whole(value: object) -> str:
+    return str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
+
+
 def _condition(condition: Condition) -> str:
     column, op = condition.column, condition.op
     if condition.part and op == "part_in":
@@ -218,6 +222,8 @@ def _condition(condition: Condition) -> str:
         text = f"{column} is between {condition.low} and {condition.high}"
     elif op == "is_null":
         text = f"{column} is empty"
+    elif op == "last_days":
+        text = f"{column} is in the last {_whole(condition.value)} days up to {condition.high}"
     elif op == "unique":
         text = f"one row per {column}"
     elif op == "duplicated":

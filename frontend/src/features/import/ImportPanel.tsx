@@ -16,10 +16,13 @@ const ACCEPT = ".csv,.tsv,.parquet,.pq,.xlsx,.xlsm,.npy";
 export function ImportPanel({
   compact = false,
   onImported,
+  project = null,
 }: {
   compact?: boolean;
   /** Called with the new dataset instead of opening it. */
   onImported?: (datasetId: string) => void;
+  /** 087: the project open on the home page, offered in the import dialog (R-PRJ-05). */
+  project?: { id: string; name: string } | null;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -43,6 +46,8 @@ export function ImportPanel({
     <section aria-label={t("import.drop")}>
       <div
         onDragOver={(event) => {
+          // Files only: a dataset row dragged to a project (087) passes over without effect.
+          if (!event.dataTransfer.types.includes("Files")) return;
           event.preventDefault();
           setDragging(true);
         }}
@@ -126,6 +131,7 @@ export function ImportPanel({
           path={source}
           onClose={() => setSource(null)}
           onImported={onImported}
+          project={project}
         />
       )}
     </section>

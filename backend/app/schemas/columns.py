@@ -29,6 +29,14 @@ class TextSummary(BaseModel):
     median_words: float
 
 
+class NumericRange(BaseModel):
+    """Where a number's values lie (100, R-FLT-09): shown next to a filter's threshold."""
+
+    min: float
+    max: float
+    median: float
+
+
 class ColumnSummary(BaseModel):
     rows: int
     null_count: int
@@ -36,6 +44,7 @@ class ColumnSummary(BaseModel):
     distinct_count: int
     examples: list[str]
     histogram: list[HistogramBar]
+    numeric: NumericRange | None = None
     date: DateProfile | None = None
     text: TextSummary | None = None
 
