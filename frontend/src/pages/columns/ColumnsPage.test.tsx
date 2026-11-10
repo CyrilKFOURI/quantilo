@@ -176,4 +176,28 @@ describe("Columns page", () => {
     expect(badge(await row("ship_to"))).toHaveTextContent("Address");
     expect(within(await row("ship_to")).getByText("Mixed languages · median 4 words")).toBeInTheDocument();
   });
+
+  it("lists the columns a reading rule changed, with their reason (092)", async () => {
+    mockApi({
+      "GET /health": health,
+      "GET /datasets/d1": dataset({ types_reviewed_at: null }),
+      "GET /datasets/d1/columns": [
+        ...columns,
+        column({
+          name: "dep",
+          position: 3,
+          type: "categorical_nominal",
+          detected_type: "categorical_nominal",
+          reasons: ["1% of values, such as 2A, 2B, cannot be read as numbers: kept as text so that no value is lost (R-TYP-01)"],
+        }),
+      ],
+      "GET /column-roles": roles,
+    });
+    renderAt("/d/d1/columns");
+
+    const notes = await screen.findByRole("region", { name: "Columns read by a rule" });
+    expect(within(notes).getByText(/^dep: 1% of values, such as 2A/)).toBeInTheDocument();
+    expect(within(notes).getByText(/Check that your data was read correctly/)).toBeInTheDocument();
+  });
 });
+

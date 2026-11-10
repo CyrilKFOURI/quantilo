@@ -92,6 +92,14 @@ def code_by_name(name: str, role: str | None = None, type: str | None = None) ->
         return Code("identifier", f"its name ends in '{words[-1]}'")
     if len(words) == 1 and words[0] in NUMBER_WORDS - {"nb", "nbr"}:
         return Code("identifier", f"its name is '{words[0]}'")
+    # 092: the detection's head-word rule (R-TYP-04), so that both read the name alike
+    # ("council_district", "Mother's occupation", "MS SubClass": category codes)
+    if (named := load().name_code(name)) is not None:
+        kind, word = named
+        if kind == "category":
+            return Code("code", f"its name says '{word}' (a category)")
+        kind = "code" if word in ("code", "codes") else "identifier"
+        return Code(kind, f"its name says '{word}'")
     return None
 
 

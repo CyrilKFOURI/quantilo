@@ -130,7 +130,8 @@ def test_tail_rule_withholds_a_coordinate() -> None:
 def test_tail_rule_withholds_few_whole_levels() -> None:
     rng = np.random.default_rng(5)
     values = rng.choice([1, 2, 3, 19, 37, 38, 44, 150, 190], 3_000, p=[0.5, *[0.0625] * 8])
-    source = source_of([float(v) for v in values], name="occupation")
+    # 092: a name such as "occupation" now says a category code (R-TYP-04): a neutral name
+    source = source_of([float(v) for v in values], name="reading")
     rule = tail_rule(source, describe(source))
     assert not rule.fires and "distinct values" in rule.reason
 
@@ -199,7 +200,11 @@ def test_b04_weak_tokens_and_suppressed_numbers(tmp_path: Path) -> None:
     rng = np.random.default_rng(14)
     scores = [str(v) for v in rng.integers(300, 800, 800)] + ["s"] * 200
     kinds = ["Noise"] * 600 + ["Unspecified"] * 100 + ["Heat"] * 300
-    found = suggestions(open_frame(tmp_path, pd.DataFrame({"score": scores, "kind": kinds})))
+    ds = open_frame(tmp_path, pd.DataFrame({"score": scores, "kind": kinds}))
+    # 092: the typing reads 's' as missing in a column of numbers and says so (R-TYP-02)
+    score = next(v for v in ds.types if v.name == "score")
+    assert score.type == "numeric_continuous" and any("R-TYP-02" in r for r in score.reasons)
+    found = suggestions(ds.retype("score", "categorical_nominal"))
     assert found["B-04:kind:maybe"].mode == "S"
     item = found["B-04:score:maybe"]
     assert item.mode == "S" and "'s'" in item.title and "numbers" in item.reason
@@ -219,7 +224,11 @@ def test_b03_person_names_are_suggested_and_keep_the_accent(tmp_path: Path) -> N
 def test_b07_keeps_codes_with_leading_zeros_as_text(tmp_path: Path) -> None:
     rng = np.random.default_rng(15)
     block = [f"{v:05d}" for v in rng.integers(1, 9_000, 500)]
-    found = suggestions(open_frame(tmp_path, pd.DataFrame({"block": block})))
+    ds = open_frame(tmp_path, pd.DataFrame({"block": block}))
+    # 092: the typing already keeps the zeros (R-TYP-03); B-13 is for a column read as numbers
+    view = next(v for v in ds.types if v.name == "block")
+    assert view.parser.kind == "text" and any("R-TYP-03" in r for r in view.reasons)
+    found = suggestions(ds.retype("block", "numeric_continuous"))
     assert "B-07:block" not in found
     item = found["B-13:block"]
     assert item.mode == "S" and "leading" in item.reason.lower()
@@ -356,7 +365,13 @@ def test_kpi_notes_reach_the_dataset_suggestions(tmp_path: Path) -> None:
             "time_in_hospital": rng.integers(1, 14, 600),
         }
     )
-    found = open_frame(tmp_path, frame).kpi_suggestions()
+    ds = open_frame(tmp_path, frame)
+    # 092: the typing reads patient_nbr as a key (customer key); read back as a quantity (its
+    # former reading), KPI still refuses to sum it
+    assert next(v for v in ds.types if v.name == "patient_nbr").type != "numeric_continuous"
+    found = (
+        ds.retype("patient_nbr", "numeric_continuous").set_role("patient_nbr", "quantity")
+    ).kpi_suggestions()
     assert not any(
         m.column == "patient_nbr" and m.agg == "sum"
         for k in found.kpis
@@ -391,7 +406,8 @@ def test_series_without_a_measure_counts_the_rows(tmp_path: Path) -> None:
     assert setup.time == "created_date"
     assert setup.aggregate == "count"
     said = " ".join(setup.reasons)
-    assert "R-TS-05" in said and "R-TS-06" in said and "unique_key" in said
+    assert "R-TS-05" in said and "R-TS-06" in said
+    # 092: unique_key is typed as an identifier (R-TYP-04), so no longer a numeric candidate
 
 
 def test_series_averages_a_price(tmp_path: Path) -> None:
@@ -439,7 +455,9 @@ def test_series_sums_an_amount_and_averages_a_measurement(tmp_path: Path) -> Non
 
 
 def test_series_keeps_the_users_choice(tmp_path: Path) -> None:
-    series = open_frame(tmp_path, requests_311()).timeseries(value="council_district")
+    # 092: council_district is typed as category codes (R-TYP-04): the user reads it as numbers
+    ds = open_frame(tmp_path, requests_311()).retype("council_district", "numeric_continuous")
+    series = ds.timeseries(value="council_district")
     setup = series.setup()
     assert setup.value == "council_district" and setup.aggregate == "mean"
 

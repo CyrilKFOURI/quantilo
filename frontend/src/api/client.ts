@@ -90,12 +90,17 @@ export type RegressionPanel = Complete<Schemas["PanelTable"]>;
 export type RegressionPanelEstimator = RegressionPanel["estimators"][number];
 export type RegressionIv = Complete<Schemas["IvTable"]>;
 export type RegressionSe = Regression["se"]["kind"];
-export type RegressionSection = "standard-errors" | "influence" | "terms" | "more" | "panel";
+// 069: the family of the model, chosen from the target
+export type RegressionFamily = NonNullable<Regression["family"]>;
+export type RegressionFamilyKind = RegressionFamily["options"][number]["kind"];
+export type RegressionFamilies = Complete<Schemas["FamilyAlternatives"]>;
+export type RegressionSection = "standard-errors" | "influence" | "terms" | "more" | "panel" | "families";
 export type RegressionSections = {
   "standard-errors": RegressionStandardErrors;
   influence: RegressionInfluence;
   terms: RegressionTerms;
   more: RegressionMore;
+  families: RegressionFamilies;
   panel: RegressionPanel;
 };
 /** What the page asks for: absent fields follow the rules (R-REG-20, 21, SE-04). */
@@ -106,6 +111,10 @@ export type RegressionParams = {
   cluster?: string;
   se?: RegressionSe | "auto";
   focus?: string;
+  /** 069: absent or "auto": chosen from the target (R-REG-01…07). */
+  family?: RegressionFamilyKind | "auto";
+  /** 069: absent: a column of role exposure; "": none. */
+  exposure?: string;
 };
 
 function regressionQuery(params: RegressionParams, filters?: Condition[]): URLSearchParams {
@@ -116,6 +125,8 @@ function regressionQuery(params: RegressionParams, filters?: Condition[]): URLSe
   if (params.cluster) query.set("cluster", params.cluster);
   if (params.se && params.se !== "auto") query.set("se", params.se);
   if (params.focus) query.set("focus", params.focus);
+  if (params.family && params.family !== "auto") query.set("family", params.family);
+  if (params.exposure !== undefined) query.set("exposure", params.exposure);
   return query;
 }
 export type SeriesOverview = Complete<Schemas["SeriesOverview"]>;

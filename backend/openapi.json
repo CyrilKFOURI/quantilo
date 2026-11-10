@@ -2251,6 +2251,49 @@
               "title": "Focus"
             },
             "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
           }
         ],
         "responses": {
@@ -2503,6 +2546,49 @@
               "title": "Focus"
             },
             "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
           }
         ],
         "responses": {
@@ -2677,6 +2763,49 @@
               "title": "Focus"
             },
             "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
           }
         ],
         "responses": {
@@ -2851,6 +2980,49 @@
               "title": "Focus"
             },
             "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
           }
         ],
         "responses": {
@@ -3025,6 +3197,49 @@
               "title": "Focus"
             },
             "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
           }
         ],
         "responses": {
@@ -3034,6 +3249,223 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MoreChecks"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/regression/families": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Families",
+        "description": "Advanced > More > Other families (069, computed only when opened): probit, Box-Cox,\nfractional and multinomial logit on the same rows, or why they do not apply.",
+        "operationId": "families_api_v1_datasets__dataset_id__regression_families_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FamilyAlternatives"
                 }
               }
             }
@@ -3199,6 +3631,49 @@
               "title": "Focus"
             },
             "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
           }
         ],
         "responses": {
@@ -3397,6 +3872,49 @@
               "title": "Focus"
             },
             "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
           }
         ],
         "responses": {
@@ -16993,6 +17511,55 @@
         ],
         "title": "Alert"
       },
+      "AlternativeEffect": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low"
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "value",
+          "low",
+          "high"
+        ],
+        "title": "AlternativeEffect"
+      },
       "AnomalyRow": {
         "properties": {
           "index": {
@@ -27533,6 +28100,352 @@
         "title": "Fairness",
         "description": "Metrics side by side for each group of a sensitive column (display only)."
       },
+      "FamilyAlternative": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "reads": {
+            "type": "string",
+            "enum": [
+              "units",
+              "points",
+              "ratio"
+            ],
+            "title": "Reads"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          },
+          "aic": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aic"
+          },
+          "pseudo_r2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pseudo R2"
+          },
+          "r2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R2"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "effects": {
+            "items": {
+              "$ref": "#/components/schemas/AlternativeEffect"
+            },
+            "type": "array",
+            "title": "Effects"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "available",
+          "reason",
+          "reads"
+        ],
+        "title": "FamilyAlternative"
+      },
+      "FamilyAlternatives": {
+        "properties": {
+          "current": {
+            "type": "string",
+            "title": "Current"
+          },
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/FamilyAlternative"
+            },
+            "type": "array",
+            "title": "Alternatives"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current",
+          "alternatives",
+          "sentence"
+        ],
+        "title": "FamilyAlternatives"
+      },
+      "FamilyInfo": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "reads": {
+            "type": "string",
+            "enum": [
+              "units",
+              "points",
+              "ratio"
+            ],
+            "title": "Reads"
+          },
+          "requested": {
+            "type": "string",
+            "title": "Requested"
+          },
+          "target_kind": {
+            "type": "string",
+            "title": "Target Kind"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/FamilyOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "exposure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exposure"
+          },
+          "exposure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exposure Reason"
+          },
+          "alpha": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alpha"
+          },
+          "dispersion": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dispersion"
+          },
+          "smearing": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Smearing"
+          },
+          "boxcox_lambda": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boxcox Lambda"
+          },
+          "boxcox_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boxcox Low"
+          },
+          "boxcox_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boxcox High"
+          },
+          "outcomes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Outcomes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "rule",
+          "reason",
+          "reads",
+          "requested",
+          "target_kind",
+          "options"
+        ],
+        "title": "FamilyInfo",
+        "description": "The family of the model (069): chosen by rule from the target, or in the settings."
+      },
+      "FamilyOption": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ols",
+              "logit",
+              "probit",
+              "poisson",
+              "negbin",
+              "gamma",
+              "log_ols",
+              "boxcox",
+              "fractional",
+              "mnlogit"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "exotic": {
+            "type": "boolean",
+            "title": "Exotic"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "available",
+          "reason",
+          "exotic"
+        ],
+        "title": "FamilyOption"
+      },
       "FigureChange": {
         "properties": {
           "id": {
@@ -34727,7 +35640,8 @@
               "date",
               "boolean",
               "year",
-              "text"
+              "text",
+              "time"
             ],
             "title": "Kind",
             "default": "raw"
@@ -34752,6 +35666,14 @@
             ],
             "title": "Format"
           },
+          "formats": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Formats",
+            "default": []
+          },
           "true_values": {
             "items": {
               "type": "string"
@@ -34771,7 +35693,7 @@
         },
         "type": "object",
         "title": "Parser",
-        "description": "How to read a stored value in its analysis type, applied at query time.\n\n- raw: the stored value as is\n- number: text with a given decimal separator (thousands separators, %, currency stripped)\n- date: text with a strptime format\n- boolean: text mapped with true/false vocabularies (empty lists: cast the value)\n- year: integer year \u2192 date (January 1st)\n- text: the value as text, null tokens removed"
+        "description": "How to read a stored value in its analysis type, applied at query time.\n\n- raw: the stored value as is\n- number: text with a given decimal separator (thousands separators, %, currency stripped)\n- date: text with a strptime format\n- boolean: text mapped with true/false vocabularies (empty lists: cast the value)\n- year: integer year \u2192 date (January 1st)\n- text: the value as text, null tokens removed\n- time: a time of day (TIME, or text with a strptime `format`) \u2192 hours since midnight (092)\n\nA date read with two formats (092, R-TYP-06) lists them in `formats`, the first one in `format`."
       },
       "Period": {
         "properties": {
@@ -38073,6 +38995,17 @@
               }
             ],
             "title": "Column"
+          },
+          "family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family"
           }
         },
         "type": "object",
@@ -38267,6 +39200,50 @@
             "type": "string",
             "title": "Sentence",
             "default": ""
+          },
+          "ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratio"
+          },
+          "ratio_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratio Low"
+          },
+          "ratio_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratio High"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
           }
         },
         "type": "object",
@@ -38425,6 +39402,17 @@
               }
             ],
             "title": "Pseudo R2"
+          },
+          "pseudo_how": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pseudo How"
           }
         },
         "type": "object",
@@ -38469,7 +39457,15 @@
             "enum": [
               "ols",
               "wls",
-              "logit"
+              "logit",
+              "probit",
+              "poisson",
+              "negbin",
+              "gamma",
+              "log_ols",
+              "boxcox",
+              "fractional",
+              "mnlogit"
             ],
             "title": "Model"
           },
@@ -38565,6 +39561,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ResidualPlots"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "family": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FamilyInfo"
               },
               {
                 "type": "null"

@@ -38,11 +38,15 @@ class Parser(BaseModel):
     - boolean: text mapped with true/false vocabularies (empty lists: cast the value)
     - year: integer year → date (January 1st)
     - text: the value as text, null tokens removed
+    - time: a time of day (TIME, or text with a strptime `format`) → hours since midnight (092)
+
+    A date read with two formats (092, R-TYP-06) lists them in `formats`, the first one in `format`.
     """
 
-    kind: Literal["raw", "number", "date", "boolean", "year", "text"] = "raw"
+    kind: Literal["raw", "number", "date", "boolean", "year", "text", "time"] = "raw"
     decimal: Literal[".", ","] = "."
     format: str | None = None
+    formats: list[str] = []
     true_values: list[str] = []
     false_values: list[str] = []
 

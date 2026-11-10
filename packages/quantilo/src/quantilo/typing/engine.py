@@ -7,14 +7,17 @@ later to read the data, so detection and conversion always agree.
 
 import re
 from dataclasses import dataclass, field
+from typing import Any
 
 import duckdb
 
+from quantilo.ingestion.normalize import stored_notes
 from quantilo.ingestion.sql import ident, lit
-from quantilo.typing.knowledge_base import KnowledgeBase, Role, load
+from quantilo.typing.knowledge_base import MEASURE_ROLES, KnowledgeBase, Role, load, name_tokens
 from quantilo.typing.parsers import (
     DATE_FORMATS,
     NUMBER_PATTERNS,
+    TIME_FORMATS,
     VALUE_PATTERNS,
     clean_text,
     number_sql,
@@ -30,6 +33,8 @@ from quantilo.typing.types import (
 
 SAMPLE_ROWS = 10_000
 SAMPLE_TABLE = "detection_sample"
+VALUES_TABLE = "detection_values"  # the distinct texts of the column being detected, with counts
+TEXT_MEASURE_LIMIT = 2_000  # distinct texts measured for the text verdicts (R-ING-06)
 
 
 @dataclass(frozen=True)
@@ -60,6 +65,50 @@ TEXT_NAME_ROLES = ("free_text", "label", "address")
 TEXT_PARSER = Parser(kind="text")
 RAW_PARSER = Parser(kind="raw")
 
+# 092 (docs/features/092-corrections-multidomaine-import-types/spec.md)
+LOST_LIMIT = 0.005  # R-TYP-01: more unreadable values than this share keep the column as text
+MARKER_MAX_LENGTH = 3  # R-TYP-02: "s", "x", "*", ".." read as missing in a numeric column
+MARKER_MIN_NUMBERS = 0.5
+LEADING_ZERO_SHARE = 0.01  # R-TYP-03
+UNIQUE_CODE_SHARE = 0.99  # R-TYP-05: all distinct whole numbers...
+UNIQUE_CODE_DIGITS = 6  # ...of at least this many digits...
+CODE_MIN_VALUES = 100
+FIXED_LENGTH_SHARE = 0.95  # ...of one length; or repeated numbers of one length of at least
+FIXED_CODE_DIGITS = 7  # this many digits
+LIST_SHARE = 0.3  # R-TYP-09: values holding ";"...
+LIST_MAX_CHOICES = 100  # ...made of at most this many choices
+RANGE_MAX_DISTINCT = 30  # R-TYP-10
+RANGE_NUMBERED_SHARE = 0.8
+PLACE_ROLES = ("region", "city", "country")  # R-TYP-08 (b)
+PARQUET_SOURCE = re.compile(r"read_parquet\('((?:[^']|'')*)'\)")
+DASHES = "|".join(("-", chr(0x2013), chr(0x2014), "to", "à"))  # en and em dashes
+_NUMBER = r"\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?"
+RANGE_VALUE = re.compile(
+    rf"^\W{{0,2}}[$€£]?\s*({_NUMBER})\s*(?:{DASHES})\s*[$€£]?\s*({_NUMBER})\W{{0,2}}"
+    r"(?:\s+\D.*)?$",
+    re.IGNORECASE,
+)
+FIRST_NUMBER = re.compile(_NUMBER)
+LOWER_BOUND = re.compile(r"\b(under|less than|below|fewer than|up to|moins de)\b|<|≤", re.I)
+UPPER_BOUND = re.compile(r"\b(over|more than|older|above|or more|plus de|et plus)\b|>|≥|\+", re.I)
+
+
+UNIX_SECONDS = (946_684_800, 2_147_483_647)  # 2000-01-01 to 2038-01-19
+
+
+def unix_time(low: float | None, high: float | None, digits: int | None) -> bool:
+    """Whole numbers that read as Unix times (seconds or milliseconds since 1970, 2000-2038):
+    a date, never a code by their shape (R-TYP-05)."""
+    if low is None or high is None or digits not in (10, 13):
+        return False
+    scale = 1 if digits == 10 else 1000
+    return UNIX_SECONDS[0] * scale <= low and high <= UNIX_SECONDS[1] * scale
+
+
+def rule(text: str, code: str) -> str:
+    """A reason given by a 092 rule: the sentence and its code, which the interface lists."""
+    return f"{text} ({code})"
+
 
 @dataclass
 class Profile:
@@ -77,6 +126,13 @@ class Profile:
     currency: int = 0
     date_matches: dict[str, int] = field(default_factory=dict)
     pattern_matches: dict[str, int] = field(default_factory=dict)
+    # 092: digit count shared by most whole numbers and its share (R-TYP-05), values starting
+    # with 0 (R-TYP-03), holding ";" (R-TYP-09), read as times of day (R-TYP-07)
+    length_mode: int | None = None
+    length_share: float = 0
+    leading_zero: int = 0
+    lists: int = 0
+    time_matches: dict[str, int] = field(default_factory=dict)
 
     @property
     def unique_ratio(self) -> float:
@@ -92,6 +148,8 @@ def storage_kind(dtype: str) -> str:
         return "boolean"
     if upper.startswith(("DATE", "TIMESTAMP")):
         return "temporal"
+    if upper.startswith("TIME"):
+        return "time"
     if upper.startswith(("VARCHAR", "CHAR", "TEXT", "STRING")):
         return "text"
     numeric = ("TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT", "UTINYINT", "USMALLINT",
@@ -150,7 +208,7 @@ class ColumnDetector:
             f"SELECT count({col}), count(DISTINCT {col}), min({col}), max({col}), "
             f"coalesce(bool_and({col} = floor({col})), false) FROM {SAMPLE_TABLE}"
         )
-        return Profile(
+        profile = Profile(
             rows=self.rows,
             present=present,
             distinct=distinct,
@@ -159,63 +217,103 @@ class ColumnDetector:
             maximum=float(high) if high is not None else None,
             integer=bool(integer),
         )
+        if profile.integer and present and (low or 0) >= 0:
+            digits = f"length(CAST(TRY_CAST({col} AS HUGEINT) AS VARCHAR))"
+            row = self.one(
+                f"SELECT {digits} AS l, count(*) AS c FROM {SAMPLE_TABLE} WHERE {col} IS NOT NULL "
+                "GROUP BY l ORDER BY c DESC, l LIMIT 1"
+            )
+            if row and row[0] is not None:
+                profile.length_mode, profile.length_share = int(row[0]), row[1] / present
+        return profile
 
     def text_profile(self, column: str) -> Profile:
+        """R-ING-06: measured once on the distinct texts, each weighted by its count."""
+        self.connection.execute(
+            f"CREATE OR REPLACE TEMP TABLE {VALUES_TABLE} AS SELECT v, count(*) AS c FROM "
+            f"(SELECT {clean_text(column)} AS v FROM {SAMPLE_TABLE}) WHERE v IS NOT NULL GROUP BY v"
+        )
         value = "v"
+
+        def weighted(condition: str) -> str:
+            return f"coalesce(sum(c) FILTER (WHERE {condition}), 0)"
+
         aggregates = [
-            f"count({value})",
-            f"count(DISTINCT {value})",
-            f"coalesce(avg(length({value})), 0)",
-            f"count(*) FILTER (WHERE contains({value}, ' '))",
-            f"count(*) FILTER (WHERE contains({value}, '%'))",
-            f"count(*) FILTER (WHERE regexp_matches({value}, '[€$£]'))",
+            "coalesce(sum(c), 0)",
+            "count(*)",
+            f"coalesce(sum(length({value}) * c) / sum(c), 0)",
+            weighted(f"contains({value}, ' ')"),
+            weighted(f"contains({value}, '%')"),
+            weighted(f"regexp_matches({value}, '[€$£]')"),
+            weighted(f"regexp_full_match({value}, '0[0-9]+')"),
+            weighted(f"contains({value}, ';')"),
         ]
         aggregates += [
-            f"count(*) FILTER (WHERE regexp_full_match({value}, {lit(pattern)}))"
+            weighted(f"regexp_full_match({value}, {lit(pattern)})")
             for pattern in NUMBER_PATTERNS.values()
         ]
-        aggregates += [f"count(TRY_STRPTIME({value}, {lit(fmt)}))" for fmt in DATE_FORMATS]
         aggregates += [
-            f"count(*) FILTER (WHERE regexp_full_match({value}, {lit(pattern)}))"
+            weighted(f"regexp_full_match({value}, {lit(pattern)})")
             for pattern in VALUE_PATTERNS.values()
         ]
-        row = self.one(
-            f"SELECT {', '.join(aggregates)} FROM "
-            f"(SELECT {clean_text(column)} AS {value} FROM {SAMPLE_TABLE})"
-        )
-        present, distinct, avg_length, spaced, percent_count, currency = row[:6]
-        offset = 6
+        row = self.one(f"SELECT {', '.join(aggregates)} FROM {VALUES_TABLE}")
+        present, distinct, avg_length, spaced, percent_count, currency, zeros, lists = row[:8]
+        offset = 8
         number_matches = dict(zip(NUMBER_PATTERNS, row[offset : offset + 2], strict=True))
         offset += 2
-        date_matches = {
-            fmt: int(count)
-            for fmt, count in zip(
-                DATE_FORMATS, row[offset : offset + len(DATE_FORMATS)], strict=True
-            )
-        }
-        offset += len(DATE_FORMATS)
         pattern_matches = dict(zip(VALUE_PATTERNS, row[offset:], strict=True))
+        # Only short texts with a digit can be dates or times: the others skip the 21 formats
+        # (a filtered table, since DuckDB evaluates every FILTER condition on every row).
+        formats = (*DATE_FORMATS, *TIME_FORMATS)
+        parsed = [weighted(f"TRY_STRPTIME(v, {lit(fmt)}) IS NOT NULL") for fmt in formats]
+        dated = self.one(
+            f"SELECT {', '.join(parsed)} FROM {VALUES_TABLE} "
+            "WHERE length(v) <= 40 AND regexp_matches(v, '[0-9]')"
+        )
+        date_matches = {fmt: int(count) for fmt, count in zip(DATE_FORMATS, dated, strict=False)}
+        time_matches = {
+            fmt: int(count)
+            for fmt, count in zip(TIME_FORMATS, dated[len(DATE_FORMATS) :], strict=True)
+        }
+        top = self.connection.execute(
+            f"SELECT v, c FROM {VALUES_TABLE} ORDER BY c DESC, v LIMIT {TOP_VALUES}"
+        ).fetchall()
         return Profile(
             rows=self.rows,
-            present=present,
-            distinct=distinct,
-            top=self.top_values(clean_text(column)),
+            present=int(present),
+            distinct=int(distinct),
+            top=[(str(text), int(count)) for text, count in top],
             avg_length=float(avg_length),
-            spaced=spaced,
+            spaced=int(spaced),
             number_matches=number_matches,
-            percent=percent_count,
-            currency=currency,
+            percent=int(percent_count),
+            currency=int(currency),
             date_matches=date_matches,
             pattern_matches=pattern_matches,
+            leading_zero=int(zeros),
+            lists=int(lists),
+            time_matches=time_matches,
         )
 
     def parsed_number_profile(self, column: str, decimal: str) -> tuple[int, float, float, bool]:
-        parsed = number_sql(clean_text(column), decimal)
+        """Distinct numbers, range and whole-ness of the current text column read as numbers."""
+        parsed = number_sql("v", decimal)
         distinct, low, high, integer = self.one(
             f"SELECT count(DISTINCT p), min(p), max(p), coalesce(bool_and(p = floor(p)), false) "
-            f"FROM (SELECT {parsed} AS p FROM {SAMPLE_TABLE}) WHERE p IS NOT NULL"
+            f"FROM (SELECT {parsed} AS p FROM {VALUES_TABLE}) WHERE p IS NOT NULL"
         )
         return int(distinct), float(low), float(high), bool(integer)
+
+    def digit_length(self) -> tuple[int | None, float]:
+        """Most common length of the current column's digit-only texts, and its share."""
+        row = self.one(
+            f"SELECT length(v) AS l, sum(c) AS n, (SELECT sum(c) FROM {VALUES_TABLE} "
+            f"WHERE regexp_full_match(v, '[0-9]+')) FROM {VALUES_TABLE} "
+            "WHERE regexp_full_match(v, '[0-9]+') GROUP BY l ORDER BY n DESC, l LIMIT 1"
+        )
+        if not row or row[0] is None:
+            return None, 0
+        return int(row[0]), float(row[1]) / float(row[2])
 
     # --- Shared rules --------------------------------------------------------------------------
 
@@ -276,6 +374,13 @@ class ColumnDetector:
             return make("boolean", "high", ["stored as true/false"])
         if kind == "temporal":
             return make("datetime", "high", ["stored as a date"], candidates={"date": RAW_PARSER})
+        if kind == "time":
+            # R-TYP-07: a time of day alone is no date; as hours it keeps its order and distances
+            time_parser = Parser(kind="time")
+            reasons = [rule("stored as a time of day: read as hours since midnight (07:40 → "
+                            "7.67)", "R-TYP-07")]  # fmt: skip
+            return make("numeric_continuous", "high", reasons, time_parser, "hour",
+                        candidates={"number": time_parser, "text": TEXT_PARSER})  # fmt: skip
         if kind == "other":
             return make("ignored", "high", [f"unsupported storage type {dtype}"])
         if kind == "numeric":
@@ -304,6 +409,9 @@ class ColumnDetector:
         # A customer or order key is a whole number or a code: "basket" in decimals is a value.
         if role and role.suffixes and not profile.integer:
             role = None
+        # R-TYP-08 (b): mostly distinct whole numbers are no region ("x_coordinate_state_plane")
+        if role and role.id in PLACE_ROLES and profile.unique_ratio > 0.5:
+            role = None
         role_reason = [f"name suggests {role.label.lower()}"] if role else []
 
         if role and role.id == "year" and profile.integer:
@@ -327,17 +435,126 @@ class ColumnDetector:
             return make("categorical_nominal", "medium", reasons, TEXT_PARSER, role.id,
                         candidates=candidates)  # fmt: skip
         values = {value for value, _ in profile.top}
-        if profile.distinct == 2 and values <= {"0", "1", "0.0", "1.0"}:
+        zero_one = profile.distinct == 2 and values <= {"0", "1", "0.0", "1.0"}
+        count_reason: list[str] = []
+        if zero_one and role and role.id == "quantity":
+            # R-TYP-11: "number_of_cyclist_killed" is 0 or 1 in a sample, but it is a count
+            count_reason = [rule("the name says a count: 0 and 1 kept as numbers", "R-TYP-11")]
+        elif zero_one:
             return make("boolean", "high", ["only the values 0 and 1"],
                         Parser(kind="boolean"), candidates=candidates)  # fmt: skip
+        if not count_reason and (
+            code := self.code_reading(
+                name,
+                role,
+                integer=profile.integer,
+                minimum=profile.minimum,
+                maximum=profile.maximum,
+                unique_ratio=profile.unique_ratio,
+                present=profile.present,
+                length=(profile.length_mode, profile.length_share),
+            )
+        ):
+            analysis_type, confidence, reasons = code
+            return make(analysis_type, confidence, reasons, TEXT_PARSER,
+                        role.id if role and role.key else None, candidates=candidates)  # fmt: skip
         analysis_type, confidence, reasons = self.numeric_type(
             role, profile.integer, profile.distinct
         )
-        reasons = list(dict.fromkeys([*role_reason, *reasons]))
+        reasons = list(dict.fromkeys([*role_reason, *count_reason, *reasons]))
         return make(analysis_type, confidence, reasons, RAW_PARSER,
                     role.id if role else None, candidates=candidates)  # fmt: skip
 
-    def detect_text(self, name: str, role: Role | None, make) -> ColumnDetection:
+    # --- Codes (092: R-TYP-03, R-TYP-04, R-TYP-05) ----------------------------------------------
+
+    def code_name(self, name: str) -> tuple[str, str] | None:
+        """R-TYP-04, shared with `quantilo.semantics` (S-01): see KnowledgeBase.name_code."""
+        return self.kb.name_code(name)
+
+    def code_reading(
+        self,
+        name: str,
+        role: Role | None,
+        *,
+        integer: bool,
+        minimum: float | None,
+        maximum: float | None = None,
+        unique_ratio: float,
+        present: int,
+        length: tuple[int | None, float],
+        leading_zero: float = 0,
+        zero_examples: str = "",
+    ) -> tuple[AnalysisType, Confidence, list[str]] | None:
+        """Whole numbers that name things rather than measure them: a code (categories) or, when
+        nearly all distinct, an identifier. None when the rules do not apply."""
+        if not integer or (minimum is not None and minimum < 0):
+            return None
+        measured = role is not None and role.id in MEASURE_ROLES
+        reason: str | None = None
+        confidence: Confidence = "high"
+        if leading_zero >= LEADING_ZERO_SHARE and not measured:
+            reason = rule(
+                f"{percent(leading_zero)} of values start with 0 (e.g. {zero_examples}): a code, "
+                "kept as text so the zeros stay",
+                "R-TYP-03",
+            )
+        elif named := self.code_name(name):
+            # a measure named by another word wins ("YearsCode" is a number of years); not one
+            # named by the head word itself ("item_nbr" is an item number, not a quantity)
+            kind, word = named
+            what = "a code or a number" if kind == "code" else "a category"
+            said = "a number sign" if word == "#" else f"'{word}'"
+            reason = rule(
+                f"the name says {what} ({said}): whole numbers read as "
+                f"{'codes' if kind == 'code' else 'category codes'}, not as a measure",
+                "R-TYP-04",
+            )
+        elif (
+            not measured
+            and role is None
+            and not (set(name_tokens(name)) & self.kb.date_words)
+            and not unix_time(minimum, maximum, length[0])
+        ):
+            digits, share = length
+            if digits and share >= FIXED_LENGTH_SHARE:
+                if (
+                    unique_ratio >= UNIQUE_CODE_SHARE
+                    and present >= CODE_MIN_VALUES
+                    and digits >= UNIQUE_CODE_DIGITS
+                ):
+                    reason = rule(
+                        f"all values are different whole numbers of {digits} digits: an "
+                        "identifier, not a measure",
+                        "R-TYP-05",
+                    )
+                elif digits >= FIXED_CODE_DIGITS:
+                    reason = rule(
+                        f"{percent(share)} of values have exactly {digits} digits: a code "
+                        "(a measure would vary in length)",
+                        "R-TYP-05",
+                    )
+                confidence = "medium"
+        if reason is None:
+            return None
+        unique = f"{percent(unique_ratio)} unique values"
+        if unique_ratio >= 0.9:
+            return "identifier", confidence, [reason, unique]
+        return "categorical_nominal", confidence, [reason, unique]
+
+    def quick_ignored(self, name: str) -> str | None:
+        """R-ING-06: an empty or constant text column, told by one light query (wide files hold
+        dozens of them)."""
+        present, distinct, first = self.one(
+            f"SELECT count(v), count(DISTINCT v), min(v) FROM "
+            f"(SELECT {clean_text(name)} AS v FROM {SAMPLE_TABLE})"
+        )
+        profile = Profile(rows=self.rows, present=present, distinct=distinct, top=[(first, 1)])
+        ignored = self.empty_or_constant(profile)
+        return ignored[1] if ignored else None
+
+    def detect_text(self, name: str, role: Role | None, verdict) -> ColumnDetection:
+        if (ignored := self.quick_ignored(name)) is not None:
+            return verdict("ignored", "high", [ignored], candidates={"text": TEXT_PARSER})
         profile = self.text_profile(name)
         candidates: dict[str, Parser] = {"text": TEXT_PARSER}
         best_decimal = max(NUMBER_PATTERNS, key=lambda d: (profile.number_matches[d], d == "."))
@@ -352,9 +569,24 @@ class ColumnDetector:
             candidates["boolean"] = Parser(
                 kind="boolean", true_values=pair[0], false_values=pair[1]
             )
+        # Reasons of a 092 rule that changed how the values are read, whatever the verdict.
+        notes: list[str] = []
+
+        def make(
+            analysis_type: AnalysisType, confidence: Confidence, reasons: list[str], *args: Any,
+            **kwargs: Any,
+        ) -> ColumnDetection:  # fmt: skip
+            return verdict(analysis_type, confidence, [*notes, *reasons], *args, **kwargs)
 
         if ignored := self.empty_or_constant(profile):
             return make("ignored", "high", [ignored[1]], candidates=candidates)
+        # R-TYP-08 (a): a role whose values have a shape needs it ("ON-SITE" is no URL)
+        if (
+            role
+            and role.pattern in VALUE_PATTERNS
+            and profile.rate(profile.pattern_matches[role.pattern]) < 0.5
+        ):
+            role = None
         role_reason = [f"name suggests {role.label.lower()}"] if role else []
 
         if role and role.type == "text":
@@ -367,11 +599,12 @@ class ColumnDetector:
             return make("categorical_nominal", "high", reasons, TEXT_PARSER, role.id,
                         candidates=candidates)  # fmt: skip
 
-        number_rate = profile.rate(profile.number_matches[best_decimal])
+        numbers = profile.number_matches[best_decimal]
+        number_rate = profile.rate(numbers)
         # Mostly numbers, the rest the same numbers behind letters: codes. Read as numbers,
         # the lettered ones would become empty (Online Retail's cancelled invoices, 040).
         codes = profile.pattern_matches["code"]
-        coded = codes > 0 and profile.rate(profile.number_matches[best_decimal] + codes) >= 0.999
+        coded = codes > 0 and profile.rate(numbers + codes) >= 0.999
         # A quoted "0007200179" named id is a key: as a number it loses its zeros (040).
         identifier = role is not None and role.key
         # A customer or order key in decimals is a value ("basket"), not a key (048).
@@ -383,10 +616,14 @@ class ColumnDetector:
             and not self.parsed_number_profile(name, best_decimal)[3]
         ):
             role, identifier = None, False
-        if number_rate >= self.thresholds.parse_rate and not coded and not identifier:
-            return self.text_number(
-                name, role, profile, best_decimal, number_rate, make, candidates
+        marker = self.missing_marker(profile, numbers, best_decimal)
+        if (number_rate >= self.thresholds.parse_rate or marker) and not identifier:
+            reading = self.numbers_or_codes(
+                name, role, profile, best_decimal, marker, coded, make, candidates, notes
             )
+            if reading is not None:
+                return reading
+            role_reason = [f"name suggests {role.label.lower()}"] if role else []
 
         date_rate = profile.rate(profile.date_matches[best_format])
         if date_rate >= self.thresholds.parse_rate:
@@ -397,6 +634,29 @@ class ColumnDetector:
                 confidence = "medium"
                 reasons.append("day/month order is ambiguous: day first assumed")
             return make("datetime", confidence, reasons, candidates["date"], candidates=candidates)
+        if second := self.second_date_format(profile, best_format):
+            other, rate = second
+            parser = Parser(kind="date", format=best_format, formats=[best_format, other])
+            candidates["date"] = parser
+            reason = rule(
+                f"{percent(rate)} of values read as dates in two formats ({best_format} and "
+                f"{other})",
+                "R-TYP-06",
+            )
+            return make("datetime", "medium", [reason], parser, candidates=candidates)
+
+        best_time = max(TIME_FORMATS, key=lambda fmt: profile.time_matches[fmt])
+        time_rate = profile.rate(profile.time_matches[best_time])
+        if time_rate >= self.thresholds.parse_rate:
+            parser = Parser(kind="time", format=best_time)
+            candidates["number"] = parser
+            reason = rule(
+                f"{percent(time_rate)} of values are times of day ({best_time}, e.g. "
+                f"{examples(profile, 2)}): read as hours since midnight",
+                "R-TYP-07",
+            )
+            return make("numeric_continuous", "high", [reason], parser, "hour",
+                        candidates=candidates)  # fmt: skip
 
         order = self.kb.order_for(lowered) if profile.distinct <= 12 else None
         if order:
@@ -405,6 +665,11 @@ class ColumnDetector:
             reason = "values follow a known order: " + " < ".join(ordered)
             return make("categorical_ordinal", "high", [reason], TEXT_PARSER,
                         role.id if role else None, ordered, candidates)  # fmt: skip
+        if ranges := self.range_order(profile):
+            shown = " < ".join(ranges[:4]) + (" < …" if len(ranges) > 4 else "")
+            reason = rule(f"values are ranges ordered by their lower bound: {shown}", "R-TYP-10")
+            return make("categorical_ordinal", "high", [reason], TEXT_PARSER,
+                        role.id if role else None, ranges, candidates)  # fmt: skip
 
         for pattern in ("email", "url", "uuid"):
             if profile.rate(profile.pattern_matches[pattern]) >= self.thresholds.parse_rate:
@@ -421,6 +686,9 @@ class ColumnDetector:
             reasons = [*role_reason, f"{percent(profile.unique_ratio)} unique values"]
             return make("identifier", "high", reasons, TEXT_PARSER, role.id, candidates=candidates)
 
+        if choices := self.choice_list(profile):
+            return make("text", "high", [choices], TEXT_PARSER, "choices", candidates=candidates)
+
         spaced_rate = profile.rate(profile.spaced)
         # R-TXT-1: unique single words are keys, however long (hashes, tokens).
         if (
@@ -433,12 +701,191 @@ class ColumnDetector:
                         role.id if role else None, candidates=candidates)  # fmt: skip
         return self.text_verdict(name, role, profile, make, candidates)
 
+    # --- Numbers written as text (092: R-TYP-01 to R-TYP-05) ------------------------------------
+
+    def unreadable_split(self, decimal: str) -> tuple[int, list[str], int, list[str], int]:
+        """Unreadable texts of the current column (as numbers): those holding a digit (codes:
+        "2A", "V57"), their examples, then the words ("see note", "s", or a bound such as
+        "Less than 1 year"), their examples and how many distinct words."""
+        number = number_sql("v", decimal)
+        rows = self.connection.execute(
+            f"SELECT v, c, regexp_matches(v, '[0-9]') AS d FROM {VALUES_TABLE} "
+            f"WHERE {number} IS NULL ORDER BY c DESC, v"
+        ).fetchall()
+        # a bound ("Less than 1 year", "65 or older") is no code: a word around a number
+        bound = [
+            bool(d and (LOWER_BOUND.search(str(v)) or UPPER_BOUND.search(str(v))))
+            for v, _, d in rows
+        ]
+        coded = [(str(v), int(c)) for (v, c, d), b in zip(rows, bound, strict=True) if d and not b]
+        words = [(str(v), int(c)) for (v, c, d), b in zip(rows, bound, strict=True) if not d or b]
+        return (
+            sum(c for _, c in coded),
+            [v for v, _ in coded[:3]],
+            sum(c for _, c in words),
+            [v for v, _ in words[:3]],
+            len(words),
+        )
+
+    def missing_marker(self, profile: Profile, numbers: int, decimal: str) -> list[str] | None:
+        """R-TYP-02: words in place of numbers ("see note", "heavy" in a column of numbers, or
+        "s" = suppressed in 12 % of the scores) are no information to keep: read as missing.
+        Not when codes holding a digit would be lost (R-TYP-01)."""
+        lost = profile.present - numbers
+        if not lost or profile.rate(numbers) < MARKER_MIN_NUMBERS:
+            return None
+        coded, _codes, worded, words, distinct = self.unreadable_split(decimal)
+        if not worded or profile.rate(coded) > LOST_LIMIT:
+            return None
+        short = distinct <= 2 and all(len(word) <= MARKER_MAX_LENGTH for word in words)
+        if profile.rate(numbers) >= self.thresholds.parse_rate or short:
+            return words
+        return None
+
+    def zero_examples(self, profile: Profile) -> str:
+        shown = [v for v, _ in profile.top if len(v) > 1 and v.startswith("0") and v.isdigit()]
+        if not shown:
+            shown = [
+                str(row[0])
+                for row in self.connection.execute(
+                    f"SELECT v FROM {VALUES_TABLE} WHERE regexp_full_match(v, '0[0-9]+') "
+                    "ORDER BY c DESC, v LIMIT 2"
+                ).fetchall()
+            ]
+        return ", ".join(shown[:2])
+
+    def numbers_or_codes(
+        self,
+        name: str,
+        role: Role | None,
+        profile: Profile,
+        decimal: str,
+        marker: list[str] | None,
+        coded: bool,
+        make,
+        candidates: dict[str, Parser],
+        notes: list[str],
+    ) -> ColumnDetection | None:
+        """Text that reads as numbers: a code (R-TYP-03 to 05), numbers (with a marker read as
+        missing, R-TYP-02), or None to go on with the text rules (R-TYP-01: values would be
+        lost, or letter-prefixed codes)."""
+        numbers = profile.number_matches[decimal]
+        coded_lost, codes, *_words = self.unreadable_split(decimal)
+        if profile.rate(coded_lost) > LOST_LIMIT and not marker:
+            notes.append(
+                rule(
+                    f"{percent(profile.rate(coded_lost))} of values, such as {', '.join(codes)}, "
+                    "cannot be read as numbers: kept as text so that no value is lost",
+                    "R-TYP-01",
+                )
+            )
+        _distinct, low, high, integer = self.parsed_number_profile(name, decimal)
+        if role and role.id in PLACE_ROLES and profile.unique_ratio > 0.5:
+            role = None  # R-TYP-08 (b)
+        if integer:  # a code keeps its words as text too (no marker reading)
+            code = self.code_reading(
+                name,
+                None if role and (role.key or role.type == "categorical_nominal") else role,
+                integer=True,
+                minimum=low,
+                maximum=high,
+                unique_ratio=profile.unique_ratio,
+                present=profile.present,
+                length=self.digit_length(),
+                leading_zero=profile.rate(profile.leading_zero),
+                zero_examples=self.zero_examples(profile),
+            )
+            if code:
+                analysis_type, confidence, reasons = code
+                kept = role.id if role and role.type == "categorical_nominal" else None
+                return make(analysis_type, confidence, reasons, TEXT_PARSER, kept,
+                            candidates=candidates)  # fmt: skip
+            if role and role.type == "categorical_nominal" and not notes:
+                # a categorical name on whole numbers written as text ("store" = "12")
+                reasons = [f"name suggests {role.label.lower()}", "whole numbers kept as codes"]
+                return make("categorical_nominal", "high", reasons, TEXT_PARSER, role.id,
+                            candidates=candidates)  # fmt: skip
+        if notes or coded:
+            return None
+        return self.text_number(
+            name, role, profile, decimal, profile.rate(numbers), make, candidates, marker
+        )
+
+    # --- Dates, lists, ranges (092: R-TYP-06, R-TYP-09, R-TYP-10) -------------------------------
+
+    def second_date_format(self, profile: Profile, best: str) -> tuple[str, float] | None:
+        """R-TYP-06: a second format that, with the best one, reads every value as a date (all but
+        0.5 %: no value lost, as R-TYP-01; otherwise the Clean page unifies them, B-11)."""
+        if not profile.date_matches[best]:
+            return None
+        needed = (1 - LOST_LIMIT) * profile.present
+        swapped = swap_day_month(best)
+        others = sorted(
+            (fmt for fmt in DATE_FORMATS if fmt not in (best, swapped)),
+            key=lambda fmt: -profile.date_matches[fmt],
+        )
+        for other in others[:3]:
+            count = profile.date_matches[other]
+            if not count or profile.date_matches[best] + count < needed:
+                continue
+            (read,) = self.one(
+                f"SELECT coalesce(sum(c) FILTER (WHERE TRY_STRPTIME(v, {lit(best)}) IS NOT NULL "
+                f"OR TRY_STRPTIME(v, {lit(other)}) IS NOT NULL), 0) FROM {VALUES_TABLE}"
+            )
+            if read >= needed:
+                return other, profile.rate(int(read))
+        return None
+
+    def choice_list(self, profile: Profile) -> str | None:
+        """R-TYP-09: answers of a multiple-choice question, "Python;SQL;Rust"."""
+        if profile.distinct <= CATEGORY_MAX_DISTINCT or profile.rate(profile.lists) < LIST_SHARE:
+            return None
+        items = self.connection.execute(
+            f"SELECT i, sum(c) AS n FROM (SELECT trim(unnest(string_split(v, ';'))) AS i, c "
+            f"FROM {VALUES_TABLE}) WHERE i <> '' GROUP BY i ORDER BY n DESC, i "
+            f"LIMIT {LIST_MAX_CHOICES + 1}"
+        ).fetchall()
+        if len(items) > LIST_MAX_CHOICES or len(items) > profile.distinct / 2:
+            return None
+        shown = ", ".join(str(item) for item, _ in items[:3])
+        return rule(
+            f"{percent(profile.rate(profile.lists))} of values are lists separated by ';' of "
+            f"{len(items)} choices (e.g. {shown}): a multiple-choice answer, not categories",
+            "R-TYP-09",
+        )
+
+    @staticmethod
+    def range_order(profile: Profile) -> list[str] | None:
+        """R-TYP-10: ranges ("[70-80)", "25-34 years old") ordered on their lower bound."""
+        if not 3 <= profile.distinct <= RANGE_MAX_DISTINCT:
+            return None
+        keyed: list[tuple[float, str]] = []
+        plain: list[str] = []
+        ranges = 0
+        for value, _ in profile.top:
+            if match := RANGE_VALUE.match(value):
+                ranges += 1
+                keyed.append((float(match.group(1).replace(",", "")), value))
+            elif found := FIRST_NUMBER.search(value):
+                key = float(found.group().replace(",", ""))
+                if LOWER_BOUND.search(value):
+                    key -= 0.5
+                elif UPPER_BOUND.search(value):
+                    key += 0.5
+                keyed.append((key, value))
+            else:
+                plain.append(value)
+        if ranges < 2 or len(keyed) < RANGE_NUMBERED_SHARE * profile.distinct:
+            return None
+        return [value for _, value in sorted(keyed)] + plain
+
     # --- Text verdicts (050) -------------------------------------------------------------------
 
     def text_values(self, column: str) -> list[tuple[str, int]]:
+        """The current text column's distinct texts with their counts (at most
+        TEXT_MEASURE_LIMIT of them, picked by a hash of the text: R-ING-06)."""
         rows = self.connection.execute(
-            f"SELECT v, count(*) FROM (SELECT {clean_text(column)} AS v FROM {SAMPLE_TABLE}) "
-            "WHERE v IS NOT NULL GROUP BY v"
+            f"SELECT v, c FROM {VALUES_TABLE} ORDER BY hash(v), v LIMIT {TEXT_MEASURE_LIMIT}"
         ).fetchall()
         return [(str(value), int(count)) for value, count in rows]
 
@@ -592,6 +1039,7 @@ class ColumnDetector:
         rate: float,
         make,
         candidates: dict[str, Parser],
+        marker: list[str] | None = None,
     ) -> ColumnDetection:
         distinct, low, high, integer = self.parsed_number_profile(name, decimal)
         parser = candidates["number"]
@@ -601,9 +1049,20 @@ class ColumnDetector:
             role = self.kb.role("percentage")
         elif role is None and profile.rate(profile.currency) >= 0.5:
             role = self.kb.role("amount")
-        reasons = [f"{percent(rate)} of values read as numbers (e.g. {examples(profile, 2)})"]
+        shown = [value for value, _ in profile.top if value not in (marker or [])][:2]
+        reasons = [f"{percent(rate)} of values read as numbers (e.g. {', '.join(shown)})"]
         if decimal == ",":
             reasons.append("comma used as decimal separator")
+        if marker:
+            missing = profile.present - profile.number_matches[decimal]
+            tokens = ", ".join(repr(token) for token in marker)
+            reasons.append(
+                rule(
+                    f"words in place of numbers ({tokens}: {percent(profile.rate(missing))} of "
+                    "values) read as missing",
+                    "R-TYP-02",
+                )
+            )
         if role and role.id == "year" and integer:
             return make("datetime", "high", [*reasons, "name suggests year"], Parser(kind="year"),
                         "year", candidates=candidates)  # fmt: skip
@@ -637,7 +1096,14 @@ def detect_columns(
     rows = int((connection.execute(f"SELECT count(*) FROM {SAMPLE_TABLE}").fetchone() or (0,))[0])
     columns = connection.execute(f"DESCRIBE {SAMPLE_TABLE}").fetchall()
     detector = ColumnDetector(connection, load(), rows, thresholds)
-    return [
+    detections = [
         detector.detect(name, dtype, position)
         for position, (name, dtype, *_rest) in enumerate(columns)
     ]
+    connection.execute(f"DROP TABLE IF EXISTS {VALUES_TABLE}")
+    # What the import changed in a column (R-ING-01) is said first in its reasons (092).
+    if (stored := PARQUET_SOURCE.fullmatch(source_sql.strip())) is not None:
+        notes = stored_notes(connection, stored.group(1).replace("''", "'"))
+        for detection in detections:
+            detection.reasons = [*notes.get(detection.name, []), *detection.reasons]
+    return detections

@@ -10,6 +10,7 @@ import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
 import { Checkbox, ErrorNote, Field, ProgressBar, Select, TextInput } from "../../ui/fields";
 import { SegmentedControl } from "../../ui/SegmentedControl";
+import { ReadingNotes } from "../readings/ReadingNotes";
 import { PreviewTable } from "./PreviewTable";
 
 const DELIMITERS = [
@@ -190,6 +191,15 @@ export function ImportDialog({ path, onClose, onImported }: ImportDialogProps) {
               </div>
             </Field>
           </fieldset>
+        )}
+
+        {/* 080 header row, 092 reading rules (R-ING-…): what the import changes, before it runs */}
+        {data && (
+          <ReadingNotes
+            notes={data.warnings ?? []}
+            label={t("preview.readByRule")}
+            hint={t("preview.checkReading")}
+          />
         )}
 
         {data?.kind === "folder" && (

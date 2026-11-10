@@ -38,6 +38,9 @@ DATE_FORMATS = (
     "%d %b %Y",
 )
 
+# Times of day tried on text columns (092, R-TYP-07): "07:40", "18.00.00".
+TIME_FORMATS = ("%H:%M:%S", "%H:%M", "%H.%M.%S", "%Hh%M")
+
 VALUE_PATTERNS = {
     "email": r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$",
     "url": r"^(?:https?://|www\.)\S+$",
@@ -69,9 +72,23 @@ def number_sql(value: str, decimal: str) -> str:
     return f"CASE WHEN regexp_full_match({value}, {pattern}) THEN TRY_CAST({digits} AS DOUBLE) END"
 
 
-def date_sql(value: str, date_format: str) -> str:
-    parsed = f"TRY_STRPTIME({value}, {lit(date_format)})"
-    return parsed if "%H" in date_format else f"CAST({parsed} AS DATE)"
+def date_sql(value: str, date_format: str, formats: list[str] | None = None) -> str:
+    """Text read as a date (DATE) or a date and time (TIMESTAMP); with several `formats`, the
+    first one that reads the value (092, R-TYP-06)."""
+    tried = formats or [date_format]
+    parsed = [f"TRY_STRPTIME({value}, {lit(fmt)})" for fmt in tried]
+    combined = parsed[0] if len(parsed) == 1 else f"coalesce({', '.join(parsed)})"
+    return combined if any("%H" in fmt for fmt in tried) else f"CAST({combined} AS DATE)"
+
+
+def time_sql(raw: str, text: str, time_format: str | None) -> str:
+    """Hours since midnight (7:40 -> 7.67) of a TIME value or of text read with `time_format`."""
+    moment = (
+        f"CAST({raw} AS TIME)"
+        if time_format is None
+        else f"CAST(TRY_STRPTIME({text}, {lit(time_format)}) AS TIME)"
+    )
+    return f"(epoch({moment}) / 3600.0)"
 
 
 def typed_sql(column: str, parser: Parser) -> str:
@@ -87,7 +104,9 @@ def typed_sql(column: str, parser: Parser) -> str:
     if parser.kind == "number":
         return number_sql(text, parser.decimal)
     if parser.kind == "date":
-        return date_sql(text, parser.format or "%Y-%m-%d")
+        return date_sql(text, parser.format or "%Y-%m-%d", parser.formats)
+    if parser.kind == "time":
+        return time_sql(raw, text, parser.format)
     if not parser.true_values:
         return f"TRY_CAST({raw} AS BOOLEAN)"
     trues = ", ".join(lit(value) for value in parser.true_values)
@@ -98,4 +117,5 @@ def typed_sql(column: str, parser: Parser) -> str:
 
 def present_sql(column: str, parser: Parser) -> str:
     """Expression that is non-NULL when the stored value is present (before parsing)."""
-    return ident(column) if parser.kind in ("raw", "year") else clean_text(column)
+    raw_kinds = ("raw", "year") + (("time",) if parser.format is None else ())
+    return ident(column) if parser.kind in raw_kinds else clean_text(column)

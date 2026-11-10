@@ -70,8 +70,28 @@ def test_forced_standard_errors_and_filters(client: TestClient, traps: str) -> N
 def test_errors_are_explained(client: TestClient, traps: str) -> None:
     unknown = client.get(url(traps), params={"target": "price_eur", "columns": "nope"})
     assert unknown.status_code == 404
-    category = client.get(url(traps), params={"target": "country", "columns": "age"})
+    category = client.get(url(traps), params={"target": "city", "columns": "age"})
     assert category.status_code == 422 and "levels" in category.json()["error"]["message"]
+
+
+def test_families(client: TestClient, traps: str) -> None:
+    """069: the family follows the target, can be forced, and More fits the niche ones."""
+    counts = client.get(url(traps), params={"target": "nb_children", "columns": "age,segment"})
+    assert counts.status_code == 200, counts.text
+    body = counts.json()
+    assert body["model"] == "poisson" and body["family"]["rule"] == "R-REG-02"
+    assert body["family"]["reads"] == "ratio" and body["terms"][1]["ratio"] is not None
+    assert body["se"]["kind"] == "hc0" and any(c["key"] == "overdispersion" for c in body["checks"])
+    classes = client.get(url(traps), params={"target": "country", "columns": "age"}).json()
+    assert classes["model"] == "mnlogit" and classes["family"]["outcomes"][0]
+    params = {"target": "price_eur", "columns": "age,income", "family": "log_ols"}
+    logged = client.get(url(traps), params=params).json()
+    assert logged["model"] == "log_ols" and logged["family"]["smearing"] > 0
+    more = client.get(url(traps, "/families"), params=params)
+    assert more.status_code == 200, more.text
+    found = {a["kind"]: a for a in more.json()["alternatives"]}
+    assert found["boxcox"]["available"] and found["boxcox"]["effects"]
+    assert not found["probit"]["available"]
 
 
 def test_agent_tool(client: TestClient, traps: str) -> None:
@@ -85,6 +105,19 @@ def test_agent_tool(client: TestClient, traps: str) -> None:
     assert found.content["checks"] and found.content["conclusion"]
     assert found.link.page == "regression"
     assert found.link.params == {"target": "price_eur", "columns": "age,income"}
+    counts = run_tool(
+        client, traps, "fit_regression", {"target": "nb_children", "columns": ["age"]}
+    )
+    assert counts.content["family"]["kind"] == "poisson"
+    assert counts.content["family"]["rule"] == "R-REG-02"
+    assert counts.content["terms"][1]["ratio"] is not None
+    forced = run_tool(
+        client,
+        traps,
+        "fit_regression",
+        {"target": "price_eur", "columns": ["age"], "family": "gamma"},
+    )
+    assert forced.content["family"]["kind"] == "gamma" and forced.link.params["family"] == "gamma"
     playbook = run_tool(client, traps, "get_playbook", {"topic": "regression"})
     assert "HC3" in playbook.content
 

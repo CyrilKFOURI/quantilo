@@ -383,7 +383,8 @@ def test_the_library_trains_walk_forward_by_era(numerai_like: dx.Dataset) -> Non
     assert check.panel and check.period == "era"
     model = ml.train()
     assert model.panel is not None and model.panel.embargo == 4
-    assert model.panel.periods[0].period == "10"  # "0010" is read as a number
+    # 092 (R-TYP-03): zero-padded "0010" is kept as text; periods still rank in their order
+    assert model.panel.periods[0].period == "0010"
     for span in model.panel.folds:
         assert span.test_start - span.train_end > 4
     neutral = model.neutralize(["signal"], 1.0)

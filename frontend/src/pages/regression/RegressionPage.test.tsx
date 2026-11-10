@@ -161,6 +161,76 @@ const more = {
   shift_sentence: "Without the 38 influential rows, no coefficient moves by more than 20 %.",
 };
 
+// 069: a count target, Poisson by rule
+const option = (kind: string, label: string, available: boolean, exotic = false) => ({ kind, label, available, reason: `${label} reason`, exotic });
+const poisson = {
+  ...regression,
+  target: "injured",
+  model: "poisson",
+  model_label: "Poisson",
+  model_reason: "R-REG-02: `injured` counts events (whole numbers ≥ 0, the role quantity).",
+  sentence: "Poisson model (R-REG-02). Each extra unit of `area` multiplies the expected `injured` by 1.12 (+12 %) [+8 % ; +16 %], other columns held fixed.",
+  terms: [
+    term({ term: "(Intercept)", column: "(Intercept)", estimate: -1, evidence: "none", q_value: null, standardized: null, ratio: null, ratio_low: null, ratio_high: null, outcome: null, sentence: "With every column at 0…" }),
+    term({ estimate: 0.113, ratio: 1.12, ratio_low: 1.08, ratio_high: 1.16, outcome: null, marginal: 0.05, marginal_low: 0.04, marginal_high: 0.06 }),
+  ],
+  quality: { ...regression.quality, r2: null, adj_r2: null, pseudo_r2: 0.21, pseudo_how: "deviance explained" },
+  checks: [
+    { key: "overdispersion", status: "warn", title: "Extra variance", sentence: "`injured` varies 3.1 × more than its mean. A negative binomial fits better (AIC 900 against 1,000).", rule: "R-REG-03", action: "family", column: null, family: "negbin" },
+  ],
+  plots: null,
+  family: {
+    kind: "poisson",
+    label: "Poisson",
+    rule: "R-REG-02",
+    reason: "R-REG-02: `injured` counts events (whole numbers ≥ 0, the role quantity).",
+    reads: "ratio",
+    requested: "auto",
+    target_kind: "count",
+    options: [
+      option("ols", "Least squares (OLS)", true),
+      option("logit", "Logistic", false),
+      option("probit", "Probit", false, true),
+      option("poisson", "Poisson", true),
+      option("negbin", "Negative binomial", true),
+      option("boxcox", "Box-Cox least squares", false, true),
+      option("mnlogit", "Multinomial logit", true, true),
+    ],
+    exposure: null,
+    exposure_reason: null,
+    alpha: null,
+    dispersion: 3.1,
+    smearing: null,
+    boxcox_lambda: null,
+    boxcox_low: null,
+    boxcox_high: null,
+    outcomes: [],
+    note: null,
+  },
+};
+
+const families = {
+  current: "poisson",
+  sentence: "1 other family fitted on the same rows and columns, for comparison.",
+  alternatives: [
+    {
+      kind: "mnlogit",
+      label: "Multinomial logit",
+      available: true,
+      reason: "3 to 10 classes: the probability of each class",
+      reads: "points",
+      sentence: "Multinomial logit model (chosen in the settings). Each extra unit of `area` raises the probability of `injured` = 1 by 2.0 points.",
+      aic: 950,
+      pseudo_r2: 0.1,
+      r2: null,
+      note: null,
+      effects: [{ term: "1 · area", value: 2, low: 1, high: 3 }],
+      error: null,
+    },
+    { kind: "probit", label: "Probit", available: false, reason: "needs a yes/no target", reads: "points", sentence: "", aic: null, pseudo_r2: null, r2: null, note: null, effects: [], error: null },
+  ],
+};
+
 function routes() {
   return {
     "GET /health": health,
@@ -173,6 +243,7 @@ function routes() {
     "GET /datasets/d1/regression/influence": influence,
     "GET /datasets/d1/regression/standard-errors": standardErrors,
     "GET /datasets/d1/regression/more": more,
+    "GET /datasets/d1/regression/families": { current: "ols", sentence: "No other family fits this target.", alternatives: [] },
   };
 }
 
@@ -196,7 +267,7 @@ describe("Regression tab (068)", () => {
     const tabs = screen.getByRole("navigation", { name: "Sections of this page" });
     expect(within(tabs).getByRole("link", { name: "Regression" })).toHaveAttribute("aria-current", "page");
     // the onion rule: no section is asked for before it is opened
-    expect(calls.some((call) => /regression\/(standard-errors|influence|terms|more)/.test(call.key))).toBe(false);
+    expect(calls.some((call) => /regression\/(standard-errors|influence|terms|more|families)/.test(call.key))).toBe(false);
   });
 
   it("computes each Advanced section when it is opened, More last", async () => {
@@ -206,7 +277,7 @@ describe("Regression tab (068)", () => {
     expect(calls.some((call) => call.key === "GET /datasets/d1/regression/suggestion")).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: /^Advanced/ }));
-    expect(calls.some((call) => /regression\/(standard-errors|influence|terms|more)/.test(call.key))).toBe(false);
+    expect(calls.some((call) => /regression\/(standard-errors|influence|terms|more|families)/.test(call.key))).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: /^Standard errors/ }));
     expect(await screen.findByText("HC3 standard errors are 1.30 × the classic ones.")).toBeInTheDocument();
@@ -235,6 +306,49 @@ describe("Regression tab (068)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add controls" }));
     await waitFor(() =>
       expect(calls.some((call) => call.key === "GET /datasets/d1/regression" && call.params.get("columns") === "area,city")).toBe(true),
+    );
+  });
+
+  it("names the family, reads its effects in %, and switches it from How or a check (069)", async () => {
+    const calls = mockApi({ ...routes(), "GET /datasets/d1/regression": poisson });
+    renderAt("/d/d1/regression?target=injured&columns=area");
+
+    expect(await screen.findByText(/Poisson model \(R-REG-02\)/)).toBeInTheDocument();
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("Effect (%)")).toBeInTheDocument();
+    expect(within(table).getByText("Ratio ×")).toBeInTheDocument();
+    expect(within(table).getByText("1.12")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Try…" }));
+    await waitFor(() =>
+      expect(calls.some((call) => call.key === "GET /datasets/d1/regression" && call.params.get("family") === "negbin")).toBe(true),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^How/ }));
+    const model = screen.getByRole("combobox", { name: "Model" });
+    const choices = within(model).getAllByRole("option").map((o) => o.textContent);
+    expect(choices).toEqual(["Auto (by the target)", "Least squares (OLS)", "Poisson", "Negative binomial"]);
+    expect(screen.getByRole("combobox", { name: "Exposure" })).toBeInTheDocument();
+    fireEvent.change(model, { target: { value: "ols" } });
+    await waitFor(() =>
+      expect(calls.some((call) => call.key === "GET /datasets/d1/regression" && call.params.get("family") === "ols")).toBe(true),
+    );
+  });
+
+  it("fits the niche families only when More is opened, and uses one (069)", async () => {
+    const calls = mockApi({ ...routes(), "GET /datasets/d1/regression": poisson, "GET /datasets/d1/regression/families": families });
+    renderAt("/d/d1/regression?target=injured&columns=area");
+    await screen.findByText(/Poisson model/);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Advanced/ }));
+    expect(calls.some((call) => call.key === "GET /datasets/d1/regression/families")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: /^More/ }));
+    expect(await screen.findByText("1 other family fitted on the same rows and columns, for comparison.")).toBeInTheDocument();
+    expect(screen.getByText(/needs a yes\/no target/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Use this model" }));
+    await waitFor(() =>
+      expect(calls.some((call) => call.key === "GET /datasets/d1/regression" && call.params.get("family") === "mnlogit")).toBe(true),
     );
   });
 });

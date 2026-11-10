@@ -9,6 +9,7 @@ from pathlib import Path
 import duckdb
 
 from quantilo.ingestion.errors import IngestionError, readable_errors
+from quantilo.ingestion.normalize import copy_metadata, normalized_sql
 from quantilo.ingestion.options import ImportOptions
 from quantilo.ingestion.reader import SourceReader
 from quantilo.ingestion.sources import SourceFile
@@ -80,10 +81,11 @@ def import_to_parquet(
             reader = SourceReader(connection, options)
             reader.stop = stop
             try:
-                sql = build_select(reader, files, options)
+                sql, notes = normalized_sql(connection, build_select(reader, files, options))
                 progress(0.3, "Writing Parquet")
                 connection.execute(
-                    f"COPY ({sql}) TO {lit(str(partial))} (FORMAT parquet, COMPRESSION zstd)"
+                    f"COPY ({sql}) TO {lit(str(partial))} "
+                    f"(FORMAT parquet, COMPRESSION zstd{copy_metadata(notes)})"
                 )
             except (duckdb.Error, IngestionError):
                 if stop.is_set():

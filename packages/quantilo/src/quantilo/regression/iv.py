@@ -217,6 +217,11 @@ def _names(items: list[str]) -> str:
 
 
 def estimate(inputs: Inputs, endogenous: list[str], instruments: list[str]) -> IvTable:
+    if inputs.outcomes:
+        raise IvError(
+            "IV here is linear: a category with several classes has no mean to explain; pick a "
+            "number (069, R-REG-07)."
+        )
     if inputs.binary is not None:
         raise IvError(
             "IV here is linear: for a yes/no target it would be a linear probability model; "

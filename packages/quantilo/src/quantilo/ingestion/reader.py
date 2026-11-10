@@ -8,7 +8,7 @@ import numpy as np
 import openpyxl
 import pyarrow as pa
 
-from quantilo.ingestion.csv_sniff import readable_path, sniff_csv
+from quantilo.ingestion.csv_sniff import readable_path, sniff_dialect
 from quantilo.ingestion.errors import IngestionError
 from quantilo.ingestion.options import CsvOptions, SourceOptions
 from quantilo.ingestion.sources import SourceFile
@@ -142,6 +142,7 @@ class SourceReader:
         self.options = options
         self.excel_rows: dict[Path, int] = {}
         self.csv_options: dict[Path, CsvOptions] = {}
+        self.csv_notes: dict[Path, list[str]] = {}  # rules that chose a detected dialect (092)
         # A preview reads only the first rows of a .npy: the whole array may not fit in memory.
         self.npy_limit: int | None = None
         self.stop: threading.Event | None = None
@@ -150,7 +151,11 @@ class SourceReader:
 
     def csv_options_for(self, file: SourceFile) -> CsvOptions:
         if file.path not in self.csv_options:
-            self.csv_options[file.path] = self.options.csv or sniff_csv(file.path)
+            if self.options.csv is not None:
+                self.csv_options[file.path] = self.options.csv
+            else:
+                options, notes = sniff_dialect(file.path)
+                self.csv_options[file.path], self.csv_notes[file.path] = options, notes
         return self.csv_options[file.path]
 
     def csv_sql(self, file: SourceFile) -> str:

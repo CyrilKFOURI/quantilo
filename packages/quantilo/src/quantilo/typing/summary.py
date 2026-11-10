@@ -10,6 +10,7 @@ from typing import Any
 
 import duckdb
 
+from quantilo.ingestion.normalize import ZONED_TYPES
 from quantilo.typing.dates import date_profile
 from quantilo.typing.knowledge_base import load
 from quantilo.typing.parsers import present_sql, typed_sql
@@ -18,7 +19,7 @@ from quantilo.typing.types import AnalysisType, Parser
 
 HISTOGRAM_BINS = 12
 TOP_CATEGORIES = 8
-TEXT_SAMPLE = 5_000  # distinct texts measured for the language (050, C-2)
+TEXT_SAMPLE = 2_000  # distinct texts measured for the language (050, C-2; 092, R-ING-06)
 
 
 def number_label(value: float) -> str:
@@ -128,9 +129,14 @@ def summarize(
     analysis_type: AnalysisType,
     parser: Parser,
     order: list[str] | None = None,
+    role: str | None = None,
 ) -> dict[str, Any]:
     typed = typed_sql(column, parser)
     present = present_sql(column, parser)
+    kind = connection.execute(f"SELECT typeof({typed}) FROM {source} LIMIT 1").fetchone()
+    if kind and str(kind[0]).upper().startswith(ZONED_TYPES):
+        # stored before 092 (R-ING-01): read in UTC, DuckDB would need pytz to hand it over
+        typed = f"timezone('UTC', {typed})"
     rows, present_count, valid, distinct = connection.execute(
         f"SELECT count(*), count(r), count(t), count(DISTINCT t) "
         f"FROM (SELECT {typed} AS t, {present} AS r FROM {source})"
@@ -148,7 +154,8 @@ def summarize(
     }
     if analysis_type == "datetime" and valid:
         summary["date"] = date_profile(connection, source, typed, parser.kind == "year")
-    if analysis_type == "text" and valid:
+    # A list of choices (R-TYP-09) has no language: its measures would cost time for nothing.
+    if analysis_type == "text" and valid and role != "choices":
         values = f"(SELECT {typed} AS t FROM {source})"
         summary["text"] = text_summary(text_measures(connection, values))
     return summary

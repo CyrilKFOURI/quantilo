@@ -5,12 +5,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
 from quantilo.regression.analyze import (
+    FamilyAlternatives,
     InfluenceTable,
     MoreChecks,
     RegressionReport,
     StandardErrorTable,
     TermsTable,
 )
+from quantilo.regression.families import FamilyRequest
 from quantilo.regression.iv import IvTable
 from quantilo.regression.panel import PanelTable
 from quantilo.regression.rules import RegressionSuggestion, SeRequest
@@ -44,9 +46,25 @@ def regression_request(
     cluster: Annotated[str | None, Query(description="Grouped by: errors clustered on it.")] = None,
     se: SeRequest = "auto",
     focus: Annotated[str | None, Query(description="The column the conclusion speaks of.")] = None,
+    family: Annotated[
+        FamilyRequest, Query(description="Model family (default: chosen from the target, 069).")
+    ] = "auto",
+    exposure: Annotated[
+        str | None,
+        Query(description="Exposure of a count, its log the offset (absent: role exposure)."),
+    ] = None,
 ) -> RegressionRequest:
     chosen = tuple(name for name in columns.split(",") if name) if columns is not None else None
-    return RegressionRequest(target or None, chosen, weights, cluster or None, se, focus or None)
+    return RegressionRequest(
+        target or None,
+        chosen,
+        weights,
+        cluster or None,
+        se,
+        focus or None,
+        family,
+        exposure,
+    )
 
 
 Asked = Annotated[RegressionRequest, Depends(regression_request)]
@@ -101,6 +119,17 @@ def more(dataset_id: str, service: Service, filters: Filters, asked: Asked) -> M
     influential rows."""
     found = service.section(dataset_id, "more", asked, filters)
     assert isinstance(found, MoreChecks)
+    return found
+
+
+@router.get("/datasets/{dataset_id}/regression/families")
+def families(
+    dataset_id: str, service: Service, filters: Filters, asked: Asked
+) -> FamilyAlternatives:
+    """Advanced > More > Other families (069, computed only when opened): probit, Box-Cox,
+    fractional and multinomial logit on the same rows, or why they do not apply."""
+    found = service.section(dataset_id, "families", asked, filters)
+    assert isinstance(found, FamilyAlternatives)
     return found
 
 

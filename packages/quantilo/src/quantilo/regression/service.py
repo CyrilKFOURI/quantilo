@@ -3,7 +3,7 @@ reproducible sample beyond 200 000 rows), recognise the structure of the rows, f
 fit so that the Advanced sections reuse it."""
 
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal, cast
 
 import duckdb
@@ -22,6 +22,7 @@ from quantilo.regression import analyze as an
 from quantilo.regression import iv as ivs
 from quantilo.regression import panel as panels
 from quantilo.regression.design import DesignError, LeftOutTerm, Variable, codes
+from quantilo.regression.families import EXPOSURE_ROLE, MAX_CLASSES, FamilyRequest
 from quantilo.regression.panel import PanelTable
 from quantilo.regression.rules import (
     REGRESSOR_TYPES,
@@ -51,7 +52,7 @@ REFUSED = {
 }
 WEIGHT_ROLE = "weight"
 YES = ("true", "1", "yes", "oui", "y")
-Section = Literal["standard_errors", "influence", "terms", "more", "panel"]
+Section = Literal["standard_errors", "influence", "terms", "more", "panel", "families"]
 
 
 class RegressionError(ExplorerError):
@@ -67,6 +68,8 @@ class Request:
     cluster: str | None = None
     se: SeRequest = "auto"
     focus: str | None = None
+    family: FamilyRequest = "auto"  # 069: "auto" follows the rules (R-REG-01…07)
+    exposure: str | None = None  # 069: None: a column of role exposure if any; "": none
 
 
 class RegressionService:
@@ -110,7 +113,14 @@ class RegressionService:
         name: Section,
         request: Request,
         conditions: list[Condition] | None = None,
-    ) -> an.StandardErrorTable | an.InfluenceTable | an.TermsTable | an.MoreChecks | PanelTable:
+    ) -> (
+        an.StandardErrorTable
+        | an.InfluenceTable
+        | an.TermsTable
+        | an.MoreChecks
+        | PanelTable
+        | an.FamilyAlternatives
+    ):
         conditions = conditions or []
         key = (*self._key(dataset_id, request, conditions), name)
         if key in self._results:
@@ -122,6 +132,7 @@ class RegressionService:
             "influence": an.influence_table,
             "terms": an.terms_table,
             "more": an.more,
+            "families": an.family_alternatives,
             "panel": panels.section,  # 071
         }
         if name not in builders:
@@ -171,14 +182,7 @@ class RegressionService:
         if key in self._results:
             self._results.move_to_end(key)
             return self._results[key]
-        augmented = Request(
-            request.target,
-            (*request.columns, *instruments),
-            request.weights,
-            request.cluster,
-            request.se,
-            request.focus,
-        )
+        augmented = replace(request, columns=(*request.columns, *instruments))
         inputs = self._load(dataset_id, augmented, conditions)
         try:
             found = an.finite(ivs.estimate(inputs, list(endogenous), list(instruments)))
@@ -231,14 +235,7 @@ class RegressionService:
         columns = request.columns
         if columns is None:
             columns = tuple(p.column for p in found.columns)
-        return Request(
-            found.target.column,
-            columns,
-            request.weights,
-            request.cluster,
-            request.se,
-            request.focus,
-        )
+        return replace(request, target=found.target.column, columns=columns)
 
     def _fit(self, dataset_id: str, request: Request, conditions: list[Condition]) -> an.Fitted:
         request = self._resolve(dataset_id, request, conditions)
@@ -271,6 +268,7 @@ class RegressionService:
                 "yes/no column to explain."
             )
         weights = self._weights(views, request)
+        exposure = self._exposure(views, request, target.name)
         refused: list[LeftOutTerm] = []
         chosen: list[ColumnView] = []
         for name in dict.fromkeys(request.columns):
@@ -295,13 +293,14 @@ class RegressionService:
             dates,
             sorted({*periods, *entities} - set(dates), key=[v.name for v in views].index),
             {v.name: v for v in views},
+            exposure[0] if exposure else None,
         )
         frame, total = loaded
         rows = len(frame)
         shape = self._structure(frame, dates, periods, entities, rows)
         if shape.kind == "series" and shape.date is not None:
             frame = frame.sort_values(shape.date, kind="stable").reset_index(drop=True)
-        y, binary = self._target(target, cast(pd.Series, frame["__y"]))
+        y, binary, outcomes = self._target(target, cast(pd.Series, frame["__y"]))
         variables = [
             self._variable(view, cast(pd.Series, frame[f"__x{i}"])) for i, view in enumerate(chosen)
         ]
@@ -319,6 +318,10 @@ class RegressionService:
             requested=request.se,
             focus=request.focus,
         )
+        inputs.target_role, inputs.outcomes, inputs.family = target.role, outcomes, request.family
+        if exposure is not None:
+            inputs.exposure, inputs.exposure_reason = exposure[0].name, exposure[1]
+            inputs.exposure_values = frame["__e"].to_numpy(dtype=float, na_value=np.nan)
         if weights is not None:
             inputs.weights, inputs.weights_reason = weights[0].name, weights[1]
             inputs.weight_values = frame["__w"].to_numpy(dtype=float, na_value=np.nan)
@@ -344,6 +347,25 @@ class RegressionService:
                 return view, (
                     f"R-REG-SE-04: `{view.name}` has the role weight: a row that stands for 10 "
                     "counts 10 times (WLS)."
+                )
+        return None
+
+    def _exposure(
+        self, views: list[ColumnView], request: Request, target: str
+    ) -> tuple[ColumnView, str] | None:
+        """R-REG-02: the exposure of a count (a duration, a population), its log the offset."""
+        if request.exposure == "":
+            return None
+        if request.exposure is not None:
+            view = self._view(views, request.exposure)
+            if view.type not in NUMERIC:
+                raise RegressionError(f"`{view.name}` is not a number: it cannot be an exposure.")
+            return view, f"`{view.name}` is the exposure, chosen in the settings."
+        for view in views:
+            if view.role == EXPOSURE_ROLE and view.type in NUMERIC and view.name != target:
+                return view, (
+                    f"R-REG-02: `{view.name}` has the role exposure: counts are compared per unit "
+                    "of it (its log is the offset)."
                 )
         return None
 
@@ -393,6 +415,7 @@ class RegressionService:
         dates: list[str],
         groups: list[str],
         by_name: dict[str, ColumnView],
+        exposure: ColumnView | None = None,
     ) -> tuple[pd.DataFrame, int]:
         source = scoped_source(storage, where, numbered=True)
 
@@ -403,6 +426,8 @@ class RegressionService:
         expressions += [f"{value(v)} AS __x{i}" for i, v in enumerate(chosen)]
         if weights is not None:
             expressions.append(f"{number_sql(weights)} AS __w")
+        if exposure is not None:
+            expressions.append(f"{number_sql(exposure)} AS __e")
         if cluster is not None:
             dated = cluster.type == "datetime"
             group = typed_sql(cluster.name, cluster.parser) if dated else label_sql(cluster)
@@ -443,29 +468,39 @@ class RegressionService:
         )
 
     @staticmethod
-    def _target(view: ColumnView, values: pd.Series) -> tuple[np.ndarray, tuple[str, str] | None]:
+    def _target(
+        view: ColumnView, values: pd.Series
+    ) -> tuple[np.ndarray, tuple[str, str] | None, list[str]]:
+        """The target as numbers: 0/1 for yes/no, codes (most frequent first) for 3 to 10
+        classes (R-REG-07), and the labels of either."""
         if view.type in NUMERIC:
             numbers = values.to_numpy(dtype=float, na_value=np.nan)
             distinct = np.unique(numbers[np.isfinite(numbers)])
             if len(distinct) == 2:
                 low, high = (float(d) for d in distinct)
                 labels = (an.fmt(low), an.fmt(high))
-                return np.where(
-                    np.isfinite(numbers), (numbers == high).astype(float), np.nan
-                ), labels
+                return (
+                    np.where(np.isfinite(numbers), (numbers == high).astype(float), np.nan),
+                    labels,
+                    [],
+                )
             if len(distinct) < 2:
                 raise RegressionError(f"`{view.name}` takes a single value: nothing to explain.")
-            return numbers, None
+            return numbers, None, []
         labels = [None if pd.isna(v) else str(v) for v in values.tolist()]
         found, levels = codes(labels)
-        if len(levels) != 2:
+        if len(levels) > MAX_CLASSES:
             raise RegressionError(
-                f"`{view.name}` has {len(levels)} levels: models for categories come later; "
-                "pick a number or a yes/no column."
+                f"`{view.name}` has {len(levels)} levels: at most {MAX_CLASSES} for a multinomial "
+                "model (R-REG-07). Merge levels, or pick a number or a yes/no column."
             )
+        if len(levels) < 2:
+            raise RegressionError(f"`{view.name}` takes a single value: nothing to explain.")
+        if len(levels) > 2:
+            return np.where(found >= 0, found.astype(float), np.nan), None, levels
         positive = next((i for i, level in enumerate(levels) if level.lower() in YES), 1)
         y = np.where(found >= 0, (found == positive).astype(float), np.nan)
-        return y, (levels[1 - positive], levels[positive])
+        return y, (levels[1 - positive], levels[positive]), []
 
     @staticmethod
     def _variable(view: ColumnView, values: pd.Series) -> Variable:

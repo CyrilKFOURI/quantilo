@@ -7,9 +7,10 @@ from typing import Literal
 import duckdb
 
 from quantilo.ingestion.errors import readable_errors
+from quantilo.ingestion.normalize import normalized_sql, note_lines
 from quantilo.ingestion.options import CsvOptions, Format, SourceOptions
 from quantilo.ingestion.reader import SourceReader, excel_sheets, load_npy
-from quantilo.ingestion.sources import SourceFile, list_source_files
+from quantilo.ingestion.sources import TEXT_EXTENSIONS, SourceFile, list_source_files
 from quantilo.ingestion.sql import lit
 
 PREVIEW_ROWS = 20
@@ -73,6 +74,22 @@ def detected_header_rows(path: Path, sheets: list[str]) -> tuple[dict[str, int],
     return rows, notes
 
 
+def reading_notes(reader: SourceReader, files: list[SourceFile]) -> list[str]:
+    """092: a sentence per rule that chose how the files are read (R-ING-02 to R-ING-04)."""
+    notes: list[str] = []
+    for file in files:
+        prefix = f"{file.path.name}: " if len(files) > 1 else ""
+        if file.path.suffix.lower() in TEXT_EXTENSIONS:
+            delimiter = reader.csv_options_for(file).delimiter
+            shown = {" ": "spaces", "\t": "tabs"}.get(delimiter, repr(delimiter))
+            notes.append(
+                f"{prefix}{file.path.suffix} file read as delimited text, columns separated by "
+                f"{shown} (R-ING-04)."
+            )
+        notes += [prefix + note for note in reader.csv_notes.get(file.path, [])]
+    return list(dict.fromkeys(notes))
+
+
 def estimate_rows(reader: SourceReader, file: SourceFile) -> int:
     connection = reader.connection
     if file.format == "parquet":
@@ -108,7 +125,7 @@ def preview_source(path: Path, options: SourceOptions) -> Preview:
         try:
             reader = SourceReader(connection, options)
             reader.npy_limit = PREVIEW_ROWS
-            sql = reader.combined_sql(files)
+            sql, changed = normalized_sql(connection, reader.combined_sql(files))
             columns = [ColumnInfo(name, dtype) for name, dtype in reader.columns(sql)]
             rows = connection.execute(
                 f"SELECT COLUMNS(*)::VARCHAR FROM ({sql}) LIMIT {PREVIEW_ROWS}"
@@ -128,7 +145,7 @@ def preview_source(path: Path, options: SourceOptions) -> Preview:
                 sheets=excel_sheets(first.path) if first.format == "excel" else None,
                 schema_mismatch=reader.schema_mismatch(files),
                 suggested_name=path.stem if path.is_file() else path.name,
-                warnings=notes,
+                warnings=[*notes, *reading_notes(reader, files), *note_lines(changed)],
                 header_row=options.header_row,
             )
         finally:

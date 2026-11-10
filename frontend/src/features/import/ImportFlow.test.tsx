@@ -81,4 +81,24 @@ describe("import flow", () => {
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No mock"));
   });
+
+  it("says how the file is read before importing it (092)", async () => {
+    mockApi({
+      "GET /health": health,
+      "GET /datasets": [],
+      "GET /samples": [{ name: "german", path: "/s/german.data", format: "csv", size: 1 }],
+      "POST /sources/preview": {
+        ...preview,
+        warnings: ["Columns separated by spaces (21 fields on every line) (R-ING-02)."],
+      },
+    });
+    renderAt("/");
+
+    fireEvent.click(await screen.findByRole("button", { name: "german" }));
+
+    const notes = await screen.findByRole("region", { name: "How the file is read" });
+    expect(notes).toHaveTextContent("Columns separated by spaces (21 fields on every line) (R-ING-02).");
+    expect(notes).toHaveTextContent("Check that your data was read correctly.");
+  });
 });
+

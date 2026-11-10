@@ -7,6 +7,7 @@ import type {
   Column,
   Regression,
   RegressionCheck,
+  RegressionFamilyKind,
   RegressionParams,
   RegressionSe,
   RegressionSection,
@@ -43,6 +44,10 @@ export type RegressionSearch = {
   cluster?: string;
   se?: string;
   focus?: string;
+  /** 069: absent: chosen from the target (R-REG-01…07). */
+  family?: string;
+  /** 069: absent: a column of role exposure; "none": no exposure. */
+  exposure?: string;
 };
 
 const text = (value: unknown) => (typeof value === "string" && value ? value : undefined);
@@ -55,16 +60,21 @@ export function validateRegressionSearch(search: Record<string, unknown>): Regre
     cluster: text(search.cluster),
     se: text(search.se),
     focus: text(search.focus),
+    family: text(search.family),
+    exposure: text(search.exposure),
   };
 }
 
 const NUMBERS = new Set<AnalysisType>(["numeric_continuous", "numeric_discrete"]);
-const TARGETS = new Set<AnalysisType>([...NUMBERS, "boolean"]);
+// 069: a category of 3 to 10 levels takes the multinomial logit (R-REG-07)
+const TARGETS = new Set<AnalysisType>([...NUMBERS, "boolean", "categorical_nominal", "categorical_ordinal"]);
 const REGRESSORS = new Set<AnalysisType>([...TARGETS, "categorical_nominal", "categorical_ordinal"]);
 const GROUPS = new Set<AnalysisType>(["categorical_nominal", "categorical_ordinal", "identifier", "numeric_discrete", "boolean"]);
 export const SE_KINDS: RegressionSe[] = ["classic", "hc0", "hc1", "hc2", "hc3", "hac", "cluster", "cluster2", "dk"];
 const NO_COLUMNS = "-";
 const NO_WEIGHTS = "none";
+const NO_EXPOSURE = "none";
+const COUNTS = new Set<string>(["poisson", "negbin"]);
 const PLOT_HEIGHT = 280;
 const STATUS: Record<RegressionCheck["status"], { icon: typeof Info; tone: string; label: MessageKey }> = {
   ok: { icon: CheckCircle2, tone: "text-ok", label: "regression.status.ok" },
@@ -76,6 +86,7 @@ const SECTIONS: Record<string, RegressionSection> = {
   standard_errors: "standard-errors",
   influence: "influence",
   terms: "terms",
+  more: "more",
   panel: "panel",
 };
 
@@ -107,6 +118,8 @@ export function RegressionPage() {
           cluster: search.cluster,
           se: (search.se as RegressionSe | undefined) ?? "auto",
           focus: search.focus,
+          family: (search.family as RegressionFamilyKind | undefined) ?? "auto",
+          exposure: search.exposure === NO_EXPOSURE ? "" : search.exposure,
         }
       : null;
   const regression = useRegression(datasetId, params);
@@ -144,7 +157,7 @@ export function RegressionPage() {
       chosen={chosen ?? []}
       reasons={reasons}
       targetReason={search.target ? null : (suggestion.data?.target?.reason ?? null)}
-      onTarget={(name) => set({ target: name, columns: undefined, focus: undefined })}
+      onTarget={(name) => set({ target: name, columns: undefined, focus: undefined, family: undefined, exposure: undefined })}
       onColumns={setColumns}
     />
   );
@@ -223,7 +236,7 @@ export function RegressionPage() {
           <Conclusion result={result} />
           <QualityBand result={result} />
           <Coefficients result={result} standardized={standardized} onStandardized={setStandardized} />
-          <Checks result={result} datasetId={datasetId} onOpen={open} />
+          <Checks result={result} datasetId={datasetId} onOpen={open} onFamily={(family) => set({ family })} />
           <Charts result={result} />
           <section className="rounded-lg border border-line bg-surface-1">
             <button
@@ -244,6 +257,7 @@ export function RegressionPage() {
                 opened={opened}
                 onToggle={toggle}
                 onUse={(kind) => set({ se: kind })}
+                onFamily={(family) => set({ family })}
               />
             )}
           </section>
@@ -358,13 +372,46 @@ function HowCells({
   const field = "h-8 w-full min-w-0 text-[13px]";
   const weights = usable.filter((c) => NUMBERS.has(c.type) && c.name !== result.target);
   const groups = usable.filter((c) => GROUPS.has(c.type) && c.name !== result.target);
+  const family = result.family;
+  // 069: the families the target admits; a niche one (Advanced › More) only while it is in use
+  const families = (family?.options ?? []).filter((o) => o.available && (!o.exotic || o.kind === family?.kind));
+  const counts = family !== null && family !== undefined && COUNTS.has(family.kind);
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-      <Cell label={t("regression.model")} why={result.model_reason} changed={false} onReset={() => undefined}>
-        <p className="flex h-8 items-center truncate text-[13px] text-ink-1" title={result.model_reason}>
-          {result.model_label}
-        </p>
+      <Cell label={t("regression.model")} why={result.model_reason} changed={Boolean(search.family)} onReset={() => onChange({ family: undefined, exposure: undefined })}>
+        {families.length > 1 ? (
+          <Select
+            aria-label={t("regression.model")}
+            value={search.family ?? "auto"}
+            onChange={(e) => onChange({ family: e.target.value === "auto" ? undefined : e.target.value })}
+            className={field}
+          >
+            <option value="auto">{t("regression.auto", { choice: search.family ? t("regression.byTarget") : result.model_label })}</option>
+            {families.map((option) => (
+              <option key={option.kind} value={option.kind} title={option.reason}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <p className="flex h-8 items-center truncate text-[13px] text-ink-1" title={result.model_reason}>
+            {result.model_label}
+          </p>
+        )}
       </Cell>
+      {counts && (
+        <Cell label={t("regression.exposure")} why={family?.exposure_reason ?? t("regression.exposureWhy")} changed={search.exposure !== undefined} onReset={() => onChange({ exposure: undefined })}>
+          <Select aria-label={t("regression.exposure")} value={search.exposure ?? ""} onChange={(e) => onChange({ exposure: e.target.value || undefined })} className={field}>
+            <option value="">{t("regression.auto", { choice: family?.exposure ?? t("regression.none") })}</option>
+            <option value={NO_EXPOSURE}>{t("regression.none")}</option>
+            {weights.map((c) => (
+              <option key={c.name} value={c.name}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+        </Cell>
+      )}
       <Cell label={t("regression.se")} why={result.se.reason} changed={Boolean(search.se)} onReset={() => onChange({ se: undefined })}>
         <Select aria-label={t("regression.se")} value={search.se ?? "auto"} onChange={(e) => onChange({ se: e.target.value === "auto" ? undefined : e.target.value })} className={field}>
           <option value="auto">{t("regression.auto", { choice: result.se.label })}</option>
@@ -414,7 +461,13 @@ function Conclusion({ result }: { result: Regression }) {
           {result.se.clusters ? ` · ${t("regression.clusters", { count: formatCount(result.se.clusters) })}` : ""}
         </span>
         <InfoTip label={t("regression.why")} text={result.se.reason} />
+        <InfoTip label={t("regression.whyModel")} text={result.model_reason} />
       </p>
+      {result.family?.note && (
+        <p className="text-xs text-ink-3">
+          <Sentence text={result.family.note} />
+        </p>
+      )}
       {result.structure.message && (
         <p className="text-xs text-ink-3">
           <Sentence text={result.structure.message} />
@@ -442,6 +495,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 }
 
 const r2 = (value: number | null) => (value === null ? "—" : value.toFixed(3));
+const INTERCEPT = "(Intercept)";
 
 function QualityBand({ result }: { result: Regression }) {
   const q = result.quality;
@@ -456,7 +510,7 @@ function QualityBand({ result }: { result: Regression }) {
             <Stat label={t("regression.adjR2")} value={r2(q.adj_r2)} />
           </>
         ) : (
-          <Stat label={t("regression.pseudoR2")} value={r2(q.pseudo_r2)} hint={t("regression.pseudoR2Hint")} />
+          <Stat label={t("regression.pseudoR2")} value={r2(q.pseudo_r2)} hint={q.pseudo_how ?? t("regression.pseudoR2Hint")} />
         )}
         <Stat label={t("regression.oosR2")} value={r2(q.oos_r2)} hint={t("regression.oosHint", { how: q.oos_how })} />
         <Stat label="AIC" value={formatNumber(q.aic)} />
@@ -488,27 +542,44 @@ function Coefficients({
   standardized: boolean;
   onStandardized: (value: boolean) => void;
 }) {
-  const logit = result.model === "logit";
+  // 069: points of probability, % change (exp(b) − 1) or units, as the family reads
+  const reads = result.family?.reads ?? (result.model === "logit" ? "points" : "units");
+  const logit = reads === "points";
+  const ratio = reads === "ratio";
+  const odds = result.terms.some((term) => term.odds_ratio !== null);
   const value = (term: RegressionTerm): [number | null, number | null, number | null] => {
     if (standardized) return [term.standardized, term.std_low, term.std_high];
+    // an intercept has no effect in points or %: its sentence (on hover) gives its level
+    if (reads !== "units" && term.column === INTERCEPT) return [null, null, null];
     if (logit && term.marginal !== null) {
       const points = (v: number | null) => (v === null ? null : v * 100);
       return [points(term.marginal), points(term.marginal_low), points(term.marginal_high)];
     }
+    if (ratio && term.ratio !== null) {
+      const change = (v: number | null) => (v === null ? null : (v - 1) * 100);
+      return [change(term.ratio), change(term.ratio_low), change(term.ratio_high)];
+    }
     return [term.estimate, term.ci_low, term.ci_high];
+  };
+  const hint = logit ? t("regression.coefficientsLogit") : ratio ? t("regression.coefficientsRatio") : t("regression.coefficientsHint");
+  const right = logit && odds ? t("regression.odds") : ratio ? t("regression.ratio") : t("regression.stdError");
+  const rightValue = (term: RegressionTerm, intercept: boolean) => {
+    if (logit && odds) return intercept ? "—" : formatNumber(term.odds_ratio);
+    if (ratio) return intercept ? "—" : formatNumber(term.ratio);
+    return formatNumber(term.std_error);
   };
   return (
     <section>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-baseline gap-x-3">
           <h2 className="text-sm font-semibold">{t("regression.coefficients")}</h2>
-          <span className="text-xs text-ink-3">{logit ? t("regression.coefficientsLogit") : t("regression.coefficientsHint")}</span>
+          <span className="text-xs text-ink-3">{hint}</span>
         </div>
         <SegmentedControl
           label={t("regression.scale")}
           value={standardized ? "std" : "unit"}
           options={[
-            { value: "unit", label: logit ? t("regression.points") : t("regression.perUnit") },
+            { value: "unit", label: logit ? t("regression.points") : ratio ? t("regression.inPercent") : t("regression.perUnit") },
             { value: "std", label: t("regression.standardized") },
           ]}
           onChange={(next) => onStandardized(next === "std")}
@@ -521,19 +592,19 @@ function Coefficients({
             <tr>
               <th scope="col" className="px-3 py-1.5 font-normal">{t("regression.term")}</th>
               <th scope="col" className="px-3 py-1.5 text-right font-normal">
-                {standardized ? t("regression.perSd") : logit ? t("regression.ame") : t("regression.estimate")}
+                {standardized ? t("regression.perSd") : logit ? t("regression.ame") : ratio ? t("regression.percent") : t("regression.estimate")}
               </th>
               <th scope="col" className="px-3 py-1.5 text-right font-normal">{t("regression.ci")}</th>
               <th scope="col" className="px-3 py-1.5 text-right font-normal">p</th>
               <th scope="col" className="px-3 py-1.5 text-right font-normal">adj. p</th>
               <th scope="col" className="px-3 py-1.5 font-normal">{t("evidence.title")}</th>
-              <th scope="col" className="px-3 py-1.5 text-right font-normal">{logit ? t("regression.odds") : t("regression.stdError")}</th>
+              <th scope="col" className="px-3 py-1.5 text-right font-normal">{right}</th>
             </tr>
           </thead>
           <tbody>
-            {result.terms.map((term, index) => {
+            {result.terms.map((term) => {
               const [estimate, low, high] = value(term);
-              const intercept = index === 0;
+              const intercept = term.column === INTERCEPT;
               if (intercept && standardized) return null;
               return (
                 <tr key={term.term} title={term.sentence} className={`border-t border-line ${term.evidence === "none" && !intercept ? "text-ink-2" : ""}`}>
@@ -553,9 +624,7 @@ function Coefficients({
                     {noLongerHolds(term.p_value, term.q_value) && <NoLongerHolds />}
                   </td>
                   <td className="px-3 py-1.5">{!intercept && <EvidenceBadge level={term.evidence} />}</td>
-                  <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">
-                    {logit ? (intercept ? "—" : formatNumber(term.odds_ratio)) : formatNumber(term.std_error)}
-                  </td>
+                  <td className="px-3 py-1.5 text-right text-ink-3 tabular-nums">{rightValue(term, intercept)}</td>
                 </tr>
               );
             })}
@@ -581,10 +650,12 @@ function Checks({
   result,
   datasetId,
   onOpen,
+  onFamily,
 }: {
   result: Regression;
   datasetId: string;
   onOpen: (section: RegressionSection) => void;
+  onFamily: (family: string) => void;
 }) {
   return (
     <section>
@@ -604,7 +675,7 @@ function Checks({
                 <Sentence text={check.sentence} />
               </p>
               <span className="col-start-2 sm:col-start-auto">
-                <CheckAction check={check} datasetId={datasetId} target={result.target} onOpen={onOpen} />
+                <CheckAction check={check} datasetId={datasetId} target={result.target} onOpen={onOpen} onFamily={onFamily} />
               </span>
             </li>
           );
@@ -619,13 +690,22 @@ function CheckAction({
   datasetId,
   target,
   onOpen,
+  onFamily,
 }: {
   check: RegressionCheck;
   datasetId: string;
   target: string;
   onOpen: (section: RegressionSection) => void;
+  onFamily: (family: string) => void;
 }): ReactNode {
   const style = "text-xs whitespace-nowrap text-accent hover:underline";
+  const family = check.family;
+  if (check.action === "family" && family)
+    return (
+      <button type="button" className={style} onClick={() => onFamily(family)}>
+        {t("regression.try")}
+      </button>
+    );
   const section = check.action ? SECTIONS[check.action] : undefined;
   if (section)
     return (

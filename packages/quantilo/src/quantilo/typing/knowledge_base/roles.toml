@@ -56,8 +56,9 @@ id = "year"
 label = "Year"
 names = ["year", "years", "annee", "année", "yr", "birth year", "annee naissance", "millesime"]
 type = "datetime"
-min = 1800
-max = 2100
+# 092 (TYP-7): a country × year panel starts in 1750 (OWID); small numbers stay out (year of study)
+min = 1000
+max = 2200
 
 [[role]]
 id = "month"
@@ -166,16 +167,16 @@ id = "customer_key"
 label = "Customer key"
 names = ["customer", "customers", "client", "clients", "user", "users", "account", "member",
          "patient", "subscriber", "buyer", "shopper", "cust"]
-suffixes = ["id", "ids", "no", "nr", "num", "number", "numero", "code", "key", "ref", "reference",
-            "identifier", "uuid", "guid"]
+suffixes = ["id", "ids", "no", "nr", "nbr", "num", "number", "numero", "code", "key", "ref",
+            "reference", "identifier", "uuid", "guid"]
 key = true
 
 [[role]]
 id = "order_key"
 label = "Order key"
 names = ["order", "invoice", "transaction", "basket", "cart", "receipt", "commande", "facture"]
-suffixes = ["id", "ids", "no", "nr", "num", "number", "numero", "code", "key", "ref", "reference",
-            "identifier", "uuid", "guid"]
+suffixes = ["id", "ids", "no", "nr", "nbr", "num", "number", "numero", "code", "key", "ref",
+            "reference", "identifier", "uuid", "guid"]
 key = true
 
 [[role]]
@@ -267,3 +268,23 @@ names = ["sample weight", "sampling weight", "survey weight", "row weight", "obs
          "poids de sondage", "poids sondage", "ponderation", "pondération"]
 type = "numeric_continuous"
 min = 0
+
+[[role]]
+id = "exposure"
+label = "Exposure"
+# what a count is measured over (069, R-REG-02: its log is the offset of a Poisson or negative
+# binomial model): person-years, population at risk, hours of observation.
+names = ["exposure", "exposition", "person years", "person time", "patient years",
+         "years at risk", "time at risk", "population at risk", "pop at risk", "at risk",
+         "offset"]
+type = "numeric_continuous"
+min = 0
+
+# --- 092: roles given by the values (spec 092) ---------------------------------------------------
+
+[[role]]
+id = "choices"
+label = "List of choices"
+# answers of a multiple-choice question ("Python;SQL;Rust", R-TYP-09): set from the values only
+names = []
+type = "text"

@@ -15,12 +15,30 @@ from quantilo.typing.types import ANALYSIS_TYPES, AnalysisType
 
 DIRECTORY = Path(__file__).parent
 
+# Roles saying a measure or a part of a date (092): their zero-padded numbers are no codes
+# (R-TYP-03), and a code word beside them does not make a code ("YearsCode", R-TYP-04).
+MEASURE_ROLES = ("month", "weekday", "hour", "year", "age", "duration", "latitude", "longitude",
+                 "angle", "amount", "cost", "unit_price", "percentage", "quantity", "rating",
+                 "propensity", "weight")  # fmt: skip
+# "BIN #", "Job #" (exported as "bin__"), "N° dossier": a number sign says a number (R-TYP-04).
+NUMBER_SIGN = re.compile(r"(#|n[°º]\.?|__)\s*$|^\s*(#|n[°º])", re.IGNORECASE)
+
 
 def name_tokens(name: str) -> tuple[str, ...]:
     """'customerAge' / 'Customer_AGE' / 'âge client' → ('customer', 'age') / ('age', 'client')."""
     spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", name)
     ascii_name = unicodedata.normalize("NFKD", spaced).encode("ascii", "ignore").decode()
     return tuple(token for token in re.split(r"[^a-z0-9]+", ascii_name.lower()) if token)
+
+
+def head_word(name: str, function_words: frozenset[str] | None = None) -> str | None:
+    """The word a column name is about (092, R-TYP-04): the last one ("patient_nbr" -> "nbr"), or
+    the first one when a Romance function word follows it ("Code du département" -> "code")."""
+    tokens = name_tokens(name)
+    if not tokens:
+        return None
+    words = load().function_words if function_words is None else function_words
+    return tokens[0] if any(token in words for token in tokens[1:]) else tokens[-1]
 
 
 @dataclass(frozen=True)
@@ -84,6 +102,14 @@ class KnowledgeBase:
     # 053: (tracked side, other side) of a status, and column names that say an outcome
     outcomes: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = ()
     outcome_names: frozenset[str] = frozenset()
+    # 092: head words saying a code (R-TYP-04), and words saying a date (R-TYP-05)
+    code_words: frozenset[str] = frozenset()
+    short_code_words: frozenset[str] = frozenset()
+    category_words: frozenset[str] = frozenset()
+    category_stems: tuple[str, ...] = ()
+    unit_words: frozenset[str] = frozenset()
+    function_words: frozenset[str] = frozenset()
+    date_words: frozenset[str] = frozenset()
 
     def language(self, language_id: str | None) -> Language | None:
         return next((item for item in self.languages if item.id == language_id), None)
@@ -95,16 +121,17 @@ class KnowledgeBase:
         """Best role whose name appears in the column name.
 
         Prefer the longest match, then the one ending on the last word: in "long_description"
-        the head noun is "description", so the column is free text, not a longitude.
+        the head noun is "description", so the column is free text, not a longitude. Then the one
+        starting the name (092, R-TYP-08): "PercentSalaryHike" is a percentage, not a salary.
         """
         tokens = name_tokens(column_name)
-        best: tuple[int, int, int] | None = None
+        best: tuple[int, int, int, int] | None = None
         best_role: Role | None = None
         for index, role in enumerate(self.roles):
             if role.suffixes:
                 # whole-name roles: the match spans the name ("customer_id" beats "id")
                 if role.whole_name(tokens):
-                    score = (len(tokens), 1, -index)
+                    score = (len(tokens), 1, 1, -index)
                     if best is None or score > best:
                         best, best_role = score, role
                 continue
@@ -113,10 +140,34 @@ class KnowledgeBase:
                     if tokens[start : start + len(name)] != name:
                         continue
                     ends_last = int(start + len(name) == len(tokens))
-                    score = (len(name), ends_last, -index)
+                    score = (len(name), ends_last, int(start == 0), -index)
                     if best is None or score > best:
                         best, best_role = score, role
         return best_role
+
+    def name_code(self, name: str) -> tuple[str, str] | None:
+        """("code" | "category", word) when the name's head word says that whole numbers name
+        or classify things (092, R-TYP-04): "patient_nbr", "Code du département", "MS SubClass",
+        "council_district". Not when a measure role comes from another word ("YearsCode" counts
+        years); "item_nbr", whose quantity word is the head word itself, is an item number.
+        Used by the detection and by `quantilo.semantics` (S-01), so both agree."""
+        if NUMBER_SIGN.search(name):
+            return "code", "#"
+        tokens = name_tokens(name)
+        head = head_word(name, self.function_words)
+        if head is None or set(tokens) & self.unit_words:
+            return None  # a unit says a measure: "sqft_lot" is an area, not a lot number
+        found: tuple[str, str] | None = None
+        if head in self.code_words and (len(tokens) > 1 or head not in self.short_code_words):
+            found = ("code", head)
+        elif head in self.category_words or head.startswith(self.category_stems):
+            found = ("category", head)
+        if found is None:
+            return None
+        named = self.match_role(name)
+        if named and named.id in MEASURE_ROLES and head not in {w[0] for w in named.names}:
+            return None
+        return found
 
     def boolean_pair_for(self, values: set[str]) -> tuple[list[str], list[str]] | None:
         """The vocabulary pair covering all values, with both sides present."""
@@ -177,4 +228,15 @@ def load() -> KnowledgeBase:
             for item in vocabulary.get("outcome", [])
         ),
         outcome_names=frozenset(word.lower() for word in vocabulary.get("outcome_names", [])),
+        code_words=_words(vocabulary, "code_words"),
+        short_code_words=_words(vocabulary, "short_code_words"),
+        category_words=_words(vocabulary, "category_words"),
+        category_stems=tuple(sorted(_words(vocabulary, "category_stems"))),
+        unit_words=_words(vocabulary, "unit_words"),
+        function_words=_words(vocabulary, "function_words"),
+        date_words=_words(vocabulary, "date_words"),
     )
+
+
+def _words(vocabulary: dict[str, Any], key: str) -> frozenset[str]:
+    return frozenset(token for word in vocabulary.get(key, []) for token in name_tokens(word))

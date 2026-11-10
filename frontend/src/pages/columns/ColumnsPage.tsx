@@ -10,6 +10,7 @@ import { RoleMenu } from "../../features/columns/RoleMenu";
 import { Sparkline } from "../../features/columns/Sparkline";
 import { TypeBadge } from "../../features/columns/TypeBadge";
 import { useColumnHistory } from "../../features/columns/useColumnHistory";
+import { columnReadingNotes, ReadingNotes } from "../../features/readings/ReadingNotes";
 import { formatNumber } from "../../charts/figures";
 import { formatCount } from "../../lib/format";
 import { t, type MessageKey } from "../../lib/i18n";
@@ -61,6 +62,8 @@ export function ColumnsPage() {
     for (const column of all) counts.set(column.type, (counts.get(column.type) ?? 0) + 1);
     return counts;
   }, [all]);
+  // 092: every column a reading rule changed (code and reason), said where the user checks types
+  const readingNotes = useMemo(() => columnReadingNotes(all), [all]);
   const reviewCount = all.filter(needsReview).length;
   const excludedCount = all.filter((column) => column.excluded).length;
 
@@ -146,6 +149,12 @@ export function ColumnsPage() {
         </p>
       )}
       {error && <ErrorNote>{error.message}</ErrorNote>}
+      <ReadingNotes
+        notes={readingNotes}
+        label={t("columns.readByRule")}
+        hint={t("columns.checkReading")}
+        limit={6}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative">

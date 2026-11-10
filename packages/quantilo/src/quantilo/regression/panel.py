@@ -291,7 +291,8 @@ def section(fit: Fitted) -> PanelTable:
         )
     if fit.ls is None:
         return _unavailable(
-            "Panel estimators are linear here: not for a yes/no target (R-REG-PAN-08)."
+            "Panel estimators are linear here: not for a yes/no target or a likelihood family "
+            "(Poisson, multinomial…); choose least squares in How › Model (R-REG-PAN-08)."
         )
     if fit.grouping.entity_codes is None or fit.grouping.period_codes is None:
         return _unavailable("The entity and period of the rows are missing.")

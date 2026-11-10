@@ -162,12 +162,12 @@ def summarize_record(
     storage_path: str, record: ColumnRecord, connection: duckdb.DuckDBPyConnection | None = None
 ) -> str:
     """The column's summary (JSON) in its effective type."""
-    analysis_type, _role, parser, order = effective(record)
+    analysis_type, role, parser, order = effective(record)
     own = connection is None
     duck = connection or duckdb.connect()
     try:
         source = f"read_parquet({lit(storage_path)})"
-        summary = summarize(duck, source, record.name, analysis_type, parser, order)
+        summary = summarize(duck, source, record.name, analysis_type, parser, order, role)
     finally:
         if own:
             duck.close()

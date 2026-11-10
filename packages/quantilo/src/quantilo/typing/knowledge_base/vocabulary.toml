@@ -24,6 +24,33 @@ outcome_names = [
   "subscribed", "clicked", "purchased", "retained", "active",
 ]
 
+# 092 (R-TYP-04): the head word of a column name (its last word, or its first when the name holds a
+# Romance function word: "Code du département") saying that whole numbers are a code, not a measure.
+# `code_words` give an identifier when values are unique, categories otherwise; the short ones
+# (`short_code_words`) only count in a name of at least two words ("patient_nbr", not "no").
+code_words = [
+  "id", "ids", "key", "code", "codes", "ref", "pid", "uid", "fips", "insee", "siren", "siret",
+  "no", "nr", "nbr", "num", "numero", "number",
+]
+short_code_words = ["no", "nr", "nbr", "num", "numero", "number"]
+category_words = [
+  "district", "districts", "board", "tract", "block", "lot", "precinct", "ward", "class",
+  "subclass", "category", "categorie", "type", "group", "groupe", "occupation", "profession",
+  "course", "mode", "sector", "secteur", "zone", "nationality", "nationalite", "nacionalidad",
+  "nacionalidade",
+]
+# Units and sizes: a name holding one measures ("sqft_lot" is the lot's area), never a code.
+unit_words = ["sqft", "sqm", "sq", "ft", "feet", "m2", "km", "kg", "lb", "lbs", "cm", "mm", "area",
+              "size", "surface", "length", "width", "height", "depth", "weight", "volume", "acres",
+              "hectares", "ha"]
+# Beginnings of a head word saying a category in any spelling ("Nacionality", "nazionalità").
+category_stems = ["nation", "nacion", "nazional"]
+function_words = ["de", "du", "des", "la", "le", "les", "d", "l", "del", "della", "di", "da", "do",
+                  "dos", "das"]
+# Words of a name that say a date or a time: never a code by the shape of its values (R-TYP-05).
+date_words = ["date", "time", "timestamp", "ts", "epoch", "datetime", "created", "updated",
+              "jour", "day", "heure"]
+
 # Pairs of words meaning true / false. A two-valued text column using one pair is boolean.
 [[boolean_pair]]
 true = ["true", "t"]

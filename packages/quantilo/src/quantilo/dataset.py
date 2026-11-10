@@ -55,6 +55,7 @@ from quantilo.experiments.service import ExperimentCandidates, ExperimentEngine,
 from quantilo.filters.model import Condition, Operator
 from quantilo.filters.scope import scoped_source, where_for
 from quantilo.ingestion.importer import import_to_parquet
+from quantilo.ingestion.normalize import copy_metadata, normalized_sql
 from quantilo.ingestion.options import CsvOptions, ImportOptions
 from quantilo.ingestion.sources import fingerprint, list_source_files
 from quantilo.ingestion.sql import lit
@@ -64,12 +65,14 @@ from quantilo.kpi.service import KpiEngine, Suggestions
 from quantilo.profiling.overview import Overview
 from quantilo.profiling.service import ProfilingService
 from quantilo.regression.analyze import (
+    FamilyAlternatives,
     InfluenceTable,
     MoreChecks,
     RegressionReport,
     StandardErrorTable,
     TermsTable,
 )
+from quantilo.regression.families import FamilyRequest
 from quantilo.regression.iv import IvTable
 from quantilo.regression.panel import PanelTable
 from quantilo.regression.rules import RegressionSuggestion, SeRequest
@@ -106,7 +109,7 @@ if TYPE_CHECKING:  # machine learning and synthetic data load on first use (scik
     from quantilo.segments.facade import FittedSegments, FoundUnusualRows, Segments
     from quantilo.synthetic.facade import Synthesizer
 
-DETECTION_VERSION = 2  # bump when detection changes, to ignore cached detections
+DETECTION_VERSION = 3  # bump when detection changes, to ignore cached detections
 
 
 def default_cache_dir() -> Path:
@@ -452,15 +455,27 @@ class Dataset:
         cluster: str | None = None,
         se: SeRequest = "auto",
         focus: str | None = None,
+        family: FamilyRequest = "auto",
+        exposure: str | None = None,
     ) -> RegressionReport:
         """Linear regression with inference (067): OLS, WLS for a weight column, logistic for a
         yes/no target; standard errors chosen by rule (HC3, clustered for a panel or a
         `cluster` column, HAC for a dated series), adjusted p-values, diagnostics in sentences.
         Without `target` or `columns`, they are picked from the correlations (R-REG-20/21).
         `weights=""` turns automatic weights off; `se` forces classic, hc0…hc3, hac, cluster,
-        cluster2 or dk."""
+        cluster2 or dk. `family` (069) forces ols, logit, probit, poisson, negbin, gamma,
+        log_ols, boxcox, fractional or mnlogit instead of the rules' choice (R-REG-01…07);
+        `exposure` names the offset of a count model (`""`: none, default: a column of role
+        exposure)."""
         request = RegressionRequest(
-            target, tuple(columns) if columns is not None else None, weights, cluster, se, focus
+            target,
+            tuple(columns) if columns is not None else None,
+            weights,
+            cluster,
+            se,
+            focus,
+            family,
+            exposure,
         )
         return self._regression_service().regression(self._id, request, self.conditions)
 
@@ -477,13 +492,29 @@ class Dataset:
         weights: str | None = None,
         cluster: str | None = None,
         se: SeRequest = "auto",
-    ) -> StandardErrorTable | InfluenceTable | TermsTable | MoreChecks | PanelTable:
+        family: FamilyRequest = "auto",
+        exposure: str | None = None,
+    ) -> (
+        StandardErrorTable
+        | InfluenceTable
+        | TermsTable
+        | MoreChecks
+        | PanelTable
+        | FamilyAlternatives
+    ):
         """An Advanced section of the same regression: standard_errors (every kind side by side),
         influence (the 20 most influential rows, DFBETAS), terms (references, left out, VIF),
         more (White's test, the fit without the influential rows), panel (071: fixed, first
-        differences, between and random effects, Mundlak and Hausman)."""
+        differences, between and random effects, Mundlak and Hausman), families (069: probit,
+        Box-Cox, fractional and multinomial logit on the same rows)."""
         request = RegressionRequest(
-            target, tuple(columns) if columns is not None else None, weights, cluster, se
+            target,
+            tuple(columns) if columns is not None else None,
+            weights,
+            cluster,
+            se,
+            family=family,
+            exposure=exposure,
         )
         return self._regression_service().section(self._id, section, request, self.conditions)
 
@@ -1017,9 +1048,11 @@ def from_arrow(
     try:
         connection.register("source_table", table)
         partial = folder / "from-memory.parquet.partial"
+        # R-ING-01 (092): times with a time zone stored in UTC, as on import
+        sql, notes = normalized_sql(connection, "SELECT * FROM source_table")
         connection.execute(
-            f"COPY (SELECT * FROM source_table) TO {lit(str(partial))} "
-            "(FORMAT parquet, COMPRESSION zstd)"
+            f"COPY ({sql}) TO {lit(str(partial))} "
+            f"(FORMAT parquet, COMPRESSION zstd{copy_metadata(notes)})"
         )
     finally:
         connection.close()

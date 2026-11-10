@@ -14,10 +14,12 @@ from quantilo.compare.multiple import MultipleTesting, correct
 from quantilo.correlations.evidence import Evidence, effect_size, grade
 from quantilo.regression import covariance as cov
 from quantilo.regression import diagnostics as dg
+from quantilo.regression import families as fm
 from quantilo.regression.covariance import LABELS, Kind
 from quantilo.regression.design import (
     INTERCEPT,
     Design,
+    DesignError,
     LeftOutTerm,
     MissingRows,
     ReferenceLevel,
@@ -44,12 +46,16 @@ from quantilo.regression.rules import (
     two_way_hint,
 )
 
-Model = Literal["ols", "wls", "logit"]
+Model = Literal[
+    "ols", "wls", "logit", "probit", "poisson", "negbin", "gamma", "log_ols", "boxcox",
+    "fractional", "mnlogit",
+]  # fmt: skip
 Status = Literal["ok", "warn", "bad", "info"]
 MODEL_LABELS: dict[Model, str] = {
     "ols": "Least squares (OLS)",
     "wls": "Weighted least squares (WLS)",
     "logit": "Logistic",
+    **{kind: fm.LABELS[kind] for kind in fm.FAMILIES if kind not in ("ols", "logit")},
 }
 FOLDS = 5
 SEED = 42
@@ -87,6 +93,14 @@ class Inputs:
     requested: SeRequest = "auto"
     focus: str | None = None
     weights_reason: str | None = None
+    # 069: the family of the model
+    target_role: str | None = None
+    outcomes: list[str] = field(default_factory=list)  # classes of a category target (codes in y)
+    family: fm.FamilyRequest = "auto"
+    exposure: str | None = None  # R-REG-02: its log is the offset of a count model
+    exposure_values: np.ndarray | None = None
+    exposure_reason: str | None = None
+    out_of_sample: bool = True  # off for the alternatives of Advanced › More
     period_order: np.ndarray | None = None  # 071: each row's period rank (first differences)
 
 
@@ -111,6 +125,10 @@ class RegressionCoefficient:
     marginal_low: float | None = None
     marginal_high: float | None = None
     sentence: str = ""
+    ratio: float | None = None  # 069: exp(b), rate ratio or multiplier (log link, log(y))
+    ratio_low: float | None = None
+    ratio_high: float | None = None
+    outcome: str | None = None  # multinomial logit: the class this coefficient is about
 
 
 @dataclass
@@ -131,6 +149,7 @@ class RegressionQuality:
     df_model: int
     df_resid: int
     pseudo_r2: float | None = None  # logistic: McFadden
+    pseudo_how: str | None = None  # 069: McFadden or deviance explained
 
 
 @dataclass
@@ -142,6 +161,7 @@ class RegressionCheck:
     rule: str | None = None
     action: str | None = None  # an Advanced section, "compare" or "correlations"
     column: str | None = None  # the column the action is about
+    family: str | None = None  # action "family": the family to switch to (069)
 
 
 @dataclass
@@ -156,6 +176,30 @@ class ResidualPlots:
     qq_sample: list[float]
     points: int  # drawn
     of: int  # rows used
+
+
+@dataclass
+class FamilyInfo:
+    """The family of the model (069): chosen by rule from the target, or in the settings."""
+
+    kind: str
+    label: str
+    rule: str | None
+    reason: str
+    reads: fm.Reads  # how the effects read: units, points of probability, ratios (%)
+    requested: str
+    target_kind: str
+    options: list[fm.FamilyOption]
+    exposure: str | None = None
+    exposure_reason: str | None = None
+    alpha: float | None = None  # negative binomial
+    dispersion: float | None = None  # counts: Pearson χ² / (n − k)
+    smearing: float | None = None  # log(y): Duan's factor
+    boxcox_lambda: float | None = None
+    boxcox_low: float | None = None
+    boxcox_high: float | None = None
+    outcomes: list[str] = field(default_factory=list)  # multinomial: the reference first
+    note: str | None = None
 
 
 @dataclass
@@ -179,6 +223,7 @@ class RegressionReport:
     structure: RowStructure
     hints: list[str] = field(default_factory=list)
     plots: ResidualPlots | None = None
+    family: FamilyInfo | None = None
 
 
 # --- Sections (Advanced) -------------------------------------------------------------------------
@@ -310,6 +355,15 @@ class Fitted:
     df: int  # degrees of freedom of the t intervals
     covariance: np.ndarray
     found: Influence | None
+    # 069: the family, its fit when it is not least squares, its target-specific numbers
+    family: fm.FamilyChoice | None = None
+    profile: fm.TargetProfile | None = None
+    glm: fm.GlmFit | None = None
+    transform: fm.Transform | None = None
+    original: np.ndarray | None = None  # the target before log or Box-Cox
+    smear: float | None = None
+    dispersion: fm.Overdispersion | None = None
+    negbin_aic: float | None = None
     result: RegressionReport = field(init=False)
 
 
@@ -359,6 +413,27 @@ def _logit_cov(kind: Kind, grouping: Grouping) -> tuple[str, Mapping[str, object
     return "HC0", {}
 
 
+def _mle_choice(choice: SeChoice, label: str) -> SeChoice:
+    """HC1–3 need the hat matrix of least squares: a likelihood model has its own sandwich."""
+    if choice.kind in ("classic", "hac", "cluster"):
+        return choice
+    model = "logistic" if label == MODEL_LABELS["logit"] else label
+    return replace(
+        choice,
+        kind="hc0",
+        label=LABELS["hc0"],
+        reason=choice.reason.replace("HC3", "a robust sandwich") + f" The {model} model uses HC0.",
+    )
+
+
+def _offset(inputs: Inputs, family: fm.Family) -> np.ndarray | None:
+    """R-REG-02: the log of the exposure, for counts (NaN where it is missing or ≤ 0)."""
+    if family not in fm.OFFSET or not inputs.exposure or inputs.exposure_values is None:
+        return None
+    values = inputs.exposure_values
+    return np.log(np.where(values > 0, values, np.nan))
+
+
 def run(inputs: Inputs) -> Fitted:
     extra: dict[str, np.ndarray] = {}
     weights = inputs.weight_values
@@ -373,6 +448,13 @@ def run(inputs: Inputs) -> Fitted:
         if inputs.period_codes is not None and inputs.shape.period:
             extra[inputs.shape.period] = inputs.period_codes
     design = build(inputs.y, inputs.variables, extra)
+    profile = fm.profile(design.y, inputs.binary, inputs.outcomes, inputs.target_role)
+    family = fm.choose(profile, inputs.family, inputs.target, inputs.binary)
+    offset_all = _offset(inputs, family.kind)
+    if offset_all is not None and inputs.exposure:
+        # R-REG-02: the exposure is the offset, not a column of the design
+        variables = [v for v in inputs.variables if v.name != inputs.exposure]
+        design = build(inputs.y, variables, {**extra, inputs.exposure: offset_all})
     for item in design.missing:
         if item.column == "target":
             item.column = inputs.target
@@ -386,16 +468,8 @@ def run(inputs: Inputs) -> Fitted:
     w = _used(weights, used) if inputs.weights else None
     n, k = design.x.shape
     choice = choose(inputs.requested, inputs.shape, grouping, n)
-    if inputs.binary is not None:
-        if choice.kind not in ("classic", "hac", "cluster"):
-            # HC1–3 need the hat matrix of least squares: the logistic model has its own sandwich
-            choice = replace(
-                choice,
-                kind="hc0",
-                label=LABELS["hc0"],
-                reason=choice.reason.replace("HC3", "a robust sandwich")
-                + " The logistic model uses HC0.",
-            )
+    if family.kind == "logit":
+        choice = _mle_choice(choice, MODEL_LABELS["logit"])
         cov_type, kwds = _logit_cov(choice.kind, grouping)
         if choice.kind == "hac":
             kwds = {"maxlags": choice.lag or cov.newey_west_lag(n)}
@@ -412,10 +486,50 @@ def run(inputs: Inputs) -> Fitted:
             found.cov,
             None,
         )
+    elif family.kind in fm.MLE:
+        choice = _mle_choice(choice, family.label)
+        cov_type, kwds = _logit_cov(choice.kind, grouping)
+        if choice.kind == "hac":
+            kwds = {"maxlags": choice.lag or cov.newey_west_lag(n)}
+        offset = _used(offset_all, used)
+        glm_weights = w if family.kind in fm.GLM_WEIGHTS else None
+        try:
+            glm = fm.fit(
+                family.kind, design.x, design.y, cov_type, kwds, offset, glm_weights,
+                inputs.outcomes or None,
+            )  # fmt: skip
+        except (np.linalg.LinAlgError, ValueError) as error:
+            raise DesignError(f"The {family.label} model could not be fitted: {error}") from error
+        fitted = Fitted(
+            inputs,
+            design,
+            cast(Model, family.kind),
+            None,
+            None,
+            grouping,
+            choice,
+            _df(choice, n, k),
+            glm.cov,
+            None,
+        )
+        fitted.glm = glm
+        if family.kind == "poisson":
+            fitted.dispersion = fm.overdispersion(design.y, glm.mu, k)
+            if fm.overdispersed(fitted.dispersion):
+                # R-REG-03: the negative binomial is proposed, compared in AIC
+                try:
+                    fitted.negbin_aic = fm.fit(
+                        "negbin", design.x, design.y, "nonrobust", None, offset
+                    ).aic
+                except (np.linalg.LinAlgError, ValueError):
+                    fitted.negbin_aic = None
     else:
+        changed = fm.transform(family.kind, design.x, design.y, w)
+        original = design.y
+        if family.kind != "ols":
+            design = replace(design, y=changed.y)
         ls = least_squares(design.x, design.y, w)
-        matrix = covariance_of(choice.kind, ls, grouping, inputs.shape)
-        model: Model = "wls" if w is not None else "ols"
+        model: Model = "wls" if w is not None and family.kind == "ols" else cast(Model, family.kind)
         fitted = Fitted(
             inputs,
             design,
@@ -425,9 +539,14 @@ def run(inputs: Inputs) -> Fitted:
             grouping,
             choice,
             _df(choice, n, k),
-            matrix,
+            covariance_of(choice.kind, ls, grouping, inputs.shape),
             influence(ls.arrays),
         )
+        if family.kind != "ols":
+            fitted.transform, fitted.original = changed, original
+        if family.kind == "log_ols":
+            fitted.smear = fm.smearing(ls.resid, w)
+    fitted.family, fitted.profile = family, profile
     fitted.result = finite(_result(fitted))
     return fitted
 
@@ -447,6 +566,8 @@ def _interval(
 
 
 def _terms(fit: Fitted) -> list[RegressionCoefficient]:
+    if fit.glm is not None:
+        return _glm_terms(fit, fit.glm)
     design, df = fit.design, fit.df
     beta = fit.logit.beta if fit.logit is not None else fit.ls.beta  # type: ignore[union-attr]
     ses = np.sqrt(np.clip(np.diag(fit.covariance), 0, None))
@@ -480,12 +601,68 @@ def _terms(fit: Fitted) -> list[RegressionCoefficient]:
                 term.standardized = b * scale
                 if low is not None and high is not None:
                     term.std_low, term.std_high = low * scale, high * scale
+        if fit.transform is not None and fit.transform.kind == "log_ols":
+            term.ratio = _exp(b)
+            term.ratio_low, term.ratio_high = _exp(low), _exp(high)
         terms.append(term)
     return terms
 
 
+def _exp(value: float | None) -> float | None:
+    return math.exp(value) if value is not None and value < 700 else None
+
+
+def _glm_terms(fit: Fitted, glm: fm.GlmFit) -> list[RegressionCoefficient]:
+    """069: coefficients of a likelihood family; the multinomial logit gives one block per class
+    against the reference, named `class · term`."""
+    design, df = fit.design, fit.df
+    kind = glm.kind
+    ses = np.sqrt(np.clip(np.diag(fit.covariance), 0, None))
+    sd_x = design.x.std(axis=0)
+    k = design.x.shape[1]
+    equations = len(glm.beta) // k
+    reads = fm.READS[kind]
+    terms: list[RegressionCoefficient] = []
+    for e in range(equations):
+        outcome = glm.outcomes[e + 1] if kind == "mnlogit" else None
+        if kind == "mnlogit":
+            codes = glm.codes if glm.codes is not None else design.y.astype(int)
+            share = float((codes == e + 1).mean())
+            sd_y = math.sqrt(share * (1 - share)) or 1.0
+        elif reads == "points":
+            mean = float(design.y.mean())
+            sd_y = math.sqrt(max(mean * (1 - mean), 0)) or 1.0
+        else:
+            sd_y = float(design.y.std()) or 1.0
+        for j in range(k):
+            i = e * k + j
+            b = float(glm.beta[i])
+            se = float(ses[i]) if math.isfinite(ses[i]) else None
+            low, high, t, p = _interval(b, se, df)
+            name = design.terms[j] if outcome is None else f"{outcome} · {design.terms[j]}"
+            term = RegressionCoefficient(
+                name, design.columns[j], design.levels[j], b, se, low, high, t, p, outcome=outcome
+            )
+            if j > 0:
+                ame = float(glm.marginal[i])
+                ame_se = float(glm.marginal_se[i])
+                if math.isfinite(ame):
+                    ame_low, ame_high, _, _ = _interval(ame, ame_se, df)
+                    term.marginal, term.marginal_low, term.marginal_high = ame, ame_low, ame_high
+                    scale = sd_x[j] / sd_y
+                    term.standardized = ame * scale
+                    if ame_low is not None and ame_high is not None:
+                        term.std_low, term.std_high = ame_low * scale, ame_high * scale
+                if reads == "ratio":
+                    term.ratio, term.ratio_low, term.ratio_high = _exp(b), _exp(low), _exp(high)
+                elif kind in ("fractional", "mnlogit"):
+                    term.odds_ratio = _exp(b)
+            terms.append(term)
+    return terms
+
+
 def _adjust(terms: list[RegressionCoefficient]) -> MultipleTesting:
-    body = terms[1:]
+    body = [t for t in terms if t.column != INTERCEPT]
     adjusted, summary = correct([t.p_value for t in body], noun="effects")
     for term, q in zip(body, adjusted, strict=True):
         term.q_value = q
@@ -503,6 +680,11 @@ def _sentence(
 ) -> str:
     target = fit.inputs.target
     ci = f"[{fmt(term.ci_low)} ; {fmt(term.ci_high)}]"
+    if fit.family is not None and fit.family.kind not in ("ols", "logit"):
+        text = _family_sentence(term, fit, references)
+        if term.column != INTERCEPT and term.q_value is not None and term.q_value >= 0.05:
+            text += f" Not clear after correcting for {tests} tests (adj. p = {term.q_value:.2g})."
+        return text
     if term.term == INTERCEPT:
         return (
             f"With every column at 0 (and categories at their reference), `{target}` is "
@@ -551,6 +733,108 @@ def _sentence(
     return text
 
 
+def _pct(value: float | None) -> str:
+    """A ratio as a signed change: 1.12 → "+12 %"."""
+    if value is None:
+        return "—"
+    change = (value - 1) * 100
+    return f"{'+' if change >= 0 else '−'}{fmt(abs(change))} %"
+
+
+def _family_sentence(term: RegressionCoefficient, fit: Fitted, references: dict[str, str]) -> str:
+    """069: an effect read in the family's own terms (points of probability, %, Box-Cox units)."""
+    assert fit.family is not None
+    kind, target = fit.family.kind, fit.inputs.target
+    glm = fit.glm
+    exposed = glm is not None and glm.offset is not None
+    rate = " per unit of exposure" if exposed else ""
+    b, low, high = term.estimate, term.ci_low, term.ci_high
+    lam = fit.transform.lam if fit.transform is not None else None
+    if term.column == INTERCEPT:
+        start = "With every column at 0 (and categories at their reference), "
+        if kind in ("poisson", "negbin", "gamma"):
+            return (
+                f"{start}the expected `{target}`{rate} is {fmt(_exp(b))} "
+                f"[{fmt(_exp(low))} ; {fmt(_exp(high))}]."
+            )
+        if kind == "log_ols":
+            smear = fit.smear or 1.0
+            centre = _exp(b)
+            return (
+                f"{start}`{target}` is about {fmt(centre * smear if centre else None)} "
+                f"(geometric mean {fmt(centre)} × Duan's smearing factor {smear:.3f})."
+            )
+        if kind == "boxcox" and lam is not None:
+            return (
+                f"{start}the Box-Cox transform of `{target}` (λ = {lam:.2f}) is {fmt(b)}, about "
+                f"{fmt(fm.boxcox_inverse(b, lam))} in units."
+            )
+        if kind == "mnlogit" and glm is not None:
+            return (
+                f"{start}the log-odds of `{target}` = {term.outcome} against "
+                f"{glm.outcomes[0]} are {fmt(b)}."
+            )
+        level = float(stats.norm.cdf(b)) if kind == "probit" else 1 / (1 + math.exp(-b))
+        what = "share" if kind == "fractional" else "probability"
+        return f"{start}the {what} of `{target}` is {fmt(level * 100)} %."
+    reference = references.get(term.column, "the reference")
+    level = term.level
+    if fit.family.reads == "points":
+        if kind == "mnlogit":
+            what = f"the probability of `{target}` = {term.outcome}"
+        elif kind == "fractional":
+            what = f"the share `{target}`"
+        else:
+            positive = fit.inputs.binary[1] if fit.inputs.binary else "yes"
+            what = f"the probability of `{target}` = {positive}"
+        value = (term.marginal or 0.0) * 100
+        ci = f"[{fmt((term.marginal_low or 0) * 100)} ; {fmt((term.marginal_high or 0) * 100)}]"
+        odds = f" (odds × {fmt(term.odds_ratio)})" if term.odds_ratio is not None else ""
+        if level is None:
+            way = "raises" if value >= 0 else "lowers"
+            return (
+                f"Each extra unit of `{term.column}` {way} {what} by {fmt(abs(value))} points "
+                f"{ci} on average{odds}, other columns held fixed."
+            )
+        side = "higher" if value >= 0 else "lower"
+        return (
+            f"With `{term.column}` = {level}, {what} is {fmt(abs(value))} points {side} {ci} "
+            f"than with {reference}{odds}, other columns held fixed."
+        )
+    if fit.family.reads == "ratio":
+        what = f"`{target}`" if kind == "log_ols" else f"the expected `{target}`{rate}"
+        ci = f"[{_pct(term.ratio_low)} ; {_pct(term.ratio_high)}]"
+        if level is None:
+            return (
+                f"Each extra unit of `{term.column}` multiplies {what} by {fmt(term.ratio)} "
+                f"({_pct(term.ratio)}) {ci}, other columns held fixed."
+            )
+        return (
+            f"With `{term.column}` = {level}, {what} is {_pct(term.ratio)} {ci} against "
+            f"{reference}, other columns held fixed."
+        )
+    # Box-Cox: the transform's units, and what it means at the median of the target
+    ci = f"[{fmt(low)} ; {fmt(high)}]"
+    median = float(np.median(fit.original)) if fit.original is not None else math.nan
+    slope = b * median ** (1 - lam) if lam is not None and median > 0 else None
+    near = (
+        f": about {'+' if (slope or 0) >= 0 else '−'}{fmt(abs(slope))} on `{target}` at its "
+        f"median ({fmt(median)})"
+        if slope is not None
+        else ""
+    )
+    lam_text = f"λ = {lam:.2f}" if lam is not None else "Box-Cox"
+    if level is None:
+        return (
+            f"Each extra unit of `{term.column}` adds {fmt(b)} to the Box-Cox transform of "
+            f"`{target}` ({lam_text}) {ci}{near}, other columns held fixed."
+        )
+    return (
+        f"With `{term.column}` = {level}, the Box-Cox transform of `{target}` ({lam_text}) is "
+        f"{fmt(b)} {ci} away from {reference}{near}, other columns held fixed."
+    )
+
+
 # --- Quality -------------------------------------------------------------------------------------
 
 
@@ -578,9 +862,15 @@ def folds(fit_inputs: Inputs, grouping: Grouping, n: int) -> tuple[list[np.ndarr
 def out_of_sample(fit: Fitted) -> tuple[float | None, str]:
     x, y = fit.design.x, fit.design.y
     n = len(y)
+    if not fit.inputs.out_of_sample:
+        return None, "not computed for an alternative"
     if n < 2 * FOLDS:
         return None, "too few rows"
     parts, how = folds(fit.inputs, fit.grouping, n)
+    if fit.glm is not None:
+        g = fit.glm
+        values = g.codes.astype(float) if g.codes is not None else y
+        return fm.out_of_sample(g.kind, x, values, parts, g.offset, g.weights), how
     w = fit.ls.weights if fit.ls is not None else None
     loss = base = 0.0
     for test in parts:
@@ -607,18 +897,26 @@ def out_of_sample(fit: Fitted) -> tuple[float | None, str]:
     return (1 - loss / base if base > 0 else None), how
 
 
+def _beta(fit: Fitted) -> np.ndarray:
+    if fit.glm is not None:
+        return fit.glm.beta
+    return fit.logit.beta if fit.logit is not None else fit.ls.beta  # type: ignore[union-attr]
+
+
 def _wald(fit: Fitted) -> tuple[float | None, float | None]:
-    k = fit.design.x.shape[1]
-    if k < 2:
+    beta = _beta(fit)
+    intercepts = fit.glm.intercepts if fit.glm is not None else [0]
+    keep = [i for i in range(len(beta)) if i not in intercepts]
+    if not keep:
         return None, None
-    beta = fit.logit.beta if fit.logit is not None else fit.ls.beta  # type: ignore[union-attr]
-    b = beta[1:]
-    v = fit.covariance[1:, 1:]
+    b = beta[keep]
+    v = fit.covariance[np.ix_(keep, keep)]
+    q = len(keep)
     try:
-        f = float(b @ np.linalg.pinv(v) @ b) / (k - 1)
+        f = float(b @ np.linalg.pinv(v) @ b) / q
     except np.linalg.LinAlgError:
         return None, None
-    return f, float(stats.f.sf(f, k - 1, fit.df))
+    return f, float(stats.f.sf(f, q, fit.df))
 
 
 def _quality(fit: Fitted) -> RegressionQuality:
@@ -626,6 +924,28 @@ def _quality(fit: Fitted) -> RegressionQuality:
     n, k = design.x.shape
     oos, how = out_of_sample(fit)
     f, f_p = _wald(fit)
+    if fit.glm is not None:
+        g = fit.glm
+        params = len(g.beta)
+        return RegressionQuality(
+            n,
+            inputs.loaded,
+            inputs.total,
+            inputs.sampled,
+            design.missing,
+            None,
+            None,
+            oos,
+            how,
+            g.aic,
+            g.bic,
+            f,
+            f_p,
+            params - len(g.intercepts),
+            n - params,
+            g.pseudo_r2,
+            g.pseudo_how,
+        )
     if fit.logit is not None:
         lg = fit.logit
         return RegressionQuality(
@@ -676,7 +996,11 @@ def _checks(fit: Fitted, quality: RegressionQuality) -> list[RegressionCheck]:
     checks: list[RegressionCheck] = []
     design, inputs, se = fit.design, fit.inputs, fit.se
     n = len(design.y)
-    if fit.logit is not None and fit.logit.separated:
+    checks.extend(_family_checks(fit))
+    separated = (fit.logit is not None and fit.logit.separated) or (
+        fit.glm is not None and fit.glm.separated
+    )
+    if separated:
         checks.append(
             RegressionCheck(
                 "separation",
@@ -943,6 +1267,35 @@ def _checks(fit: Fitted, quality: RegressionQuality) -> list[RegressionCheck]:
     return checks
 
 
+def _family_checks(fit: Fitted) -> list[RegressionCheck]:
+    """069: what the target says about the family (R-REG-03, 04, 05), and a fit that did not
+    converge."""
+    if fit.family is None or fit.profile is None:
+        return []
+    found = [
+        RegressionCheck(h.key, h.status, h.title, h.sentence, h.rule, h.action, None, h.family)
+        for h in fm.hints(
+            fit.profile,
+            fit.family.kind,
+            fit.inputs.target,
+            fit.dispersion,
+            fit.glm.aic if fit.glm is not None else None,
+            fit.negbin_aic,
+        )
+    ]
+    if fit.glm is not None and not fit.glm.converged:
+        found.append(
+            RegressionCheck(
+                "convergence",
+                "warn",
+                "Convergence",
+                f"The {fit.family.label} fit stopped before converging: read the coefficients "
+                "with care, or leave out a column with rare levels.",
+            )
+        )
+    return found
+
+
 # --- Plots ---------------------------------------------------------------------------------------
 
 
@@ -987,7 +1340,64 @@ def _model_reason(fit: Fitted) -> str:
         )
     if fit.model == "wls":
         return inputs.weights_reason or f"R-REG-SE-04: rows weighted by `{inputs.weights}`."
+    if fit.family is not None:
+        reason = fit.family.reason
+        if inputs.weights and not _weighted(fit):
+            reason += f" The {fit.family.label} model does not use the weights."
+        return reason
     return "A number to explain: least squares, in the units of the data."
+
+
+def _weighted(fit: Fitted) -> bool:
+    if fit.glm is not None:
+        return fit.glm.weights is not None
+    return fit.ls is not None and fit.ls.weights is not None
+
+
+def _family_info(fit: Fitted) -> FamilyInfo | None:
+    """069: the family as the page shows it, with its options and its own numbers."""
+    family, p = fit.family, fit.profile
+    if family is None or p is None:
+        return None
+    inputs = fit.inputs
+    info = FamilyInfo(
+        family.kind,
+        family.label,
+        family.rule,
+        _model_reason(fit),
+        family.reads,
+        family.requested,
+        p.kind,
+        fm.options(p),
+    )
+    if fit.glm is not None:
+        info.alpha = fit.glm.alpha
+        info.outcomes = fit.glm.outcomes
+        if fit.glm.offset is not None:
+            info.exposure = inputs.exposure
+            info.exposure_reason = inputs.exposure_reason
+    if fit.dispersion is not None:
+        info.dispersion = fit.dispersion.ratio
+    target = inputs.target
+    if fit.transform is not None and fit.transform.kind == "log_ols":
+        info.smearing = fit.smear
+        info.note = (
+            f"R², residuals and checks are on log(`{target}`); Duan's smearing factor "
+            f"{(fit.smear or 1):.3f} brings predictions back to units."
+        )
+    elif fit.transform is not None and fit.transform.kind == "boxcox":
+        t = fit.transform
+        info.boxcox_lambda, info.boxcox_low, info.boxcox_high = t.lam, t.lam_low, t.lam_high
+        interval = (
+            f" [{t.lam_low:.2f} ; {t.lam_high:.2f}]"
+            if t.lam_low is not None and t.lam_high is not None
+            else ""
+        )
+        info.note = (
+            f"Box-Cox λ = {(t.lam or 0):.2f}{interval} (profile likelihood): R², residuals and "
+            f"checks are on the transform of `{target}`."
+        )
+    return info
 
 
 def _result(fit: Fitted) -> RegressionReport:
@@ -1015,7 +1425,21 @@ def _result(fit: Fitted) -> RegressionReport:
         sentence = f"No column has a clear effect on `{inputs.target}`. {multiple.sentence}"
     else:
         sentence = f"No column left to explain `{inputs.target}`."
+    if fit.family is not None and fit.family.kind != "ols":
+        # 069: the family leads the first-plane sentence, with its rule
+        why = fit.family.rule or "chosen in the settings"
+        sentence = f"{fit.family.label} model ({why}). {sentence}"
     hints = [h for h in [two_way_hint(inputs.shape)] if h]
+    left_out = [*inputs.refused, *design.left_out]
+    exposure = inputs.exposure if fit.glm is not None and fit.glm.offset is not None else None
+    if exposure and any(v.name == exposure for v in inputs.variables):
+        left_out.append(
+            LeftOutTerm(
+                exposure,
+                exposure,
+                "the exposure: its log is the offset of the count model (R-REG-02)",
+            )
+        )
     return RegressionReport(
         inputs.target,
         inputs.binary[1] if inputs.binary else None,
@@ -1026,16 +1450,17 @@ def _result(fit: Fitted) -> RegressionReport:
         inputs.focus,
         terms,
         fit.se,
-        inputs.weights if fit.model == "wls" else None,
+        inputs.weights if _weighted(fit) else None,
         quality,
         multiple,
         sentence,
         _checks(fit, quality),
         design.references,
-        [*inputs.refused, *design.left_out],
+        left_out,
         inputs.shape,
         hints,
         _plots(fit),
+        _family_info(fit),
     )
 
 
@@ -1064,7 +1489,8 @@ def standard_errors(fit: Fitted) -> StandardErrorTable:
         if missing is not None:
             kinds.append(SeColumn(kind, LABELS[kind], False, missing, False, [], []))
             continue
-        if fit.logit is not None and kind not in ("classic", "hc0", "hac", "cluster"):
+        likelihood = fit.logit is not None or fit.glm is not None
+        if likelihood and kind not in ("classic", "hc0", "hac", "cluster"):
             kinds.append(SeColumn(kind, LABELS[kind], False, "least squares only", False, [], []))
             continue
         if kind == fit.se.kind:
@@ -1076,6 +1502,16 @@ def standard_errors(fit: Fitted) -> StandardErrorTable:
             if kind == "hac":
                 kwds = {"maxlags": cov.newey_west_lag(n)}
             matrix = logistic(fit.design.x, fit.design.y, cov_type, kwds).cov
+        elif fit.glm is not None:
+            g = fit.glm
+            choice = choose(kind, fit.inputs.shape, fit.grouping, n)
+            cov_type, kwds = _logit_cov(kind, fit.grouping)
+            if kind == "hac":
+                kwds = {"maxlags": cov.newey_west_lag(n)}
+            matrix = fm.fit(
+                g.kind, fit.design.x, fit.design.y, cov_type, kwds, g.offset, g.weights,
+                fit.inputs.outcomes or None,
+            ).cov  # fmt: skip
         else:
             assert fit.ls is not None
             choice = choose(kind, fit.inputs.shape, fit.grouping, n)
@@ -1184,3 +1620,89 @@ def more(fit: Fitted) -> MoreChecks:
         else "No influential row to leave out."
     )
     return MoreChecks(test, white_sentence, removed, shifts, shift_sentence)
+
+
+# --- Other families (Advanced › More, 069) -------------------------------------------------------
+
+MAX_EFFECTS = 12
+
+
+@dataclass
+class AlternativeEffect:
+    term: str
+    value: float | None  # in the reading of the family: points, % change or units
+    low: float | None
+    high: float | None
+
+
+@dataclass
+class FamilyAlternative:
+    kind: str
+    label: str
+    available: bool
+    reason: str  # what it is for, or why it cannot be fitted
+    reads: fm.Reads
+    sentence: str = ""
+    aic: float | None = None
+    pseudo_r2: float | None = None
+    r2: float | None = None
+    note: str | None = None
+    effects: list[AlternativeEffect] = field(default_factory=list)
+    error: str | None = None
+
+
+@dataclass
+class FamilyAlternatives:
+    current: str
+    alternatives: list[FamilyAlternative]
+    sentence: str
+
+
+def _reading(term: RegressionCoefficient, reads: fm.Reads) -> AlternativeEffect:
+    if reads == "points":
+        scale = [None if v is None else v * 100 for v in (term.marginal, term.marginal_low,
+                                                         term.marginal_high)]  # fmt: skip
+        return AlternativeEffect(term.term, *scale)
+    if reads == "ratio":
+        change = [None if v is None else (v - 1) * 100 for v in (term.ratio, term.ratio_low,
+                                                                term.ratio_high)]  # fmt: skip
+        return AlternativeEffect(term.term, *change)
+    return AlternativeEffect(term.term, term.estimate, term.ci_low, term.ci_high)
+
+
+def family_alternatives(fit: Fitted) -> FamilyAlternatives:
+    """The niche families (probit, Box-Cox, fractional logit, multinomial logit) fitted on the
+    same rows and columns, each with its strongest effect: computed only when More is opened."""
+    current = fit.family.kind if fit.family is not None else fit.model
+    p = fit.profile
+    found: list[FamilyAlternative] = []
+    for option in fm.options(p) if p is not None else []:
+        if not option.exotic or option.kind == current:
+            continue
+        reads = fm.READS[option.kind]
+        if not option.available:
+            found.append(FamilyAlternative(option.kind, option.label, False, option.reason, reads))
+            continue
+        alternative = FamilyAlternative(option.kind, option.label, True, option.reason, reads)
+        try:
+            other = run(replace(fit.inputs, family=option.kind, out_of_sample=False)).result
+        except (DesignError, fm.FamilyError, ValueError, np.linalg.LinAlgError) as error:
+            alternative.error = str(error)
+            found.append(alternative)
+            continue
+        alternative.sentence = other.sentence
+        alternative.aic = other.quality.aic
+        alternative.pseudo_r2 = other.quality.pseudo_r2
+        alternative.r2 = other.quality.r2
+        alternative.note = other.family.note if other.family is not None else None
+        alternative.effects = [_reading(t, reads) for t in other.terms if t.column != INTERCEPT][
+            :MAX_EFFECTS
+        ]
+        found.append(alternative)
+    fitted = sum(1 for a in found if a.available and a.error is None)
+    sentence = (
+        f"{_plural(fitted, 'other family')} fitted on the same rows and columns, for comparison."
+        if fitted
+        else "No other family fits this target."
+    )
+    return FamilyAlternatives(current, found, sentence)

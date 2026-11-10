@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import type {
   Regression,
+  RegressionFamilies,
   RegressionInfluence,
   RegressionMore,
   RegressionParams,
@@ -29,6 +30,8 @@ type AdvancedProps = {
   opened: RegressionSection[];
   onToggle: (section: RegressionSection) => void;
   onUse: (kind: RegressionSe) => void;
+  /** 069: refit with another family (a niche one from More). */
+  onFamily: (family: string) => void;
 };
 
 const TITLES: Record<RegressionSection, MessageKey> = {
@@ -36,6 +39,7 @@ const TITLES: Record<RegressionSection, MessageKey> = {
   terms: "regression.section.terms",
   influence: "regression.section.influence",
   more: "regression.section.more",
+  families: "regression.section.families",
   panel: "regression.section.panel",
 };
 const HINTS: Record<RegressionSection, MessageKey> = {
@@ -43,11 +47,12 @@ const HINTS: Record<RegressionSection, MessageKey> = {
   terms: "regression.section.termsHint",
   influence: "regression.section.influenceHint",
   more: "regression.section.moreHint",
+  families: "regression.section.familiesHint",
   panel: "regression.section.panelHint",
 };
 
 /** Advanced (068): each section is asked for when it is opened, More only when More is (onion). */
-export function Advanced({ datasetId, params, result, opened, onToggle, onUse }: AdvancedProps) {
+export function Advanced({ datasetId, params, result, opened, onToggle, onUse, onFamily }: AdvancedProps) {
   const fold = (section: RegressionSection, body: ReactNode, nested = false) => {
     const open = opened.includes(section);
     return (
@@ -73,7 +78,15 @@ export function Advanced({ datasetId, params, result, opened, onToggle, onUse }:
       {fold("terms", <TermsSection datasetId={datasetId} params={params} />)}
       {fold("influence", <InfluenceSection datasetId={datasetId} params={params} rows={result.quality.rows} />)}
       <div className="border-t border-line p-3">
-        {fold("more", <MoreSection datasetId={datasetId} params={params} result={result} />, true)}
+        {fold(
+          "more",
+          <div className="space-y-4">
+            <MoreSection datasetId={datasetId} params={params} result={result} />
+            {/* 069: the niche families, asked for only once More is open (onion rule) */}
+            <FamiliesSection datasetId={datasetId} params={params} onFamily={onFamily} />
+          </div>,
+          true,
+        )}
       </div>
     </div>
   );
@@ -309,8 +322,88 @@ function MoreSection({ datasetId, params, result }: { datasetId: string; params:
           </table>
         </div>
       )}
-      {result.model === "logit" && <p className="text-xs text-ink-3">{t("regression.moreLogit")}</p>}
+      {!LEAST_SQUARES.has(result.model) && <p className="text-xs text-ink-3">{t("regression.moreLogit")}</p>}
       <Instruments datasetId={datasetId} params={params} result={result} />
     </div>
+  );
+}
+
+const LEAST_SQUARES = new Set<string>(["ols", "wls", "log_ols", "boxcox"]);
+
+/** 069: probit, Box-Cox, fractional and multinomial logit on the same rows, each with its
+ *  strongest effect and "Use"; those the target does not admit say why. */
+function FamiliesSection({ datasetId, params, onFamily }: { datasetId: string; params: RegressionParams; onFamily: (family: string) => void }) {
+  const query = useSection(datasetId, "families", params);
+  const data: RegressionFamilies | undefined = query.data;
+  if (!data) return <Pending error={query.error} />;
+  const fitted = data.alternatives.filter((a) => a.available);
+  const missing = data.alternatives.filter((a) => !a.available);
+  const unit = (reads: string) => (reads === "points" ? t("regression.ame") : reads === "ratio" ? t("regression.percent") : t("regression.estimate"));
+  return (
+    <section className="space-y-2 text-[13px]" aria-label={t("regression.section.families")}>
+      <h3 className="text-xs font-medium text-ink-2">{t("regression.section.families")}</h3>
+      <p className="text-ink-2">{data.sentence}</p>
+      {fitted.map((family) => (
+        <div key={family.kind} className="space-y-1.5 rounded-md border border-line p-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="font-medium text-ink-1">{family.label}</span>
+            <span className="flex items-center gap-3 text-xs text-ink-3 tabular-nums">
+              {family.aic !== null && <span>AIC {formatNumber(family.aic)}</span>}
+              {family.pseudo_r2 !== null && <span>{t("regression.pseudoR2")} {family.pseudo_r2.toFixed(3)}</span>}
+              {family.r2 !== null && <span>R² {family.r2.toFixed(3)}</span>}
+              {family.error === null && (
+                <button type="button" className="text-accent hover:underline" onClick={() => onFamily(family.kind)}>
+                  {t("regression.useFamily")}
+                </button>
+              )}
+            </span>
+          </div>
+          <p className="text-xs text-ink-3">{family.reason}</p>
+          {family.error !== null ? (
+            <ErrorNote>{t("regression.familyError", { error: family.error })}</ErrorNote>
+          ) : (
+            <>
+              <p className="text-ink-2">
+                <Sentence text={family.sentence} />
+              </p>
+              {family.note && <p className="text-xs text-ink-3">{family.note}</p>}
+              {family.effects.length > 0 && (
+                <div className="overflow-x-auto rounded-md border border-line">
+                  <table className="w-full border-collapse">
+                    <thead className="bg-surface-2 text-left text-xs text-ink-3">
+                      <tr>
+                        <th scope="col" className={th}>{t("regression.term")}</th>
+                        <th scope="col" className={`${th} text-right`}>{unit(family.reads)}</th>
+                        <th scope="col" className={`${th} text-right`}>{t("regression.ci")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {family.effects.map((effect) => (
+                        <tr key={effect.term} className="border-t border-line">
+                          <td className="px-3 py-1.5 font-mono text-xs break-words">{effect.term}</td>
+                          <td className={`${td} text-right text-ink-1`}>{formatNumber(effect.value)}</td>
+                          <td className={`${td} text-right whitespace-nowrap text-ink-2`}>
+                            [{formatNumber(effect.low)} ; {formatNumber(effect.high)}]
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      ))}
+      {missing.length > 0 && (
+        <ul className="space-y-0.5 text-xs text-ink-3">
+          {missing.map((family) => (
+            <li key={family.kind}>
+              <span className="text-ink-2">{family.label}</span> · {family.reason}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

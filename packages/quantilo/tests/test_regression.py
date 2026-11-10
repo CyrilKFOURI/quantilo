@@ -214,9 +214,10 @@ def test_yes_no_target_is_logistic(tmp_path):
 
 
 def test_categories_with_many_levels_are_refused_as_target(tmp_path):
-    frame = pd.DataFrame({"kind": list("abc") * 50, "x": np.arange(150.0)})
+    # 3 to 10 levels take the multinomial logit (069, R-REG-07); beyond, the target is refused
+    frame = pd.DataFrame({"kind": [f"k{i % 11}" for i in range(220)], "x": np.arange(220.0)})
     ds = dx.from_pandas(frame, cache_dir=tmp_path)
-    with pytest.raises(RegressionError, match="3 levels"):
+    with pytest.raises(RegressionError, match="11 levels"):
         ds.regression("kind", ["x"])
 
 

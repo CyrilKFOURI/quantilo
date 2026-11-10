@@ -662,6 +662,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/regression/families": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Families
+         * @description Advanced > More > Other families (069, computed only when opened): probit, Box-Cox,
+         *     fractional and multinomial logit on the same rows, or why they do not apply.
+         */
+        get: operations["families_api_v1_datasets__dataset_id__regression_families_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/datasets/{dataset_id}/regression/panel": {
         parameters: {
             query?: never;
@@ -3620,6 +3641,17 @@ export interface components {
             message: string;
             /** Columns */
             columns?: string[];
+        };
+        /** AlternativeEffect */
+        AlternativeEffect: {
+            /** Term */
+            term: string;
+            /** Value */
+            value: number | null;
+            /** Low */
+            low: number | null;
+            /** High */
+            high: number | null;
         };
         /** AnomalyRow */
         AnomalyRow: {
@@ -6901,6 +6933,109 @@ export interface components {
             /** Positive */
             positive: string | null;
         };
+        /** FamilyAlternative */
+        FamilyAlternative: {
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string;
+            /**
+             * Reads
+             * @enum {string}
+             */
+            reads: "units" | "points" | "ratio";
+            /**
+             * Sentence
+             * @default
+             */
+            sentence: string;
+            /** Aic */
+            aic?: number | null;
+            /** Pseudo R2 */
+            pseudo_r2?: number | null;
+            /** R2 */
+            r2?: number | null;
+            /** Note */
+            note?: string | null;
+            /** Effects */
+            effects?: components["schemas"]["AlternativeEffect"][];
+            /** Error */
+            error?: string | null;
+        };
+        /** FamilyAlternatives */
+        FamilyAlternatives: {
+            /** Current */
+            current: string;
+            /** Alternatives */
+            alternatives: components["schemas"]["FamilyAlternative"][];
+            /** Sentence */
+            sentence: string;
+        };
+        /**
+         * FamilyInfo
+         * @description The family of the model (069): chosen by rule from the target, or in the settings.
+         */
+        FamilyInfo: {
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /** Rule */
+            rule: string | null;
+            /** Reason */
+            reason: string;
+            /**
+             * Reads
+             * @enum {string}
+             */
+            reads: "units" | "points" | "ratio";
+            /** Requested */
+            requested: string;
+            /** Target Kind */
+            target_kind: string;
+            /** Options */
+            options: components["schemas"]["FamilyOption"][];
+            /** Exposure */
+            exposure?: string | null;
+            /** Exposure Reason */
+            exposure_reason?: string | null;
+            /** Alpha */
+            alpha?: number | null;
+            /** Dispersion */
+            dispersion?: number | null;
+            /** Smearing */
+            smearing?: number | null;
+            /** Boxcox Lambda */
+            boxcox_lambda?: number | null;
+            /** Boxcox Low */
+            boxcox_low?: number | null;
+            /** Boxcox High */
+            boxcox_high?: number | null;
+            /** Outcomes */
+            outcomes?: string[];
+            /** Note */
+            note?: string | null;
+        };
+        /** FamilyOption */
+        FamilyOption: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
+            /** Label */
+            label: string;
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string;
+            /** Exotic */
+            exotic: boolean;
+        };
         /** FigureChange */
         FigureChange: {
             /** Id */
@@ -9287,6 +9422,9 @@ export interface components {
          *     - boolean: text mapped with true/false vocabularies (empty lists: cast the value)
          *     - year: integer year → date (January 1st)
          *     - text: the value as text, null tokens removed
+         *     - time: a time of day (TIME, or text with a strptime `format`) → hours since midnight (092)
+         *
+         *     A date read with two formats (092, R-TYP-06) lists them in `formats`, the first one in `format`.
          */
         Parser: {
             /**
@@ -9294,7 +9432,7 @@ export interface components {
              * @default raw
              * @enum {string}
              */
-            kind: "raw" | "number" | "date" | "boolean" | "year" | "text";
+            kind: "raw" | "number" | "date" | "boolean" | "year" | "text" | "time";
             /**
              * Decimal
              * @default .
@@ -9303,6 +9441,11 @@ export interface components {
             decimal: "." | ",";
             /** Format */
             format?: string | null;
+            /**
+             * Formats
+             * @default []
+             */
+            formats: string[];
             /**
              * True Values
              * @default []
@@ -10365,6 +10508,8 @@ export interface components {
             action?: string | null;
             /** Column */
             column?: string | null;
+            /** Family */
+            family?: string | null;
         };
         /** RegressionCoefficient */
         RegressionCoefficient: {
@@ -10413,6 +10558,14 @@ export interface components {
              * @default
              */
             sentence: string;
+            /** Ratio */
+            ratio?: number | null;
+            /** Ratio Low */
+            ratio_low?: number | null;
+            /** Ratio High */
+            ratio_high?: number | null;
+            /** Outcome */
+            outcome?: string | null;
         };
         /** RegressionPick */
         RegressionPick: {
@@ -10455,6 +10608,8 @@ export interface components {
             df_resid: number;
             /** Pseudo R2 */
             pseudo_r2?: number | null;
+            /** Pseudo How */
+            pseudo_how?: string | null;
         };
         /** RegressionReport */
         RegressionReport: {
@@ -10466,7 +10621,7 @@ export interface components {
              * Model
              * @enum {string}
              */
-            model: "ols" | "wls" | "logit";
+            model: "ols" | "wls" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
             /** Model Label */
             model_label: string;
             /** Model Reason */
@@ -10494,6 +10649,7 @@ export interface components {
             /** Hints */
             hints?: string[];
             plots?: components["schemas"]["ResidualPlots"] | null;
+            family?: components["schemas"]["FamilyInfo"] | null;
         };
         /** RegressionResult */
         RegressionResult: {
@@ -15625,6 +15781,10 @@ export interface operations {
                 se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
                 /** @description The column the conclusion speaks of. */
                 focus?: string | null;
+                /** @description Model family (default: chosen from the target, 069). */
+                family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
+                /** @description Exposure of a count, its log the offset (absent: role exposure). */
+                exposure?: string | null;
             };
             header?: never;
             path: {
@@ -15705,6 +15865,10 @@ export interface operations {
                 se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
                 /** @description The column the conclusion speaks of. */
                 focus?: string | null;
+                /** @description Model family (default: chosen from the target, 069). */
+                family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
+                /** @description Exposure of a count, its log the offset (absent: role exposure). */
+                exposure?: string | null;
             };
             header?: never;
             path: {
@@ -15750,6 +15914,10 @@ export interface operations {
                 se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
                 /** @description The column the conclusion speaks of. */
                 focus?: string | null;
+                /** @description Model family (default: chosen from the target, 069). */
+                family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
+                /** @description Exposure of a count, its log the offset (absent: role exposure). */
+                exposure?: string | null;
             };
             header?: never;
             path: {
@@ -15795,6 +15963,10 @@ export interface operations {
                 se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
                 /** @description The column the conclusion speaks of. */
                 focus?: string | null;
+                /** @description Model family (default: chosen from the target, 069). */
+                family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
+                /** @description Exposure of a count, its log the offset (absent: role exposure). */
+                exposure?: string | null;
             };
             header?: never;
             path: {
@@ -15840,6 +16012,10 @@ export interface operations {
                 se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
                 /** @description The column the conclusion speaks of. */
                 focus?: string | null;
+                /** @description Model family (default: chosen from the target, 069). */
+                family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
+                /** @description Exposure of a count, its log the offset (absent: role exposure). */
+                exposure?: string | null;
             };
             header?: never;
             path: {
@@ -15869,6 +16045,55 @@ export interface operations {
             };
         };
     };
+    families_api_v1_datasets__dataset_id__regression_families_get: {
+        parameters: {
+            query?: {
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+                /** @description Column to explain (default: R-REG-20). */
+                target?: string | null;
+                /** @description Comma-separated explanatory columns (absent: R-REG-21; empty: none). */
+                columns?: string | null;
+                /** @description Weight column (absent: a column of role weight; empty: none). */
+                weights?: string | null;
+                /** @description Grouped by: errors clustered on it. */
+                cluster?: string | null;
+                se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+                /** @description The column the conclusion speaks of. */
+                focus?: string | null;
+                /** @description Model family (default: chosen from the target, 069). */
+                family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
+                /** @description Exposure of a count, its log the offset (absent: role exposure). */
+                exposure?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FamilyAlternatives"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     panel_api_v1_datasets__dataset_id__regression_panel_get: {
         parameters: {
             query?: {
@@ -15885,6 +16110,10 @@ export interface operations {
                 se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
                 /** @description The column the conclusion speaks of. */
                 focus?: string | null;
+                /** @description Model family (default: chosen from the target, 069). */
+                family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
+                /** @description Exposure of a count, its log the offset (absent: role exposure). */
+                exposure?: string | null;
             };
             header?: never;
             path: {
@@ -15934,6 +16163,10 @@ export interface operations {
                 se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
                 /** @description The column the conclusion speaks of. */
                 focus?: string | null;
+                /** @description Model family (default: chosen from the target, 069). */
+                family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
+                /** @description Exposure of a count, its log the offset (absent: role exposure). */
+                exposure?: string | null;
             };
             header?: never;
             path: {
