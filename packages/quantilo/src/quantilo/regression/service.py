@@ -19,7 +19,10 @@ from quantilo.filters.model import Condition, filters_key
 from quantilo.filters.scope import Where, scoped_source, where_for
 from quantilo.ingestion.sql import ident
 from quantilo.regression import analyze as an
+from quantilo.regression import iv as ivs
+from quantilo.regression import panel as panels
 from quantilo.regression.design import DesignError, LeftOutTerm, Variable, codes
+from quantilo.regression.panel import PanelTable
 from quantilo.regression.rules import (
     REGRESSOR_TYPES,
     TARGET_TYPES,
@@ -48,7 +51,7 @@ REFUSED = {
 }
 WEIGHT_ROLE = "weight"
 YES = ("true", "1", "yes", "oui", "y")
-Section = Literal["standard_errors", "influence", "terms", "more"]
+Section = Literal["standard_errors", "influence", "terms", "more", "panel"]
 
 
 class RegressionError(ExplorerError):
@@ -107,7 +110,7 @@ class RegressionService:
         name: Section,
         request: Request,
         conditions: list[Condition] | None = None,
-    ) -> an.StandardErrorTable | an.InfluenceTable | an.TermsTable | an.MoreChecks:
+    ) -> an.StandardErrorTable | an.InfluenceTable | an.TermsTable | an.MoreChecks | PanelTable:
         conditions = conditions or []
         key = (*self._key(dataset_id, request, conditions), name)
         if key in self._results:
@@ -119,10 +122,68 @@ class RegressionService:
             "influence": an.influence_table,
             "terms": an.terms_table,
             "more": an.more,
+            "panel": panels.section,  # 071
         }
         if name not in builders:
             raise RegressionError(f"Unknown section {name!r}.", "unknown_section")
         found = an.finite(builders[name](fit))
+        self._results[key] = found
+        if len(self._results) > RESULT_CACHE:
+            self._results.popitem(last=False)
+        return found
+
+    def instruments(
+        self,
+        dataset_id: str,
+        request: Request,
+        endogenous: tuple[str, ...],
+        instruments: tuple[str, ...],
+        conditions: list[Condition] | None = None,
+    ) -> ivs.IvTable:
+        """071: two-stage least squares, only with the endogenous columns and instruments the
+        user names (R-REG-IV-01)."""
+        conditions = conditions or []
+        request = self._resolve(dataset_id, request, conditions)
+        assert request.target is not None and request.columns is not None
+        endogenous = tuple(dict.fromkeys(endogenous))
+        instruments = tuple(dict.fromkeys(instruments))
+        if not endogenous or not instruments:
+            raise RegressionError(
+                "Name the endogenous column and at least one instrument: IV is never guessed "
+                "(R-REG-IV-01).",
+                "iv_names",
+            )
+        for name in endogenous:
+            if name not in request.columns:
+                raise RegressionError(
+                    f"`{name}` is not among the explanatory columns: the endogenous column must "
+                    "be one of them.",
+                    "iv_endogenous",
+                )
+        for name in instruments:
+            if name == request.target or name in request.columns:
+                raise RegressionError(
+                    f"`{name}` is already in the model: an instrument stays out of it, it may "
+                    "reach the target only through the endogenous column.",
+                    "iv_instrument",
+                )
+        key = (*self._key(dataset_id, request, conditions), "iv", endogenous, instruments)
+        if key in self._results:
+            self._results.move_to_end(key)
+            return self._results[key]
+        augmented = Request(
+            request.target,
+            (*request.columns, *instruments),
+            request.weights,
+            request.cluster,
+            request.se,
+            request.focus,
+        )
+        inputs = self._load(dataset_id, augmented, conditions)
+        try:
+            found = an.finite(ivs.estimate(inputs, list(endogenous), list(instruments)))
+        except (DesignError, ivs.IvError) as error:
+            raise RegressionError(str(error), "iv") from error
         self._results[key] = found
         if len(self._results) > RESULT_CACHE:
             self._results.popitem(last=False)
@@ -190,6 +251,9 @@ class RegressionService:
             fitted = an.run(inputs)
         except DesignError as error:
             raise RegressionError(str(error), "design") from error
+        proposed = panels.proposal(fitted)  # 071: R-REG-14
+        if proposed is not None:
+            fitted.result.checks.append(proposed)
         self._fits[key] = fitted
         if len(self._fits) > FIT_CACHE:
             self._fits.popitem(last=False)
@@ -264,6 +328,7 @@ class RegressionService:
         if shape.kind == "panel" and shape.entity and shape.period:
             inputs.entity_codes = _codes(cast(pd.Series, frame[shape.entity]))
             inputs.period_codes = _codes(cast(pd.Series, frame[shape.period]))
+            inputs.period_order = _period_order(frame, shape.period)
         return inputs
 
     def _weights(self, views: list[ColumnView], request: Request) -> tuple[ColumnView, str] | None:
@@ -415,3 +480,10 @@ def _codes(values: pd.Series) -> np.ndarray:
     labels = values.astype(str).where(values.notna())
     found, _ = pd.factorize(labels, use_na_sentinel=True)
     return np.asarray(found, dtype=np.int64)
+
+
+def _period_order(frame: pd.DataFrame, column: str) -> np.ndarray:
+    """071: each row's rank among the periods, in time (dates) or value order."""
+    from quantilo.ml import panel as panels
+
+    return panels.period_ranks(frame, column)[0]

@@ -39,6 +39,7 @@ from quantilo.filters.scope import scoped_source, where_for
 from quantilo.ml import data as ml_data
 from quantilo.ml.data import CATEGORICAL, NUMERIC
 from quantilo.ml.data import Field as DataField
+from quantilo.ml.target import DESCRIPTOR_ROLES
 from quantilo.typing.parsers import typed_sql
 from quantilo.typing.types import KEY_ROLES, NUMERIC_TYPES
 
@@ -58,6 +59,7 @@ LEVEL_TYPES = ("categorical_nominal", "categorical_ordinal", "boolean", "numeric
 UNIT_TYPES = ("identifier", "numeric_discrete", "categorical_nominal", "text")
 COVARIATE_TYPES = NUMERIC | CATEGORICAL
 PROPENSITY_HINT = re.compile(r"propens|pscore|prob|p_action|logging", re.I)
+PLANNED_BALANCE = 1.05  # R-EXP-01: the largest level at most this many times the smallest
 
 
 @dataclass
@@ -75,6 +77,8 @@ class ExperimentVariantCandidate:
     levels: list[str]
     counts: list[int]
     control: str
+    planned: bool = True  # R-EXP-01: looks like an assigned variant, not an observed category
+    why: str = ""
 
 
 @dataclass
@@ -97,6 +101,7 @@ class ExperimentCandidates:
     times: list[str]
     segments: list[str]
     suggested: ExperimentDesign | None  # what the page opens on
+    note: str | None = None  # R-EXP-01: no column looks like a variant
 
 
 @dataclass
@@ -106,6 +111,41 @@ class MetricBaseline:
     value: float | None
     sd: float | None
     rows: int
+
+
+def planned_variant(view: ColumnView, counts: list[int]) -> tuple[bool, str]:
+    """R-EXP-01 (094, EXP-1): a column of 2 to 5 levels is an experiment's variant when its name
+    says so (group, variant, arm, treatment, test…) or when its levels are balanced like a
+    planned split, without describing the units (gender, region…). Otherwise it is an observed
+    category: comparing its levels is an observational study, and a difference is not caused
+    by the category."""
+    hint = VARIANT_HINT.search(view.name)
+    if hint:
+        return True, f"Its name says a variant ({hint.group(0).lower()})."
+    total = sum(counts) or 1
+    shares = " / ".join(f"{100 * c / total:.0f} %" for c in counts)
+    if view.role in DESCRIPTOR_ROLES:
+        role = view.role.replace("_", " ")
+        return False, f"Describes the units ({role}): an observed trait, not an assigned variant."
+    if min(counts) and max(counts) <= PLANNED_BALANCE * min(counts):
+        return True, f"Its levels are balanced ({shares}), as in a planned split."
+    return False, (
+        f"Not named like a variant and its levels are uneven ({shares}): an observed category, "
+        "so a difference would not be caused by it."
+    )
+
+
+def observational_note(variants: list[ExperimentVariantCandidate]) -> str | None:
+    """What the page says when no column looks like a variant (R-EXP-01)."""
+    if not variants or any(v.planned for v in variants):
+        return None
+    names = ", ".join(v.column for v in variants[:4])
+    return (
+        f"No column looks like an experiment's variant (R-EXP-01): {names} "
+        f"{'is an observed category' if len(variants) == 1 else 'are observed categories'}. "
+        "You can still compare their levels, as an observational study: a difference would "
+        "not prove a cause."
+    )
 
 
 def _distinct(view: ColumnView) -> int | None:
@@ -206,14 +246,16 @@ class ExperimentEngine:
                     continue
                 levels = [str(level) for level, _ in rows]
                 counts = [int(count) for _, count in rows]
+                planned, why = planned_variant(view, counts)
                 variants.append(
                     ExperimentVariantCandidate(
-                        view.name, levels, counts, guess_control(levels, counts)
+                        view.name, levels, counts, guess_control(levels, counts), planned, why
                     )
                 )
             metrics = self._metric_kinds(connection, source, numbers)
         finally:
             connection.close()
+        variants.sort(key=lambda v: not v.planned)  # stable: the named ones stay first
         variant_names = {v.column for v in variants}
         units = repeated_units(ordered, variant_names)
         times = [v.name for v in ordered if v.type == "datetime"]
@@ -224,7 +266,7 @@ class ExperimentEngine:
             and 2 <= (_distinct(v) or 0) <= MAX_SEGMENT_LEVELS
         ]
         suggested = None
-        variant = variants[0].column if variants else None
+        variant = variants[0].column if variants and variants[0].planned else None
         usable = [m for m in metrics if m.column != variant]
         if variant and usable:
             chosen = next((m for m in usable if m.kind == "rate"), usable[0])
@@ -240,6 +282,7 @@ class ExperimentEngine:
             times,
             [s for s in segments if s != variant],
             suggested,
+            observational_note(variants),
         )
 
     @staticmethod

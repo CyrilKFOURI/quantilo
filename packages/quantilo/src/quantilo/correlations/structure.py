@@ -136,10 +136,27 @@ class Factors:
 # ---------------------------------------------------------------------------------------- rule
 
 
-def structure_rule(matrix: Matrix) -> StructureRule:
-    """R-STR-1: at least 5 numbers and 3 strong pairs of numbers."""
-    numeric = sum(1 for member in matrix.columns if member.role == "num")
-    strong = sum(1 for p in matrix.pairs if p.metric == matrix.method and abs(p.value) >= STRONG)
+def structure_rule(matrix: Matrix, codes: set[str] | None = None) -> StructureRule:
+    """R-STR-1: at least 5 numbers and 3 strong pairs of numbers, counting only the numbers the
+    analysis would keep (094, COR-3): at most MAX_MISSING empty (R-STR-2), and not codes typed
+    as numbers (R-COR-01). A sparse panel of 75 columns no longer proposes a PCA of 2."""
+    codes = codes or set()
+    empty = []
+    kept: set[str] = set()
+    for i, member in enumerate(matrix.columns):
+        if member.role != "num" or member.name in codes:
+            continue
+        present = matrix.n[i][i] if i < len(matrix.n) else matrix.rows
+        if matrix.rows and 1 - present / matrix.rows > MAX_MISSING:
+            empty.append(member.name)
+        else:
+            kept.add(member.name)
+    numeric = len(kept)
+    strong = sum(
+        1
+        for p in matrix.pairs
+        if p.metric == matrix.method and abs(p.value) >= STRONG and {p.a, p.b} <= kept
+    )
     symbol = "ρ" if matrix.method == "spearman" else "r"
     proposed = numeric >= MIN_NUMERIC and strong >= MIN_STRONG
     if proposed:
@@ -151,6 +168,11 @@ def structure_rule(matrix: Matrix) -> StructureRule:
         reason = f"Needs at least {MIN_NUMERIC} numeric columns ({numeric} here)."
     else:
         reason = f"Needs at least {MIN_STRONG} pairs with |{symbol}| ≥ {STRONG} ({strong} here)."
+    if empty and not proposed:
+        reason += (
+            f" {len(empty)} more {'is' if len(empty) == 1 else 'are'} more than "
+            f"{MAX_MISSING:.0%} empty."
+        )
     return StructureRule(proposed, numeric, strong, reason)
 
 

@@ -71,7 +71,7 @@ def encodings(frame: pd.DataFrame, validation: evaluate.Validation, y: pd.Series
     )
     assert decision(setup.preparation, "shop").encoding == "target"
     built = prep.build(setup.preparation, len(setup.x_train), "regression")
-    shop = next(step for name, step, _ in built.transformers if name == "shop")
+    shop = next(step for _, step, columns in built.transformers if columns[0] == "shop")
     unscaled = Pipeline(shop.steps[:-1])
     rows = setup.x_train.index
     return np.asarray(unscaled.fit_transform(setup.x_train[["shop"]], y.loc[rows]), dtype=float)
@@ -147,7 +147,7 @@ def test_a_random_split_keeps_the_former_folds() -> None:
         panel(), FIELDS, TARGET, "regression", "linear_regression", None, None, None, None, None
     )
     built = prep.build(setup.preparation, len(setup.x_train), "regression")
-    shop = next(step for name, step, _ in built.transformers if name == "shop")
+    shop = next(step for _, step, columns in built.transformers if columns[0] == "shop")
     cv = shop.named_steps["target"].cv
     assert isinstance(cv, KFold) and cv.shuffle and cv.random_state == 42
 
@@ -170,7 +170,7 @@ def test_a_saved_panel_model_loads_without_the_fold_keys_and_predicts_the_same()
     joblib.dump(pipeline, buffer)
     loaded = joblib.load(io.BytesIO(buffer.getvalue()))
 
-    encoder = loaded.named_steps["prepare"].named_transformers_["shop"].named_steps["target"]
+    encoder = prep.fitted_step(loaded.named_steps["prepare"], "shop").named_steps["target"]
     assert encoder.cv.keys is None  # the keys stayed behind: the file holds no period of the data
     x = frame[[str(c) for c in pipeline.feature_names_in_]]
     np.testing.assert_allclose(loaded.predict(x), pipeline.predict(x))
@@ -256,7 +256,7 @@ def test_rare_categories_share_one_ordinal_code_and_one_target_encoding() -> Non
 
     target = prepared(LINEAR, prep.Choices(columns={"shop": prep.ColumnChoice(encoding="target")}))
     built = prep.build(target, len(MIXED), "regression")
-    shop = next(step for name, step, _ in built.transformers if name == "shop")
+    shop = next(step for _, step, columns in built.transformers if columns[0] == "shop")
     grouped = Pipeline(shop.steps[:2]).fit_transform(MIXED[["shop"]])
     assert set(np.asarray(grouped)[:25, 0]) == {"Other"}
 

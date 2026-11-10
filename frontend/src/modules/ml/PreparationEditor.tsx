@@ -47,6 +47,9 @@ export function preparationSummary(preparation: MlPreparation): string {
   const strategy = preparation.balance?.strategy;
   if (strategy && strategy !== "none") parts.push(label("imbalance", strategy).toLowerCase());
   if (preparation.dropped_rows) parts.push(t("ml.prep.summary.dropped", { count: String(preparation.dropped_rows) }));
+  // R-SEL-06: columns left out as leaks are named where the user looks, not only in the editor
+  const leaks = preparation.decisions.filter((d) => d.leak && !d.use).map((d) => d.column);
+  if (leaks.length) parts.push(t("ml.prep.summary.leaks", { count: String(leaks.length), columns: leaks.slice(0, 4).join(", ") + (leaks.length > 4 ? "…" : "") }));
   return parts.join(" · ");
 }
 

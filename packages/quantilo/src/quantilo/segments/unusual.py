@@ -40,6 +40,7 @@ LIST_ROWS = 500  # rows listed (with their reasons), most unusual first
 TOP_SHARE = 0.01  # without a clear break, the 1 % most unusual rows
 REASONS = 3
 RARE_COMBINATION = 0.01
+BATCH_ROWS = 20_000  # prepared rows scored in one call by the reasons
 
 
 @dataclass
@@ -344,9 +345,24 @@ def reasons(
     names: dict[int, str],
     transform: Callable[[pd.DataFrame], np.ndarray],
     score: Score,
+    one_column: Callable[[pd.DataFrame, np.ndarray, str], np.ndarray | None] | None = None,
 ) -> list[tuple[list[UnusualReason], str | None]]:
-    """For each row of `top`, the REASONS columns whose typical value lowers its score most."""
+    """For each row of `top`, the REASONS columns whose typical value lowers its score most.
+    `one_column(changed, base, column)` prepares rows that differ from the prepared `base` in
+    one column only, faster than `transform` (None: not possible)."""
     contributions = np.zeros((len(top), len(used)))
+    base = transform(top) if one_column is not None else None
+    batch: list[tuple[int, np.ndarray]] = []
+
+    def flush() -> None:
+        # one call to the scorer for several columns: a forest's per-call cost dominates
+        stacked = np.vstack([x for _, x in batch])
+        tiled = np.tile(groups, len(batch)) if groups is not None else None
+        found = score(stacked, tiled).reshape(len(batch), len(top))
+        for (j, _), changed_scores in zip(batch, found, strict=True):
+            contributions[:, j] = scores - changed_scores
+        batch.clear()
+
     for j, decision in enumerate(used):
         changed = top.copy()
         if groups is not None and reference_groups is not None:
@@ -356,7 +372,16 @@ def reasons(
                 changed.loc[groups == g, decision.column] = value
         else:
             changed[decision.column] = typical(reference, decision)
-        contributions[:, j] = scores - score(transform(changed), groups)
+        prepared = (
+            one_column(changed, base, decision.column)
+            if one_column is not None and base is not None
+            else None
+        )
+        batch.append((j, prepared if prepared is not None else transform(changed)))
+        if len(batch) * len(top) >= BATCH_ROWS:
+            flush()
+    if batch:
+        flush()
     found = []
     for i in range(len(top)):
         order = [j for j in np.argsort(-contributions[i]) if contributions[i, j] > 0][:REASONS]
@@ -370,7 +395,7 @@ def reasons(
         items = []
         for j in order:
             column = used[j].column
-            value = top.iloc[i][column]
+            value = top[column].iloc[i]
             text = _sentence(column, value, cast(pd.Series, rows[column]), suffix)
             items.append(UnusualReason(column, round(float(contributions[i, j]), 6), text))
         found.append((items, _combination(top.iloc[i], items, rows, suffix)))

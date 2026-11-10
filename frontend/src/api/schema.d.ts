@@ -662,6 +662,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/regression/panel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Panel
+         * @description Advanced > Panel (071): fixed effects (entity, period, two-way), first differences,
+         *     between and random effects, clustered by entity; Mundlak chooses, Hausman informs.
+         */
+        get: operations["panel_api_v1_datasets__dataset_id__regression_panel_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/regression/instruments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Instrumental
+         * @description Advanced > More > Instruments (071): two-stage least squares, only with the endogenous
+         *     columns and instruments the user names (R-REG-IV-01).
+         */
+        get: operations["instrumental_api_v1_datasets__dataset_id__regression_instruments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/datasets/{dataset_id}/rows": {
         parameters: {
             query?: never;
@@ -6431,6 +6473,8 @@ export interface components {
             /** Segments */
             segments: string[];
             suggested: components["schemas"]["ExperimentDesign"] | null;
+            /** Note */
+            note?: string | null;
         };
         /** ExperimentCheck */
         ExperimentCheck: {
@@ -6745,6 +6789,16 @@ export interface components {
             counts: number[];
             /** Control */
             control: string;
+            /**
+             * Planned
+             * @default true
+             */
+            planned: boolean;
+            /**
+             * Why
+             * @default
+             */
+            why: string;
         };
         /** Explanation */
         Explanation: {
@@ -7036,6 +7090,32 @@ export interface components {
              * @default false
              */
             active: boolean;
+        };
+        /** FirstStage */
+        FirstStage: {
+            /** Term */
+            term: string;
+            /** F */
+            f: number | null;
+            /** Classic F */
+            classic_f: number | null;
+            /** Effective F */
+            effective_f: number | null;
+            /** Partial R2 */
+            partial_r2: number | null;
+            /** Df1 */
+            df1: number;
+            /** Df2 */
+            df2: number;
+            /** P Value */
+            p_value: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "warn" | "bad" | "info";
+            /** Sentence */
+            sentence: string;
         };
         /** Fit */
         Fit: {
@@ -7628,7 +7708,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "skewed" | "imbalanced" | "missing" | "correlated" | "redundant" | "group_difference" | "associated";
+            kind: "skewed" | "imbalanced" | "missing" | "correlated" | "redundant" | "group_difference" | "associated" | "codes" | "spike";
             /**
              * Severity
              * @enum {string}
@@ -7667,6 +7747,85 @@ export interface components {
             half_width: number;
             /** Errors */
             errors: number;
+        };
+        /** IvCoefficient */
+        IvCoefficient: {
+            /** Term */
+            term: string;
+            /** Column */
+            column: string;
+            /** Endogenous */
+            endogenous: boolean;
+            /** Estimate */
+            estimate: number;
+            /** Std Error */
+            std_error: number | null;
+            /** Ci Low */
+            ci_low: number | null;
+            /** Ci High */
+            ci_high: number | null;
+            /** P Value */
+            p_value: number | null;
+            /** Ols */
+            ols?: number | null;
+            /** Ols Low */
+            ols_low?: number | null;
+            /** Ols High */
+            ols_high?: number | null;
+        };
+        /** IvTable */
+        IvTable: {
+            /** Target */
+            target: string;
+            /** Endogenous */
+            endogenous: string[];
+            /** Instruments */
+            instruments: string[];
+            /** Instrument Terms */
+            instrument_terms: string[];
+            /** Rows */
+            rows: number;
+            se: components["schemas"]["SeChoice"];
+            /** Coefficients */
+            coefficients: components["schemas"]["IvCoefficient"][];
+            /** First Stages */
+            first_stages: components["schemas"]["FirstStage"][];
+            /** Tests */
+            tests: components["schemas"]["IvTest"][];
+            /** Reduced Form */
+            reduced_form: components["schemas"]["ReducedForm"][];
+            /** Left Out */
+            left_out: components["schemas"]["LeftOutTerm"][];
+            /** Missing */
+            missing: components["schemas"]["MissingRows"][];
+            /** Sentence */
+            sentence: string;
+            /** Notes */
+            notes?: string[];
+        };
+        /** IvTest */
+        IvTest: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            /** Statistic */
+            statistic: number | null;
+            /** Df */
+            df: number | null;
+            /** Df2 */
+            df2: number | null;
+            /** P Value */
+            p_value: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "warn" | "bad" | "info";
+            /** Sentence */
+            sentence: string;
+            /** Rule */
+            rule?: string | null;
         };
         /** JobOut */
         JobOut: {
@@ -8945,6 +9104,61 @@ export interface components {
             /** Message */
             message?: string | null;
         };
+        /** PanelCoefficient */
+        PanelCoefficient: {
+            /** Estimate */
+            estimate?: number | null;
+            /** Std Error */
+            std_error?: number | null;
+            /** Ci Low */
+            ci_low?: number | null;
+            /** Ci High */
+            ci_high?: number | null;
+            /** P Value */
+            p_value?: number | null;
+        };
+        /** PanelEstimator */
+        PanelEstimator: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "pooled" | "entity" | "time" | "twoway" | "fd" | "between" | "re";
+            /** Label */
+            label: string;
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string;
+            /** Coefficients */
+            coefficients?: components["schemas"]["PanelCoefficient"][];
+            /** Dropped */
+            dropped?: components["schemas"]["LeftOutTerm"][];
+            /**
+             * Rows
+             * @default 0
+             */
+            rows: number;
+            /**
+             * Groups
+             * @default 0
+             */
+            groups: number;
+            /** R2 */
+            r2?: number | null;
+            /**
+             * R2 Kind
+             * @default
+             */
+            r2_kind: string;
+            /**
+             * Se Label
+             * @default
+             */
+            se_label: string;
+            /** Theta */
+            theta?: number | null;
+        };
         /** PanelResult */
         PanelResult: {
             /** Period Column */
@@ -8978,6 +9192,77 @@ export interface components {
             suggested_embargo?: number | null;
             /** Embargo Reason */
             embargo_reason?: string | null;
+        };
+        /** PanelTable */
+        PanelTable: {
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string;
+            /** Entity */
+            entity?: string | null;
+            /** Period */
+            period?: string | null;
+            /**
+             * Entities
+             * @default 0
+             */
+            entities: number;
+            /**
+             * Periods
+             * @default 0
+             */
+            periods: number;
+            /**
+             * Balanced
+             * @default false
+             */
+            balanced: boolean;
+            /** Terms */
+            terms?: string[];
+            /** Varying */
+            varying?: string[];
+            /** Fixed */
+            fixed?: string[];
+            /** Estimators */
+            estimators?: components["schemas"]["PanelEstimator"][];
+            /** Recommended */
+            recommended?: ("pooled" | "entity" | "time" | "twoway" | "fd" | "between" | "re") | null;
+            /** Recommended Rule */
+            recommended_rule?: string | null;
+            /**
+             * Recommended Reason
+             * @default
+             */
+            recommended_reason: string;
+            /** Tests */
+            tests?: components["schemas"]["PanelTest"][];
+            /**
+             * Sentence
+             * @default
+             */
+            sentence: string;
+            /** Notes */
+            notes?: string[];
+        };
+        /** PanelTest */
+        PanelTest: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            /** Statistic */
+            statistic: number | null;
+            /** Df */
+            df: number | null;
+            /** Df2 */
+            df2: number | null;
+            /** P Value */
+            p_value: number | null;
+            /** Sentence */
+            sentence: string;
+            /** Rule */
+            rule?: string | null;
         };
         /**
          * ParentCandidate
@@ -10026,6 +10311,17 @@ export interface components {
             key: string;
             /** Why */
             why: string;
+        };
+        /** ReducedForm */
+        ReducedForm: {
+            /** Term */
+            term: string;
+            /** Estimate */
+            estimate: number;
+            /** Std Error */
+            std_error: number | null;
+            /** P Value */
+            p_value: number | null;
         };
         /** ReferenceLevel */
         ReferenceLevel: {
@@ -15545,6 +15841,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MoreChecks"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    panel_api_v1_datasets__dataset_id__regression_panel_get: {
+        parameters: {
+            query?: {
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+                /** @description Column to explain (default: R-REG-20). */
+                target?: string | null;
+                /** @description Comma-separated explanatory columns (absent: R-REG-21; empty: none). */
+                columns?: string | null;
+                /** @description Weight column (absent: a column of role weight; empty: none). */
+                weights?: string | null;
+                /** @description Grouped by: errors clustered on it. */
+                cluster?: string | null;
+                se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+                /** @description The column the conclusion speaks of. */
+                focus?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PanelTable"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    instrumental_api_v1_datasets__dataset_id__regression_instruments_get: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated endogenous columns, among `columns`. */
+                endogenous?: string;
+                /** @description Comma-separated instruments, outside `columns`. */
+                instruments?: string;
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+                /** @description Column to explain (default: R-REG-20). */
+                target?: string | null;
+                /** @description Comma-separated explanatory columns (absent: R-REG-21; empty: none). */
+                columns?: string | null;
+                /** @description Weight column (absent: a column of role weight; empty: none). */
+                weights?: string | null;
+                /** @description Grouped by: errors clustered on it. */
+                cluster?: string | null;
+                se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+                /** @description The column the conclusion speaks of. */
+                focus?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IvTable"];
                 };
             };
             /** @description Validation Error */

@@ -122,6 +122,26 @@ class Matrix:
     def transform(self, frame: pd.DataFrame) -> np.ndarray:
         return _finite(self.pipeline.transform(frame))
 
+    def transform_column(
+        self, frame: pd.DataFrame, base: np.ndarray, column: str
+    ) -> np.ndarray | None:
+        """`transform(frame)` when `frame` differs from the rows of `base` (already prepared) in
+        `column` only: that column's block alone is recomputed (094, UNU-1: the reasons of 500
+        rows over 70 columns took 25 s). None when the pipeline has joint steps."""
+        steps = getattr(self.pipeline, "steps", [])
+        if len(steps) != 1:
+            return None
+        transformer = steps[0][1]
+        for name, step, columns in getattr(transformer, "transformers_", []):
+            if name == "remainder" or step == "drop" or str(columns[0]) != column:
+                continue
+            found = base.copy()
+            found[:, transformer.output_indices_[name]] = _finite(
+                step.transform(frame[list(columns)])
+            )
+            return found
+        return None
+
     def mixed(self, frame: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
         numbers = (
             _finite(self.numeric.transform(frame))

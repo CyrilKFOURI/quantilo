@@ -18,7 +18,7 @@ from statsmodels.stats.diagnostic import het_breuschpagan
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 from quantilo.ml import classes as binning
-from quantilo.ml import encoding, error_analysis, evaluate, steps
+from quantilo.ml import codes, encoding, error_analysis, evaluate, steps
 from quantilo.ml import models as catalogue
 from quantilo.ml import panel as panels
 from quantilo.ml import preparation as prep
@@ -435,6 +435,9 @@ def _setup(
     )
     if not preparation.used:
         raise TrainingError("No usable feature: every column was left out (see Preparation).")
+    repeated = repeated_identifier(frame, fields, validation)
+    if repeated is not None:
+        preparation.warnings.append(repeated)
     if preparation.folds is not None:
         preparation.fold_keys = encoding.fold_keys(frame, preparation.folds)
     # a lag also reads the period and entity, which stay out of the inputs (R-SEL-09)
@@ -505,6 +508,94 @@ def _setup(
         groups,
         frame,
         periods,
+    )
+
+
+REPEATED_MIN_VALUES = 20  # R-VAL-01: an identifier with at least this many values…
+REPEATED_ROWS = 1.5  # …and at least this many rows per value on average
+REPEATED_SHARE = 0.9  # …and at most this share of distinct values
+RANDOM_METHODS = ("split", "kfold", "repeated_kfold")
+
+
+def repeated_identifier(
+    frame: pd.DataFrame, fields: list[Field], validation: evaluate.Validation
+) -> str | None:
+    """R-VAL-01 (094, ML-3): a random split with an identifier that repeats (each match on two
+    mirror rows, a patient seen several times) puts the same unit in training and test, which
+    flatters the score. Says so, and proposes Group k-fold on it; nothing is changed."""
+    if validation.method not in RANDOM_METHODS:
+        return None
+    best: tuple[int, str, float] | None = None
+    for fld in fields:
+        if fld.name not in frame.columns:
+            continue
+        values = cast(pd.Series, frame[fld.name])
+        if fld.type != "identifier" and not (
+            fld.type in NUMERIC and codes.numeric_code(fld.name, values.to_numpy(dtype=float))
+        ):
+            continue
+        present = values.dropna()
+        distinct = int(present.nunique())
+        if distinct < REPEATED_MIN_VALUES or not len(present):
+            continue
+        per_value = len(present) / distinct
+        if per_value < REPEATED_ROWS or distinct > REPEATED_SHARE * len(present):
+            continue
+        if best is None or distinct > best[0]:
+            best = (distinct, fld.name, per_value)
+    if best is None:
+        return None
+    _, name, per_value = best
+    return (
+        f"{name} repeats ({per_value:.1f} rows per value): a random split puts rows of the same "
+        f"{name} in training and test, which flatters the score. Choose Group k-fold on {name} "
+        "in Validation (R-VAL-01)."
+    )
+
+
+PERFECT = {"r2": 0.995, "roc_auc": 0.999, "balanced_accuracy": 0.995}  # R-LEAK-01
+
+
+def near_perfect(
+    scores: dict[str, float | None],
+    cross_validation: "CrossValidation | None",
+    preparation: prep.Preparation,
+    pipeline: Pipeline,
+    names: list[str],
+    coefficients: list[Coefficient],
+) -> str | None:
+    """R-LEAK-01 (094, ML-2): a near-perfect score on real data is more often a column known
+    after the outcome than a perfect model. Says so, with the columns the model leans on."""
+    found = dict(scores)
+    if cross_validation is not None and cross_validation.mean:
+        found.update(cross_validation.mean)
+    hit = next(
+        (
+            (metric, value)
+            for metric, limit in PERFECT.items()
+            if (value := found.get(metric)) is not None and value >= limit
+        ),
+        None,
+    )
+    if hit is None:
+        return None
+    metric, value = hit
+    ranked = [i.feature for i in _importances(pipeline, names)] or [
+        c.feature for c in coefficients if c.feature != "const"
+    ]
+    used = sorted((d.column for d in preparation.used), key=len, reverse=True)
+    top: list[str] = []
+    for feature in ranked:
+        origin = next((c for c in used if feature == c or feature.startswith(f"{c}_")), feature)
+        if origin not in top:
+            top.append(origin)
+        if len(top) == 3:
+            break
+    label = {"r2": "R²", "roc_auc": "ROC AUC", "balanced_accuracy": "balanced accuracy"}[metric]
+    leaning = f" It leans most on {', '.join(top)}:" if top else ""
+    return (
+        f"Near-perfect score ({label} {value:.3f}): real data rarely allows it.{leaning} check "
+        "that none of them is known only after the outcome (R-LEAK-01)."
     )
 
 
@@ -810,6 +901,9 @@ def train(
             rows_eval,
         )
         score = panel.value
+    perfect = near_perfect(scores, cross_validation, preparation, pipeline, names, coefficients)
+    if perfect is not None:
+        preparation.warnings.append(perfect)
     return Trained(
         task,
         model_key,
@@ -1184,6 +1278,34 @@ def _regression_scores(
     )
 
 
+MAX_BREUSCH_PAGAN_INPUTS = 200  # beyond, the test of constant variance is not run (094, ML-6)
+NORMAL_EQUATIONS_ABOVE = 2e9  # rows x inputs²: beyond, standard errors from (XᵀX)⁻¹ (094)
+
+
+def _normal_inference(coefficients: list[Coefficient], exog: np.ndarray, y: np.ndarray) -> None:
+    """Standard errors, 95 % intervals and p-values of an OLS fit from the normal equations,
+    σ² (XᵀX)⁻¹: the same as statsmodels on a full-rank design, without the SVD of the whole
+    design (40 s on 52 000 rows by 400 inputs, R-ML-06)."""
+    from scipy import stats as st
+
+    gram = exog.T @ exog
+    inverse = np.linalg.pinv(gram)
+    beta = inverse @ (exog.T @ y)
+    residuals = y - exog @ beta
+    rank = int(np.linalg.matrix_rank(gram))
+    freedom = max(exog.shape[0] - rank, 1)
+    sigma2 = float(residuals @ residuals) / freedom
+    errors = np.sqrt(np.maximum(np.diag(inverse) * sigma2, 0))
+    critical = float(st.t.ppf(0.975, freedom))
+    for i, coefficient in enumerate(coefficients, start=1):
+        error = float(errors[i])
+        coefficient.std_error = clean(error)
+        coefficient.low = clean(float(beta[i]) - critical * error)
+        coefficient.high = clean(float(beta[i]) + critical * error)
+        if error > 0:
+            coefficient.p_value = clean(float(2 * st.t.sf(abs(beta[i]) / error, freedom)))
+
+
 def _linear_coefficients(
     pipeline: Pipeline,
     x_train: pd.DataFrame,
@@ -1205,6 +1327,13 @@ def _linear_coefficients(
     het_p = None
     if unregularized and design.shape[0] > design.shape[1] + 2:
         exog = sm.add_constant(design, has_constant="add")
+        if exog.shape[0] * exog.shape[1] ** 2 > NORMAL_EQUATIONS_ABOVE:
+            _normal_inference(coefficients, exog, y_train)
+            preparation.warnings.append(
+                f"Constant-variance test (Breusch-Pagan) not run: {design.shape[0]:,} rows by "
+                f"{design.shape[1]} inputs would take as long as the model (R-ML-06)."
+            )
+            return sorted(coefficients, key=lambda c: -abs(c.estimate)), None
         fit = _quiet(lambda: sm.OLS(y_train, exog).fit())
         intervals = np.asarray(fit.conf_int(), dtype=float)
         for i, coefficient in enumerate(coefficients, start=1):
@@ -1214,7 +1343,13 @@ def _linear_coefficients(
         if len(coefficients) <= MAX_VIF_FEATURES:
             for i, coefficient in enumerate(coefficients, start=1):
                 coefficient.vif = clean(_quiet(lambda i=i: variance_inflation_factor(exog, i)))
-        het_p = clean(_quiet(lambda: het_breuschpagan(fit.resid, exog)[1]))
+        if design.shape[1] <= MAX_BREUSCH_PAGAN_INPUTS:  # its auxiliary fit costs as much again
+            het_p = clean(_quiet(lambda: het_breuschpagan(fit.resid, exog)[1]))
+        else:
+            preparation.warnings.append(
+                f"Constant-variance test (Breusch-Pagan) not run: {design.shape[1]} inputs, more "
+                f"than {MAX_BREUSCH_PAGAN_INPUTS}; it would take as long as the model (R-ML-06)."
+            )
     coefficients.sort(key=lambda c: -abs(c.estimate))
     return coefficients, het_p
 
@@ -1223,14 +1358,14 @@ def _unit_scales(pipeline: Pipeline, preparation: prep.Preparation) -> dict[str,
     """Standardised numbers without transformation: the scale that turns a coefficient back into
     'per unit of the column'."""
     scales = {}
-    fitted = pipeline.named_steps["prepare"].named_transformers_
+    fitted = pipeline.named_steps["prepare"]
     for decision in preparation.used:
         if (
             decision.type in NUMERIC
             and decision.scaling == "standard"
             and decision.transform is None
         ):
-            scaler = fitted[decision.column].named_steps["scale"]
+            scaler = prep.fitted_step(fitted, decision.column).named_steps["scale"]
             scale = float(scaler.scale_[0]) if hasattr(scaler, "scale_") else 0.0
             if scale > 0:
                 scales[decision.column] = scale

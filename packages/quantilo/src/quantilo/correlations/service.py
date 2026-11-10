@@ -10,7 +10,7 @@ import numpy as np
 
 from quantilo.catalog import Catalog
 from quantilo.compare.multiple import Correction
-from quantilo.correlations.insights import Insight, insights_for
+from quantilo.correlations.insights import Insight, code_columns, insights_for
 from quantilo.correlations.matrix import (
     ROLES,
     Matrix,
@@ -23,6 +23,7 @@ from quantilo.correlations.matrix import (
 from quantilo.correlations.structure import (
     Factors,
     Structure,
+    StructureLeftOut,
     StructureRule,
     factor_analysis,
     pca_structure,
@@ -76,7 +77,7 @@ class CorrelationService:
         if key in self._cache:
             self._cache.move_to_end(key)
             return self._cache[key]
-        columns = [MatrixColumn(v.name, v.type, v.parser) for v in views if not v.excluded]
+        columns = [MatrixColumn(v.name, v.type, v.parser, v.role) for v in views if not v.excluded]
         source = scoped_source(dataset.storage_path, where_for(views, conditions), numbered=True)
         connection = duckdb.connect()
         try:
@@ -88,7 +89,8 @@ class CorrelationService:
             insights = insights_for(used, matrix, loaded)
         finally:
             connection.close()
-        result = Correlations(matrix, insights, structure_rule(matrix))
+        codes = set(code_columns(used, loaded))
+        result = Correlations(matrix, insights, structure_rule(matrix, codes))
         self._cache[key] = result
         if len(self._cache) > CACHE_SIZE:
             self._cache.popitem(last=False)
@@ -96,22 +98,26 @@ class CorrelationService:
 
     def _numbers(
         self, dataset_id: str, chosen: list[str] | None, conditions: list[Condition]
-    ) -> tuple[dict[str, np.ndarray], int]:
-        """The numeric columns of the matrix (same choice, filters and sample), read once."""
+    ) -> tuple[dict[str, np.ndarray], int, list[StructureLeftOut]]:
+        """The numeric columns of the matrix (same choice, filters and sample), read once;
+        codes typed as numbers left out with their reason (R-STR-2, R-COR-01)."""
         dataset = self.columns.ready(dataset_id)
         views = self.columns.columns(dataset_id)
-        columns = [MatrixColumn(v.name, v.type, v.parser) for v in views if not v.excluded]
+        columns = [MatrixColumn(v.name, v.type, v.parser, v.role) for v in views if not v.excluded]
         usable, _excluded, _truncated = eligible(columns, chosen)
         numeric = [c for c in usable if ROLES[c.type] == "num"]
         if not numeric:
-            return {}, 0
+            return {}, 0, []
         source = scoped_source(dataset.storage_path, where_for(views, conditions), numbered=True)
         connection = duckdb.connect()
         try:
             loaded = load(connection, source, numeric)
         finally:
             connection.close()
-        return loaded.arrays, loaded.total
+        codes = code_columns(numeric, loaded)
+        arrays = {name: values for name, values in loaded.arrays.items() if name not in codes}
+        left = [StructureLeftOut(name, why) for name, why in codes.items()]
+        return arrays, loaded.total, left
 
     def _remember(self, key: tuple[Any, ...], value: Structure | Factors) -> None:
         self._structures[key] = value
@@ -131,8 +137,9 @@ class CorrelationService:
         if isinstance(cached, Structure):
             self._structures.move_to_end(key)
             return cached
-        arrays, total = self._numbers(dataset_id, chosen, conditions)
+        arrays, total, codes = self._numbers(dataset_id, chosen, conditions)
         found = pca_structure(arrays, total)
+        found.left_out = [*codes, *found.left_out]
         self._remember(key, found)
         return found
 
@@ -152,7 +159,8 @@ class CorrelationService:
             self._structures.move_to_end(key)
             return cached
         retained = self.structure(dataset_id, chosen, conditions).retained if k is None else None
-        arrays, _total = self._numbers(dataset_id, chosen, conditions)
+        arrays, _total, codes = self._numbers(dataset_id, chosen, conditions)
         found = factor_analysis(arrays, k, retained)
+        found.left_out = [*codes, *found.left_out]
         self._remember(key, found)
         return found

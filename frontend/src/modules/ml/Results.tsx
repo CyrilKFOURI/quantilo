@@ -60,9 +60,18 @@ export function verdict(run: MlRun): string {
 
 export function Results({ run, datasetId }: { run: MlRun; datasetId: string }) {
   const [tab, setTab] = useState<Tab>("performance");
+  // R-LEAK-01, R-VAL-01…: what the rules found about this run, under the verdict (094)
+  const warnings: string[] = (run.preparation as { warnings?: string[] }).warnings ?? [];
   return (
     <div className="@container space-y-4">
       <p className="text-[17px] leading-snug font-medium text-ink-1">{verdict(run)}</p>
+      {warnings.length > 0 && (
+        <ul aria-label={t("ml.warnings")} className="space-y-1 rounded-md border border-warn/40 bg-warn/5 px-3 py-2 text-[13px] text-ink-1">
+          {warnings.map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
+        </ul>
+      )}
       <ScoreTiles run={run} />
       <AllMetrics run={run} />
       <p className="text-xs text-ink-3">

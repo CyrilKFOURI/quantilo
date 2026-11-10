@@ -14,7 +14,7 @@ const GROUPS: Group[] = [
   { id: "redundant", title: "insights.group.redundant", icon: Copy, kinds: ["redundant"] },
   { id: "links", title: "insights.group.links", icon: Link2, kinds: ["correlated", "group_difference", "associated"] },
   { id: "shape", title: "insights.group.shape", icon: BarChart3, kinds: ["skewed", "imbalanced"] },
-  { id: "quality", title: "insights.group.quality", icon: TriangleAlert, kinds: ["missing"] },
+  { id: "quality", title: "insights.group.quality", icon: TriangleAlert, kinds: ["missing", "codes", "spike"] },
 ];
 
 /** The sentence with each variable name set in its type's colour. */

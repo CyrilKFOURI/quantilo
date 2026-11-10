@@ -369,6 +369,29 @@ function SetupBar({
   return <div className="space-y-2 border-y border-line bg-surface-1 px-3 py-2.5 text-[13px]">{fields}</div>;
 }
 
+/** No experiment to open: why (R-EXP-01), and the observed categories one may compare anyway. */
+function NoVariant({ candidates, onDesign }: { candidates: ExperimentCandidates | undefined; onDesign: (design: ExperimentDesign) => void }) {
+  const metric = candidates?.metrics[0]?.column;
+  const observed = candidates?.note && metric ? candidates.variants.filter((v) => v.column !== metric) : [];
+  if (!candidates?.note || !metric || observed.length === 0)
+    return <p className="rounded-lg border border-dashed border-line px-4 py-10 text-center text-ink-2">{t("experiments.noCandidates")}</p>;
+  return (
+    <section className="space-y-3 rounded-lg border border-dashed border-line px-4 py-6 text-[13px]" aria-label={t("experiments.observational")}>
+      <p className="text-ink-1">{candidates.note}</p>
+      <ul className="space-y-2">
+        {observed.map((variant) => (
+          <li key={variant.column} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Button onClick={() => onDesign({ variant: variant.column, metrics: [{ column: metric }], unit: null })}>
+              {t("experiments.compareAnyway", { column: variant.column })}
+            </Button>
+            <span className="min-w-0 text-xs text-ink-3">{variant.why}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function Analyze({
   datasetId,
   ready,
@@ -388,8 +411,7 @@ export function Analyze({
 
   if (candidates.isPending) return <Loading label={t("loading.columns")} className="h-[420px]" />;
   if (candidates.isError) return <ErrorNote>{candidates.error.message}</ErrorNote>;
-  if (!design || !candidates.data)
-    return <p className="rounded-lg border border-dashed border-line px-4 py-10 text-center text-ink-2">{t("experiments.noCandidates")}</p>;
+  if (!design || !candidates.data) return <NoVariant candidates={candidates.data} onDesign={onDesign} />;
 
   const fromCandidates = candidates.data.variants.find((v) => v.column === design.variant)?.levels;
   const levels = fromCandidates ?? result?.variants.map((v) => v.label) ?? [];

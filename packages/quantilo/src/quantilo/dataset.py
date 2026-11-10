@@ -63,6 +63,8 @@ from quantilo.regression.analyze import (
     StandardErrorTable,
     TermsTable,
 )
+from quantilo.regression.iv import IvTable
+from quantilo.regression.panel import PanelTable
 from quantilo.regression.rules import RegressionSuggestion, SeRequest
 from quantilo.regression.service import RegressionService
 from quantilo.regression.service import Request as RegressionRequest
@@ -426,6 +428,7 @@ class Dataset:
         return self._state.service(CorrelationService).factors(
             self._id, columns, self.conditions, k
         )
+
     def _regression_service(self) -> RegressionService:
         services = self._state._services
         if "RegressionService" not in services:
@@ -467,14 +470,37 @@ class Dataset:
         weights: str | None = None,
         cluster: str | None = None,
         se: SeRequest = "auto",
-    ) -> StandardErrorTable | InfluenceTable | TermsTable | MoreChecks:
+    ) -> StandardErrorTable | InfluenceTable | TermsTable | MoreChecks | PanelTable:
         """An Advanced section of the same regression: standard_errors (every kind side by side),
         influence (the 20 most influential rows, DFBETAS), terms (references, left out, VIF),
-        more (White's test, the fit without the influential rows)."""
+        more (White's test, the fit without the influential rows), panel (071: fixed, first
+        differences, between and random effects, Mundlak and Hausman)."""
         request = RegressionRequest(
             target, tuple(columns) if columns is not None else None, weights, cluster, se
         )
         return self._regression_service().section(self._id, section, request, self.conditions)
+
+    def regression_iv(
+        self,
+        target: str | None = None,
+        columns: list[str] | None = None,
+        *,
+        endogenous: list[str],
+        instruments: list[str],
+        weights: str | None = None,
+        cluster: str | None = None,
+        se: SeRequest = "auto",
+    ) -> IvTable:
+        """Two-stage least squares (071), only with the endogenous columns (among `columns`) and
+        the instruments (outside them) that you name: standard errors by the same rule as
+        `regression`, first-stage and effective F, Hansen J or Sargan, Wu-Hausman and
+        Anderson-Rubin tests."""
+        request = RegressionRequest(
+            target, tuple(columns) if columns is not None else None, weights, cluster, se
+        )
+        return self._regression_service().instruments(
+            self._id, request, tuple(endogenous), tuple(instruments), self.conditions
+        )
 
     def rows(
         self,

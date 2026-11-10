@@ -1,3 +1,4 @@
+# ruff: noqa: RUF001, RUF002, RUF003  (−, ρ, · are the app's symbols)
 """Automatic data preparation by named rules (docs/features/017-ml-preparation-donnees/spec.md).
 
 Each decision comes from the column's profile (validated type, role, statistics) and the model's
@@ -32,6 +33,7 @@ from sklearn.preprocessing import (
     TargetEncoder,
 )
 
+from quantilo.ml import codes
 from quantilo.ml import encoding as enc
 from quantilo.ml import text as textual
 from quantilo.ml.data import CATEGORICAL, NUMERIC
@@ -370,8 +372,10 @@ def decide(
     warnings: list[str] = []
     forced: set[str] = set()
     excluded_columns = excluded_columns or set()
+    profiles: dict[str, ColumnProfile] = {}
     for fld in fields:
         prof = profile(_col(frame, fld.name), fld)
+        profiles[fld.name] = prof
 
         def exclude(decision: Decision, fld: DataField = fld, prof: ColumnProfile = prof) -> None:
             _exclusion(
@@ -392,6 +396,9 @@ def decide(
         choice = choices.columns.get(fld.name)
         if decision.use and choice and choice.use is True:
             forced.add(fld.name)
+    _text_budget(decisions, profiles, forced)
+    if task == "regression" or source_numeric or task == "binary":
+        _identities(frame, decisions, target, task == "regression" or source_numeric, forced)
     if model.sensitive_to_collinearity:
         _collinearity(frame, decisions, target, task == "regression" or source_numeric, forced)
     custom = choices.model_dump(exclude={"columns"}) != GLOBAL_DEFAULTS or any(
@@ -477,9 +484,13 @@ def decide_distance(
         prof = profile(_col(frame, fld.name), fld)
 
         def exclude(decision: Decision, fld: DataField = fld, prof: ColumnProfile = prof) -> None:
-            _distance_exclusion(decision, fld, prof)
+            _distance_exclusion(decision, fld, prof, frame)
 
         decisions.append(_column(fld, prof, DISTANCE, choices, exclude, warnings))
+    forced = {
+        name for name, choice in choices.columns.items() if choice.use is True
+    }  # a twin the user asked for stays
+    _twins(frame, decisions, forced)
     custom = choices.model_dump(exclude={"columns"}) != GLOBAL_DEFAULTS or any(
         d.manual for d in decisions
     )
@@ -493,8 +504,11 @@ def decide_distance(
     )
 
 
-def _distance_exclusion(decision: Decision, fld: DataField, prof: ColumnProfile) -> None:
-    """R-SEL-02 to R-SEL-04, R-DIST-03 and R-DIST-04: what a distance between rows leaves out."""
+def _distance_exclusion(
+    decision: Decision, fld: DataField, prof: ColumnProfile, frame: pd.DataFrame
+) -> None:
+    """R-SEL-02 to R-SEL-04, R-DIST-03, R-DIST-04, R-DIST-06 and R-DIST-07: what a distance
+    between rows leaves out."""
 
     def out(rule: str, sentence: str, reactivable: bool = True) -> None:
         decision.use, decision.reactivable = False, reactivable
@@ -522,7 +536,81 @@ def _distance_exclusion(decision: Decision, fld: DataField, prof: ColumnProfile)
         return out("R-SEL-04", f"Almost always the same value ({prof.dominant_share:.1%}).")
     if prof.missing_share > DISTANCE_EMPTY:
         return out("R-DIST-04", f"{prof.missing_share:.0%} empty (more than 95 %).")
+    if codes.flag_word(fld.name):
+        return out(
+            "R-DIST-06",
+            "A quality flag or an attribute of another column: it says how a value was "
+            "recorded, not what the row is. Use it anyway if it matters.",
+        )
+    if fld.type in NUMERIC and prof.integer:
+        word = codes.code_word(fld.name)
+        values = _col(frame, fld.name).to_numpy(dtype=float)
+        if word is not None or codes.sequence(values, _row_order(frame)) is not None:
+            said = f"Its name says a code ({word})" if word else "A row or sequence number"
+            return out(
+                "R-DIST-07",
+                f"{said}: a distance would read the code as an amount. Check its type in "
+                "Columns, or use it anyway if it is a real quantity.",
+            )
     return None
+
+
+TWIN_ROWS = 20_000  # rows compared to find two columns with the same content
+MISSING_KEY = "<empty cell>"  # an empty cell, for the comparison
+
+
+def _same_content(
+    sample: pd.DataFrame,
+    first: Decision,
+    second: Decision,
+    labels: dict[str, pd.Series],
+    distinct: int,
+) -> bool:
+    """The same numbers row by row; or categories (at most one value per two rows) in
+    one-to-one correspondence."""
+    if (first.type in NUMERIC) != (second.type in NUMERIC):
+        return False
+    if first.type in NUMERIC:
+        a = _col(sample, first.column).to_numpy(dtype=float)
+        b = _col(sample, second.column).to_numpy(dtype=float)
+        return bool(np.array_equal(a, b, equal_nan=True))
+    if distinct > 0.5 * len(sample):
+        return False
+    pair = pd.DataFrame({"a": labels[first.column], "b": labels[second.column]})
+    return int(pair.drop_duplicates().shape[0]) == distinct
+
+
+def _twins(frame: pd.DataFrame, decisions: list[Decision], forced: set[str]) -> None:
+    """R-DIST-05 (094, UNU-2): two columns with the same content, row by row (the same numbers,
+    or categories in one-to-one correspondence: borough and park_borough), count twice in a
+    distance and give the same reason twice: the second is left out, reactivable."""
+    sample = frame.iloc[:TWIN_ROWS]
+    used = [d for d in decisions if d.use and d.type in USABLE]
+    keys: dict[str, tuple[int, int]] = {}
+    labels: dict[str, pd.Series] = {}
+    for d in used:
+        column = _col(sample, d.column)
+        labels[d.column] = column.astype("string").fillna(MISSING_KEY)
+        keys[d.column] = (int(labels[d.column].nunique()), int(column.isna().sum()))
+    for i, first in enumerate(used):
+        if not first.use:
+            continue
+        for second in used[i + 1 :]:
+            if (
+                not second.use
+                or second.column in forced
+                or keys[first.column] != keys[second.column]
+            ):
+                continue
+            if not _same_content(sample, first, second, labels, keys[first.column][0]):
+                continue
+            second.use, second.reactivable = False, True
+            second.auto["use"] = "no"
+            second.apply(
+                "R-DIST-05",
+                f"Same content as {first.column}, row by row: counted once (it would give the "
+                "same reason twice).",
+            )
 
 
 def _exclusion(
@@ -570,6 +658,23 @@ def _exclusion(
     if fld.type in CATEGORICAL and prof.distinct_share > 0.5 and prof.distinct > 20:
         # beyond TARGET_ENCODING_LIMIT categories without being an id: frequency (R-CAT-09)
         return out("R-SEL-02", f"Behaves like an identifier ({prof.distinct:,} distinct values).")
+    if fld.type in NUMERIC and prof.integer:
+        word = codes.code_word(fld.name)
+        if word is not None:
+            return out(
+                "R-SEL-10",
+                f"Its name says a code or an identifier ({word}) and its values are whole "
+                "numbers: a model would read the code as an amount. Check its type in Columns, "
+                "or use it anyway if it is a real quantity.",
+            )
+        rho = codes.sequence(_col(frame, fld.name).to_numpy(dtype=float), _row_order(frame))
+        if rho is not None:
+            return out(
+                "R-SEL-11",
+                f"Whole numbers rising with the row order (ρ = {rho:.2f}), {prof.distinct:,} "
+                "distinct values: a row or sequence number, not a measure. Use it anyway if it "
+                "is one.",
+            )
     if fld.type == "text" and prof.text is not None and prof.text.texts < textual.MIN_TEXTS:
         return out(
             "R-SEL-03",
@@ -609,6 +714,256 @@ def _exclusion(
                 leak=True,
             )
     return None
+
+
+def _row_order(frame: pd.DataFrame) -> np.ndarray:
+    """Each row's position in the file ("__row"), else in the frame."""
+    if "__row" in frame.columns:
+        return _col(frame, "__row").to_numpy(dtype=float)
+    return np.arange(len(frame), dtype=float)
+
+
+# --- R-SEL-06 (094): the answer hidden in a sum, a difference or a linear function -------------
+
+IDENTITY_ROWS = 5_000  # rows the search reads (a reproducible sample beyond)
+IDENTITY_TERMS = 3  # columns in one identity, at most
+IDENTITY_FOUND = 4  # identities looked for per target, at most
+IDENTITY_STARTS = 5  # forward searches, each from one of the columns closest to the target
+IDENTITY_MIN_ROWS = 30
+EXACT_SHARE = 0.9  # a number: the identity holds on this share of the rows…
+EXACT_INFORMATIVE = 0.8  # …and of the rows where the target is not its most frequent value
+SEPARATES = 0.995  # two classes: AUC of the combination
+
+
+def _auc(score: np.ndarray, positive: np.ndarray) -> float:
+    """AUC of a score for two classes, either direction."""
+    n_pos, n_neg = int(positive.sum()), int((~positive).sum())
+    if not n_pos or not n_neg:
+        return 0.0
+    ranks = stats.rankdata(score)
+    auc = (ranks[positive].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+    return float(max(auc, 1 - auc))
+
+
+def _combination(names: list[str], signs: np.ndarray) -> str:
+    """'a + b − c' from the names and the signs of their coefficients."""
+    text = names[0] if signs[0] > 0 else f"−{names[0]}"
+    for name, sign in zip(names[1:], signs[1:], strict=True):
+        text += f" + {name}" if sign > 0 else f" − {name}"
+    return text
+
+
+def _linear(names: list[str], beta: np.ndarray, intercept: float) -> str:
+    """'2·a + 0.5·b + 3' from a least-squares fit."""
+    text = " + ".join(f"{b:.3g}·{n}" for n, b in zip(names, beta, strict=True))
+    if abs(intercept) > 1e-9:
+        text += f" + {intercept:.3g}"
+    return text.replace("+ -", "− ")
+
+
+def _lstsq(a: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, float, np.ndarray]:
+    """Least squares with an intercept: coefficients, intercept, fitted values."""
+    design = np.column_stack([a, np.ones(len(a))])
+    solution = np.linalg.lstsq(design, y, rcond=None)[0]
+    return solution[:-1], float(solution[-1]), design @ solution
+
+
+def _complete(columns: dict[str, np.ndarray], y: np.ndarray, names: list[str]) -> np.ndarray:
+    """Rows where the target and every named column have a value."""
+    rows = ~np.isnan(y)
+    for name in names:
+        rows &= ~np.isnan(columns[name])
+    return rows
+
+
+def _quality(
+    columns: dict[str, np.ndarray], y: np.ndarray, names: list[str], numeric: bool
+) -> float | None:
+    """How well a least-squares fit on these columns follows the target: R², or for two
+    classes the AUC of the fit (None: too few rows, or a constant target)."""
+    rows = _complete(columns, y, names)
+    if rows.sum() < IDENTITY_MIN_ROWS:
+        return None
+    values = y[rows]
+    spread = float(np.var(values))
+    if spread == 0:
+        return None
+    fitted = _lstsq(np.column_stack([columns[c][rows] for c in names]), values)[2]
+    if numeric:
+        return 1 - float(np.mean((values - fitted) ** 2)) / spread
+    return _auc(fitted, values > 0.5)
+
+
+def _identity(
+    columns: dict[str, np.ndarray], y: np.ndarray, numeric: bool, target: str
+) -> tuple[list[str], str] | None:
+    """Forward search of the columns whose sum, difference or linear combination gives the
+    target, from each of the IDENTITY_STARTS columns that follow it best alone: the column that
+    best improves the least-squares fit is added, up to IDENTITY_TERMS; the first identity found
+    is returned, without the columns it does not need, with its sentence."""
+    alone = [(q, name) for name in columns if (q := _quality(columns, y, [name], numeric))]
+    starts = [name for _, name in sorted(alone, reverse=True)[:IDENTITY_STARTS]]
+    for first in starts:
+        chosen = [first]
+        while True:
+            ordered = [c for c in columns if c in chosen]  # the dataset's order, for the sentence
+            found = _holds(columns, y, ordered, numeric, target)
+            if found is not None:
+                return _pruned(columns, y, ordered, found, numeric, target)
+            if len(chosen) >= IDENTITY_TERMS:
+                break
+            scored = [
+                (q, name)
+                for name in columns
+                if name not in chosen
+                and (q := _quality(columns, y, [*chosen, name], numeric)) is not None
+            ]
+            if not scored:
+                break
+            chosen.append(max(scored)[1])
+    return None
+
+
+def _pruned(
+    columns: dict[str, np.ndarray],
+    y: np.ndarray,
+    chosen: list[str],
+    found: str,
+    numeric: bool,
+    target: str,
+) -> tuple[list[str], str]:
+    """The identity without the columns it does not need: the forward search may have taken a
+    column first (a pre-match forecast) that the identity holds without."""
+    for name in list(chosen):
+        if len(chosen) <= 1:
+            break
+        rest = [c for c in chosen if c != name]
+        without = _holds(columns, y, rest, numeric, target)
+        if without is not None:
+            chosen, found = rest, without
+    return chosen, found
+
+
+def _holds(
+    columns: dict[str, np.ndarray], y: np.ndarray, chosen: list[str], numeric: bool, target: str
+) -> str | None:
+    """Does the target follow these columns? The sentence that says how, or None."""
+    rows = _complete(columns, y, chosen)
+    a = np.column_stack([columns[c][rows] for c in chosen])
+    values = y[rows]
+    beta, intercept, fitted = _lstsq(a, values)
+    signs = np.where(beta >= 0, 1.0, -1.0)
+    combined = a @ signs
+    if not numeric:
+        if len(chosen) < 2:  # one column alone: the per-column rule reads it
+            return None
+        signs = signs if signs[0] > 0 else -signs  # either direction separates two classes
+        combined = a @ signs
+        auc = max(_auc(combined, values > 0.5), _auc(fitted, values > 0.5))
+        if auc < SEPARATES:
+            return None
+        return f"{_combination(chosen, signs)} separates the classes of {target}, AUC {auc:.3f}"
+    tolerance = max(1e-9, 1e-3 * float(np.std(values)))
+    modes, counts = np.unique(values, return_counts=True)
+    informative = values != modes[np.argmax(counts)]
+    if informative.sum() < IDENTITY_MIN_ROWS:
+        return None
+    for guess, text in (
+        (combined, _combination(chosen, signs)),
+        (fitted, _linear(chosen, beta, intercept)),
+    ):
+        exact = np.abs(values - guess) <= tolerance
+        share = float(exact.mean())
+        if share >= EXACT_SHARE and float(exact[informative].mean()) >= EXACT_INFORMATIVE:
+            return f"{target} = {text} on {share:.0%} of the rows"
+    return None
+
+
+def _identities(
+    frame: pd.DataFrame,
+    decisions: list[Decision],
+    target: DataField,
+    numeric: bool,
+    forced: set[str],
+) -> None:
+    """R-SEL-06 (094, ML-2): no single column gives the answer, but a sum, a difference or a
+    linear function of two or three does (the final score of both teams, the Elo after the
+    match, the components of a total). Every column of such an identity is left out as a leak,
+    reactivable, its sentence saying the identity; up to IDENTITY_FOUND identities."""
+    candidates = [d for d in decisions if d.use and d.type in NUMERIC and d.column not in forced]
+    if not candidates or target.name not in frame.columns:
+        return
+    rows = np.arange(len(frame))
+    if len(rows) > IDENTITY_ROWS:
+        rows = np.sort(np.random.default_rng(0).choice(len(frame), IDENTITY_ROWS, replace=False))
+    sample = frame.iloc[rows]
+    raw = _col(sample, target.name)
+    y: np.ndarray
+    if numeric:
+        y = np.asarray(pd.to_numeric(raw, errors="coerce"), dtype=float)
+    else:
+        labels = raw.dropna().astype(str)
+        if labels.nunique() != 2:
+            return
+        first = sorted(labels.unique())[0]
+        y = np.where(raw.isna(), np.nan, (raw.astype(str) == first).to_numpy(dtype=float))
+    columns = {d.column: _col(sample, d.column).to_numpy(dtype=float) for d in candidates}
+    by_name = {d.column: d for d in candidates}
+    for _ in range(IDENTITY_FOUND):
+        found = _identity(columns, y, numeric, target.name)
+        if found is None:
+            return
+        chosen, sentence = found
+        for name in chosen:
+            others = [c for c in chosen if c != name]
+            joined = f"with {' and '.join(others)}, it gives" if others else "it gives"
+            _leave_out(
+                by_name[name],
+                "R-SEL-06",
+                f"Looks like it contains the answer: {joined} the target ({sentence}). "
+                "Use it anyway only if it is known before the outcome.",
+            )
+            del columns[name]
+
+
+MAX_TEXTS = 3  # R-TEXT-06: free-text columns a model uses by default
+
+
+def _text_budget(
+    decisions: list[Decision], profiles: dict[str, ColumnProfile], forced: set[str]
+) -> None:
+    """R-TEXT-06 (094, ML-6): each free-text column adds up to 50 inputs (R-TEXT-04); a survey
+    with 15 of them (lists of answers "a;b;c") made the first model take minutes. The
+    MAX_TEXTS richest (texts × median words) are kept, the others left out, reactivable."""
+    texts = [d for d in decisions if d.use and d.type == "text" and d.column not in forced]
+    if len(texts) <= MAX_TEXTS:
+        return
+
+    def richness(decision: Decision) -> float:
+        text = profiles[decision.column].text
+        return text.texts * max(text.median_words, 1.0) if text is not None else 0.0
+
+    ranked = sorted(texts, key=lambda d: -richness(d))
+    kept = ", ".join(d.column for d in ranked[:MAX_TEXTS])
+    for decision in ranked[MAX_TEXTS:]:
+        decision.use, decision.reactivable = False, True
+        decision.auto["use"] = "no"
+        decision.apply(
+            "R-TEXT-06",
+            f"Left out to keep the model fast: {len(texts)} free-text columns, each adding up "
+            f"to {textual.COMPONENTS} inputs; the {MAX_TEXTS} richest are used ({kept}). Use it "
+            "anyway if it matters.",
+        )
+
+
+def _leave_out(decision: Decision, rule: str, sentence: str) -> None:
+    """A column the rules had kept, left out as a leak after all (its type rules undone)."""
+    decision.use, decision.reactivable, decision.leak = False, True, True
+    decision.rules, decision.why = [], []
+    decision.impute = decision.transform = decision.encoding = decision.scaling = None
+    decision.indicator, decision.cycle, decision.order = False, None, None
+    decision.auto = {"use": "no"}
+    decision.apply(rule, sentence)
 
 
 def _type_rules(
@@ -1306,7 +1661,10 @@ def _category_steps(
 def build(
     preparation: Preparation, rows: int, task: Task, drop_first: bool = False
 ) -> ColumnTransformer:
-    """The scikit-learn ColumnTransformer that applies the per-column decisions."""
+    """The scikit-learn ColumnTransformer that applies the per-column decisions. Its steps are
+    named c0, c1… (094, ML-1): scikit-learn refuses a step name holding "__" ("bin__") or naming
+    one of its own settings ("verbose"); a step's column is the first of its column list
+    (`fitted_step`)."""
     choices = preparation.choices
     clip = choices.outliers if choices.outliers in ("clip_percentiles", "clip_iqr") else None
     transformers = []
@@ -1332,8 +1690,16 @@ def build(
             steps = [("text", textual.TextFeatures(analyzer)), ("scale", _scaler(d.scaling))]
         else:
             steps = _category_steps(d, preparation, rows, task, drop_first)
-        transformers.append((d.column, Pipeline(steps), columns))
+        transformers.append((f"c{len(transformers)}", Pipeline(steps), columns))
     return ColumnTransformer(transformers, remainder="drop", verbose_feature_names_out=False)
+
+
+def fitted_step(transformer: Any, column: str) -> Any:
+    """The fitted per-column pipeline of `column` in a fitted ColumnTransformer, or None."""
+    for name, step, columns in getattr(transformer, "transformers_", []):
+        if name != "remainder" and step != "drop" and len(columns) and str(columns[0]) == column:
+            return step
+    return None
 
 
 def context_columns(preparation: Preparation) -> list[str]:

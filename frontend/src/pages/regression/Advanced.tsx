@@ -18,6 +18,8 @@ import { formatCount } from "../../lib/format";
 import { t, type MessageKey } from "../../lib/i18n";
 import { ErrorNote } from "../../ui/fields";
 import { Loading } from "../../ui/Loading";
+import { Instruments } from "./Instruments";
+import { PanelSection } from "./PanelSection";
 import { Sentence } from "./Sentence";
 
 type AdvancedProps = {
@@ -34,12 +36,14 @@ const TITLES: Record<RegressionSection, MessageKey> = {
   terms: "regression.section.terms",
   influence: "regression.section.influence",
   more: "regression.section.more",
+  panel: "regression.section.panel",
 };
 const HINTS: Record<RegressionSection, MessageKey> = {
   "standard-errors": "regression.section.standardErrorsHint",
   terms: "regression.section.termsHint",
   influence: "regression.section.influenceHint",
   more: "regression.section.moreHint",
+  panel: "regression.section.panelHint",
 };
 
 /** Advanced (068): each section is asked for when it is opened, More only when More is (onion). */
@@ -65,6 +69,7 @@ export function Advanced({ datasetId, params, result, opened, onToggle, onUse }:
   return (
     <div>
       {fold("standard-errors", <StandardErrorsSection datasetId={datasetId} params={params} onUse={onUse} />)}
+      {result.structure.kind === "panel" && fold("panel", <PanelSection datasetId={datasetId} params={params} />)}
       {fold("terms", <TermsSection datasetId={datasetId} params={params} />)}
       {fold("influence", <InfluenceSection datasetId={datasetId} params={params} rows={result.quality.rows} />)}
       <div className="border-t border-line p-3">
@@ -305,6 +310,7 @@ function MoreSection({ datasetId, params, result }: { datasetId: string; params:
         </div>
       )}
       {result.model === "logit" && <p className="text-xs text-ink-3">{t("regression.moreLogit")}</p>}
+      <Instruments datasetId={datasetId} params={params} result={result} />
     </div>
   );
 }

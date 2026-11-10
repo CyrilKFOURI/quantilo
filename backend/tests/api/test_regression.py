@@ -87,3 +87,43 @@ def test_agent_tool(client: TestClient, traps: str) -> None:
     assert found.link.params == {"target": "price_eur", "columns": "age,income"}
     playbook = run_tool(client, traps, "get_playbook", {"topic": "regression"})
     assert "HC3" in playbook.content
+
+
+def test_panel_and_instruments(client: TestClient, tmp_path) -> None:
+    """071: the Panel section of a store x week panel, then IV with a named instrument."""
+    import numpy as np
+    import pandas as pd
+
+    rng = np.random.default_rng(3)
+    stores, weeks = 40, 20
+    store = np.repeat(np.arange(1, stores + 1), weeks)
+    date = np.tile(pd.date_range("2021-01-04", periods=weeks, freq="W-MON"), stores)
+    alpha = rng.normal(0, 2, stores)[store - 1]
+    z, u = rng.normal(size=stores * weeks), rng.normal(size=stores * weeks)
+    price = 0.8 * alpha + 0.7 * z + u + rng.normal(size=stores * weeks)
+    sales = 2 * price + alpha + 2 * u + rng.normal(size=stores * weeks)
+    path = tmp_path / "panel.csv"
+    pd.DataFrame({"Store": store, "Date": date, "Sales": sales, "Price": price, "Cost": z}).to_csv(
+        path, index=False
+    )
+    dataset_id = import_path(client, path)
+    params = {"target": "Sales", "columns": "Price"}
+    first = client.get(url(dataset_id), params=params).json()
+    assert any(c["key"] == "panel" and c["action"] == "panel" for c in first["checks"])
+    panel = client.get(url(dataset_id, "/panel"), params=params)
+    assert panel.status_code == 200, panel.text
+    body = panel.json()
+    assert body["available"] and body["entity"] == "Store"
+    assert [e["key"] for e in body["estimators"]][:2] == ["pooled", "entity"]
+    assert body["recommended"] in ("entity", "twoway")
+    missing = client.get(url(dataset_id, "/instruments"), params=params)
+    assert missing.status_code == 422 and "never guessed" in missing.json()["error"]["message"]
+    iv = client.get(
+        url(dataset_id, "/instruments"),
+        params={**params, "endogenous": "Price", "instruments": "Cost"},
+    )
+    assert iv.status_code == 200, iv.text
+    found = iv.json()
+    assert found["se"]["kind"] == "cluster"
+    assert found["first_stages"][0]["effective_f"] > 10
+    assert {t["key"] for t in found["tests"]} == {"endogeneity", "anderson_rubin", "overid"}

@@ -712,6 +712,7 @@ class SegmentsEngine:
             names,
             prepared.transform,
             scorer.score,
+            prepared.transform_column,
         )
         listed = []
         pairs = zip(kept["row"].tolist(), kept["score"].tolist(), strict=True)

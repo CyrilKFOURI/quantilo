@@ -122,6 +122,7 @@ PERIOD_TYPES |= {"categorical_nominal", "identifier"}
 ENTITY_TYPES = {"identifier", "categorical_nominal", "categorical_ordinal", "numeric_discrete"}
 ENTITY_TYPES |= {"numeric_continuous", "text"}
 MAX_PANEL_CANDIDATES = 8
+DOMINANT_DISTINCT = 50  # R-TGT-04: numbers with at most this many values get their mode share
 
 
 def period_of(validation: evaluate.Validation, fields: list[Field]) -> str | None:
@@ -224,13 +225,52 @@ class MlEngine:
 
     def targets(self, dataset_id: str, conditions: list[Condition]) -> Targets:
         fields, total, counts = self._counts(dataset_id, conditions)
+        dominant = self._dominant(dataset_id, conditions, fields, counts)
         found = []
         for fld in fields:
             distinct, present = counts[fld.name]
             missing = 1 - present / total if total else 1.0
-            found.append(candidate(fld.name, fld.type, fld.role, distinct, missing, present))
+            found.append(
+                candidate(
+                    fld.name, fld.type, fld.role, distinct, missing, present, dominant.get(fld.name)
+                )
+            )
         found.sort(key=lambda c: (c.task is None, not c.suggested))
         return Targets(found, total)
+
+    def _dominant(
+        self,
+        dataset_id: str,
+        conditions: list[Condition],
+        fields: list[Field],
+        counts: dict[str, tuple[int, int]],
+    ) -> dict[str, float]:
+        """R-TGT-04 (094): for the numbers with few distinct values (counts, mostly), the share of
+        the most frequent one among the values present."""
+        wanted = [
+            f
+            for f in fields
+            if f.type in NUMERIC
+            and 1 <= counts[f.name][0] <= DOMINANT_DISTINCT
+            and counts[f.name][1]
+        ]
+        if not wanted:
+            return {}
+        _, (dataset, views) = self._fields(dataset_id)
+        source = scoped_source(dataset.storage_path, where_for(views, conditions), numbered=True)
+        found: dict[str, float] = {}
+        connection = duckdb.connect()
+        try:
+            for fld in wanted:
+                value = ml_data._expression(fld)
+                (top,) = connection.execute(
+                    f"SELECT max(n) FROM (SELECT count(*) AS n FROM {source} "
+                    f"WHERE {value} IS NOT NULL GROUP BY {value})"
+                ).fetchone() or (0,)
+                found[fld.name] = int(top or 0) / counts[fld.name][1]
+        finally:
+            connection.close()
+        return found
 
     def panel(
         self,

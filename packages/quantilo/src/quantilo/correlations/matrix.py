@@ -51,6 +51,7 @@ class MatrixColumn:
     name: str
     type: AnalysisType
     parser: Parser
+    role: str | None = None  # the column's role (Columns page): codes stay out of insights
 
 
 @dataclass

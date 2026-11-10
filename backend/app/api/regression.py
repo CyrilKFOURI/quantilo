@@ -11,6 +11,8 @@ from quantilo.regression.analyze import (
     StandardErrorTable,
     TermsTable,
 )
+from quantilo.regression.iv import IvTable
+from quantilo.regression.panel import PanelTable
 from quantilo.regression.rules import RegressionSuggestion, SeRequest
 from quantilo.regression.service import RegressionService
 from quantilo.regression.service import Request as RegressionRequest
@@ -100,3 +102,36 @@ def more(dataset_id: str, service: Service, filters: Filters, asked: Asked) -> M
     found = service.section(dataset_id, "more", asked, filters)
     assert isinstance(found, MoreChecks)
     return found
+
+
+@router.get("/datasets/{dataset_id}/regression/panel")
+def panel(dataset_id: str, service: Service, filters: Filters, asked: Asked) -> PanelTable:
+    """Advanced > Panel (071): fixed effects (entity, period, two-way), first differences,
+    between and random effects, clustered by entity; Mundlak chooses, Hausman informs."""
+    found = service.section(dataset_id, "panel", asked, filters)
+    assert isinstance(found, PanelTable)
+    return found
+
+
+@router.get("/datasets/{dataset_id}/regression/instruments")
+def instrumental(
+    dataset_id: str,
+    service: Service,
+    filters: Filters,
+    asked: Asked,
+    endogenous: Annotated[
+        str, Query(description="Comma-separated endogenous columns, among `columns`.")
+    ] = "",
+    instruments: Annotated[
+        str, Query(description="Comma-separated instruments, outside `columns`.")
+    ] = "",
+) -> IvTable:
+    """Advanced > More > Instruments (071): two-stage least squares, only with the endogenous
+    columns and instruments the user names (R-REG-IV-01)."""
+    return service.instruments(
+        dataset_id,
+        asked,
+        tuple(name for name in endogenous.split(",") if name),
+        tuple(name for name in instruments.split(",") if name),
+        filters,
+    )

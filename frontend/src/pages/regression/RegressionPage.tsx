@@ -76,6 +76,7 @@ const SECTIONS: Record<string, RegressionSection> = {
   standard_errors: "standard-errors",
   influence: "influence",
   terms: "terms",
+  panel: "panel",
 };
 
 const splitColumns = (value: string | undefined) =>

@@ -12,4 +12,6 @@
    - *Left out*: a column equal to a combination of others is dropped, with the reason; say so.
 5. **Normality** matters little for the coefficients' intervals with hundreds of rows; do not alarm the user about it.
 6. **Association is not causation**, even with controls: name the plausible confounders left out, and reverse causality when it is plausible (sales drive advertising as much as the reverse).
-7. Give the link to the Regression tab: its Advanced sections show every kind of standard error side by side, the terms and the influential rows.
+7. **Panel data** (a `panel` check, R-REG-14): say that fixed effects compare each entity with itself, and point to Advanced > Panel. Quote its recommendation with the reason: the Mundlak test decides between fixed and random effects (p < 0.05: random effects would be biased); the classic Hausman test only informs. Name the columns fixed effects absorb (they do not change within an entity).
+8. **Instruments (IV / 2SLS)** are in Advanced > More, and only when the user names both the endogenous column and the instrument: never propose an instrument yourself. If the user does, read the effective F first (below 10: weak, trust the Anderson–Rubin test), then Wu–Hausman (is least squares biased?), then Hansen J when there are more instruments than endogenous columns.
+9. Give the link to the Regression tab: its Advanced sections show every kind of standard error side by side, the panel estimators, the terms and the influential rows.

@@ -302,7 +302,7 @@ def test_statistics_are_learnt_on_the_training_rows_only() -> None:
     pipeline = Pipeline(prep.steps(setup.preparation, len(setup.x_train), "regression"))
     pipeline.fit(setup.x_train, setup.y_train)
 
-    imputer = pipeline.named_steps["prepare"].named_transformers_["size"].named_steps["impute"]
+    imputer = prep.fitted_step(pipeline.named_steps["prepare"], "size").named_steps["impute"]
     assert imputer.statistics_[0] == pytest.approx(setup.x_train["size"].mean())
     assert imputer.statistics_[0] != pytest.approx(FRAME["size"].mean(), abs=1e-9)
 

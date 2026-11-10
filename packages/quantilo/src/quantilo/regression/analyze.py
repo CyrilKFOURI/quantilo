@@ -87,6 +87,7 @@ class Inputs:
     requested: SeRequest = "auto"
     focus: str | None = None
     weights_reason: str | None = None
+    period_order: np.ndarray | None = None  # 071: each row's period rank (first differences)
 
 
 @dataclass

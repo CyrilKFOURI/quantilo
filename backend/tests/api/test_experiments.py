@@ -28,7 +28,10 @@ def test_candidates_open_on_a_ready_design(client: TestClient, ab: str) -> None:
         "levels": ["control", "new_checkout"],
         "counts": found["variants"][0]["counts"],
         "control": "control",
+        "planned": True,  # R-EXP-01 (094): its name says a variant
+        "why": "Its name says a variant (variant).",
     }
+    assert found["note"] is None
     kinds = {m["column"]: m["kind"] for m in found["metrics"]}
     assert kinds["converted"] == "rate" and kinds["revenue"] == "mean"
     assert kinds["orders"] == "count"

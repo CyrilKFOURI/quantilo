@@ -3051,6 +3051,378 @@
         }
       }
     },
+    "/api/v1/datasets/{dataset_id}/regression/panel": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Panel",
+        "description": "Advanced > Panel (071): fixed effects (entity, period, two-way), first differences,\nbetween and random effects, clustered by entity; Mundlak chooses, Hausman informs.",
+        "operationId": "panel_api_v1_datasets__dataset_id__regression_panel_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PanelTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/regression/instruments": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Instrumental",
+        "description": "Advanced > More > Instruments (071): two-stage least squares, only with the endogenous\ncolumns and instruments the user names (R-REG-IV-01).",
+        "operationId": "instrumental_api_v1_datasets__dataset_id__regression_instruments_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "endogenous",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Comma-separated endogenous columns, among `columns`.",
+              "default": "",
+              "title": "Endogenous"
+            },
+            "description": "Comma-separated endogenous columns, among `columns`."
+          },
+          {
+            "name": "instruments",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Comma-separated instruments, outside `columns`.",
+              "default": "",
+              "title": "Instruments"
+            },
+            "description": "Comma-separated instruments, outside `columns`."
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IvTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/datasets/{dataset_id}/rows": {
       "get": {
         "tags": [
@@ -25570,6 +25942,17 @@
                 "type": "null"
               }
             ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
           }
         },
         "type": "object",
@@ -26640,6 +27023,16 @@
           "control": {
             "type": "string",
             "title": "Control"
+          },
+          "planned": {
+            "type": "boolean",
+            "title": "Planned",
+            "default": true
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "default": ""
           }
         },
         "type": "object",
@@ -27529,6 +27922,105 @@
         ],
         "title": "FilterStep",
         "description": "A saved filter; the active one gives its rows to the steps that name it (`filter`)."
+      },
+      "FirstStage": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "f": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "F"
+          },
+          "classic_f": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classic F"
+          },
+          "effective_f": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective F"
+          },
+          "partial_r2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partial R2"
+          },
+          "df1": {
+            "type": "integer",
+            "title": "Df1"
+          },
+          "df2": {
+            "type": "integer",
+            "title": "Df2"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "warn",
+              "bad",
+              "info"
+            ],
+            "title": "Status"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "f",
+          "classic_f",
+          "effective_f",
+          "partial_r2",
+          "df1",
+          "df2",
+          "p_value",
+          "status",
+          "sentence"
+        ],
+        "title": "FirstStage"
       },
       "Fit": {
         "properties": {
@@ -29288,7 +29780,9 @@
               "correlated",
               "redundant",
               "group_difference",
-              "associated"
+              "associated",
+              "codes",
+              "spike"
             ],
             "title": "Kind"
           },
@@ -29403,6 +29897,314 @@
         ],
         "title": "Interval",
         "description": "A number's prediction interval from the validation errors (split conformal)."
+      },
+      "IvCoefficient": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "endogenous": {
+            "type": "boolean",
+            "title": "Endogenous"
+          },
+          "estimate": {
+            "type": "number",
+            "title": "Estimate"
+          },
+          "std_error": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Std Error"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "ols": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ols"
+          },
+          "ols_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ols Low"
+          },
+          "ols_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ols High"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "column",
+          "endogenous",
+          "estimate",
+          "std_error",
+          "ci_low",
+          "ci_high",
+          "p_value"
+        ],
+        "title": "IvCoefficient"
+      },
+      "IvTable": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "endogenous": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Endogenous"
+          },
+          "instruments": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Instruments"
+          },
+          "instrument_terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Instrument Terms"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "se": {
+            "$ref": "#/components/schemas/SeChoice"
+          },
+          "coefficients": {
+            "items": {
+              "$ref": "#/components/schemas/IvCoefficient"
+            },
+            "type": "array",
+            "title": "Coefficients"
+          },
+          "first_stages": {
+            "items": {
+              "$ref": "#/components/schemas/FirstStage"
+            },
+            "type": "array",
+            "title": "First Stages"
+          },
+          "tests": {
+            "items": {
+              "$ref": "#/components/schemas/IvTest"
+            },
+            "type": "array",
+            "title": "Tests"
+          },
+          "reduced_form": {
+            "items": {
+              "$ref": "#/components/schemas/ReducedForm"
+            },
+            "type": "array",
+            "title": "Reduced Form"
+          },
+          "left_out": {
+            "items": {
+              "$ref": "#/components/schemas/LeftOutTerm"
+            },
+            "type": "array",
+            "title": "Left Out"
+          },
+          "missing": {
+            "items": {
+              "$ref": "#/components/schemas/MissingRows"
+            },
+            "type": "array",
+            "title": "Missing"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target",
+          "endogenous",
+          "instruments",
+          "instrument_terms",
+          "rows",
+          "se",
+          "coefficients",
+          "first_stages",
+          "tests",
+          "reduced_form",
+          "left_out",
+          "missing",
+          "sentence"
+        ],
+        "title": "IvTable"
+      },
+      "IvTest": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "statistic": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statistic"
+          },
+          "df": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Df"
+          },
+          "df2": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Df2"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "warn",
+              "bad",
+              "info"
+            ],
+            "title": "Status"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "statistic",
+          "df",
+          "df2",
+          "p_value",
+          "status",
+          "sentence"
+        ],
+        "title": "IvTest"
       },
       "JobOut": {
         "properties": {
@@ -33284,6 +34086,160 @@
         "title": "PanelCheck",
         "description": "What the ML page says about the rows: a panel or not, its period and entity."
       },
+      "PanelCoefficient": {
+        "properties": {
+          "estimate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimate"
+          },
+          "std_error": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Std Error"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          }
+        },
+        "type": "object",
+        "title": "PanelCoefficient"
+      },
+      "PanelEstimator": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "pooled",
+              "entity",
+              "time",
+              "twoway",
+              "fd",
+              "between",
+              "re"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "coefficients": {
+            "items": {
+              "$ref": "#/components/schemas/PanelCoefficient"
+            },
+            "type": "array",
+            "title": "Coefficients"
+          },
+          "dropped": {
+            "items": {
+              "$ref": "#/components/schemas/LeftOutTerm"
+            },
+            "type": "array",
+            "title": "Dropped"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows",
+            "default": 0
+          },
+          "groups": {
+            "type": "integer",
+            "title": "Groups",
+            "default": 0
+          },
+          "r2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R2"
+          },
+          "r2_kind": {
+            "type": "string",
+            "title": "R2 Kind",
+            "default": ""
+          },
+          "se_label": {
+            "type": "string",
+            "title": "Se Label",
+            "default": ""
+          },
+          "theta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Theta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "available",
+          "reason"
+        ],
+        "title": "PanelEstimator"
+      },
       "PanelResult": {
         "properties": {
           "period_column": {
@@ -33414,6 +34370,226 @@
           "exposure_columns"
         ],
         "title": "PanelResult"
+      },
+      "PanelTable": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "entity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "entities": {
+            "type": "integer",
+            "title": "Entities",
+            "default": 0
+          },
+          "periods": {
+            "type": "integer",
+            "title": "Periods",
+            "default": 0
+          },
+          "balanced": {
+            "type": "boolean",
+            "title": "Balanced",
+            "default": false
+          },
+          "terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Terms"
+          },
+          "varying": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Varying"
+          },
+          "fixed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fixed"
+          },
+          "estimators": {
+            "items": {
+              "$ref": "#/components/schemas/PanelEstimator"
+            },
+            "type": "array",
+            "title": "Estimators"
+          },
+          "recommended": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pooled",
+                  "entity",
+                  "time",
+                  "twoway",
+                  "fd",
+                  "between",
+                  "re"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommended"
+          },
+          "recommended_rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommended Rule"
+          },
+          "recommended_reason": {
+            "type": "string",
+            "title": "Recommended Reason",
+            "default": ""
+          },
+          "tests": {
+            "items": {
+              "$ref": "#/components/schemas/PanelTest"
+            },
+            "type": "array",
+            "title": "Tests"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "PanelTable"
+      },
+      "PanelTest": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "statistic": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statistic"
+          },
+          "df": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Df"
+          },
+          "df2": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Df2"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "statistic",
+          "df",
+          "df2",
+          "p_value",
+          "sentence"
+        ],
+        "title": "PanelTest"
       },
       "ParentCandidate": {
         "properties": {
@@ -36633,6 +37809,48 @@
           "why"
         ],
         "title": "Recommendation"
+      },
+      "ReducedForm": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "estimate": {
+            "type": "number",
+            "title": "Estimate"
+          },
+          "std_error": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Std Error"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "estimate",
+          "std_error",
+          "p_value"
+        ],
+        "title": "ReducedForm"
       },
       "ReferenceLevel": {
         "properties": {

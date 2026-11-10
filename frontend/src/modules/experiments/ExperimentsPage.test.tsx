@@ -25,6 +25,7 @@ const { candidates, loose, byUser, srm, plan, simulation, policy, policyQini, de
 function setup(
   analyze: (body: { unit?: string | null; expected?: unknown }) => unknown = (body) => (body.unit ? byUser : loose),
   logged: unknown = noDecisions,
+  found: unknown = candidates,
 ) {
   return mockApi({
     "GET /health": health,
@@ -32,7 +33,7 @@ function setup(
     "GET /datasets/d1": dataset(),
     "GET /datasets/d1/columns": [column({ name: "revenue" })],
     "GET /column-roles": roles,
-    "GET /modules/experiments/datasets/d1/candidates": candidates,
+    "GET /modules/experiments/datasets/d1/candidates": found,
     "POST /modules/experiments/datasets/d1/analyze": analyze,
     "GET /modules/experiments/datasets/d1/baseline": { column: "converted", kind: "rate", value: 0.1, sd: 0.3, rows: 4023 },
     "POST /modules/experiments/sample-size": plan,
@@ -64,6 +65,23 @@ describe("Experiments page", () => {
     expect(screen.getByText(/Subgroups are hypotheses to confirm/)).toBeInTheDocument();
     const sent = calls.find((c) => c.key === "POST /modules/experiments/datasets/d1/analyze");
     expect(sent?.body).toMatchObject({ variant: "variant", unit: "user_id", metrics: [{ column: "converted" }] });
+  });
+
+  it("opens nothing on observed categories, says why and lets one compare anyway (R-EXP-01)", async () => {
+    const note = "No column looks like an experiment's variant (R-EXP-01): variant is an observed category.";
+    const observed = {
+      ...candidates,
+      variants: candidates.variants.map((v) => ({ ...v, planned: false, why: "Not named like a variant and its levels are uneven." })),
+      suggested: null,
+      note,
+    };
+    const calls = setup(undefined, noDecisions, observed);
+    renderAt("/d/d1/experiments");
+
+    expect(await screen.findByText(note)).toBeInTheDocument();
+    expect(calls.some((c) => c.key === "POST /modules/experiments/datasets/d1/analyze")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: `Compare ${candidates.variants[0]?.column ?? ""} anyway` }));
+    expect(await screen.findByRole("combobox", { name: "Unit" })).toBeInTheDocument();
   });
 
   it("adds the bandit view: P(best) and expected loss per variant, the guardrail, the replay on demand", async () => {

@@ -85,13 +85,18 @@ export type RegressionStandardErrors = Complete<Schemas["StandardErrorTable"]>;
 export type RegressionInfluence = Complete<Schemas["InfluenceTable"]>;
 export type RegressionTerms = Complete<Schemas["TermsTable"]>;
 export type RegressionMore = Complete<Schemas["MoreChecks"]>;
+// Panel and instruments (071)
+export type RegressionPanel = Complete<Schemas["PanelTable"]>;
+export type RegressionPanelEstimator = RegressionPanel["estimators"][number];
+export type RegressionIv = Complete<Schemas["IvTable"]>;
 export type RegressionSe = Regression["se"]["kind"];
-export type RegressionSection = "standard-errors" | "influence" | "terms" | "more";
+export type RegressionSection = "standard-errors" | "influence" | "terms" | "more" | "panel";
 export type RegressionSections = {
   "standard-errors": RegressionStandardErrors;
   influence: RegressionInfluence;
   terms: RegressionTerms;
   more: RegressionMore;
+  panel: RegressionPanel;
 };
 /** What the page asks for: absent fields follow the rules (R-REG-20, 21, SE-04). */
 export type RegressionParams = {
@@ -799,6 +804,12 @@ export const api = {
     ),
   regressionSection: <S extends RegressionSection>(id: string, section: S, params: RegressionParams, filters?: Condition[]) =>
     request<RegressionSections[S]>("GET", `/datasets/${id}/regression/${section}?${regressionQuery(params, filters)}`),
+  regressionInstruments: (id: string, params: RegressionParams, endogenous: string[], instruments: string[], filters?: Condition[]) => {
+    const query = regressionQuery(params, filters);
+    query.set("endogenous", endogenous.join(","));
+    query.set("instruments", instruments.join(","));
+    return request<RegressionIv>("GET", `/datasets/${id}/regression/instruments?${query}`);
+  },
   rows: (
     id: string,
     view: RowsView,

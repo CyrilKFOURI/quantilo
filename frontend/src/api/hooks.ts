@@ -1027,6 +1027,24 @@ export function useRegressionSuggestion(id: string, target: string | undefined, 
   });
 }
 
+/** IV (071): asked for only once the user has named the endogenous column and an instrument
+ *  (R-REG-IV-01, never guessed). */
+export function useRegressionInstruments(
+  id: string,
+  params: RegressionParams,
+  endogenous: string[],
+  instruments: string[],
+) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: ["datasets", id, "regression", "instruments", params, endogenous, instruments, filters] as const,
+    queryFn: () => api.regressionInstruments(id, params, endogenous, instruments, filters),
+    enabled: Boolean(params.target) && endogenous.length > 0 && instruments.length > 0,
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
 /** An Advanced section: asked for only once it is opened (onion rule, R-REGUI-02). */
 export function useRegressionSection<S extends RegressionSection>(
   id: string,
