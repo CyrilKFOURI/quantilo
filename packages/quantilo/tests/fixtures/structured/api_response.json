@@ -1,0 +1,20 @@
+{
+  "meta": {"page": 1, "per_page": 5, "total": 42, "generated_at": "2024-05-01T10:00:00Z"},
+  "results": [
+    {"id": "u1", "name": "Ana", "email": "ana@example.com", "active": true,
+     "roles": ["admin", "editor"], "profile": {"age": 34, "score": "12.5"},
+     "last_login": {"at": "2024-04-30T08:00:00Z", "ip": "10.0.0.1"}},
+    {"id": "u2", "name": "Ben", "email": "ben@example.com", "active": false,
+     "roles": ["viewer"], "profile": {"age": 28, "score": 8},
+     "last_login": null},
+    {"id": "u3", "name": "Cy", "email": null, "active": true,
+     "roles": [], "profile": {"age": 41, "score": 15.25}},
+    {"id": "u4", "name": "Dee", "email": "dee@example.com", "active": true,
+     "roles": ["editor"], "profile": {"age": 22, "score": "9"},
+     "last_login": {"at": "2024-04-29T19:30:00Z", "ip": "10.0.0.7"}},
+    {"id": "u5", "name": "Eve", "email": "eve@example.com", "active": false,
+     "roles": ["viewer", "editor"], "profile": {"age": 37, "score": 11},
+     "last_login": {"at": "2024-04-01T12:00:00Z", "ip": "10.0.0.9"}}
+  ],
+  "links": {"next": "https://api.example.com/users?page=2"}
+}

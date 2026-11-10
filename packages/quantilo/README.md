@@ -58,6 +58,21 @@ info.exif       # make, model, date_taken, orientation, has_location
 
 PNG, JPEG, GIF, WebP, BMP, TIFF, HEIC and AVIF are recognised by their first bytes, not their name, and read from their headers only: no pixel is decoded and Pillow is not needed. GPS coordinates are never read, only whether the photo has some (`has_location`). An SVG is refused (`is_image=False`, with the reason): it can carry scripts. At most 1 MiB is read, whatever the file size; a damaged header gives `None` and a note, never an exception. `info.vision` lists the computer-vision analyses that will come later (nothing is computed yet).
 
+JSON, JSON Lines and XML documents become linked tables:
+
+```python
+layout = dx.read_structured("orders.json")  # or .jsonl, .ndjson, .xml, .geojson
+layout.summary()      # '3 tables from orders.json: orders (4 rows), orders.items (8), orders.tags (6).'
+layout.relations      # orders._id -> orders.items._parent_id, ...
+layout.table("orders").column("customer.address.city").reason   # every column says which rule made it
+layout.write_parquet("out/")                # one Parquet file per table
+ds = layout.open("orders.items")            # a Dataset, types detected
+dx.read_structured("orders.json", one_table=True)        # one exploded table, the factor shown
+dx.read_structured("api.json", records_path="data.items", overrides={"payload": "json"})
+```
+
+Objects are flattened into dotted columns (4 levels), lists of objects become child tables (`_id`, `_parent_id`, `_position`), lists of values a child table plus a `; `-joined column, dictionaries keyed by dates or ids a long table (`key`, `value`). XML uses `@attribute` and `#text`; any entity declaration is refused (entity bombs, external entities). Only the standard library and pyarrow: it also runs in the browser.
+
 ## Types
 
 Every column gets a type: `numeric_continuous`, `numeric_discrete`, `categorical_nominal`, `categorical_ordinal`, `boolean`, `datetime`, `text`, `identifier` or `ignored`. The type is read from a knowledge base of names and value checks: French decimals, `oui/non`, `21/02/2019`, `5%`, ZIP codes. Each detection says why it chose that type.

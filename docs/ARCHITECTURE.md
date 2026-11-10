@@ -27,6 +27,7 @@ New App/
 │       │   ├── plots/            ← dx.plot() : les figures de l'app portées en Python (extra [plot]),
 │       │   │                       une par fonction, comme frontend/src/**/figures.ts ; theme.py = tokens
 │       │   ├── ingestion/        ← sources, détection CSV, lecture DuckDB, aperçu, import Parquet, navigation
+│       │   │                       + structured/ : JSON, JSON Lines, XML → tables liées, règles R-SST (083)
 │       │   ├── typing/           ← moteur de détection + knowledge_base/ (roles.toml, vocabulary.toml)
 │       │   ├── profiling/ · variable/ · compare/ · correlations/ · charts/ · filters/ · rows/
 │       │   ├── changes/          ← ce qui a changé entre deux versions (031) : photo, PSI / KS / χ², lignes

@@ -123,6 +123,9 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 # Image sizes and orientations are written 640 × 480 and "rotated 90° clockwise" (084).
 "src/quantilo/ingestion/images.py" = ["RUF001", "RUF002", "RUF003"]
 "tests/test_images.py" = ["RUF001", "RUF002", "RUF003"]
+# The One table factor (×4.7) and arrows in the structured reader's reasons (083).
+"src/quantilo/ingestion/structured/*" = ["RUF001", "RUF002", "RUF003"]
+"tests/test_structured*.py" = ["RUF001", "RUF002", "RUF003"]
 
 [tool.pyright]
 pythonVersion = "3.12"

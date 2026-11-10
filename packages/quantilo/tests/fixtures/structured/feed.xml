@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Quantilo news</title>
+    <link>https://example.com/</link>
+    <atom:link href="https://example.com/feed.xml" rel="self" type="application/rss+xml"/>
+    <item>
+      <title>Release 1.0</title>
+      <link>https://example.com/1</link>
+      <dc:creator>Cyril</dc:creator>
+      <category>release</category>
+      <pubDate>Mon, 06 May 2024 10:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>JSON import</title>
+      <link>https://example.com/2</link>
+      <dc:creator>Cyril</dc:creator>
+      <category>feature</category>
+      <category>import</category>
+      <pubDate>Tue, 07 May 2024 10:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

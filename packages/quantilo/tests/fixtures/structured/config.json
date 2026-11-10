@@ -1,0 +1,11 @@
+{
+  "app": {"name": "quantilo-demo", "version": "1.2.0", "debug": false,
+          "features": {"beta": true, "export": {"csv": true, "parquet": true}}},
+  "servers": [
+    {"host": "web-1.internal", "port": 8080, "weight": 3},
+    {"host": "web-2.internal", "port": 8080, "weight": 1}
+  ],
+  "database": {"primary": {"host": "db.internal", "port": 5432,
+               "pool": {"min": 1, "max": 10}}},
+  "allowed_origins": ["https://a.example", "https://b.example"]
+}

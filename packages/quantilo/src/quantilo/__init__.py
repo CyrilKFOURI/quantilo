@@ -14,6 +14,7 @@
     model = dx.load_model("churn_lightgbm.zip")   # a model exported by the app (037)
     layout = dx.detect_tables("report.xlsx")       # the real tables of a laid-out sheet (080)
     dx.inspect_image("photo.jpg")    # format, size, EXIF from the headers; GPS only "present" (084)
+    layout = dx.read_structured("orders.json")      # JSON / JSON Lines / XML → linked tables (083)
 
 The engine of the Quantilo app: the same code computes the app's results.
 """
@@ -34,6 +35,7 @@ from quantilo.version import __version__
 
 if TYPE_CHECKING:
     from quantilo.ingestion.layout import Layout
+    from quantilo.ingestion.structured.model import Format, Override, StructuredLayout
     from quantilo.ml.saved import LoadedModel
     from quantilo.recipes import Recipe
 
@@ -73,6 +75,40 @@ def load_model(path: str | os.PathLike[str]) -> "LoadedModel":
     return load(path)
 
 
+def read_structured(
+    path: str | os.PathLike[str],
+    *,
+    records_path: str | None = None,
+    one_table: bool = False,
+    overrides: "dict[str, Override] | None" = None,
+    sample: int = 5_000,
+    limit: int | None = None,
+    format: "Format | None" = None,
+    max_bytes: int | None = None,
+) -> "StructuredLayout":
+    """A JSON, JSON Lines or XML document as linked tables: objects flattened into dotted
+    columns, lists of objects into child tables keyed by `_parent_id`, every table and column
+    with its rule and reason (083). `records_path` picks the records ("" = the whole document as
+    one record), `overrides` maps a dotted path to "flatten", "separate", "json" or "skip",
+    `one_table` explodes the only list of objects, `limit` reads the first records only.
+
+    `layout.arrow(name)`, `layout.write_parquet(folder)` and `layout.open(name)` give the data;
+    see `quantilo.ingestion.structured`."""
+    from quantilo.ingestion.structured import StructuredOptions
+    from quantilo.ingestion.structured import read_structured as read
+
+    options = StructuredOptions(
+        format=format,
+        records_path=records_path,
+        sample=sample,
+        one_table=one_table,
+        overrides=dict(overrides or {}),
+        max_bytes=max_bytes,
+        limit=limit,
+    )
+    return read(path, options)
+
+
 __all__ = [
     "DEFAULT_THRESHOLDS",
     "ColumnNotFound",
@@ -96,6 +132,7 @@ __all__ = [
     "load_model",
     "open",
     "plot",
+    "read_structured",
     "sample_size",
     "to_dict",
     "to_pandas",

@@ -1,0 +1,47 @@
+[
+  {
+    "id": 1001,
+    "date": "2024-03-01",
+    "status": "shipped",
+    "customer": {"name": "Ana Lopez", "address": {"city": "Lyon", "country": "FR"}},
+    "items": [
+      {"sku": "A-1", "qty": 2, "price": 9.5},
+      {"sku": "B-7", "qty": 1, "price": 25.0}
+    ],
+    "tags": ["gift", "express"],
+    "coupon": null
+  },
+  {
+    "id": 1002,
+    "date": "2024-03-02",
+    "status": "pending",
+    "customer": {"name": "Ben Ito", "address": {"city": "Osaka", "country": "JP"}},
+    "items": [
+      {"sku": "A-1", "qty": 1, "price": 9.5}
+    ],
+    "tags": [],
+    "coupon": "SPRING"
+  },
+  {
+    "id": 1003,
+    "date": "2024-03-02",
+    "customer": {"name": "Chloé Martin", "address": {"city": "Paris", "country": "FR"}},
+    "items": [
+      {"sku": "C-3", "qty": 3, "price": 4.0},
+      {"sku": "A-1", "qty": 1, "price": 9.5},
+      {"sku": "D-9", "qty": 2, "price": 12.25}
+    ],
+    "tags": ["express"]
+  },
+  {
+    "id": 1004,
+    "date": "2024-03-04",
+    "status": "shipped",
+    "customer": {"name": "Dev Patel", "address": {"city": "Leeds", "country": "GB"}},
+    "items": [
+      {"sku": "B-7", "qty": 2, "price": 25.0},
+      {"sku": "E-2", "qty": 1, "price": 3.75}
+    ],
+    "tags": ["gift", "fragile", "express"]
+  }
+]

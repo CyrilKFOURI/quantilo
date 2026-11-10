@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE rows [
+  <!ENTITY % remote SYSTEM "file:///c:/windows/win.ini">
+  %remote;
+]>
+<rows><row><v>1</v></row><row><v>2</v></row></rows>

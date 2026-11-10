@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog xmlns:dc="http://purl.org/dc/elements/1.1/" updated="2024-05-01">
+  <book id="bk101" lang="en">
+    <author>Gambardella, Matthew</author>
+    <title>XML Developer's Guide</title>
+    <genre>Computer</genre>
+    <price currency="USD">44.95</price>
+    <publish_date>2000-10-01</publish_date>
+    <dc:description>An in-depth look at creating applications with XML.</dc:description>
+    <tag>xml</tag>
+    <tag>programming</tag>
+  </book>
+  <book id="bk102" lang="en">
+    <author>Ralls, Kim</author>
+    <title>Midnight Rain</title>
+    <genre>Fantasy</genre>
+    <price currency="USD">5.95</price>
+    <publish_date>2000-12-16</publish_date>
+    <dc:description>A former architect battles corporate zombies.</dc:description>
+    <tag>fantasy</tag>
+  </book>
+  <book id="bk103" lang="fr">
+    <author>Corets, Eva</author>
+    <title>Maeve Ascendant</title>
+    <genre>Fantasy</genre>
+    <price currency="EUR">5.95</price>
+    <publish_date>2000-11-17</publish_date>
+    <dc:description>After the collapse of a nanotechnology society.</dc:description>
+  </book>
+</catalog>

@@ -1,0 +1,9 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {"type": "Feature", "geometry": {"type": "Polygon",
+      "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]}, "properties": {"zone": "A"}},
+    {"type": "Feature", "geometry": {"type": "Polygon",
+      "coordinates": [[[2, 2], [3, 2], [3, 3], [2, 2]]]}, "properties": {"zone": "B"}}
+  ]
+}
