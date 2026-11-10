@@ -31,6 +31,9 @@ KEY_TYPES = frozenset(
 NUMERIC = frozenset({"numeric_continuous", "numeric_discrete"})
 MAX_KEY_LENGTH = 64  # R-KEY-02: a longer text is prose, not a code
 PAIR_COLUMNS = 12  # R-KEY-03: pairs searched among the first 12 eligible columns (66 pairs)
+# `approx_count_distinct` can be 10 to 15 % off (DuckDB 1.x, the Pyodide build): every test made
+# on it leaves this margin, and the decisions themselves use exact counts
+APPROX_ERROR = 0.2
 _INTEGERS = ("TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT", "UTINYINT", "USMALLINT")
 _INTEGERS += ("UINTEGER", "UBIGINT", "UHUGEINT")
 _FLOATS = ("DOUBLE", "FLOAT", "REAL", "DECIMAL")
@@ -277,7 +280,7 @@ def _measure(
         if profile.present == 0:
             profile.kind, profile.excluded_by = None, Reason("R-KEY-02", "empty")
             continue
-        if profile.distinct >= profile.present * 0.9:
+        if profile.distinct >= profile.present * (1 - APPROX_ERROR):
             exact.append(index)
     if not exact:
         return

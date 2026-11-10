@@ -22,9 +22,9 @@ import numpy as np
 from pydantic import TypeAdapter
 from quantilo.filters.model import Condition
 from quantilo.ml import auto as automl
+from quantilo.ml import browser, evaluate
 from quantilo.ml import classes as binning
 from quantilo.ml import error_analysis as mistakes
-from quantilo.ml import evaluate
 from quantilo.ml import explain as explainer
 from quantilo.ml import models as catalogue
 from quantilo.ml import panel as panels
@@ -531,8 +531,10 @@ class MlService(MlEngine):
             dataset_id, target, request.model, conditions, classes
         )
         spec = catalogue.CATALOGUE[request.model]
-        if not spec.installed:
-            raise MlError(f"{spec.label} is not installed in this build.", "not_installed")
+        if not spec.available:
+            raise MlError(spec.missing(), "not_installed")
+        if browser.active():  # R-WEB-04
+            raise MlError(browser.desktop_only("Tuning"), "not_installed")
         space = request.space if request.space is not None else tuner.default_space(spec.key)
         job = TuneJob(uuid.uuid4().hex[:12], "running", spec.key, spec.label, space=space)
         with self._lock:

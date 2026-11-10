@@ -404,6 +404,8 @@ class MachineLearning:
             raise MlError(f"Invalid search: {error}") from None
         fields, target, source = self._request(model)
         spec = catalogue.CATALOGUE[model]
+        if spec.elsewhere:
+            raise MlError(spec.missing())
         if not spec.installed:
             raise MlError(f"{spec.label} is not installed: pip install quantilo[ml].")
         with _readable():

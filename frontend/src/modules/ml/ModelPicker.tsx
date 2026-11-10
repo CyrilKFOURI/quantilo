@@ -5,6 +5,7 @@ import type { MlCatalogue, MlModel } from "../../api/client";
 import { t } from "../../lib/i18n";
 import { Dialog } from "../../ui/Dialog";
 import { TextInput } from "../../ui/fields";
+import { DesktopOnlyModels, offered } from "./desktopOnly";
 
 /** Why a model cannot be picked here, or null. */
 export function blocked(model: MlModel): string | null {
@@ -52,7 +53,8 @@ export function ModelPicker({ catalogue, current, onPick }: { catalogue: MlCatal
   const [query, setQuery] = useState("");
   const [shut, setShut] = useState<Record<string, boolean>>({});
   const needle = query.trim().toLowerCase();
-  const found = catalogue.models.filter(
+  const listed = offered(catalogue.models);
+  const found = listed.filter(
     (m) => !needle || `${m.label} ${m.family} ${m.description} ${m.key}`.toLowerCase().includes(needle),
   );
   const byKey = new Map(catalogue.models.map((m) => [m.key, m]));
@@ -75,7 +77,7 @@ export function ModelPicker({ catalogue, current, onPick }: { catalogue: MlCatal
         </span>
         <ChevronDown size={14} strokeWidth={1.5} className="shrink-0 text-ink-3" aria-hidden />
       </button>
-      <Dialog open={open} onOpenChange={setOpen} title={t("ml.picker.title")} description={t("ml.picker.count", { count: String(catalogue.models.length) })}>
+      <Dialog open={open} onOpenChange={setOpen} title={t("ml.picker.title")} description={t("ml.picker.count", { count: String(listed.length) })}>
         <div className="space-y-3">
           <div className="relative">
             <Search size={14} strokeWidth={1.5} className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-ink-3" aria-hidden />
@@ -126,6 +128,7 @@ export function ModelPicker({ catalogue, current, onPick }: { catalogue: MlCatal
             );
           })}
           {found.length === 0 && <p className="px-3 text-[13px] text-ink-3">{t("ml.picker.none")}</p>}
+          {!needle && <DesktopOnlyModels models={catalogue.models} />}
         </div>
       </Dialog>
     </>

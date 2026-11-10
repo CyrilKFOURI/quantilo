@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
+from quantilo.ml import browser
 
 from app.config import Settings
 from app.core.jobs import InlineJobRunner
@@ -323,7 +324,11 @@ def test_cancelling_a_run(client: TestClient, october: str, tmp_path: Path) -> N
     assert all(s == "cancelled" for s in statuses[first:])
 
 
-def test_machine_learning_is_skipped_in_the_browser(tmp_path: Path) -> None:
+def test_machine_learning_runs_in_the_browser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """102: a scikit-learn model is trained again in the browser version too."""
+    monkeypatch.setattr(browser, "IN_BROWSER", True)
     settings = Settings(home=tmp_path / "workspace", lite=True)
     with TestClient(create_app(settings, job_runner=InlineJobRunner())) as client:
         october = import_path(client, write(sales(1), tmp_path / "oct.csv"))
@@ -333,8 +338,30 @@ def test_machine_learning_is_skipped_in_the_browser(tmp_path: Path) -> None:
         run = replay(client, recipe["id"], november)
 
     ml = next(s for s in run["report"]["steps"] if s["kind"] == "ml")
-    assert ml["status"] == "skipped" and "browser" in ml["message"]
+    assert ml["status"] == "done", ml
+
+
+def test_a_model_left_to_the_desktop_app_is_skipped_in_the_browser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """R-WEB-04: a recipe made on a computer with LightGBM, replayed in the browser version."""
+    settings = Settings(home=tmp_path / "workspace", lite=True)
+    with TestClient(create_app(settings, job_runner=InlineJobRunner())) as client:
+        october = import_path(client, write(sales(1), tmp_path / "oct.csv"))
+        prepare(client, october, model="lightgbm")
+        recipe = make_recipe(client, october)
+        monkeypatch.setattr(browser, "IN_BROWSER", True)
+        november = import_path(client, write(sales(2), tmp_path / "nov.csv"))
+        planned = client.post(f"{BASE}/recipes/{recipe['id']}/plan", json={"dataset_id": november})
+        run = replay(client, recipe["id"], november)
+
+    ml = next(s for s in run["report"]["steps"] if s["kind"] == "ml")
+    assert ml["status"] == "skipped"
+    assert ml["message"] == "LightGBM is available in the desktop app."
     assert run["status"] == "warning"
+    assert planned.status_code == 200, planned.text
+    step = next(s for s in planned.json()["steps"] if s["kind"] == "ml")
+    assert step["skip"] == "LightGBM is available in the desktop app."
 
 
 def test_agent_tools_list_and_run(client: TestClient, october: str, tmp_path: Path) -> None:

@@ -5,6 +5,7 @@ the periods, mean / std, or worst period)."""
 
 from __future__ import annotations
 
+import importlib.util
 import math
 import time
 import warnings
@@ -19,7 +20,7 @@ from sklearn.base import clone
 from sklearn.metrics import get_scorer
 from sklearn.model_selection import KFold, StratifiedKFold
 
-from quantilo.ml import catalog, evaluate
+from quantilo.ml import browser, catalog, evaluate
 from quantilo.ml import panel as panels
 from quantilo.ml import preparation as prep
 from quantilo.ml.explain import SCORERS
@@ -97,7 +98,14 @@ class TuneError(ValueError):
     pass
 
 
+def available() -> bool:
+    """Tuning can run here: never in the browser version (R-WEB-04), else when Optuna is there."""
+    return not browser.active() and importlib.util.find_spec("optuna") is not None
+
+
 def _optuna() -> Any:
+    if browser.active():
+        raise TuneError(browser.desktop_only("Tuning"))
     try:
         import optuna
     except ModuleNotFoundError:

@@ -8,6 +8,7 @@ import { t, type MessageKey } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
 import { Checkbox, ErrorNote } from "../../ui/fields";
+import { DesktopOnlyModels, offered } from "./desktopOnly";
 import { blocked } from "./ModelPicker";
 import { CriterionSelect, metricName, PANEL } from "./SettingsDrawer";
 
@@ -69,7 +70,8 @@ export function CompareModels({
       {!jobId ? (
         <div className="space-y-3">
           {catalogue.families.map((family) => {
-            const models = catalogue.models.filter((m) => m.family === family);
+            const models = offered(catalogue.models).filter((m) => m.family === family);
+            if (!models.length) return null;
             return (
               <fieldset key={family} className="space-y-1">
                 <legend className="text-[11px] font-medium tracking-wide text-ink-3 uppercase">{family}</legend>
@@ -91,6 +93,7 @@ export function CompareModels({
               </fieldset>
             );
           })}
+          <DesktopOnlyModels models={catalogue.models} inset={false} />
           <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line pt-3">
             {panel && (
               <label className="mr-auto flex items-center gap-2 text-xs text-ink-2">

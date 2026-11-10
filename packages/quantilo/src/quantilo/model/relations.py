@@ -14,6 +14,7 @@ import duckdb
 
 from quantilo.model import names
 from quantilo.model.keys import (
+    APPROX_ERROR,
     ColumnProfile,
     Kind,
     Reason,
@@ -197,7 +198,7 @@ def _measure_pair(
         return None
     floor = NAMED_INCLUDED if name_score == 1 else INCLUDED
     # cheap bounds first: a query that can't pass is not run
-    too_many = lone.distinct > part.distinct / floor + 1
+    too_many = lone.distinct * (1 - APPROX_ERROR) > part.distinct / floor + 1
     if len(parts) == 1 and (not _range_fits(lone, part) or too_many):
         return None
     inclusion, coverage, sampled = _inclusion(

@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from quantilo.ml import browser
 from quantilo.ml.preparation import ModelProfile
 from quantilo.ml.target import Task
 
@@ -73,6 +74,7 @@ class ModelSpec:
     badges: Callable[[Context], list[str]] = lambda context: []
     limit: Callable[[Context], str | None] = lambda context: None  # why it cannot run here
     package: str | None = None  # optional package it needs
+    desktop_only: bool = False  # R-WEB-04: never offered in the browser version (102)
     probabilities: bool | Callable[[dict[str, Any]], bool] = True  # False: calibrated
     linear: bool = False  # coefficients make sense
     profile_for: Callable[[dict[str, Any]], ModelProfile] | None = None
@@ -86,6 +88,23 @@ class ModelSpec:
     @property
     def installed(self) -> bool:
         return self.package is None or importlib.util.find_spec(self.package) is not None
+
+    @property
+    def elsewhere(self) -> bool:
+        """Left to the desktop app here: the engine runs in the browser (R-WEB-04)."""
+        return self.desktop_only and browser.active()
+
+    @property
+    def available(self) -> bool:
+        """It can be trained in this build: its package is there, and it is not left to the
+        desktop app (R-WEB-04)."""
+        return self.installed and not self.elsewhere
+
+    def missing(self) -> str:
+        """Why it cannot be trained in this build (when it is not available)."""
+        if self.elsewhere:
+            return browser.desktop_only(self.label)
+        return f"{self.label} is not installed in this build."
 
 
 class SettingsError(ValueError):

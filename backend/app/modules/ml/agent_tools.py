@@ -144,7 +144,7 @@ class ListModels(Tool[ModelsInput]):
         models = [
             {"key": s.key, "label": s.label, "family": s.family, "description": s.description}
             for s in catalogue.CATALOGUE.values()
-            if args.task in s.tasks and s.installed
+            if args.task in s.tasks and s.available
         ]
         if not models:
             raise ToolError("Unknown task: use regression, binary or multiclass.")

@@ -27,10 +27,11 @@ const candidate = (name: string, task: string | null, overrides: Record<string, 
   ...overrides,
 });
 
-type Model = { key: string; label: string; tasks: string[]; settings?: Record<string, unknown>[]; family?: string; rules?: unknown[]; installed?: boolean; badges?: string[] };
+type Model = { key: string; label: string; tasks: string[]; settings?: Record<string, unknown>[]; family?: string; rules?: unknown[]; installed?: boolean; badges?: string[]; desktop_only?: boolean; space?: unknown[] };
+type Limits = { max_rows: number; auto_minutes: number; tuning: boolean };
 
 /** The catalogue as the API serves it. */
-function catalogue(models: Model[], recommended: { key: string; why: string }[] = []) {
+function catalogue(models: Model[], recommended: { key: string; why: string }[] = [], browser: Limits | null = null) {
   return {
     families: [...new Set(models.map((m) => m.family ?? "Linear models"))],
     models: models.map((m) => ({
@@ -42,6 +43,7 @@ function catalogue(models: Model[], recommended: { key: string; why: string }[] 
       unavailable: null,
       probabilities: true,
       space: [],
+      desktop_only: false,
       ...m,
       settings: (m.settings ?? []).map((s) => ({
         kind: "select",
@@ -61,7 +63,8 @@ function catalogue(models: Model[], recommended: { key: string; why: string }[] 
     recommended,
     metrics: ["r2", "mae"],
     default_metric: "r2",
-    compare: models.map((m) => m.key),
+    compare: models.filter((m) => !m.desktop_only).map((m) => m.key),
+    browser,
   };
 }
 
@@ -399,6 +402,63 @@ describe("Model catalogue", () => {
     const posted = calls.find((c) => c.key === "POST /modules/ml/datasets/d1/runs");
     expect(posted?.params.get("model")).toBe("random_forest");
     expect(JSON.parse(posted?.params.get("validation") ?? "{}")).toMatchObject({ method: "kfold", folds: 5 });
+  });
+});
+
+describe("Browser version (102)", () => {
+  const run = { id: "r1", target: "price", task: "regression", model: "linear_regression", settings: {}, metric: "r2", score: 0.82, seconds: 0.3, created_at: "2026-10-18T10:00:00Z", classes: null, greater_is_better: true };
+  const api = (served: ReturnType<typeof catalogue>) =>
+    mockApi({
+      "GET /health": health,
+      "GET /datasets": [dataset()],
+      "GET /datasets/d1": dataset(),
+      "GET /datasets/d1/columns": [column({ name: "price" })],
+      "GET /column-roles": roles,
+      "GET /modules/ml/datasets/d1/targets": { candidates: [candidate("price", "regression")], rows: 100 },
+      "GET /modules/ml/catalog": served,
+      "GET /modules/ml/datasets/d1/runs": [run],
+      "GET /modules/ml/datasets/d1/runs/r1": regressionRun,
+    });
+
+  it("offers the scikit-learn models only and says once what is left to the desktop app", async () => {
+    api(
+      catalogue(
+        [
+          { key: "linear_regression", label: "Linear regression", tasks: ["regression"], space: [{ key: "alpha" }] },
+          { key: "hist_gradient_boosting", label: "Histogram gradient boosting", family: "Boosting ensembles", tasks: ["regression"] },
+          { key: "xgboost", label: "XGBoost", family: "Boosting ensembles", tasks: ["regression"], installed: false, desktop_only: true },
+          { key: "lightgbm", label: "LightGBM", family: "Boosting ensembles", tasks: ["regression"], installed: false, desktop_only: true },
+          { key: "catboost", label: "CatBoost", family: "Boosting ensembles", tasks: ["regression"], installed: false, desktop_only: true },
+        ],
+        [],
+        { max_rows: 50_000, auto_minutes: 5, tuning: false },
+      ),
+    );
+    renderAt("/d/d1/ml?target=price");
+
+    expect(
+      await screen.findByText(
+        "Browser version: scikit-learn models, trained on one core on at most 50,000 rows (R-WEB-01, R-WEB-02). XGBoost, LightGBM, CatBoost and tuning are available in the desktop app (R-WEB-04).",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tune" })).not.toBeInTheDocument(); // no dead button
+    expect(screen.getByRole("button", { name: "Auto" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Linear regression.*Linear models/ }));
+    const picker = await screen.findByRole("dialog");
+    expect(within(picker).getByText("2 models for this problem, by family")).toBeInTheDocument();
+    fireEvent.click(within(picker).getByRole("button", { name: /Boosting ensembles/ }));
+    expect(within(picker).getByRole("button", { name: /Histogram gradient boosting/ })).toBeEnabled();
+    expect(within(picker).queryByRole("button", { name: /XGBoost/ })).not.toBeInTheDocument();
+    expect(within(picker).getByText("XGBoost, LightGBM and CatBoost: available in the desktop app (R-WEB-04).")).toBeInTheDocument();
+  });
+
+  it("keeps the Tune button and says nothing of the browser on a computer", async () => {
+    api(catalogue([{ key: "linear_regression", label: "Linear regression", tasks: ["regression"], space: [{ key: "alpha" }] }]));
+    renderAt("/d/d1/ml?target=price");
+
+    expect(await screen.findByRole("button", { name: "Tune" })).toBeInTheDocument();
+    expect(screen.queryByText(/R-WEB-04/)).not.toBeInTheDocument();
   });
 });
 

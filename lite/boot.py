@@ -86,7 +86,7 @@ app = create_app(
         samples_dir="/lite/samples",
         max_upload_mb=1024,
         keep_version_limit_mb=200,  # IndexedDB space: "Under 200 MB" (031)
-        lite=True,  # recipes skip machine learning (030)
+        lite=True,  # machine learning: quantilo/ml/browser.py holds back what needs a computer (102)
     ),
     job_runner=InlineJobRunner(),
 )

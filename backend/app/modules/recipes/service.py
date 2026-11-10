@@ -53,7 +53,7 @@ from app.modules.recipes.target import AppTarget, BaselineTarget, Services
 
 logger = logging.getLogger(__name__)
 
-ML_IN_BROWSER = "Machine learning is not available in the browser version: it needs the full app."
+ML_MISSING = "Machine learning is not available in this build."
 COMPATIBLE_SHARE = 0.8  # columns matched on their name to suggest a recipe for a dataset
 FORMULA_STARTS = ("=", "+", "-", "@", "\t", "\r")
 REPORT = TypeAdapter(RunReport)
@@ -188,10 +188,11 @@ class _Running:
 
 
 class RecipeService:
-    def __init__(self, workspace: Workspace, services: Services, lite: bool = False) -> None:
+    def __init__(self, workspace: Workspace, services: Services) -> None:
         self.workspace = workspace
         self.s = services
-        self.skip_kinds = {"ml": ML_IN_BROWSER} if lite or services.ml is None else {}
+        # in the browser version too (102): a model left to the desktop app skips its step
+        self.skip_kinds = {"ml": ML_MISSING} if services.ml is None else {}
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="recipe")
         self._running: dict[str, _Running] = {}
         self._recovered = False

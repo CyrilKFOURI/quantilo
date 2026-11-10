@@ -27,6 +27,7 @@ import { classCounts, DEFAULT_SETUP, edgesFor, namesFor, type Setup } from "./bi
 import { ClassesPanel, setupFromRun, type Cut } from "./ClassesPanel";
 import { AutoPanel } from "./AutoPanel";
 import { CompareModels } from "./CompareModels";
+import { BrowserNote } from "./desktopOnly";
 import { ModelPicker } from "./ModelPicker";
 import { incomparable, RunCompare } from "./RunCompare";
 import { TunePanel } from "./TunePanel";
@@ -395,14 +396,17 @@ function Workbench({
               <Button variant="ghost" onClick={() => setDrawer(true)}>
                 {t("ml.settings.all")}
               </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setTuning(true)}
-                disabled={model.space.length === 0 || training}
-                title={model.space.length === 0 ? t("ml.tune.nothing") : undefined}
-              >
-                {t("ml.tune.button")}
-              </Button>
+              {/* 102: tuning (Optuna) is left to the desktop app in the browser version (R-WEB-04) */}
+              {catalog.data.browser?.tuning !== false && (
+                <Button
+                  variant="ghost"
+                  onClick={() => setTuning(true)}
+                  disabled={model.space.length === 0 || training}
+                  title={model.space.length === 0 ? t("ml.tune.nothing") : undefined}
+                >
+                  {t("ml.tune.button")}
+                </Button>
+              )}
               <Button variant="ghost" onClick={() => setComparing(true)} disabled={training}>
                 {t("ml.compare.button")}
               </Button>
@@ -410,6 +414,7 @@ function Workbench({
                 {t("ml.auto.button")}
               </Button>
             </span>
+            <BrowserNote catalogue={catalog.data} />
           </section>
         )}
         {catalog.data && comparing && (

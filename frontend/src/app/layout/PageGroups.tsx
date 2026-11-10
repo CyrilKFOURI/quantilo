@@ -3,7 +3,6 @@ import { Lock } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { t, type MessageKey } from "../../lib/i18n";
-import { LITE } from "../../lite/flag";
 
 /** 046: pages that answer the same question share one entry in the sidebar and a row of tabs. */
 export type PageGroup = "overview" | "relationships" | "ml";
@@ -23,8 +22,8 @@ export const GROUPS: Record<PageGroup, Tab[]> = {
     { labelKey: "tab.regression", to: "/d/$datasetId/regression" },
   ],
   ml: [
-    // In the browser version prediction needs the full app; Segments runs there.
-    { labelKey: "tab.predict", to: "/d/$datasetId/ml", locked: LITE },
+    // Both run in the browser version too (102: scikit-learn models only).
+    { labelKey: "tab.predict", to: "/d/$datasetId/ml" },
     { labelKey: "module.segments.label", to: "/d/$datasetId/segments" },
   ],
 };

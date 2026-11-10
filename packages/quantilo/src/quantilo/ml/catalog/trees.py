@@ -33,6 +33,7 @@ from sklearn.tree import (
 from sklearn.utils import ClassifierTags, RegressorTags
 from sklearn.utils.class_weight import compute_sample_weight
 
+from quantilo.ml import browser
 from quantilo.ml.catalog.base import (
     Context,
     ModelSpec,
@@ -204,10 +205,15 @@ def _forest_settings(context: Context) -> list[Setting]:
             "n_estimators",
             "Number of trees",
             "int",
-            300,
+            browser.FOREST_TREES if browser.active() else 300,
             minimum=10,
             maximum=5_000,
-            why="300 trees: more rarely helps, it only costs time.",
+            why=(
+                f"{browser.FOREST_TREES} trees in the browser version, on one core (R-WEB-02); "
+                "300 in the desktop app."
+                if browser.active()
+                else "300 trees: more rarely helps, it only costs time."
+            ),
             group="Structure",
             param="n_estimators",
         ),
@@ -274,7 +280,7 @@ def _forest_build(extra: bool):
             max_samples=values["max_samples"]
             if values["bootstrap"] and values["max_samples"] < 1
             else None,
-            n_jobs=-1,
+            n_jobs=browser.n_jobs(),
             random_state=values["random_state"],
         )
         if _regression(context):
@@ -330,7 +336,7 @@ def _bagging_build(values: dict[str, Any], context: Context):
         n_estimators=values["n_estimators"],
         max_samples=values["max_samples"],
         max_features=values["max_features"],
-        n_jobs=-1,
+        n_jobs=browser.n_jobs(),
         random_state=values["random_state"],
     )
     return BaggingRegressor(**shared) if _regression(context) else BaggingClassifier(**shared)
@@ -834,7 +840,7 @@ def _xgb_build(values: dict[str, Any], context: Context):
         "max_bin",
         "random_state",
     )
-    shared = {key: values[key] for key in keys} | {"n_jobs": -1}
+    shared = {key: values[key] for key in keys} | {"n_jobs": browser.n_jobs()}
     model = (
         xgboost.XGBRegressor(**shared) if _regression(context) else xgboost.XGBClassifier(**shared)
     )
@@ -966,7 +972,7 @@ def _lgbm_build(values: dict[str, Any], context: Context):
         "boosting_type",
         "random_state",
     )
-    shared = {key: values[key] for key in keys} | {"verbose": -1, "n_jobs": -1}
+    shared = {key: values[key] for key in keys} | {"verbose": -1, "n_jobs": browser.n_jobs()}
     model = (
         lightgbm.LGBMRegressor(**shared)
         if _regression(context)
@@ -1165,6 +1171,7 @@ MODELS = [
         _xgb_build,
         badges=_boosting_badges,
         package="xgboost",
+        desktop_only=True,
     ),
     ModelSpec(
         "lightgbm",
@@ -1177,6 +1184,7 @@ MODELS = [
         _lgbm_build,
         badges=_boosting_badges,
         package="lightgbm",
+        desktop_only=True,
     ),
     ModelSpec(
         "catboost",
@@ -1189,5 +1197,6 @@ MODELS = [
         _cat_build,
         badges=_boosting_badges,
         package="catboost",
+        desktop_only=True,
     ),
 ]

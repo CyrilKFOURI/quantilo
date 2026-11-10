@@ -48,7 +48,8 @@ class Settings(BaseSettings):
     max_upload_mb: int = 20480
     # "Keep the previous version: Under …" (Settings > Storage, 031); 200 MB in the browser build.
     keep_version_limit_mb: int = 2048
-    # The browser-only build (lite/boot.py): recipes skip their machine-learning steps (030).
+    # The browser-only build (lite/boot.py). What machine learning holds back there is decided by
+    # the engine itself (quantilo.ml.browser, 102), which knows it runs in Pyodide.
     lite: bool = False
     # The Clean module (065): off, its routes answer 404 and the agent has no cleaning tools.
     clean_enabled: bool = True

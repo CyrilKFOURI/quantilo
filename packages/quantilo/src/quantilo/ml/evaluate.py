@@ -7,7 +7,7 @@ from typing import Any, Literal, cast
 
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from scipy import stats
 from sklearn import metrics as skm
 from sklearn.model_selection import (
@@ -20,6 +20,7 @@ from sklearn.model_selection import (
     StratifiedKFold,
 )
 
+from quantilo.ml import browser
 from quantilo.ml.target import Task
 from quantilo.variable.source import clean
 
@@ -72,6 +73,13 @@ class Validation(BaseModel):
     sample_periods: int | None = Field(default=None, ge=1, le=100)  # train on 1 period in N
     criterion: Literal["mean", "sharpe", "worst"] = "mean"  # the score over the periods
     period_threshold: float | None = None  # a "good" period scores above it (None: by metric)
+
+    @model_validator(mode="after")
+    def _browser_rows(self) -> "Validation":
+        """R-WEB-01: in the browser version, at most 50 000 training rows (one core, little
+        memory); the page says so where the rows are chosen."""
+        self.max_rows = browser.max_rows(self.max_rows)
+        return self
 
     @property
     def cross(self) -> bool:

@@ -15,7 +15,7 @@ import { t } from "../lib/i18n";
 import type { ModuleManifest, PanelManifest } from "./types";
 
 /** In the browser-only build, heavy modules stay listed but open a page that names them and
- *  explains why not ("Machine learning needs the full app"). */
+ *  explains why not ("Synthetic data needs the full app"). */
 const lockedInLite = (module: ModuleManifest): ModuleManifest =>
   LITE
     ? { ...module, locked: true, component: () => createElement(LockedPage, { page: t(module.labelKey) }) }
@@ -27,7 +27,9 @@ export const modules: ModuleManifest[] = [
   ...(CLEAN_ENABLED ? [cleanModule] : []),
   timeseriesModule,
   kpiModule,
-  lockedInLite(mlModule),
+  // in the browser version too (102): scikit-learn models; XGBoost, LightGBM, CatBoost and tuning stay
+  // in the desktop app, as the catalogue says (quantilo/ml/browser.py)
+  mlModule,
   segmentsModule, // a tab of Machine learning; in the browser version too: sampled beyond 50,000 rows, t-SNE locked
   // light (SciPy and statsmodels): runs in the browser-only build too
   experimentsModule,

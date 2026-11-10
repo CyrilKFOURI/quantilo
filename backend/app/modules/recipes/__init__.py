@@ -26,7 +26,7 @@ def setup(app: FastAPI) -> None:
         analyses=getattr(state, "ts_analyses", None),
         ml=getattr(state, "ml", None),
     )
-    state.recipes = RecipeService(state.workspace, services, lite=state.datasets.settings.lite)
+    state.recipes = RecipeService(state.workspace, services)
     state.versions.usages.append(state.recipes.usage)  # a column a recipe reads: Breaking if gone
 
 

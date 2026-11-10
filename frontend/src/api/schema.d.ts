@@ -4404,6 +4404,18 @@ export interface components {
              */
             cost_auto: boolean;
         };
+        /**
+         * BrowserLimits
+         * @description What the browser version holds back (102), so that the page can say it.
+         */
+        BrowserLimits: {
+            /** Max Rows */
+            max_rows: number;
+            /** Auto Minutes */
+            auto_minutes: number;
+            /** Tuning */
+            tuning: boolean;
+        };
         /** BuildIn */
         BuildIn: {
             /** Fact Id */
@@ -4487,6 +4499,7 @@ export interface components {
             default_metric: string;
             /** Compare */
             compare: string[];
+            browser?: components["schemas"]["BrowserLimits"] | null;
         };
         /** CategoricalProfile */
         CategoricalProfile: {
@@ -9206,6 +9219,11 @@ export interface components {
             probabilities: boolean;
             /** Space */
             space: components["schemas"]["quantilo__ml__catalog__spaces__Param"][];
+            /**
+             * Desktop Only
+             * @default false
+             */
+            desktop_only: boolean;
         };
         /** Moments */
         Moments: {

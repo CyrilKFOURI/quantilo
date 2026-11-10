@@ -3,6 +3,7 @@ import time
 
 import pytest
 from fastapi.testclient import TestClient
+from quantilo.ml import browser
 
 from app.config import default_samples_dir
 from tests.api.test_profiling import import_path
@@ -272,3 +273,54 @@ def test_estimate_and_cancel(client: TestClient, traps: str) -> None:
     assert final["status"] in ("cancelled", "done")  # a very fast training may finish first
     if final["status"] == "cancelled":
         assert final["run_id"] is None
+
+
+def test_the_browser_version_offers_scikit_learn_models_and_says_what_it_holds_back(
+    client: TestClient, traps: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """102: in the browser (simulated), the heavy models and tuning are left to the desktop app;
+    a scikit-learn model trains, on one core and at most 50 000 rows."""
+    monkeypatch.setattr(browser, "IN_BROWSER", True)
+    found = client.get(f"{BASE}/catalog", params={"task": "regression"}).json()
+    assert found["browser"] == {"max_rows": 50_000, "auto_minutes": 5.0, "tuning": False}
+    models = {m["key"]: m for m in found["models"]}
+    for key in ("xgboost", "lightgbm", "catboost"):
+        assert models[key]["desktop_only"] and not models[key]["installed"]
+    assert models["random_forest"]["installed"] and not models["random_forest"]["desktop_only"]
+    assert not {"xgboost", "lightgbm", "catboost"} & set(found["compare"])
+
+    trained = wait(
+        client,
+        client.post(
+            f"{BASE}/datasets/{traps}/runs",
+            params={
+                "target": "income",
+                "model": "random_forest",
+                "validation": json.dumps({"max_rows": None}),
+            },
+        ).json(),
+    )
+    assert trained["status"] == "done", trained
+    run = client.get(f"{BASE}/datasets/{traps}/runs/{trained['run_id']}").json()
+    assert run["validation"]["max_rows"] == 50_000
+
+    heavy = wait(
+        client,
+        client.post(
+            f"{BASE}/datasets/{traps}/runs", params={"target": "income", "model": "xgboost"}
+        ).json(),
+    )
+    assert heavy["status"] == "failed"
+    assert heavy["error"] == "XGBoost is available in the desktop app."
+    tune = client.post(
+        f"{BASE}/datasets/{traps}/tune",
+        params={"target": "income"},
+        json={"model": "linear_regression", "trials": 5},
+    )
+    assert tune.status_code == 422 and "desktop app" in tune.text
+
+
+def test_the_desktop_app_holds_nothing_back(client: TestClient) -> None:
+    found = client.get(f"{BASE}/catalog", params={"task": "regression"}).json()
+    assert found["browser"] is None
+    assert not any(m["desktop_only"] for m in found["models"])

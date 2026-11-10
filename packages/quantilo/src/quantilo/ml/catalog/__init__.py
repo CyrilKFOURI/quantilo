@@ -43,7 +43,7 @@ def profile_for(spec: ModelSpec, values: dict) -> ModelProfile:
 
 def _boosting() -> str:
     return next(
-        key for key in ("xgboost", "lightgbm", "hist_gradient_boosting") if CATALOGUE[key].installed
+        key for key in ("xgboost", "lightgbm", "hist_gradient_boosting") if CATALOGUE[key].available
     )
 
 

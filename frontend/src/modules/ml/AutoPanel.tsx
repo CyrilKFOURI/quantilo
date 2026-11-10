@@ -25,7 +25,20 @@ import { SegmentedControl } from "../../ui/SegmentedControl";
 import { CriterionSelect, metricName, PANEL } from "./SettingsDrawer";
 import { Loading } from "../../ui/Loading";
 
-type Budget = "2" | "5" | "10" | "30" | "custom";
+type Budget = "1" | "2" | "5" | "10" | "30" | "custom";
+
+const DESKTOP_BUDGETS: { value: Budget; label: string }[] = [
+  { value: "2", label: "2 min" },
+  { value: "5", label: "5 min" },
+  { value: "10", label: "10 min" },
+  { value: "30", label: "30 min" },
+];
+/** R-WEB-03: in the browser version the page waits for the Auto, so it stays short (5 minutes at most). */
+const BROWSER_BUDGETS: { value: Budget; label: string }[] = [
+  { value: "1", label: "1 min" },
+  { value: "2", label: "2 min" },
+  { value: "5", label: "5 min" },
+];
 const CROSS = ["kfold", "repeated_kfold", "group_kfold", "loo", PANEL];
 
 /** "1:05" from seconds. */
@@ -225,7 +238,8 @@ export function AutoPanel({
   onRun: (runId: string) => void;
 }) {
   const client = useQueryClient();
-  const [budget, setBudget] = useState<Budget>("5");
+  const limits = catalogue.browser;
+  const [budget, setBudget] = useState<Budget>(limits ? "2" : "5");
   const [custom, setCustom] = useState(15);
   const [metric, setMetric] = useState(
     validation.metric ?? catalogue.default_metric,
@@ -280,13 +294,7 @@ export function AutoPanel({
               label={t("ml.auto.budget")}
               value={budget}
               onChange={setBudget}
-              options={[
-                { value: "2", label: "2 min" },
-                { value: "5", label: "5 min" },
-                { value: "10", label: "10 min" },
-                { value: "30", label: "30 min" },
-                { value: "custom", label: t("ml.auto.custom") },
-              ]}
+              options={limits ? BROWSER_BUDGETS : [...DESKTOP_BUDGETS, { value: "custom", label: t("ml.auto.custom") }]}
             />
             {budget === "custom" && (
               <label className="flex items-center gap-2 text-xs text-ink-2">
@@ -307,6 +315,9 @@ export function AutoPanel({
               </label>
             )}
           </div>
+          {limits && (
+            <p className="text-xs text-ink-3">{t("ml.auto.browserBudget", { minutes: String(limits.auto_minutes) })}</p>
+          )}
           <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-xs text-ink-2">
               {t("ml.auto.metric")}

@@ -19688,6 +19688,30 @@
         ],
         "title": "Breaks"
       },
+      "BrowserLimits": {
+        "properties": {
+          "max_rows": {
+            "type": "integer",
+            "title": "Max Rows"
+          },
+          "auto_minutes": {
+            "type": "number",
+            "title": "Auto Minutes"
+          },
+          "tuning": {
+            "type": "boolean",
+            "title": "Tuning"
+          }
+        },
+        "type": "object",
+        "required": [
+          "max_rows",
+          "auto_minutes",
+          "tuning"
+        ],
+        "title": "BrowserLimits",
+        "description": "What the browser version holds back (102), so that the page can say it."
+      },
       "BuildIn": {
         "properties": {
           "fact_id": {
@@ -19949,6 +19973,16 @@
             },
             "type": "array",
             "title": "Compare"
+          },
+          "browser": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrowserLimits"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -35094,6 +35128,11 @@
             },
             "type": "array",
             "title": "Space"
+          },
+          "desktop_only": {
+            "type": "boolean",
+            "title": "Desktop Only",
+            "default": false
           }
         },
         "type": "object",

@@ -8,7 +8,12 @@ import { Button } from "../../ui/Button";
 import { Checkbox, Select, TextInput } from "../../ui/fields";
 import { InfoTip } from "../../ui/InfoTip";
 import { Tabs } from "../../ui/Tabs";
+import { LITE } from "../../lite/flag";
 import { disabledOptions, isVisible, type Values } from "./rules";
+
+/** Training rows by default: 200,000, and 50,000 in the browser version (R-WEB-01, 102). */
+export const DEFAULT_ROWS = LITE ? 50_000 : 200_000;
+const FIXED_ROWS = LITE ? 10_000 : 50_000;
 
 export const DEFAULT_VALIDATION: MlValidation = {
   method: "split",
@@ -19,7 +24,7 @@ export const DEFAULT_VALIDATION: MlValidation = {
   time_column: null,
   metric: null,
   seed: 42,
-  max_rows: 200_000,
+  max_rows: DEFAULT_ROWS,
   threshold: "default",
   period_column: null,
   entity_column: null,
@@ -512,24 +517,26 @@ function PanelFields({
 }
 
 function RowsTab({ validation, onValidation }: { validation: MlValidation; onValidation: (next: MlValidation) => void }) {
-  const mode = validation.max_rows === null ? "all" : validation.max_rows === 200_000 ? "default" : "fixed";
+  const mode = validation.max_rows === null ? "all" : validation.max_rows === DEFAULT_ROWS ? "default" : "fixed";
+  const hint = LITE ? `${t("ml.rows.hint")} ${t("ml.rows.hintBrowser")}` : t("ml.rows.hint");
   return (
     <div className="space-y-3">
-      <Row label={t("ml.rows.training")} hint={validation.method === PANEL ? `${t("ml.rows.hint")} ${t("ml.rows.panelHint")}` : t("ml.rows.hint")}>
+      <Row label={t("ml.rows.training")} hint={validation.method === PANEL ? `${hint} ${t("ml.rows.panelHint")}` : hint}>
         <Select
           aria-label={t("ml.rows.training")}
           value={mode}
-          onChange={(e) => onValidation({ ...validation, max_rows: e.target.value === "all" ? null : e.target.value === "default" ? 200_000 : 50_000 })}
+          onChange={(e) => onValidation({ ...validation, max_rows: e.target.value === "all" ? null : e.target.value === "default" ? DEFAULT_ROWS : FIXED_ROWS })}
           className="h-7 text-xs"
         >
-          <option value="default">{t("ml.rows.default")}</option>
-          <option value="all">{t("ml.rows.all")}</option>
+          <option value="default">{LITE ? t("ml.rows.defaultBrowser") : t("ml.rows.default")}</option>
+          {/* R-WEB-01: every row is left to the desktop app */}
+          {!LITE && <option value="all">{t("ml.rows.all")}</option>}
           <option value="fixed">{t("ml.rows.fixed")}</option>
         </Select>
       </Row>
       {mode === "fixed" && validation.max_rows !== null && (
         <Row label={t("ml.rows.count")}>
-          <NumberBox label={t("ml.rows.count")} value={validation.max_rows} min={100} max={100_000_000} onChange={(v) => onValidation({ ...validation, max_rows: Math.round(v) })} />
+          <NumberBox label={t("ml.rows.count")} value={validation.max_rows} min={100} max={LITE ? DEFAULT_ROWS : 100_000_000} onChange={(v) => onValidation({ ...validation, max_rows: Math.round(v) })} />
         </Row>
       )}
     </div>

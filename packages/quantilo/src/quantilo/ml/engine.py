@@ -16,10 +16,10 @@ from quantilo.catalog import Catalog
 from quantilo.errors import ExplorerError
 from quantilo.filters.model import Condition
 from quantilo.filters.scope import scoped_source, where_for
+from quantilo.ml import browser, evaluate
 from quantilo.ml import classes as binning
 from quantilo.ml import data as ml_data
 from quantilo.ml import error_analysis as mistakes
-from quantilo.ml import evaluate
 from quantilo.ml import explain as explainer
 from quantilo.ml import models as catalogue
 from quantilo.ml import panel as panels
@@ -73,16 +73,26 @@ class ModelView:
     settings: list[SettingView]
     rules: list[RuleView]
     badges: list[str]
-    installed: bool
+    installed: bool  # it can be trained in this build
     unavailable: str | None  # why it cannot run on this data
     probabilities: bool
     space: list[Param]  # where the optimizer searches (empty: nothing to tune)
+    desktop_only: bool = False  # R-WEB-04: not in the browser version, in the desktop app (102)
 
 
 @dataclass
 class Recommendation:
     key: str
     why: str
+
+
+@dataclass
+class BrowserLimits:
+    """What the browser version holds back (102), so that the page can say it."""
+
+    max_rows: int  # R-WEB-01
+    auto_minutes: float  # R-WEB-03
+    tuning: bool  # R-WEB-04: Optuna is left to the desktop app
 
 
 @dataclass
@@ -93,6 +103,7 @@ class Catalogue:
     metrics: list[str]  # every metric of the problem, the default first
     default_metric: str
     compare: list[str]  # models compared by default: one per suitable family
+    browser: BrowserLimits | None = None  # None: the desktop app, nothing held back
 
 
 @dataclass
@@ -159,10 +170,11 @@ class MlEngine:
                     [SettingView(**asdict(setting)) for setting in settings],
                     [RuleView(**asdict(rule)) for rule in spec.rules],
                     spec.badges(context),
-                    spec.installed,
+                    spec.available,
                     spec.limit(context),
                     task == "regression" or spec.has_probabilities(defaults),
                     catalogue.spaces.space(spec.key),
+                    spec.elsewhere,
                 )
             )
         default = evaluate.default_metric(task, context.minority_share)
@@ -174,6 +186,9 @@ class MlEngine:
             [default, *(m for m in metrics if m != default)],
             default,
             self._compare_default(models, context),
+            BrowserLimits(browser.MAX_ROWS, browser.AUTO_MINUTES, tuner.available())
+            if browser.active()
+            else None,
         )
 
     @staticmethod

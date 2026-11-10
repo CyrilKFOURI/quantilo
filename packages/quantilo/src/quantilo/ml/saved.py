@@ -23,6 +23,7 @@ import pandas as pd
 from pydantic import ValidationError
 
 from quantilo.filters.scope import scoped_source, where_for
+from quantilo.ml import browser
 from quantilo.ml import predict as use
 from quantilo.ml.engine import MlError
 
@@ -182,5 +183,5 @@ def load_model(path: str | os.PathLike[str]) -> LoadedModel:
     for sentence in use.version_warnings(card):
         warnings.warn(sentence, UserWarning, stacklevel=2)
     # the card was checked above: from here the pipeline is unpickled (runs code)
-    pipeline = joblib.load(io.BytesIO(blob))
+    pipeline = browser.single_core(joblib.load(io.BytesIO(blob)))  # R-WEB-02
     return LoadedModel(card, pipeline, found)

@@ -387,8 +387,8 @@ def _setup(
     if validation.panel and validation.period_column in frame.columns:
         frame = cast(pd.DataFrame, frame[frame[validation.period_column].notna()])
     spec = catalogue.CATALOGUE[model_key]
-    if not spec.installed:
-        raise TrainingError(f"{spec.label} is not installed in this build.")
+    if not spec.available:
+        raise TrainingError(spec.missing())
     if classes is not None:
         y, target, classes = _as_classes(cast(pd.Series, frame[target.name]), target, classes)
         task = "binary" if y.nunique() == 2 else "multiclass"

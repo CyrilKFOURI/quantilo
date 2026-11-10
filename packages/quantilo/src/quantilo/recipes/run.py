@@ -16,6 +16,7 @@ from quantilo.changes.kpis import kpi_value
 from quantilo.errors import ExplorerError
 from quantilo.filters.model import Condition
 from quantilo.kpi.compute import KpiResult
+from quantilo.ml import catalog as catalogue
 from quantilo.recipes.matching import Matching, match_columns
 from quantilo.recipes.model import (
     ColumnStep,
@@ -273,6 +274,14 @@ def _missing(step: Step, mapping: dict[str, str | None]) -> list[str]:
     return [c for c in columns_read(step) if c in mapping and mapping[c] is None]
 
 
+def _desktop_only(step: Step) -> str | None:
+    """A model step whose model is left to the desktop app in the browser version (R-WEB-04)."""
+    if not isinstance(step, MlStep) or step.model is None:
+        return None
+    spec = catalogue.CATALOGUE.get(step.model)
+    return spec.missing() if spec is not None and spec.elsewhere else None
+
+
 def plan(
     recipe: Recipe, mapping: dict[str, str | None], skip_kinds: dict[str, str] | None = None
 ) -> list[PlannedStep]:
@@ -286,6 +295,8 @@ def plan(
             reason = "Turned off in the recipe."
         elif step.kind in (skip_kinds or {}):
             reason = (skip_kinds or {})[step.kind]
+        elif elsewhere := _desktop_only(step):
+            reason = elsewhere
         elif missing := _missing(step, mapping):
             reason = f"Uses {', '.join(missing)}, missing from the file."
         elif (used := getattr(step, "filter", None)) in skipped_filters:
@@ -366,6 +377,8 @@ def run(
             reason = "Turned off in the recipe."
         elif step.kind in (skip_kinds or {}):
             reason = (skip_kinds or {})[step.kind]
+        elif elsewhere := _desktop_only(step):
+            reason = elsewhere
         elif missing := _missing(step, chosen):
             reason = f"Uses {', '.join(missing)}, missing from the file."
         elif (used := getattr(step, "filter", None)) is not None and filters.get(used) is None:

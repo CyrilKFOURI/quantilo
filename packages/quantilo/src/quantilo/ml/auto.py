@@ -42,8 +42,8 @@ from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 
+from quantilo.ml import browser, evaluate
 from quantilo.ml import classes as binning
-from quantilo.ml import evaluate
 from quantilo.ml import models as catalogue
 from quantilo.ml import panel as panels
 from quantilo.ml import preparation as prep
@@ -326,7 +326,7 @@ class _Auto:
         self.request, self.classes, self.validation = request, classes, validation
         self.should_stop, self.clock = should_stop, clock
         self.choices = request.preparation
-        self.budget = request.minutes * 60
+        self.budget = browser.auto_minutes(request.minutes) * 60  # R-WEB-03
         self.start = clock()
         self.deadline = self.start + self.budget
         self.progress = AutoProgress(self.budget)
@@ -551,6 +551,11 @@ class _Auto:
     # --- The run ---------------------------------------------------------------------------------
 
     def run(self) -> AutoOutcome:
+        if self.budget < self.request.minutes * 60:
+            self.log(
+                f"Browser version: the budget is held to {browser.AUTO_MINUTES:g} minutes "
+                "(R-WEB-03), the page waits for the Auto."
+            )
         try:
             self.prepare()
             self.baselines()
@@ -740,6 +745,8 @@ class _Auto:
             reason = None
             if self.task not in spec.tasks:
                 reason = f"It does not handle {self.task} problems."
+            elif spec.elsewhere:
+                reason = f"{browser.DESKTOP_ONLY.capitalize()} (R-WEB-04)."
             elif not spec.installed:
                 reason = "Not installed in this build."
             else:
@@ -906,6 +913,11 @@ class _Auto:
 
     def tuning(self, top: list[AutoEntry]) -> None:
         step, began = self.step("tuning"), self.now()
+        if browser.active():  # R-WEB-04: Optuna is left to the desktop app
+            note = f"Tuning is {browser.DESKTOP_ONLY} (R-WEB-04)."
+            self.log(note)
+            self.close(step, began, "skipped", note)
+            return
         members = sorted(self.pool, key=lambda c: self.order(c.entry.score))
         reserve = RESERVE_SHARE * self.budget + RESERVE * (
             self._ensemble_cost(members[:TOP_FAMILIES], self.request.stacking) + self._single_cost()
