@@ -3,9 +3,16 @@ import { useQuery } from "@tanstack/react-query";
 import { request } from "../../api/client";
 import { filtersParam, useActiveFilters } from "../../api/filters";
 import type { components } from "../../api/schema";
-import { fetchLoggedDecisions, useLoggedDecisions, type LoggedDecisions } from "../../features/decisions/api";
+import {
+  fetchExperimentCandidates,
+  fetchLoggedDecisions,
+  useExperimentCandidates,
+  useLoggedDecisions,
+  type ExperimentCandidates,
+  type LoggedDecisions,
+} from "../../features/decisions/api";
 
-export { useLoggedDecisions, type LoggedDecisions };
+export { useExperimentCandidates, useLoggedDecisions, type ExperimentCandidates, type LoggedDecisions };
 
 type Schemas = components["schemas"];
 /** Every field present (the server always sends them), as the shared client does. */
@@ -18,7 +25,6 @@ export type ExperimentDesign = Omit<Schemas["ExperimentDesign"], "alpha" | "metr
 };
 export type ExperimentMetric = Omit<Schemas["ExperimentMetric"], "kind"> & { kind?: Schemas["ExperimentMetric"]["kind"] };
 export type MetricKind = Exclude<Schemas["ExperimentMetric"]["kind"], "auto">;
-export type ExperimentCandidates = Complete<Schemas["ExperimentCandidates"]>;
 export type ExperimentResult = Complete<Schemas["ExperimentResult"]>;
 export type ExperimentMetricResult = ExperimentResult["metrics"][number];
 export type ExperimentComparison = ExperimentMetricResult["comparisons"][number];
@@ -45,8 +51,7 @@ const query = (filters: Parameters<typeof filtersParam>[0], extra: Record<string
 };
 
 export const experimentsApi = {
-  candidates: (id: string, filters?: Parameters<typeof filtersParam>[0]) =>
-    request<ExperimentCandidates>("GET", `${BASE}/datasets/${id}/candidates${query(filters)}`),
+  candidates: fetchExperimentCandidates,
   analyze: (id: string, design: ExperimentDesign, filters?: Parameters<typeof filtersParam>[0]) =>
     request<ExperimentResult>("POST", `${BASE}/datasets/${id}/analyze${query(filters)}`, design),
   baseline: (id: string, column: string, filters?: Parameters<typeof filtersParam>[0]) =>
@@ -59,16 +64,6 @@ export const experimentsApi = {
   evaluatePolicy: (id: string, body: DecisionsRequest, filters?: Parameters<typeof filtersParam>[0]) =>
     request<PolicyEvaluation>("POST", `${BASE}/datasets/${id}/evaluate-policy${query(filters)}`, body),
 };
-
-export function useExperimentCandidates(id: string, enabled: boolean) {
-  const filters = useActiveFilters(id);
-  return useQuery({
-    queryKey: ["datasets", id, "experiments", "candidates", filters],
-    queryFn: () => experimentsApi.candidates(id, filters),
-    enabled,
-    staleTime: 60_000,
-  });
-}
 
 /** The analysis follows the page filters; the previous result stays shown while the next loads. */
 export function useExperiment(id: string, design: ExperimentDesign | null) {

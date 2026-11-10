@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { forwardRef } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { column, roles } from "../../test/columns";
 import { dataset, health, mockApi } from "../../test/mockApi";
@@ -462,6 +462,13 @@ function setupApi() {
   });
 }
 
+/** 098: a page with a chosen series (opened empty otherwise), its sections open. */
+const SERIES = "/d/d1/timeseries?time=day&value=units";
+
+beforeEach(() => {
+  localStorage.setItem("de.ts.open", JSON.stringify(["trend", "seasonality", "decomposition", "stationarity", "autocorrelation", "volatility", "residuals", "breaks", "forecast"]));
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
   localStorage.clear();
@@ -470,7 +477,7 @@ afterEach(() => {
 describe("Time series page", () => {
   it("opens configured, with a verdict per section", async () => {
     setupApi();
-    renderAt("/d/d1/timeseries");
+    renderAt(SERIES);
 
     const overviewSection = await screen.findByRole("region", {
       name: "Overview",
@@ -479,8 +486,9 @@ describe("Time series page", () => {
       within(overviewSection).getAllByText("Rising trend").length,
     ).toBeGreaterThan(0);
     expect(within(overviewSection).getByText("+42.3 %")).toBeInTheDocument();
+    const trend = screen.getByRole("region", { name: "Trend" });
     expect(
-      within(overviewSection).getByText("A monotonic trend is present."),
+      within(trend).getByText("A monotonic trend is present."),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Value")).toHaveValue("units");
 
@@ -502,13 +510,12 @@ describe("Time series page", () => {
 
   it("adds a method from the catalogue and asks the server for it", async () => {
     const calls = setupApi();
-    renderAt("/d/d1/timeseries");
-    const overviewSection = await screen.findByRole("region", {
-      name: "Overview",
-    });
+    renderAt(SERIES);
+    await screen.findByRole("region", { name: "Overview" });
+    const trend = screen.getByRole("region", { name: "Trend" });
 
     fireEvent.click(
-      within(overviewSection).getByRole("button", { name: "Add method" }),
+      within(trend).getByRole("button", { name: "Add method" }),
     );
     fireEvent.click(
       screen.getByRole("menuitemcheckbox", { name: /Cox–Stuart/ }),
@@ -523,7 +530,7 @@ describe("Time series page", () => {
   it("keeps the configuration in the URL", async () => {
     const calls = setupApi();
     const router = renderAt(
-      "/d/d1/timeseries?value=revenue&period=week&gaps=interpolate",
+      "/d/d1/timeseries?time=day&value=revenue&period=week&gaps=interpolate",
     );
     await screen.findByRole("region", { name: "Overview" });
 
@@ -542,7 +549,7 @@ describe("Time series page", () => {
 
   it("tests stationarity, suggests a transformation and reads the correlogram", async () => {
     const calls = setupApi();
-    const router = renderAt("/d/d1/timeseries");
+    const router = renderAt(SERIES);
 
     const section = await screen.findByRole("region", { name: "Stationarity" });
     expect(
@@ -578,7 +585,7 @@ describe("Time series page", () => {
 
   it("shows volatility, the distribution of residuals, breaks and anomalies", async () => {
     setupApi();
-    renderAt("/d/d1/timeseries");
+    renderAt(SERIES);
 
     const spread = await screen.findByRole("region", { name: "Volatility" });
     expect(
@@ -611,7 +618,7 @@ describe("Time series page", () => {
 
   it("runs a forecast on demand and ranks the models", async () => {
     const calls = setupApi();
-    renderAt("/d/d1/timeseries");
+    renderAt(SERIES);
     const section = await screen.findByRole("region", { name: "Forecast" });
     expect(calls.some((c) => c.key.endsWith("/forecast"))).toBe(false); // not run automatically
 
@@ -656,7 +663,7 @@ describe("Time series page", () => {
 
   it("adds drivers from the suggestion and the panel, and shows what each brings", async () => {
     const calls = setupApi();
-    renderAt("/d/d1/timeseries");
+    renderAt(SERIES);
     const section = await screen.findByRole("region", { name: "Forecast" });
     const panel = within(section).getByRole("button", { name: "Drivers" });
     expect(panel).toHaveAttribute("aria-expanded", "false"); // collapsed by default
@@ -717,20 +724,93 @@ describe("Time series page", () => {
     expect(within(section).getByText(/its last value \(1200\) is repeated/)).toBeInTheDocument();
   });
 
-  it("is a sidebar link once the dataset has a date", async () => {
+  it("is a card of the Toolbox once the dataset has a date, not a sidebar link (098)", async () => {
     setupApi();
-    renderAt("/d/d1/compare");
+    renderAt("/d/d1/toolbox");
 
-    expect(
-      await screen.findByRole("link", { name: "Time series" }),
-    ).toHaveAttribute("href", "/d/d1/timeseries");
+    const card = await screen.findByRole("link", { name: /^Time series/ });
+    expect(card).toHaveAttribute("href", "/d/d1/timeseries");
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(within(nav).queryByRole("link", { name: "Time series" })).not.toBeInTheDocument();
+  });
+});
+
+describe("Opened from the Toolbox, folded sections (098)", () => {
+  it("opens empty: only the date and value pickers, nothing computed until both are chosen", async () => {
+    localStorage.clear();
+    const calls = setupApi();
+    const router = renderAt("/d/d1/timeseries");
+
+    expect(await screen.findByRole("heading", { name: "Pick a series" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Overview" })).not.toBeInTheDocument();
+    const computed = () => calls.filter((c) => /\/modules\/timeseries\/datasets\/d1\/(?!analyses)/.test(c.key));
+    expect(computed()).toHaveLength(0);
+
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "day" } });
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ time: "day" }));
+    expect(screen.getByRole("heading", { name: "Pick a series" })).toBeInTheDocument();
+    expect(computed()).toHaveLength(0);
+
+    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "units" } });
+    expect(await screen.findByRole("region", { name: "Overview" })).toBeInTheDocument();
+    expect(router.state.location.search).toMatchObject({ time: "day", value: "units" });
+    expect(calls.find((c) => c.key.endsWith("/overview"))?.params.get("value")).toBe("units");
+  });
+
+  it("closes every section by default, computes one only when opened and remembers it", async () => {
+    localStorage.clear();
+    const calls = setupApi();
+    renderAt(SERIES);
+    await screen.findByRole("region", { name: "Overview" });
+
+    const title = screen.getByRole("button", { name: /^Seasonality/ });
+    expect(title).toHaveAttribute("aria-expanded", "false");
+    for (const name of [/^Trend/, /^Stationarity/, /^Breaks & anomalies/, /^Forecast/]) {
+      expect(screen.getByRole("button", { name })).toHaveAttribute("aria-expanded", "false");
+    }
+    // the series itself is shown; no section is asked for
+    expect(calls.some((c) => c.key.endsWith("/overview"))).toBe(true);
+    for (const section of ["seasonality", "decomposition", "stationarity", "autocorrelation", "volatility", "residuals", "breaks", "drivers"]) {
+      expect(calls.some((c) => c.key.endsWith(`/${section}`))).toBe(false);
+    }
+
+    fireEvent.click(title);
+    expect(title).toHaveAttribute("aria-expanded", "true");
+    const season = screen.getByRole("region", { name: "Seasonality" });
+    expect(await within(season).findAllByText("Strong yearly (by month) pattern")).not.toHaveLength(0);
+    expect(calls.some((c) => c.key.endsWith("/seasonality"))).toBe(true);
+    expect(calls.some((c) => c.key.endsWith("/stationarity"))).toBe(false);
+    expect(JSON.parse(localStorage.getItem("de.ts.open") ?? "[]")).toEqual(["seasonality"]);
+
+    // closed again, its verdict stays on its line
+    fireEvent.click(title);
+    expect(title).toHaveAttribute("aria-expanded", "false");
+    expect(within(season).getByText("Strong yearly (by month) pattern")).toBeInTheDocument();
+  });
+
+  it("still opens when the browser keeps nothing", async () => {
+    localStorage.clear();
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    setupApi();
+    renderAt(SERIES);
+    await screen.findByRole("region", { name: "Overview" });
+    const title = screen.getByRole("button", { name: /^Volatility/ });
+    fireEvent.click(title);
+    expect(title).toHaveAttribute("aria-expanded", "true");
+    getItem.mockRestore();
+    setItem.mockRestore();
   });
 });
 
 describe("Smooth row and Kalman gaps (064)", () => {
   it("starts with the moving average, suggests Kalman and adds it on demand", async () => {
     const calls = setupApi();
-    renderAt("/d/d1/timeseries");
+    renderAt(SERIES);
     const overviewSection = await screen.findByRole("region", { name: "Overview" });
     const row = within(overviewSection).getByRole("group", { name: "Smooth" });
 
@@ -753,7 +833,7 @@ describe("Smooth row and Kalman gaps (064)", () => {
 
   it("keeps niche smoothers two folds deep", async () => {
     setupApi();
-    renderAt("/d/d1/timeseries");
+    renderAt(SERIES);
     const overviewSection = await screen.findByRole("region", { name: "Overview" });
     fireEvent.click(within(overviewSection).getByRole("button", { name: "Add a smoothing method" }));
 
@@ -780,7 +860,7 @@ describe("Smooth row and Kalman gaps (064)", () => {
       },
       "GET /modules/timeseries/datasets/d1/smoothing": smoothing([]),
     });
-    const router = renderAt("/d/d1/timeseries");
+    const router = renderAt(SERIES);
 
     expect(await screen.findByText("2 empty periods. Kalman fills them with an uncertainty band.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Use Kalman" }));

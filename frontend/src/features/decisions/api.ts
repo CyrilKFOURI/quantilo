@@ -25,3 +25,22 @@ export function useLoggedDecisions(id: string, enabled: boolean) {
     staleTime: 60_000,
   });
 }
+
+/* 098: which columns look like an experiment's variant (R-EXP-01). Shared by the Experiments
+   module (its empty state and setup bar) and Compare ("Open in Experiments →"). */
+export type ExperimentCandidates = Complete<components["schemas"]["ExperimentCandidates"]>;
+
+export function fetchExperimentCandidates(id: string, filters?: Parameters<typeof filtersParam>[0]) {
+  const params = new URLSearchParams(filtersParam(filters)).toString();
+  return request<ExperimentCandidates>("GET", `/modules/experiments/datasets/${id}/candidates${params ? `?${params}` : ""}`);
+}
+
+export function useExperimentCandidates(id: string, enabled: boolean) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: ["datasets", id, "experiments", "candidates", filters],
+    queryFn: () => fetchExperimentCandidates(id, filters),
+    enabled,
+    staleTime: 60_000,
+  });
+}

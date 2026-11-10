@@ -90,7 +90,7 @@ export function Shell({ modules, panels = [] }: { modules: ModuleManifest[]; pan
       {panels.map(({ id, component: Panel }) => (
         <Panel key={id} />
       ))}
-      <KeyboardLayer />
+      <KeyboardLayer modules={modules} />
     </div>
   );
 }

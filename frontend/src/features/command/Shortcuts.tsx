@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { t, type MessageKey } from "../../lib/i18n";
 import { Dialog } from "../../ui/Dialog";
-import { CommandPalette } from "./CommandPalette";
+import { CommandPalette, type PaletteModule } from "./CommandPalette";
 
 const SHORTCUTS: { keys: string[]; label: MessageKey }[] = [
   { keys: ["F"], label: "shortcuts.filters" },
@@ -19,7 +19,7 @@ const isTyping = (target: EventTarget | null) =>
   target instanceof Element && Boolean(target.closest("input, select, textarea, [contenteditable=true]"));
 
 /** Global keyboard layer: Ctrl+K (or ⌘K) opens the palette, ? lists the shortcuts. */
-export function KeyboardLayer() {
+export function KeyboardLayer({ modules = [] }: { modules?: PaletteModule[] }) {
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState(false);
 
@@ -44,7 +44,7 @@ export function KeyboardLayer() {
 
   return (
     <>
-      <CommandPalette open={palette} onOpenChange={setPalette} onShortcuts={() => setHelp(true)} />
+      <CommandPalette open={palette} onOpenChange={setPalette} onShortcuts={() => setHelp(true)} modules={modules} />
       <Dialog open={help} onOpenChange={setHelp} title={t("shortcuts.title")} size="sm">
         <dl className="divide-y divide-line">
           {SHORTCUTS.map((shortcut) => (

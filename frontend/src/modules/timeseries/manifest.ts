@@ -14,4 +14,5 @@ export const timeseriesModule: ModuleManifest = {
   requiresKey: "module.timeseries.needsDate",
   component: TimeSeriesPage,
   validateSearch: validateTimeSeriesSearch,
+  nav: false, // 098: a manual tool, opened from the Toolbox (or prefilled from an analysis)
 };

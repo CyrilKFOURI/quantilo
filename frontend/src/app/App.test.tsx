@@ -91,7 +91,7 @@ describe("App shell", () => {
     renderAt("/");
 
     await screen.findByRole("heading", { name: "Datasets" });
-    const item = screen.getByText("Time series").closest("[aria-disabled]");
+    const item = screen.getByText("KPI").closest("[aria-disabled]");
     expect(item).toHaveAttribute("title", "Open a dataset first");
   });
 
@@ -100,7 +100,7 @@ describe("App shell", () => {
     renderAt("/", []);
 
     await screen.findByRole("heading", { name: "Datasets" });
-    expect(screen.queryByText("Time series")).not.toBeInTheDocument();
+    expect(screen.queryByText("KPI")).not.toBeInTheDocument();
   });
 
   it("on a phone, opens the navigation in a drawer that a link closes (041)", async () => {

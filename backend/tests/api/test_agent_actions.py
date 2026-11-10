@@ -93,6 +93,9 @@ def test_time_series_analysis_and_forecast(client: TestClient, sales: str) -> No
     analysed = run_tool(client, sales, "analyze_time_series", {"time": "date", "value": "units"})
     assert analysed.content["trend"] and "stationarity" in analysed.content
     assert analysed.link.params == {"time": "date", "value": "units"}
+    # 098: the page opens empty without a value, so the link names the one the rules chose
+    chosen = run_tool(client, sales, "analyze_time_series", {"time": "date"})
+    assert chosen.link.params["time"] == "date" and chosen.link.params.get("value")
 
     forecast = run_tool(
         client,

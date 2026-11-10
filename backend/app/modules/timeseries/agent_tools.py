@@ -31,8 +31,11 @@ class SeriesInput(BaseModel):
         )
 
 
-def _link(args: SeriesInput) -> AppLink:
-    params = {"time": args.time} | ({"value": args.value} if args.value else {})
+def _link(args: SeriesInput, setup: Any = None) -> AppLink:
+    """098: the page opens empty without a date and a value, so the link names the ones used."""
+    time = getattr(setup, "time", None) or args.time
+    value = args.value or getattr(setup, "value", None)
+    params = {"time": time} | ({"value": value} if value else {})
     return AppLink("timeseries", params, "Open in Time series")
 
 
@@ -85,7 +88,7 @@ class AnalyzeTimeSeries(Tool[SeriesInput]):
         }
         setup = overview.setup
         summary = f"{len(overview.periods)} periods ({getattr(setup, 'period', '')})"
-        return ToolOutput(summary, content, _link(args))
+        return ToolOutput(summary, content, _link(args, setup))
 
 
 class DriverInput(BaseModel):

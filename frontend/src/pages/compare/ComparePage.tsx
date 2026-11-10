@@ -31,6 +31,7 @@ import {
   validateTimeSearch,
   type TimeSearch,
 } from "../../features/compare/TimeOptions";
+import { useExperimentCandidates } from "../../features/decisions/api";
 import { NoRows } from "../../features/filters/NoRows";
 import { t, type MessageKey } from "../../lib/i18n";
 import { PHONE, useMedia } from "../../lib/useMedia";
@@ -157,7 +158,11 @@ export function ComparePage() {
         }
       : null;
   const comparison = useCompare(datasetId, params);
-  const experiment = x && y && x.name !== y.name ? experimentOf(x, y) : null;
+  const pair = x && y && x.name !== y.name ? experimentOf(x, y) : null;
+  // R-098-06: offered only when the group column is a variant by R-EXP-01, with the rule's reason
+  const candidates = useExperimentCandidates(datasetId, Boolean(pair) && dataset.data?.status === "ready");
+  const rule = pair ? candidates.data?.variants.find((v) => v.column === pair.variant && v.planned) : undefined;
+  const experiment = pair && rule ? { ...pair, why: rule.why } : null;
 
   const set = (patch: CompareSearch) =>
     void navigate({
@@ -425,7 +430,7 @@ function ChartArea({
   result: Comparison;
   time: TimeSearch;
   onTimeChange: (patch: TimeSearch) => void;
-  experiment: { variant: string; metric: string } | null;
+  experiment: { variant: string; metric: string; why: string } | null;
 }) {
   const [chosen, setChosen] = useState<View | null>(null);
   const [regression, setRegression] = useState(true);
@@ -596,17 +601,21 @@ function ControlsLink({ x, y }: { x: string; y: string }) {
   );
 }
 
-/** Opens the Experiments module with this column as the variant and the other as the metric. */
-function ExperimentLink({ variant, metric }: { variant: string; metric: string }) {
+/** Opens the Experiments module with this column as the variant and the other as the metric;
+ *  the info says why the column reads as a variant (R-EXP-01). */
+function ExperimentLink({ variant, metric, why }: { variant: string; metric: string; why: string }) {
   const { datasetId } = useParams({ from: "/d/$datasetId/compare" });
   return (
-    <Link
-      to={"/d/$datasetId/experiments" as never}
-      params={{ datasetId } as never}
-      search={{ variant, metric } as never}
-      className="text-xs text-accent hover:underline"
-    >
-      {t("compare.analyzeExperiment")}
-    </Link>
+    <span className="inline-flex items-center gap-1">
+      <Link
+        to={"/d/$datasetId/experiments" as never}
+        params={{ datasetId } as never}
+        search={{ variant, metric } as never}
+        className="text-xs text-accent hover:underline"
+      >
+        {t("compare.analyzeExperiment")}
+      </Link>
+      {why && <InfoTip text={`R-EXP-01 · ${why}`} label={t("compare.experimentWhy")} />}
+    </span>
   );
 }

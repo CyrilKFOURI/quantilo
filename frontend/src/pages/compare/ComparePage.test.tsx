@@ -344,6 +344,18 @@ describe("Compare page", () => {
     expect(screen.getByText("Data used (10 periods)")).toBeInTheDocument();
   });
 
+  it("opens the date and the number in Time series, prefilled (098)", async () => {
+    setup(timeline);
+    renderAt("/d/d1/compare?x=day&y=income&period=week");
+
+    const link = await screen.findByRole("link", { name: "Open in Time series →" });
+    const href = decodeURIComponent(link.getAttribute("href") ?? "");
+    expect(href).toContain("/d/d1/timeseries?");
+    expect(href).toContain("time=day");
+    expect(href).toContain("value=income");
+    expect(href).toContain("period=week");
+  });
+
   it("keeps time series choices in the URL and sends them", async () => {
     const calls = setup(timeline);
     const router = renderAt(
@@ -399,6 +411,52 @@ describe("test verdicts", () => {
 describe("Analyze as an experiment (034)", () => {
   const levels = (name: string, type: string, distinct: number) =>
     column({ name, type, detected_type: type, summary: { rows: 100, null_count: 0, invalid_count: 0, distinct_count: distinct, examples: [], histogram: [] } }) as never;
+
+  const groups = {
+    ...scatter,
+    kind: "groups",
+    x: "arm",
+    y: "income",
+    roles: { arm: "cat", income: "num" },
+    points: null,
+    regression: null,
+    groups: [],
+  };
+  const candidatesWith = (planned: boolean) => ({
+    variants: [{ column: "arm", levels: ["A", "B"], counts: [50, 50], control: "A", planned, why: planned ? "Its name says a variant (arm)." : "Describes the units (region): an observed trait." }],
+    metrics: [{ column: "income", kind: "mean" }],
+    units: [],
+    times: [],
+    segments: [],
+    suggested: null,
+    note: null,
+  });
+  const routes = (planned: boolean) => ({
+    "GET /health": health,
+    "GET /datasets/d1": dataset(),
+    "GET /datasets/d1/columns": [levels("arm", "categorical_nominal", 2), column({ name: "income", position: 1 })],
+    "GET /column-roles": roles,
+    "GET /datasets/d1/compare": groups,
+    "GET /modules/experiments/datasets/d1/candidates": candidatesWith(planned),
+  });
+
+  it("offers Experiments only on a variant by R-EXP-01, with the rule's reason (098)", async () => {
+    mockApi(routes(true));
+    renderAt("/d/d1/compare?x=arm&y=income");
+
+    const link = await screen.findByRole("link", { name: "Open in Experiments →" });
+    expect(decodeURIComponent(link.getAttribute("href") ?? "")).toContain("/d/d1/experiments?variant=arm&metric=income");
+    expect(screen.getByRole("button", { name: "Why it looks like an experiment" })).toBeInTheDocument();
+  });
+
+  it("says nothing of an experiment on an observed category (098)", async () => {
+    const calls = mockApi(routes(false));
+    renderAt("/d/d1/compare?x=arm&y=income");
+
+    await waitFor(() => expect(calls.some((c) => c.key === "GET /modules/experiments/datasets/d1/candidates")).toBe(true));
+    await screen.findByRole("img");
+    expect(screen.queryByRole("link", { name: "Open in Experiments →" })).not.toBeInTheDocument();
+  });
 
   it("links a column of 2 to 5 values with a number or a yes/no", () => {
     const group = levels("group", "categorical_nominal", 3);

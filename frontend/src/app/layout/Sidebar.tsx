@@ -1,4 +1,4 @@
-import { Link, useParams, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
   BookOpen,
   BookMarked,
@@ -8,11 +8,14 @@ import {
   PanelLeftOpen,
   ScatterChart,
   Settings,
+  Toolbox,
   type LucideIcon,
 } from "lucide-react";
 
 import { useColumns, useDataset } from "../../api/hooks";
+import { useCurrentDataset } from "../../features/datasets/current";
 import { ThemeSwitcher } from "../../features/theme/ThemeSwitcher";
+import { inToolbox } from "../../features/toolbox/tools";
 import { LockBadge } from "../../lite/Locked";
 import { t, type MessageKey } from "../../lib/i18n";
 import type { ModuleManifest } from "../../modules/types";
@@ -42,8 +45,10 @@ type SidebarProps = {
 };
 
 export function Sidebar({ collapsed, onToggle, modules, drawer = false, onNavigate }: SidebarProps) {
-  const { datasetId } = useParams({ strict: false });
-  const current = groupOf(useRouterState({ select: (state) => state.location.pathname }));
+  // 098: on Home or Recipes, the dataset entries still lead back to the dataset one works on
+  const { datasetId } = useCurrentDataset();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const current = groupOf(pathname);
   const datasetModules = modules.filter((module): module is DatasetModule => module.scope === "dataset" && module.section === "dataset");
   const analyses = modules.filter((module) => module.nav !== false && module.section !== "dataset");
   return (
@@ -166,6 +171,34 @@ export function Sidebar({ collapsed, onToggle, modules, drawer = false, onNaviga
             ))}
           </NavSection>
         )}
+
+        {/* 098: the manual tools (time series, experiments, statistics, rows), last of the list */}
+        <ul className="space-y-0.5 border-t border-line pt-3">
+          <li>
+            {datasetId ? (
+              <Link
+                to={"/d/$datasetId/toolbox" as never}
+                params={{ datasetId } as never}
+                title={collapsed ? t("nav.toolbox") : undefined}
+                aria-label={collapsed ? t("nav.toolbox") : undefined}
+                aria-current={inToolbox(pathname) ? "page" : undefined}
+                className={`${itemClass} hover:bg-surface-2 hover:text-ink-1 ${inToolbox(pathname) ? activeClass : ""}`}
+              >
+                <Toolbox size={16} strokeWidth={1.5} aria-hidden />
+                {!collapsed && t("nav.toolbox")}
+              </Link>
+            ) : (
+              <span
+                aria-disabled="true"
+                title={t("nav.needsDataset")}
+                className={`${itemClass} cursor-not-allowed opacity-45`}
+              >
+                <Toolbox size={16} strokeWidth={1.5} aria-hidden />
+                {!collapsed && t("nav.toolbox")}
+              </span>
+            )}
+          </li>
+        </ul>
       </div>
 
       <div className="space-y-2 border-t border-line px-2 py-2">

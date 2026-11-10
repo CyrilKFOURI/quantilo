@@ -1,5 +1,6 @@
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import type {
   DriverSpec,
@@ -12,14 +13,15 @@ import type {
   SeriesSeasonality,
   SeriesSmoothing,
 } from "../../api/client";
-import { useDataset, useSeriesSection } from "../../api/hooks";
+import { useColumns, useDataset, useSeriesSection } from "../../api/hooks";
 import { Plot } from "../../charts/Plot";
 import { formatNumber } from "../../charts/figures";
 import { NoRows } from "../../features/filters/NoRows";
 import { formatCount } from "../../lib/format";
 import { t, type MessageKey } from "../../lib/i18n";
 import { PHONE, useMedia } from "../../lib/useMedia";
-import { Checkbox, ErrorNote, Select } from "../../ui/fields";
+import { useStoredState } from "../../lib/useStoredState";
+import { Checkbox, ErrorNote, Field, Select } from "../../ui/fields";
 import { ParamPanel } from "../../ui/ParamPanel";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import {
@@ -71,54 +73,152 @@ const HORIZON: Record<string, number> = {
   quarter: 8,
   year: 3,
 };
-const SECTIONS = [
-  "overview",
-  "seasonality",
-  "decomposition",
-  "stationarity",
-  "autocorrelation",
-  "volatility",
-  "residuals",
-  "breaks",
-  "forecast",
-] as const;
-type SectionKey = (typeof SECTIONS)[number];
-/** `text` is short (side contents); `detail`, when given, is the full sentence of the section. */
+/** 098: the analyses under the series, each a disclosure closed by default (the series itself,
+ *  its figures, chart and Smooth row, stays on top). */
+type SectionKey =
+  | "overview"
+  | "trend"
+  | "seasonality"
+  | "decomposition"
+  | "stationarity"
+  | "autocorrelation"
+  | "volatility"
+  | "residuals"
+  | "breaks"
+  | "forecast";
+/** `text` is short (the closed line); `detail`, when given, is the full sentence of the section. */
 type Verdict = { text: string; tone: "ok" | "none"; detail?: string } | null;
 
-/** Becomes true once the element has been on screen, or a moment after it appears: a hidden or
- *  background tab never reports intersections, and the sections should still fill in. */
-function useSeen(
-  delay = 2000,
-): [(element: HTMLElement | null) => void, boolean] {
-  const [seen, setSeen] = useState(typeof IntersectionObserver === "undefined");
-  const ref = useCallback(
-    (element: HTMLElement | null) => {
-      if (!element || seen) return;
-      const timer = window.setTimeout(() => setSeen(true), delay);
-      const observer = new IntersectionObserver((entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          window.clearTimeout(timer);
-          setSeen(true);
-          observer.disconnect();
-        }
-      });
-      observer.observe(element);
-    },
-    [seen, delay],
-  );
-  return [ref, seen];
+/** R-098-08: the sections a user keeps open, remembered in this browser (try/catch inside). */
+export const OPEN_SECTIONS_KEY = "de.ts.open";
+
+function useOpenSections(): [(key: SectionKey) => boolean, (key: SectionKey) => void] {
+  const [stored, setStored] = useStoredState<string[]>(OPEN_SECTIONS_KEY, []);
+  const open = Array.isArray(stored) ? stored : [];
+  const isOpen = (key: SectionKey) => open.includes(key);
+  const toggle = (key: SectionKey) => setStored(isOpen(key) ? open.filter((k) => k !== key) : [...open, key]);
+  return [isOpen, toggle];
 }
+
+const NUMERIC = new Set(["numeric_continuous", "numeric_discrete"]);
 
 const periodName = (period: string) => t(`time.period.${period}` as MessageKey);
 
+/** R-098-04: opened without a date and a value (from the Toolbox), the page shows its two pickers
+ *  and computes nothing; from an analysis (Compare, a recipe, the assistant) it arrives prefilled. */
 export function TimeSeriesPage() {
   const { datasetId } = useParams({ strict: false }) as { datasetId: string };
   const search = useSearch({ strict: false }) as TimeSeriesSearch;
-  const navigate = useNavigate();
-  const [drivers, setDrivers] = useState<DriverSpec[]>([]);
   const dataset = useDataset(datasetId);
   const ready = dataset.data?.status === "ready";
+  const columns = useColumns(datasetId, ready && !(search.time && search.value));
+  const usable = (columns.data ?? []).filter((column) => !column.excluded);
+  const numbers = usable.filter((column) => NUMERIC.has(column.type));
+  const picked = Boolean(search.time) && (Boolean(search.value) || (columns.data !== undefined && numbers.length === 0));
+  if (!picked)
+    return (
+      <PickSeries
+        datasetId={datasetId}
+        search={search}
+        loading={!columns.data && !columns.isError}
+        error={columns.isError ? columns.error.message : null}
+        dates={usable.filter((column) => column.type === "datetime").map((column) => column.name)}
+        numbers={numbers.map((column) => column.name)}
+      />
+    );
+  return <SeriesAnalysis datasetId={datasetId} search={search} ready={ready} />;
+}
+
+function PageHead({ datasetId, search, setup, drivers, onDrivers }: {
+  datasetId: string;
+  search: TimeSeriesSearch;
+  setup?: SeriesOverview["setup"];
+  drivers: DriverSpec[];
+  onDrivers: (next: DriverSpec[]) => void;
+}) {
+  return (
+    <header className="px-(--gutter) pt-6 pb-3">
+      <h1 className="text-xl font-semibold tracking-tight">{t("ts.title")}</h1>
+      <p className="mt-1 max-w-prose text-ink-2">{t("ts.description")}</p>
+      <SavedAnalyses datasetId={datasetId} search={search} setup={setup} drivers={drivers} onDrivers={onDrivers} />
+    </header>
+  );
+}
+
+function PickSeries({
+  datasetId,
+  search,
+  loading,
+  error,
+  dates,
+  numbers,
+}: {
+  datasetId: string;
+  search: TimeSeriesSearch;
+  loading: boolean;
+  error: string | null;
+  dates: string[];
+  numbers: string[];
+}) {
+  const navigate = useNavigate();
+  const [drivers, setDrivers] = useState<DriverSpec[]>([]);
+  const set = (patch: Partial<TimeSeriesSearch>) =>
+    void navigate({ to: ".", search: (previous: Record<string, unknown>) => ({ ...previous, ...patch }), replace: true });
+  return (
+    <div className="flex flex-col">
+      <PageHead datasetId={datasetId} search={search} drivers={drivers} onDrivers={setDrivers} />
+      <div className="px-(--gutter) py-3">
+        {error ? (
+          <ErrorNote>{error}</ErrorNote>
+        ) : loading ? (
+          <Loading label={t("loading.columns")} className="h-40 max-w-xl rounded-lg" />
+        ) : (
+          <section aria-labelledby="ts-pick-title" className="max-w-xl rounded-lg border border-line bg-surface-1 p-4">
+            <h2 id="ts-pick-title" className="text-base font-semibold tracking-tight">
+              {t("ts.pick.title")}
+            </h2>
+            <p className="mt-0.5 text-[13px] text-ink-2">
+              {dates.length ? t("ts.pick.description") : t("ts.pick.noDate")}
+            </p>
+            {dates.length > 0 && (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <Field label={t("ts.pick.date")}>
+                  <Select value={search.time ?? ""} onChange={(event) => set({ time: event.target.value || undefined })}>
+                    <option value="">{t("ts.pick.choose")}</option>
+                    {dates.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label={t("ts.pick.value")}>
+                  <Select
+                    value={search.value ?? ""}
+                    disabled={numbers.length === 0}
+                    onChange={(event) => set({ value: event.target.value || undefined })}
+                  >
+                    <option value="">{numbers.length ? t("ts.pick.choose") : t("ts.pick.rows")}</option>
+                    {numbers.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+            )}
+          </section>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SeriesAnalysis({ datasetId, search, ready }: { datasetId: string; search: TimeSeriesSearch; ready: boolean }) {
+  const navigate = useNavigate();
+  const [drivers, setDrivers] = useState<DriverSpec[]>([]);
+  const [isOpen, toggle] = useOpenSections();
   const params = useMemo(() => seriesParams(search), [search]);
   const set = (patch: Partial<TimeSeriesSearch>) =>
     void navigate({
@@ -132,8 +232,6 @@ export function TimeSeriesPage() {
 
   const [trendMethods, setTrendMethods] = useMethods("trend");
   const [seasonMethods, setSeasonMethods] = useMethods("seasonality");
-  const [seasonalityRef, seasonalitySeen] = useSeen();
-  const [decompositionRef, decompositionSeen] = useSeen();
   const method = search.method ?? "stl";
 
   const overview = useSeriesSection<SeriesOverview>(
@@ -162,21 +260,19 @@ export function TimeSeriesPage() {
     "seasonality",
     params,
     { methods: seasonMethods.join(",") },
-    ready && okay && seasonalitySeen,
+    ready && okay && isOpen("seasonality"),
   );
   const decomposition = useSeriesSection<SeriesDecomposition>(
     datasetId,
     "decomposition",
     params,
     { method },
-    ready && okay && decompositionSeen,
+    ready && okay && isOpen("decomposition"),
   );
 
   const [stationarityMethods, setStationarityMethods] =
     useMethods("stationarity");
   const [memoryMethods, setMemoryMethods] = useMethods("autocorrelation");
-  const [stationarityRef, stationaritySeen] = useSeen();
-  const [memoryRef, memorySeen] = useSeen();
   const transform = search.transform ?? "none";
   const pacf = search.pacf ?? "ywm";
   const stationarity = useSeriesSection<SeriesStationarity>(
@@ -184,7 +280,7 @@ export function TimeSeriesPage() {
     "stationarity",
     params,
     { transform, methods: stationarityMethods.join(",") },
-    ready && okay && stationaritySeen,
+    ready && okay && isOpen("stationarity"),
   );
   const memory = useSeriesSection<SeriesAutocorrelation>(
     datasetId,
@@ -196,14 +292,11 @@ export function TimeSeriesPage() {
       methods: memoryMethods.join(","),
       ...(search.ar ? { ar: String(search.ar) } : {}),
     },
-    ready && okay && memorySeen,
+    ready && okay && isOpen("autocorrelation"),
   );
 
   const [volatilityMethods, setVolatilityMethods] = useMethods("volatility");
   const [breakMethods, setBreakMethods] = useMethods("breaks");
-  const [volatilityRef, volatilitySeen] = useSeen();
-  const [residualsRef, residualsSeen] = useSeen();
-  const [breaksRef, breaksSeen] = useSeen();
   const volatility = useSeriesSection<SeriesVolatility>(
     datasetId,
     "volatility",
@@ -212,14 +305,14 @@ export function TimeSeriesPage() {
       methods: volatilityMethods.join(","),
       ...(search.spread ? { spread: String(search.spread) } : {}),
     },
-    ready && okay && volatilitySeen,
+    ready && okay && isOpen("volatility"),
   );
   const residuals = useSeriesSection<SeriesResiduals>(
     datasetId,
     "residuals",
     params,
     { source: search.rsource ?? "residuals" },
-    ready && okay && residualsSeen,
+    ready && okay && isOpen("residuals"),
   );
   const breakExtra: Record<string, string> = {
     search: search.segment ?? "pelt",
@@ -234,11 +327,12 @@ export function TimeSeriesPage() {
     "breaks",
     params,
     breakExtra,
-    ready && okay && breaksSeen,
+    ready && okay && isOpen("breaks"),
   );
 
   const verdicts: Record<SectionKey, Verdict> = {
     overview: overview.data ? trendVerdict(overview.data.methods) : null,
+    trend: overview.data && !overview.data.message ? trendVerdict(overview.data.methods) : null,
     seasonality: seasonality.data ? seasonalityVerdict(seasonality.data) : null,
     decomposition: decomposition.data
       ? decompositionVerdict(decomposition.data)
@@ -255,19 +349,7 @@ export function TimeSeriesPage() {
 
   return (
     <div className="flex flex-col">
-      <header className="px-(--gutter) pt-6 pb-3">
-        <h1 className="text-xl font-semibold tracking-tight">
-          {t("ts.title")}
-        </h1>
-        <p className="mt-1 max-w-prose text-ink-2">{t("ts.description")}</p>
-        <SavedAnalyses
-          datasetId={datasetId}
-          search={search}
-          setup={overview.data?.setup}
-          drivers={drivers}
-          onDrivers={setDrivers}
-        />
-      </header>
+      <PageHead datasetId={datasetId} search={search} setup={overview.data?.setup} drivers={drivers} onDrivers={setDrivers} />
 
       {overview.isError ? (
         <div className="px-(--gutter)">
@@ -287,55 +369,22 @@ export function TimeSeriesPage() {
               <ReadingNotes datasetId={datasetId} notes={overview.data.setup.reasons ?? []} label={t("ts.reasons")} />
             </div>
           )}
-          <div className="grid gap-6 px-(--gutter) py-5 lg:grid-cols-[170px_minmax(0,1fr)]">
-            <nav aria-label={t("ts.contents")} className="hidden lg:block">
-              <ul className="sticky top-20 space-y-1 text-[13px]">
-                {SECTIONS.map((key) => (
-                  <li key={key}>
-                    <a
-                      href={`#ts-${key}`}
-                      className="flex items-start gap-2 rounded-md px-2 py-1 text-ink-2 hover:bg-surface-1 hover:text-ink-1"
-                    >
-                      <span
-                        aria-hidden
-                        className={`mt-1.5 size-2 shrink-0 rounded-full ${
-                          verdicts[key] === null
-                            ? "bg-line"
-                            : verdicts[key]?.tone === "ok"
-                              ? "bg-accent"
-                              : "bg-ink-3"
-                        }`}
-                      />
-                      <span>
-                        {t(`ts.section.${key}` as MessageKey)}
-                        {verdicts[key] && (
-                          <span className="block text-xs text-ink-3">
-                            {verdicts[key]?.text}
-                          </span>
-                        )}
-                      </span>
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-            <div className="min-w-0 space-y-8">
+          <div className="px-(--gutter) py-5">
+            <div className="min-w-0 space-y-6">
               <OverviewSection
                 data={overview.data}
                 search={search}
                 onChange={set}
-                methods={trendMethods}
-                onMethods={setTrendMethods}
                 smoothing={smoothing.data}
                 smoothError={smoothing.isError ? (smoothing.error?.message ?? "") : null}
                 smoothMethods={smoothMethods}
                 onSmoothMethods={setSmoothMethods}
               />
-              <Section
-                id="seasonality"
-                sectionRef={seasonalityRef}
-                verdict={verdicts.seasonality}
-              >
+              <div role="group" aria-label={t("ts.sections")} className="divide-y divide-line border-y border-line">
+              <Section id="trend" open={isOpen("trend")} onToggle={toggle} verdict={verdicts.trend}>
+                <TrendBody data={overview.data} methods={trendMethods} onMethods={setTrendMethods} />
+              </Section>
+              <Section id="seasonality" open={isOpen("seasonality")} onToggle={toggle} verdict={verdicts.seasonality}>
                 <MethodsRow
                   section="seasonality"
                   chosen={seasonMethods}
@@ -350,11 +399,7 @@ export function TimeSeriesPage() {
                   )}
                 </SectionBody>
               </Section>
-              <Section
-                id="decomposition"
-                sectionRef={decompositionRef}
-                verdict={verdicts.decomposition}
-              >
+              <Section id="decomposition" open={isOpen("decomposition")} onToggle={toggle} verdict={verdicts.decomposition}>
                 <div className="flex flex-wrap items-center gap-3">
                   <SegmentedControl
                     label={t("ts.decomposition.method")}
@@ -397,11 +442,7 @@ export function TimeSeriesPage() {
                   {(data) => <DecompositionBody data={data} />}
                 </SectionBody>
               </Section>
-              <Section
-                id="stationarity"
-                sectionRef={stationarityRef}
-                verdict={verdicts.stationarity}
-              >
+              <Section id="stationarity" open={isOpen("stationarity")} onToggle={toggle} verdict={verdicts.stationarity}>
                 <TransformPicker
                   value={transform}
                   suggested={stationarity.data?.suggestion?.transform ?? null}
@@ -418,11 +459,7 @@ export function TimeSeriesPage() {
                   {(data) => <StationarityBody data={data} />}
                 </SectionBody>
               </Section>
-              <Section
-                id="autocorrelation"
-                sectionRef={memoryRef}
-                verdict={verdicts.autocorrelation}
-              >
+              <Section id="autocorrelation" open={isOpen("autocorrelation")} onToggle={toggle} verdict={verdicts.autocorrelation}>
                 <p className="text-xs text-ink-3">
                   {t("ts.memoryOn", {
                     how: t(
@@ -454,11 +491,7 @@ export function TimeSeriesPage() {
                   )}
                 </SectionBody>
               </Section>
-              <Section
-                id="volatility"
-                sectionRef={volatilityRef}
-                verdict={verdicts.volatility}
-              >
+              <Section id="volatility" open={isOpen("volatility")} onToggle={toggle} verdict={verdicts.volatility}>
                 <MethodsRow
                   section="volatility"
                   chosen={volatilityMethods}
@@ -474,11 +507,7 @@ export function TimeSeriesPage() {
                   )}
                 </SectionBody>
               </Section>
-              <Section
-                id="residuals"
-                sectionRef={residualsRef}
-                verdict={verdicts.residuals}
-              >
+              <Section id="residuals" open={isOpen("residuals")} onToggle={toggle} verdict={verdicts.residuals}>
                 <SectionBody query={residuals} label={sectionLoading("residuals")}>
                   {(data) => (
                     <ResidualsBody
@@ -489,11 +518,7 @@ export function TimeSeriesPage() {
                   )}
                 </SectionBody>
               </Section>
-              <Section
-                id="breaks"
-                sectionRef={breaksRef}
-                verdict={verdicts.breaks}
-              >
+              <Section id="breaks" open={isOpen("breaks")} onToggle={toggle} verdict={verdicts.breaks}>
                 <MethodsRow
                   section="breaks"
                   chosen={breakMethods}
@@ -510,7 +535,7 @@ export function TimeSeriesPage() {
                   )}
                 </SectionBody>
               </Section>
-              <Section id="forecast" verdict={null}>
+              <Section id="forecast" open={isOpen("forecast")} onToggle={toggle} verdict={null}>
                 <ForecastSection
                   datasetId={datasetId}
                   params={params}
@@ -536,6 +561,7 @@ export function TimeSeriesPage() {
                   )}
                 />
               </Section>
+              </div>
             </div>
           </div>
         </>
@@ -726,43 +752,76 @@ function ConfigBar({
 
 // --- Sections ------------------------------------------------------------------------------------
 
+/** The series on top (R-098-09): its figures, chart and Smooth row, never folded. */
+function SeriesBlock({ verdict, children }: { verdict: Verdict; children: ReactNode }) {
+  return (
+    <section id="ts-overview" aria-labelledby="ts-overview-title" className="scroll-mt-28 space-y-3">
+      <div>
+        <h2 id="ts-overview-title" className="text-base font-semibold tracking-tight">
+          {t("ts.section.overview")}
+        </h2>
+        <p className="text-[13px] text-ink-2">{t("ts.section.overview.question")}</p>
+        {verdict && <p className={`mt-1 font-medium ${verdict.tone === "ok" ? "text-ink-1" : "text-ink-2"}`}>{verdict.detail ?? verdict.text}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** R-098-07: one analysis of the series, a line (title, its question, its verdict once computed)
+ *  that opens on a click. Closed, its content is not mounted: nothing is asked for. */
 function Section({
   id,
-  sectionRef,
+  open,
+  onToggle,
   verdict,
   children,
 }: {
-  id: SectionKey;
-  sectionRef?: (element: HTMLElement | null) => void;
+  id: Exclude<SectionKey, "overview">;
+  open: boolean;
+  onToggle: (key: SectionKey) => void;
   verdict: Verdict;
   children: ReactNode;
 }) {
   return (
-    <section
-      id={`ts-${id}`}
-      ref={sectionRef}
-      aria-labelledby={`ts-${id}-title`}
-      className="scroll-mt-28 space-y-3"
-    >
-      <div>
-        <h2
-          id={`ts-${id}-title`}
-          className="text-base font-semibold tracking-tight"
+    <section id={`ts-${id}`} aria-labelledby={`ts-${id}-title`} className="scroll-mt-28">
+      <h2 className="text-base">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={`ts-${id}-body`}
+          onClick={() => onToggle(id)}
+          className="group -mx-2 flex min-h-12 w-[calc(100%+1rem)] flex-wrap items-start gap-x-3 gap-y-0.5 rounded-md px-2 py-2.5 text-left hover:bg-surface-1"
         >
-          {t(`ts.section.${id}` as MessageKey)}
-        </h2>
-        <p className="text-[13px] text-ink-2">
-          {t(`ts.section.${id}.question` as MessageKey)}
-        </p>
-        {verdict && (
-          <p
-            className={`mt-1 font-medium ${verdict.tone === "ok" ? "text-ink-1" : "text-ink-2"}`}
-          >
-            {verdict.detail ?? verdict.text}
-          </p>
-        )}
-      </div>
-      {children}
+          <ChevronRight
+            size={16}
+            strokeWidth={1.5}
+            aria-hidden
+            className={`mt-0.5 shrink-0 text-ink-3 transition-transform duration-150 motion-reduce:transition-none ${open ? "rotate-90" : ""}`}
+          />
+          <span className="min-w-0 flex-1">
+            <span id={`ts-${id}-title`} className="font-semibold tracking-tight text-ink-1">
+              {t(`ts.section.${id}` as MessageKey)}
+            </span>
+            <span className="block text-[13px] font-normal text-ink-2 text-pretty">
+              {t(`ts.section.${id}.question` as MessageKey)}
+            </span>
+          </span>
+          {verdict && (
+            <span
+              className={`text-[13px] max-sm:basis-full max-sm:pl-7 sm:max-w-[40%] sm:text-right ${verdict.tone === "ok" ? "font-medium text-ink-1" : "text-ink-2"}`}
+            >
+              {verdict.text}
+            </span>
+          )}
+        </button>
+      </h2>
+      {open && (
+        <div id={`ts-${id}-body`} className="space-y-3 pt-1 pb-5 sm:pl-7">
+          {verdict?.detail && <p className="font-medium text-ink-1">{verdict.detail}</p>}
+          {children}
+        </div>
+      )}
     </section>
   );
 }
@@ -794,8 +853,6 @@ function OverviewSection({
   data,
   search,
   onChange,
-  methods,
-  onMethods,
   smoothing,
   smoothError,
   smoothMethods,
@@ -804,8 +861,6 @@ function OverviewSection({
   data: SeriesOverview;
   search: TimeSeriesSearch;
   onChange: (patch: Partial<TimeSeriesSearch>) => void;
-  methods: string[];
-  onMethods: (keys: string[]) => void;
   smoothing: SeriesSmoothing | undefined;
   smoothError: string | null;
   smoothMethods: string[];
@@ -873,9 +928,8 @@ function OverviewSection({
     );
   }, [data, showAll, layers, what, rolled, extraKey, setup.period, smoothed]);
   const figures = data.figures;
-  const unit = t("ts.perPeriod", { period: periodName(setup.period) });
   return (
-    <Section id="overview" verdict={trendVerdict(data.methods)}>
+    <SeriesBlock verdict={trendVerdict(data.methods)}>
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Figure
           label={t("ts.figure.span")}
@@ -944,21 +998,31 @@ function OverviewSection({
           label={t("ts.overviewChart", { what })}
         />
       </div>
-      {data.message ? (
-        <p className="text-ink-2">{data.message}</p>
-      ) : (
-        <>
-          <MethodsRow section="trend" chosen={methods} onChange={onMethods} />
-          <MethodsTable results={data.methods} unit={unit} />
-          {(setup.first_partial || setup.last_partial) &&
-            (setup.aggregate === "sum" || setup.aggregate === "count") && (
-              <p className="text-xs text-ink-3">
-                {t("ts.partial", { period: periodName(setup.period) })}
-              </p>
-            )}
-        </>
+      {data.message && <p className="text-ink-2">{data.message}</p>}
+    </SeriesBlock>
+  );
+}
+
+/** The trend tests of the series (computed with it: opening the section asks for nothing more). */
+function TrendBody({
+  data,
+  methods,
+  onMethods,
+}: {
+  data: SeriesOverview;
+  methods: string[];
+  onMethods: (keys: string[]) => void;
+}) {
+  const setup = data.setup;
+  if (data.message) return <p className="text-ink-2">{data.message}</p>;
+  return (
+    <>
+      <MethodsRow section="trend" chosen={methods} onChange={onMethods} />
+      <MethodsTable results={data.methods} unit={t("ts.perPeriod", { period: periodName(setup.period) })} />
+      {(setup.first_partial || setup.last_partial) && (setup.aggregate === "sum" || setup.aggregate === "count") && (
+        <p className="text-xs text-ink-3">{t("ts.partial", { period: periodName(setup.period) })}</p>
       )}
-    </Section>
+    </>
   );
 }
 

@@ -1,5 +1,5 @@
 import * as RadixDialog from "@radix-ui/react-dialog";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import {
   BookOpen,
   Columns3,
@@ -17,7 +17,9 @@ import {
   Search,
   Settings,
   Sun,
+  Toolbox,
   TrendingUp,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -26,19 +28,29 @@ import { useColumns, useDatasets } from "../../api/hooks";
 import { t, type MessageKey } from "../../lib/i18n";
 import { savePreference, themePreference } from "../../lib/preferences";
 import { TYPE_META } from "../columns/columnTypes";
+import { closeCurrentDataset, useCurrentDataset } from "../datasets/current";
 import { OPEN_FILTERS_EVENT } from "../filters/FilterBar";
 import { useFilters } from "../filters/useFilters";
+import { availableTools, themeName, toolName } from "../toolbox/tools";
 
 type Command = { id: string; group: MessageKey; label: string; hint?: string; icon: LucideIcon; tone?: string; run: () => void };
 
-type CommandPaletteProps = { open: boolean; onOpenChange: (open: boolean) => void; onShortcuts: () => void };
+/** What the palette needs of a registered module (098: every page and tool can be found). */
+export type PaletteModule = { id: string; labelKey: MessageKey; icon: LucideIcon; path: string; scope: string; locked?: boolean };
+
+type CommandPaletteProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onShortcuts: () => void;
+  modules?: PaletteModule[];
+};
 
 const MAX_RESULTS = 40;
 
 /** Ctrl+K: go to a page, a variable or a dataset, or run an action, from the keyboard. */
-export function CommandPalette({ open, onOpenChange, onShortcuts }: CommandPaletteProps) {
+export function CommandPalette({ open, onOpenChange, onShortcuts, modules = [] }: CommandPaletteProps) {
   const navigate = useNavigate();
-  const { datasetId } = useParams({ strict: false });
+  const { datasetId, routed } = useCurrentDataset();
   const datasets = useDatasets();
   const columns = useColumns(datasetId ?? "", Boolean(datasetId) && open);
   const filters = useFilters(datasetId ?? "");
@@ -46,7 +58,8 @@ export function CommandPalette({ open, onOpenChange, onShortcuts }: CommandPalet
   const [active, setActive] = useState(0);
 
   const commands = useMemo<Command[]>(() => {
-    const go = (to: string, params?: Record<string, string>) => () => void navigate({ to, params } as never);
+    const go = (to: string, params?: Record<string, string>, search?: Record<string, string>) => () =>
+      void navigate({ to, params, ...(search ? { search } : {}) } as never);
     const list: Command[] = [
       { id: "home", group: "palette.pages", label: t("nav.home"), icon: House, run: go("/") },
     ];
@@ -61,6 +74,31 @@ export function CommandPalette({ open, onOpenChange, onShortcuts }: CommandPalet
       ];
       for (const [to, label, icon] of pages) {
         list.push({ id: to, group: "palette.pages", label: t(label), icon, run: go(to, { datasetId }) });
+      }
+      // 098: the modules of the sidebar, the Toolbox and each of its tools
+      const tools = availableTools(modules);
+      const covered = new Set(tools.map((tool) => tool.module));
+      for (const module of modules) {
+        if (module.scope !== "dataset" || covered.has(module.id)) continue;
+        list.push({
+          id: `module:${module.id}`,
+          group: "palette.pages",
+          label: t(module.labelKey),
+          hint: module.locked ? t("lite.locked") : undefined,
+          icon: module.icon,
+          run: go(module.path, { datasetId }),
+        });
+      }
+      list.push({ id: "toolbox", group: "palette.pages", label: t("nav.toolbox"), icon: Toolbox, run: go("/d/$datasetId/toolbox", { datasetId }) });
+      for (const tool of tools) {
+        list.push({
+          id: `tool:${tool.id}`,
+          group: "palette.tools",
+          label: t(toolName(tool)),
+          hint: tool.locked ? t("lite.locked") : t(themeName(tool.theme)),
+          icon: tool.icon,
+          run: go(tool.to, { datasetId }, tool.search),
+        });
       }
     }
     list.push(
@@ -89,8 +127,11 @@ export function CommandPalette({ open, onOpenChange, onShortcuts }: CommandPalet
         icon: Filter,
         run: () => window.dispatchEvent(new Event(OPEN_FILTERS_EVENT)),
       });
-      if (filters.conditions.length) {
+      if (routed && filters.conditions.length) {
         list.push({ id: "clear", group: "palette.actions", label: t("palette.clearFilters"), icon: Eraser, run: filters.clear });
+      }
+      if (!routed) {
+        list.push({ id: "close", group: "palette.actions", label: t("palette.closeDataset"), icon: X, run: closeCurrentDataset });
       }
     }
     for (const dataset of datasets.data ?? []) {
@@ -105,7 +146,7 @@ export function CommandPalette({ open, onOpenChange, onShortcuts }: CommandPalet
       { id: "shortcuts", group: "palette.actions", label: t("palette.shortcuts"), hint: "?", icon: Keyboard, run: onShortcuts },
     );
     return list;
-  }, [navigate, datasetId, columns.data, datasets.data, filters, onShortcuts]);
+  }, [navigate, datasetId, routed, modules, columns.data, datasets.data, filters, onShortcuts]);
 
   const needle = query.trim().toLowerCase();
   const results = (needle ? commands.filter((c) => c.label.toLowerCase().includes(needle)) : commands).slice(0, MAX_RESULTS);

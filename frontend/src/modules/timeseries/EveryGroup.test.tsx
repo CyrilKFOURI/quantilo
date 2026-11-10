@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { forwardRef } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GroupForecast } from "../../api/client";
 import { column, roles } from "../../test/columns";
@@ -208,6 +208,10 @@ function setupApi() {
   });
 }
 
+beforeEach(() => {
+  localStorage.setItem("de.ts.open", JSON.stringify(["trend", "seasonality", "decomposition", "stationarity", "autocorrelation", "volatility", "residuals", "breaks", "forecast"]));
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
   localStorage.clear();
@@ -227,7 +231,7 @@ describe("Every group (039)", () => {
 
   it("forecasts every group, then shows the table, the small multiples and the levels", async () => {
     const calls = setupApi();
-    renderAt("/d/d1/timeseries?group=store&series=S01");
+    renderAt("/d/d1/timeseries?time=day&value=units&group=store&series=S01");
     const section = await screen.findByRole("region", { name: "Forecast" });
     expect(await within(section).findByText("2 store values")).toBeInTheDocument();
     expect(within(section).getByText("Levels")).toBeInTheDocument(); // auto reconciliation
@@ -258,7 +262,7 @@ describe("Every group (039)", () => {
 
   it("keeps scenarios of a known-in-advance driver in the URL and compares them with the base", async () => {
     const calls = setupApi();
-    renderAt("/d/d1/timeseries?group=store");
+    renderAt("/d/d1/timeseries?time=day&value=units&group=store");
     const section = await screen.findByRole("region", { name: "Forecast" });
     fireEvent.click(within(section).getByRole("button", { name: /Drivers/ }));
     fireEvent.change(await within(section).findByLabelText("Add a column…"), { target: { value: "price" } });

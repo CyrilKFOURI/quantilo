@@ -21,6 +21,7 @@ import { OverviewPage } from "../pages/overview/OverviewPage";
 import { RecipePage, validateRecipeSearch } from "../pages/recipes/RecipePage";
 import { RecipesPage } from "../pages/recipes/RecipesPage";
 import { SettingsPage } from "../pages/settings/SettingsPage";
+import { ToolboxPage } from "../pages/toolbox/ToolboxPage";
 import {
   ComparePage,
   validateCompareSearch,
@@ -138,6 +139,12 @@ export function createAppRouter({
     validateSearch: validateChangesSearch,
     component: inGroup("overview", ChangesPage),
   });
+  // 098: the manual tools, grouped by what they do (the last entry of the sidebar)
+  const toolboxRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/d/$datasetId/toolbox",
+    component: () => <ToolboxPage modules={modules} />,
+  });
   const moduleRoutes = modules.map((module) =>
     createRoute({
       getParentRoute: () => rootRoute,
@@ -165,6 +172,7 @@ export function createAppRouter({
       regressionRoute,
       dataRoute,
       changesRoute,
+      toolboxRoute,
       ...moduleRoutes,
     ]),
     history,

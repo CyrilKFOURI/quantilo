@@ -44,14 +44,96 @@ const ROW = "flex flex-wrap items-center gap-x-3 gap-y-2 max-sm:grid max-sm:grid
 
 const Divider = () => <span className="hidden h-5 w-px bg-line sm:block" aria-hidden />;
 
-/** The experiment shown: the URL's, else a seed from another page, else the suggested one. */
-export function designOf(search: ExperimentsSearch, candidates: ExperimentCandidates | undefined): ExperimentDesign | null {
+/** The experiment shown: the URL's, else a seed from another page (Compare, the assistant). 098:
+ *  nothing else; without either the tab shows its pickers and the suggestion, computed by nobody. */
+export function designOf(search: ExperimentsSearch): ExperimentDesign | null {
   if (search.design) return search.design;
   if (search.variant && search.metric)
     return { variant: search.variant, metrics: [{ column: search.metric }], unit: search.unit ?? null };
-  const suggested = candidates?.suggested;
+  return null;
+}
+
+/** The suggested experiment of the candidates (R-EXP-01), as a design. */
+function suggestedDesign(candidates: ExperimentCandidates): ExperimentDesign | null {
+  const suggested = candidates.suggested;
   if (!suggested) return null;
   return { variant: suggested.variant, metrics: suggested.metrics.map((m) => ({ column: m.column })), unit: suggested.unit };
+}
+
+/** R-098-04: opened without a test (from the Toolbox), the tab shows two pickers and the rule's
+ *  suggestion with its reason; nothing is analysed until a variant and a metric are chosen. */
+function StartExperiment({
+  candidates,
+  search,
+  onDesign,
+}: {
+  candidates: ExperimentCandidates;
+  search: ExperimentsSearch;
+  onDesign: (design: ExperimentDesign) => void;
+}) {
+  const [variant, setVariant] = useState(search.variant ?? "");
+  const [metric, setMetric] = useState(search.metric ?? "");
+  const pick = (nextVariant: string, nextMetric: string) => {
+    setVariant(nextVariant);
+    setMetric(nextMetric);
+    if (nextVariant && nextMetric && nextVariant !== nextMetric)
+      onDesign({ variant: nextVariant, metrics: [{ column: nextMetric }], unit: search.unit ?? null });
+  };
+  const suggested = suggestedDesign(candidates);
+  const why = suggested ? candidates.variants.find((v) => v.column === suggested.variant)?.why : null;
+  const variants = [...candidates.variants].sort((a, b) => Number(b.planned) - Number(a.planned));
+  return (
+    <section aria-labelledby="experiments-start" className="max-w-2xl rounded-lg border border-line bg-surface-1 p-4 text-[13px]">
+      <h2 id="experiments-start" className="text-base font-semibold tracking-tight">
+        {t("experiments.start.title")}
+      </h2>
+      <p className="mt-0.5 text-ink-2">{t("experiments.start.description")}</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Field label={t("experiments.variant")}>
+          <Select value={variant} onChange={(e) => pick(e.target.value, metric)}>
+            <option value="">{t("experiments.start.choose")}</option>
+            {variants.map((v) => (
+              <option key={v.column} value={v.column}>
+                {v.planned ? `${v.column} · ${t("experiments.start.planned")}` : v.column}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label={t("experiments.start.metric")}>
+          <Select value={metric} onChange={(e) => pick(variant, e.target.value)}>
+            <option value="">{t("experiments.start.choose")}</option>
+            {candidates.metrics
+              .filter((m) => m.column !== variant)
+              .map((m) => (
+                <option key={m.column} value={m.column}>
+                  {m.column} · {t(`experiments.kind.${m.kind}` as MessageKey)}
+                </option>
+              ))}
+          </Select>
+        </Field>
+      </div>
+      {suggested && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line pt-3">
+          <span className="min-w-0 text-ink-1">
+            {suggested.unit
+              ? t("experiments.start.suggestedBy", {
+                  variant: suggested.variant,
+                  metric: suggested.metrics.map((m) => m.column).join(", "),
+                  unit: suggested.unit,
+                })
+              : t("experiments.start.suggested", {
+                  variant: suggested.variant,
+                  metric: suggested.metrics.map((m) => m.column).join(", "),
+                })}
+          </span>
+          <Button className={small} onClick={() => onDesign(suggested)}>
+            {t("experiments.start.use")}
+          </Button>
+          {why && <span className="basis-full text-xs text-ink-3">R-EXP-01 · {why}</span>}
+        </div>
+      )}
+    </section>
+  );
 }
 
 const metricLabel = (m: ExperimentMetric) => (m.denominator ? `${m.column} ÷ ${m.denominator}` : m.column);
@@ -404,14 +486,22 @@ export function Analyze({
   onDesign: (design: ExperimentDesign) => void;
 }) {
   const candidates = useExperimentCandidates(datasetId, ready);
-  const design = designOf(search, candidates.data);
+  const design = designOf(search);
   const experiment = useExperiment(datasetId, design);
   const result = experiment.data;
   const error = experiment.error instanceof ApiError ? experiment.error : null;
 
   if (candidates.isPending) return <Loading label={t("loading.columns")} className="h-[420px]" />;
   if (candidates.isError) return <ErrorNote>{candidates.error.message}</ErrorNote>;
-  if (!design || !candidates.data) return <NoVariant candidates={candidates.data} onDesign={onDesign} />;
+  if (!candidates.data || (candidates.data.variants.length === 0 && !design))
+    return <NoVariant candidates={candidates.data} onDesign={onDesign} />;
+  if (!design)
+    return (
+      <div className="space-y-4">
+        <StartExperiment candidates={candidates.data} search={search} onDesign={onDesign} />
+        {candidates.data.note && <NoVariant candidates={candidates.data} onDesign={onDesign} />}
+      </div>
+    );
 
   const fromCandidates = candidates.data.variants.find((v) => v.column === design.variant)?.levels;
   const levels = fromCandidates ?? result?.variants.map((v) => v.label) ?? [];

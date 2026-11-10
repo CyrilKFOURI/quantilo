@@ -1,8 +1,9 @@
-import { Link, useParams } from "@tanstack/react-router";
-import { Menu, Search } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Menu, Search, X } from "lucide-react";
 
 import { useDataset } from "../../api/hooks";
 import { OPEN_PALETTE_EVENT } from "../../features/command/Shortcuts";
+import { closeCurrentDataset, useCurrentDataset } from "../../features/datasets/current";
 import { FilterButton, FilterChips } from "../../features/filters/FilterBar";
 import { t } from "../../lib/i18n";
 import { useStoredState } from "../../lib/useStoredState";
@@ -14,9 +15,10 @@ import { Logo } from "../../ui/Logo";
  *  is an icon rail (tablet, or collapsed) showing CYFOURI only, so the app's mark and name come
  *  here, next to it (043). */
 export function TopBar({ onMenu, appMark = false }: { onMenu?: () => void; appMark?: boolean }) {
-  const { datasetId } = useParams({ strict: false });
+  // 098: Home and Recipes keep showing the dataset one works on (filters only on its own pages)
+  const { datasetId, routed } = useCurrentDataset();
   const dataset = useDataset(datasetId);
-  const ready = Boolean(datasetId && dataset.data?.status === "ready");
+  const ready = Boolean(routed && datasetId && dataset.data?.status === "ready");
   const [showChips, setShowChips] = useStoredState("de.filters.chips", false);
 
   return (
@@ -50,6 +52,17 @@ export function TopBar({ onMenu, appMark = false }: { onMenu?: () => void; appMa
           <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
             <span className="shrink-0 text-ink-3 max-sm:hidden">{t("topbar.dataset")}</span>
             <DatasetName datasetId={datasetId} name={dataset.data.name} />
+            {!routed && (
+              <button
+                type="button"
+                onClick={closeCurrentDataset}
+                aria-label={t("topbar.closeDataset")}
+                title={t("topbar.closeDataset")}
+                className="inline-flex size-6 shrink-0 items-center justify-center self-center rounded-md text-ink-3 hover:bg-surface-2 hover:text-ink-1"
+              >
+                <X size={14} strokeWidth={1.5} aria-hidden />
+              </button>
+            )}
           </span>
         ) : datasetId ? (
           // Still loading (042): the name comes in a moment, "No dataset open" would be wrong.

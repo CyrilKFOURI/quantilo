@@ -46,12 +46,41 @@ function setup(
   });
 }
 
+/** 098: the tab opens empty (pickers and the rule's suggestion); the tests take the suggestion. */
+async function openSuggested() {
+  renderAt("/d/d1/experiments");
+  fireEvent.click(await screen.findByRole("button", { name: "Use it" }));
+}
+
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Experiments page", () => {
+  it("opens empty from the Toolbox: the pickers and the suggestion with its reason, nothing analysed (098)", async () => {
+    const ruled = {
+      ...candidates,
+      variants: candidates.variants.map((v) => ({ ...v, planned: v.column === "variant", why: v.column === "variant" ? "Its name says a variant (variant)." : "" })),
+    };
+    const calls = setup(undefined, noDecisions, ruled);
+    const router = renderAt("/d/d1/experiments");
+
+    expect(await screen.findByRole("heading", { name: "Describe the test" })).toBeInTheDocument();
+    expect(screen.getByText(/Suggested: variant against converted, one user_id at a time/)).toBeInTheDocument();
+    expect(screen.getByText("R-EXP-01 · Its name says a variant (variant).")).toBeInTheDocument();
+    expect(calls.some((c) => c.key === "POST /modules/experiments/datasets/d1/analyze")).toBe(false);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Variant" }), { target: { value: "variant" } });
+    expect(calls.some((c) => c.key === "POST /modules/experiments/datasets/d1/analyze")).toBe(false);
+    fireEvent.change(screen.getByRole("combobox", { name: "Metric" }), { target: { value: "converted" } });
+
+    expect(await screen.findByRole("combobox", { name: "Unit" })).toBeInTheDocument();
+    expect(router.state.location.search).toMatchObject({ design: { variant: "variant", metrics: [{ column: "converted" }] } });
+    const sent = calls.find((c) => c.key === "POST /modules/experiments/datasets/d1/analyze");
+    expect(sent?.body).toMatchObject({ variant: "variant", metrics: [{ column: "converted" }] });
+  });
+
   it("opens on the suggested experiment: by user, with its sentence, chart and Holm line", async () => {
     const calls = setup();
-    renderAt("/d/d1/experiments");
+    await openSuggested();
 
     expect(await screen.findByRole("heading", { name: "Experiments" })).toBeInTheDocument();
     expect(await screen.findByText(/new_checkout reaches 25.0 % vs 19.8 % for control/)).toBeInTheDocument();
@@ -86,7 +115,7 @@ describe("Experiments page", () => {
 
   it("adds the bandit view: P(best) and expected loss per variant, the guardrail, the replay on demand", async () => {
     setup();
-    renderAt("/d/d1/experiments");
+    await openSuggested();
 
     const section = (await screen.findByRole("heading", { name: "Bandit view" })).closest("section") as HTMLElement;
     expect(within(section).getByText(byUser.bandit.sentence)).toBeInTheDocument();
@@ -125,7 +154,7 @@ describe("Experiments page", () => {
 
   it("puts the sample ratio alarm before any result", async () => {
     setup(() => srm);
-    renderAt("/d/d1/experiments");
+    await openSuggested();
 
     const alarm = await screen.findByRole("alert");
     expect(alarm).toHaveTextContent("The groups are not the size you planned: the results may be biased.");
@@ -133,7 +162,7 @@ describe("Experiments page", () => {
 
   it("learns who should get which variant under Advanced, and the Qini curve under More, each when opened", async () => {
     const calls = setup();
-    renderAt("/d/d1/experiments");
+    await openSuggested();
 
     const section = (await screen.findByRole("heading", { name: "Who should get which variant" })).closest("section") as HTMLElement;
     const policyCalls = () => calls.filter((c) => c.key === "POST /modules/experiments/datasets/d1/policy");
@@ -194,7 +223,7 @@ describe("Experiments page", () => {
     setup();
     renderAt("/d/d1/experiments?tab=policies");
 
-    expect(await screen.findByText(/new_checkout reaches 25.0 %/)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Describe the test" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Policies" })).toBeNull();
   });
 
