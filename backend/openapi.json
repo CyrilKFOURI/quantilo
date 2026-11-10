@@ -5283,6 +5283,529 @@
         }
       }
     },
+    "/api/v1/projects/{project_id}/model": {
+      "get": {
+        "tags": [
+          "model"
+        ],
+        "summary": "Get Model",
+        "description": "Tables, accepted and proposed relations (detected now), layout, analysis datasets.",
+        "operationId": "get_model_api_v1_projects__project_id__model_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/model/relations": {
+      "post": {
+        "tags": [
+          "model"
+        ],
+        "summary": "Save Relation",
+        "description": "Accept or reject a proposal, or add a relation by hand; returns the whole model.",
+        "operationId": "save_relation_api_v1_projects__project_id__model_relations_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelationIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/model/relations/{relation_id}": {
+      "patch": {
+        "tags": [
+          "model"
+        ],
+        "summary": "Update Relation",
+        "operationId": "update_relation_api_v1_projects__project_id__model_relations__relation_id__patch",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "relation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Relation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelationPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "model"
+        ],
+        "summary": "Delete Relation",
+        "description": "The relation can be proposed again if the data still says so.",
+        "operationId": "delete_relation_api_v1_projects__project_id__model_relations__relation_id__delete",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "relation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Relation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/model/check": {
+      "post": {
+        "tags": [
+          "model"
+        ],
+        "summary": "Check Relation",
+        "description": "Exact counts of a pair of columns before saving it.",
+        "operationId": "check_relation_api_v1_projects__project_id__model_check_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/model/layout": {
+      "put": {
+        "tags": [
+          "model"
+        ],
+        "summary": "Save Layout",
+        "description": "Card positions and the version each family uses.",
+        "operationId": "save_layout_api_v1_projects__project_id__model_layout_put",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LayoutIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/model/preview": {
+      "post": {
+        "tags": [
+          "model"
+        ],
+        "summary": "Preview Build",
+        "description": "The analysis dataset, counted and not written.",
+        "operationId": "preview_build_api_v1_projects__project_id__model_preview_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuildIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/model/build": {
+      "post": {
+        "tags": [
+          "model"
+        ],
+        "summary": "Build",
+        "description": "Write the analysis dataset and import it in the project.",
+        "operationId": "build_api_v1_projects__project_id__model_build_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuildIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/model/builds/{dataset_id}/rebuild": {
+      "post": {
+        "tags": [
+          "model"
+        ],
+        "summary": "Rebuild",
+        "operationId": "rebuild_api_v1_projects__project_id__model_builds__dataset_id__rebuild_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/model/aggregate": {
+      "post": {
+        "tags": [
+          "model"
+        ],
+        "summary": "Aggregate",
+        "description": "Advanced: a child table summed up to its parent's rows, as a new dataset.",
+        "operationId": "aggregate_api_v1_projects__project_id__model_aggregate_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AggregateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/modules/timeseries/datasets/{dataset_id}/overview": {
       "get": {
         "tags": [
@@ -17674,6 +18197,46 @@
         ],
         "title": "AgentStep"
       },
+      "AggregateIn": {
+        "properties": {
+          "relation_id": {
+            "type": "string",
+            "title": "Relation Id"
+          },
+          "measures": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MeasureIn"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measures"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "relation_id"
+        ],
+        "title": "AggregateIn"
+      },
       "Alert": {
         "properties": {
           "kind": {
@@ -19125,6 +19688,118 @@
         ],
         "title": "Breaks"
       },
+      "BuildIn": {
+        "properties": {
+          "fact_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fact Id"
+          },
+          "picks": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Picks"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "title": "BuildIn"
+      },
+      "BuildOut": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "flat",
+              "aggregate"
+            ],
+            "title": "Kind"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "importing",
+              "ready",
+              "error"
+            ],
+            "title": "Status"
+          },
+          "rows": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rows"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "out_of_date": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Out Of Date"
+          },
+          "can_rebuild": {
+            "type": "boolean",
+            "title": "Can Rebuild"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "name",
+          "kind",
+          "status",
+          "rows",
+          "created_at",
+          "updated_at",
+          "out_of_date",
+          "can_rebuild"
+        ],
+        "title": "BuildOut"
+      },
       "Candidate": {
         "properties": {
           "name": {
@@ -20016,6 +20691,169 @@
           "detail"
         ],
         "title": "Check"
+      },
+      "CheckIn": {
+        "properties": {
+          "child_id": {
+            "type": "string",
+            "title": "Child Id"
+          },
+          "child_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Child Columns"
+          },
+          "parent_id": {
+            "type": "string",
+            "title": "Parent Id"
+          },
+          "parent_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Parent Columns"
+          },
+          "join_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "left",
+                  "inner",
+                  "right",
+                  "full"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Join Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "child_id",
+          "child_columns",
+          "parent_id",
+          "parent_columns"
+        ],
+        "title": "CheckIn"
+      },
+      "CheckOut": {
+        "properties": {
+          "child_rows": {
+            "type": "integer",
+            "title": "Child Rows"
+          },
+          "child_empty": {
+            "type": "integer",
+            "title": "Child Empty"
+          },
+          "matched_rows": {
+            "type": "integer",
+            "title": "Matched Rows"
+          },
+          "orphan_rows": {
+            "type": "integer",
+            "title": "Orphan Rows"
+          },
+          "orphans": {
+            "items": {
+              "$ref": "#/components/schemas/ExampleOut"
+            },
+            "type": "array",
+            "title": "Orphans"
+          },
+          "child_distinct": {
+            "type": "integer",
+            "title": "Child Distinct"
+          },
+          "parent_rows": {
+            "type": "integer",
+            "title": "Parent Rows"
+          },
+          "parent_distinct": {
+            "type": "integer",
+            "title": "Parent Distinct"
+          },
+          "duplicate_keys": {
+            "type": "integer",
+            "title": "Duplicate Keys"
+          },
+          "duplicates": {
+            "items": {
+              "$ref": "#/components/schemas/ExampleOut"
+            },
+            "type": "array",
+            "title": "Duplicates"
+          },
+          "unused_keys": {
+            "type": "integer",
+            "title": "Unused Keys"
+          },
+          "cardinality": {
+            "type": "string",
+            "enum": [
+              "1:1",
+              "n:1",
+              "n:m"
+            ],
+            "title": "Cardinality"
+          },
+          "recommended": {
+            "type": "string",
+            "enum": [
+              "left",
+              "inner",
+              "right",
+              "full",
+              "none"
+            ],
+            "title": "Recommended"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonOut"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonOut"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "child_rows",
+          "child_empty",
+          "matched_rows",
+          "orphan_rows",
+          "orphans",
+          "child_distinct",
+          "parent_rows",
+          "parent_distinct",
+          "duplicate_keys",
+          "duplicates",
+          "unused_keys",
+          "cardinality",
+          "recommended",
+          "reasons",
+          "warnings"
+        ],
+        "title": "CheckOut",
+        "description": "Exact counts of one relation (R-JOIN-06)."
       },
       "Choices": {
         "properties": {
@@ -23592,6 +24430,19 @@
         ],
         "title": "CreatedDataset"
       },
+      "CreatedOut": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id"
+        ],
+        "title": "CreatedOut"
+      },
       "CrossValidation": {
         "properties": {
           "method": {
@@ -26539,6 +27390,24 @@
           "after"
         ],
         "title": "Example"
+      },
+      "ExampleOut": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "rows"
+        ],
+        "title": "ExampleOut"
       },
       "Excluded": {
         "properties": {
@@ -31583,6 +32452,35 @@
         ],
         "title": "KeyFigure"
       },
+      "KeyOut": {
+        "properties": {
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "primary": {
+            "type": "boolean",
+            "title": "Primary"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonOut"
+            },
+            "type": "array",
+            "title": "Reasons"
+          }
+        },
+        "type": "object",
+        "required": [
+          "columns",
+          "primary",
+          "reasons"
+        ],
+        "title": "KeyOut"
+      },
       "KpiChange": {
         "properties": {
           "name": {
@@ -31908,6 +32806,34 @@
           "quantiles"
         ],
         "title": "Law"
+      },
+      "LayoutIn": {
+        "properties": {
+          "positions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PositionIn"
+            },
+            "type": "object",
+            "maxProperties": 500,
+            "title": "Positions"
+          },
+          "versions": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Versions"
+          }
+        },
+        "type": "object",
+        "title": "LayoutIn"
       },
       "Learned": {
         "properties": {
@@ -32973,6 +33899,30 @@
         ],
         "title": "Measure"
       },
+      "MeasureIn": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "function": {
+            "type": "string",
+            "enum": [
+              "sum",
+              "mean",
+              "min",
+              "max"
+            ],
+            "title": "Function"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "function"
+        ],
+        "title": "MeasureIn"
+      },
       "MeasureOut": {
         "properties": {
           "id": {
@@ -33654,6 +34604,70 @@
         ],
         "title": "ModelCheck"
       },
+      "ModelColumnOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "key",
+              "measure",
+              "attribute",
+              "date",
+              "text",
+              "other"
+            ],
+            "title": "Category"
+          },
+          "linkable": {
+            "type": "boolean",
+            "title": "Linkable"
+          },
+          "excluded_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReasonOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default_pick": {
+            "type": "boolean",
+            "title": "Default Pick"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "role",
+          "category",
+          "linkable",
+          "excluded_by",
+          "default_pick"
+        ],
+        "title": "ModelColumnOut"
+      },
       "ModelDrift": {
         "properties": {
           "level": {
@@ -33692,6 +34706,81 @@
           "shifted"
         ],
         "title": "ModelDrift"
+      },
+      "ModelOut": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "tables": {
+            "items": {
+              "$ref": "#/components/schemas/ModelTableOut"
+            },
+            "type": "array",
+            "title": "Tables"
+          },
+          "relations": {
+            "items": {
+              "$ref": "#/components/schemas/RelationOut"
+            },
+            "type": "array",
+            "title": "Relations"
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Facts"
+          },
+          "shape": {
+            "type": "string",
+            "enum": [
+              "star",
+              "snowflake",
+              "none"
+            ],
+            "title": "Shape"
+          },
+          "positions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PositionIn"
+            },
+            "type": "object",
+            "title": "Positions"
+          },
+          "builds": {
+            "items": {
+              "$ref": "#/components/schemas/BuildOut"
+            },
+            "type": "array",
+            "title": "Builds"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonOut"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "elapsed_ms": {
+            "type": "integer",
+            "title": "Elapsed Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "tables",
+          "relations",
+          "facts",
+          "shape",
+          "positions",
+          "builds",
+          "elapsed_ms"
+        ],
+        "title": "ModelOut"
       },
       "ModelResult": {
         "properties": {
@@ -33831,6 +34920,108 @@
           "vs_reference"
         ],
         "title": "ModelResult"
+      },
+      "ModelTableOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "root_id": {
+            "type": "string",
+            "title": "Root Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/ModelColumnOut"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/KeyOut"
+            },
+            "type": "array",
+            "title": "Keys"
+          },
+          "measures": {
+            "type": "integer",
+            "title": "Measures"
+          },
+          "attributes": {
+            "type": "integer",
+            "title": "Attributes"
+          },
+          "dates": {
+            "type": "integer",
+            "title": "Dates"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "fact",
+              "dimension",
+              "unrelated"
+            ],
+            "title": "Role"
+          },
+          "depth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth"
+          },
+          "primary": {
+            "type": "boolean",
+            "title": "Primary"
+          },
+          "role_reasons": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonOut"
+            },
+            "type": "array",
+            "title": "Role Reasons"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/VersionOut"
+            },
+            "type": "array",
+            "title": "Versions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "root_id",
+          "name",
+          "rows",
+          "columns",
+          "keys",
+          "measures",
+          "attributes",
+          "dates",
+          "role",
+          "depth",
+          "primary",
+          "role_reasons",
+          "versions"
+        ],
+        "title": "ModelTableOut"
       },
       "ModelView": {
         "properties": {
@@ -34818,6 +36009,29 @@
           "method"
         ],
         "title": "Outliers"
+      },
+      "OutputColumnOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "table_id": {
+            "type": "string",
+            "title": "Table Id"
+          },
+          "column": {
+            "type": "string",
+            "title": "Column"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "table_id",
+          "column"
+        ],
+        "title": "OutputColumnOut"
       },
       "OutputStep": {
         "properties": {
@@ -37155,6 +38369,28 @@
         ],
         "title": "PolicyValue"
       },
+      "PositionIn": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "maximum": 10000.0,
+            "minimum": -10000.0,
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "maximum": 10000.0,
+            "minimum": -10000.0,
+            "title": "Y"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "PositionIn"
+      },
       "PredictStart": {
         "properties": {
           "source": {
@@ -37901,6 +39137,66 @@
         ],
         "title": "Preview"
       },
+      "PreviewOut": {
+        "properties": {
+          "fact_id": {
+            "type": "string",
+            "title": "Fact Id"
+          },
+          "rows_before": {
+            "type": "integer",
+            "title": "Rows Before"
+          },
+          "rows_after": {
+            "type": "integer",
+            "title": "Rows After"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/OutputColumnOut"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/StepOut"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "refused": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonOut"
+            },
+            "type": "array",
+            "title": "Refused"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonOut"
+            },
+            "type": "array",
+            "title": "Skipped"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fact_id",
+          "rows_before",
+          "rows_after",
+          "columns",
+          "steps",
+          "refused",
+          "skipped",
+          "name"
+        ],
+        "title": "PreviewOut"
+      },
       "PreviewRequest": {
         "properties": {
           "path": {
@@ -38396,6 +39692,25 @@
           "denominator"
         ],
         "title": "Ratio"
+      },
+      "ReasonOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "text"
+        ],
+        "title": "ReasonOut",
+        "description": "A rule code and its sentence: why the app reads something this way."
       },
       "Recipe": {
         "properties": {
@@ -40154,6 +41469,296 @@
           "status"
         ],
         "title": "RelationChange"
+      },
+      "RelationIn": {
+        "properties": {
+          "child_id": {
+            "type": "string",
+            "title": "Child Id"
+          },
+          "child_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Child Columns"
+          },
+          "parent_id": {
+            "type": "string",
+            "title": "Parent Id"
+          },
+          "parent_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Parent Columns"
+          },
+          "join_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "left",
+                  "inner",
+                  "right",
+                  "full"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Join Type"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "rejected"
+            ],
+            "title": "Status",
+            "default": "accepted"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "detected",
+              "user"
+            ],
+            "title": "Origin",
+            "default": "detected"
+          }
+        },
+        "type": "object",
+        "required": [
+          "child_id",
+          "child_columns",
+          "parent_id",
+          "parent_columns"
+        ],
+        "title": "RelationIn"
+      },
+      "RelationOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "suggested"
+            ],
+            "title": "Status"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "detected",
+              "user"
+            ],
+            "title": "Origin"
+          },
+          "child_id": {
+            "type": "string",
+            "title": "Child Id"
+          },
+          "child_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Child Columns"
+          },
+          "parent_id": {
+            "type": "string",
+            "title": "Parent Id"
+          },
+          "parent_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Parent Columns"
+          },
+          "cardinality": {
+            "type": "string",
+            "enum": [
+              "1:1",
+              "n:1",
+              "n:m"
+            ],
+            "title": "Cardinality"
+          },
+          "join_type": {
+            "type": "string",
+            "enum": [
+              "left",
+              "inner",
+              "right",
+              "full",
+              "none"
+            ],
+            "title": "Join Type"
+          },
+          "recommended": {
+            "type": "string",
+            "enum": [
+              "left",
+              "inner",
+              "right",
+              "full",
+              "none"
+            ],
+            "title": "Recommended"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "inclusion": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inclusion"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonOut"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "origin",
+          "child_id",
+          "child_columns",
+          "parent_id",
+          "parent_columns",
+          "cardinality",
+          "join_type",
+          "recommended",
+          "confidence",
+          "score",
+          "inclusion",
+          "reasons",
+          "check"
+        ],
+        "title": "RelationOut"
+      },
+      "RelationPatch": {
+        "properties": {
+          "join_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "left",
+                  "inner",
+                  "right",
+                  "full"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Join Type"
+          },
+          "child_columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Columns"
+          },
+          "parent_columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Columns"
+          }
+        },
+        "type": "object",
+        "title": "RelationPatch"
       },
       "RelationsAnswer": {
         "properties": {
@@ -47228,6 +48833,54 @@
         "title": "StepLink",
         "description": "A page of the app the step filled (the library leaves it empty)."
       },
+      "StepOut": {
+        "properties": {
+          "relation_id": {
+            "type": "string",
+            "title": "Relation Id"
+          },
+          "child_id": {
+            "type": "string",
+            "title": "Child Id"
+          },
+          "parent_id": {
+            "type": "string",
+            "title": "Parent Id"
+          },
+          "prefix": {
+            "type": "string",
+            "title": "Prefix"
+          },
+          "join_type": {
+            "type": "string",
+            "enum": [
+              "left",
+              "inner",
+              "right",
+              "full"
+            ],
+            "title": "Join Type"
+          },
+          "columns": {
+            "type": "integer",
+            "title": "Columns"
+          },
+          "check": {
+            "$ref": "#/components/schemas/CheckOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "relation_id",
+          "child_id",
+          "parent_id",
+          "prefix",
+          "join_type",
+          "columns",
+          "check"
+        ],
+        "title": "StepOut"
+      },
       "StepReport": {
         "properties": {
           "id": {
@@ -51328,6 +52981,24 @@
           "current"
         ],
         "title": "VersionInfo"
+      },
+      "VersionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "seq"
+        ],
+        "title": "VersionOut"
       },
       "VersionSettings": {
         "properties": {

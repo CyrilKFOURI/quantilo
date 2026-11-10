@@ -3,8 +3,10 @@ import en from "./en.json";
 import recipes from "./recipes.json";
 // Clean (065): its texts in their own file too.
 import clean from "./clean.json";
+// Model of a project (088): its texts in their own file too.
+import model from "./model.json";
 
-const all = { ...en, ...recipes, ...clean };
+const all = { ...en, ...recipes, ...clean, ...model };
 
 export type MessageKey = keyof typeof all;
 

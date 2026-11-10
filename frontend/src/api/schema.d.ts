@@ -1080,6 +1080,184 @@ export interface paths {
         patch: operations["rename_project_api_v1_projects__project_id__patch"];
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Model
+         * @description Tables, accepted and proposed relations (detected now), layout, analysis datasets.
+         */
+        get: operations["get_model_api_v1_projects__project_id__model_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/model/relations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save Relation
+         * @description Accept or reject a proposal, or add a relation by hand; returns the whole model.
+         */
+        post: operations["save_relation_api_v1_projects__project_id__model_relations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/model/relations/{relation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Relation
+         * @description The relation can be proposed again if the data still says so.
+         */
+        delete: operations["delete_relation_api_v1_projects__project_id__model_relations__relation_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Relation */
+        patch: operations["update_relation_api_v1_projects__project_id__model_relations__relation_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/model/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Relation
+         * @description Exact counts of a pair of columns before saving it.
+         */
+        post: operations["check_relation_api_v1_projects__project_id__model_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/model/layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save Layout
+         * @description Card positions and the version each family uses.
+         */
+        put: operations["save_layout_api_v1_projects__project_id__model_layout_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/model/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Build
+         * @description The analysis dataset, counted and not written.
+         */
+        post: operations["preview_build_api_v1_projects__project_id__model_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/model/build": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Build
+         * @description Write the analysis dataset and import it in the project.
+         */
+        post: operations["build_api_v1_projects__project_id__model_build_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/model/builds/{dataset_id}/rebuild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rebuild */
+        post: operations["rebuild_api_v1_projects__project_id__model_builds__dataset_id__rebuild_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/model/aggregate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aggregate
+         * @description Advanced: a child table summed up to its parent's rows, as a new dataset.
+         */
+        post: operations["aggregate_api_v1_projects__project_id__model_aggregate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/modules/timeseries/datasets/{dataset_id}/overview": {
         parameters: {
             query?: never;
@@ -3690,6 +3868,15 @@ export interface components {
             summary?: string | null;
             link?: components["schemas"]["AgentLink"] | null;
         };
+        /** AggregateIn */
+        AggregateIn: {
+            /** Relation Id */
+            relation_id: string;
+            /** Measures */
+            measures?: components["schemas"]["MeasureIn"][] | null;
+            /** Name */
+            name?: string | null;
+        };
         /** Alert */
         Alert: {
             /** Kind */
@@ -4217,6 +4404,44 @@ export interface components {
              */
             cost_auto: boolean;
         };
+        /** BuildIn */
+        BuildIn: {
+            /** Fact Id */
+            fact_id?: string | null;
+            /** Picks */
+            picks?: {
+                [key: string]: string[];
+            };
+            /** Name */
+            name?: string | null;
+        };
+        /** BuildOut */
+        BuildOut: {
+            /** Dataset Id */
+            dataset_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "flat" | "aggregate";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "importing" | "ready" | "error";
+            /** Rows */
+            rows: number | null;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /** Out Of Date */
+            out_of_date: string[];
+            /** Can Rebuild */
+            can_rebuild: boolean;
+        };
         /** Candidate */
         Candidate: {
             /** Name */
@@ -4520,6 +4745,61 @@ export interface components {
             score: number;
             /** Detail */
             detail: string;
+        };
+        /** CheckIn */
+        CheckIn: {
+            /** Child Id */
+            child_id: string;
+            /** Child Columns */
+            child_columns: string[];
+            /** Parent Id */
+            parent_id: string;
+            /** Parent Columns */
+            parent_columns: string[];
+            /** Join Type */
+            join_type?: ("left" | "inner" | "right" | "full") | null;
+        };
+        /**
+         * CheckOut
+         * @description Exact counts of one relation (R-JOIN-06).
+         */
+        CheckOut: {
+            /** Child Rows */
+            child_rows: number;
+            /** Child Empty */
+            child_empty: number;
+            /** Matched Rows */
+            matched_rows: number;
+            /** Orphan Rows */
+            orphan_rows: number;
+            /** Orphans */
+            orphans: components["schemas"]["ExampleOut"][];
+            /** Child Distinct */
+            child_distinct: number;
+            /** Parent Rows */
+            parent_rows: number;
+            /** Parent Distinct */
+            parent_distinct: number;
+            /** Duplicate Keys */
+            duplicate_keys: number;
+            /** Duplicates */
+            duplicates: components["schemas"]["ExampleOut"][];
+            /** Unused Keys */
+            unused_keys: number;
+            /**
+             * Cardinality
+             * @enum {string}
+             */
+            cardinality: "1:1" | "n:1" | "n:m";
+            /**
+             * Recommended
+             * @enum {string}
+             */
+            recommended: "left" | "inner" | "right" | "full" | "none";
+            /** Reasons */
+            reasons: components["schemas"]["ReasonOut"][];
+            /** Warnings */
+            warnings: components["schemas"]["ReasonOut"][];
         };
         /**
          * Choices
@@ -5528,6 +5808,11 @@ export interface components {
             /** Dataset Id */
             dataset_id: string;
         };
+        /** CreatedOut */
+        CreatedOut: {
+            /** Dataset Id */
+            dataset_id: string;
+        };
         /** CrossValidation */
         CrossValidation: {
             /** Method */
@@ -6487,6 +6772,13 @@ export interface components {
             before: string | null;
             /** After */
             after: string | null;
+        };
+        /** ExampleOut */
+        ExampleOut: {
+            /** Value */
+            value: string;
+            /** Rows */
+            rows: number;
         };
         /** Excluded */
         Excluded: {
@@ -8071,6 +8363,15 @@ export interface components {
             /** Higher Is Better */
             higher_is_better?: boolean | null;
         };
+        /** KeyOut */
+        KeyOut: {
+            /** Columns */
+            columns: string[];
+            /** Primary */
+            primary: boolean;
+            /** Reasons */
+            reasons: components["schemas"]["ReasonOut"][];
+        };
         /** KpiChange */
         KpiChange: {
             /** Name */
@@ -8175,6 +8476,17 @@ export interface components {
             density: number[];
             /** Quantiles */
             quantiles: number[];
+        };
+        /** LayoutIn */
+        LayoutIn: {
+            /** Positions */
+            positions?: {
+                [key: string]: components["schemas"]["PositionIn"];
+            };
+            /** Versions */
+            versions?: {
+                [key: string]: string;
+            } | null;
         };
         /** Learned */
         Learned: {
@@ -8503,6 +8815,16 @@ export interface components {
             /** Until */
             until?: string | null;
         };
+        /** MeasureIn */
+        MeasureIn: {
+            /** Column */
+            column: string;
+            /**
+             * Function
+             * @enum {string}
+             */
+            function: "sum" | "mean" | "min" | "max";
+        };
         /** MeasureOut */
         MeasureOut: {
             /** Id */
@@ -8726,6 +9048,25 @@ export interface components {
             problems?: string[];
             drift?: components["schemas"]["ModelDrift"] | null;
         };
+        /** ModelColumnOut */
+        ModelColumnOut: {
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
+            /** Role */
+            role: string | null;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "key" | "measure" | "attribute" | "date" | "text" | "other";
+            /** Linkable */
+            linkable: boolean;
+            excluded_by: components["schemas"]["ReasonOut"] | null;
+            /** Default Pick */
+            default_pick: boolean;
+        };
         /** ModelDrift */
         ModelDrift: {
             /**
@@ -8739,6 +9080,32 @@ export interface components {
             columns: components["schemas"]["DriftColumn"][];
             /** Shifted */
             shifted: string[];
+        };
+        /** ModelOut */
+        ModelOut: {
+            /** Project Id */
+            project_id: string;
+            /** Tables */
+            tables: components["schemas"]["ModelTableOut"][];
+            /** Relations */
+            relations: components["schemas"]["RelationOut"][];
+            /** Facts */
+            facts: string[];
+            /**
+             * Shape
+             * @enum {string}
+             */
+            shape: "star" | "snowflake" | "none";
+            /** Positions */
+            positions: {
+                [key: string]: components["schemas"]["PositionIn"];
+            };
+            /** Builds */
+            builds: components["schemas"]["BuildOut"][];
+            /** Notes */
+            notes?: components["schemas"]["ReasonOut"][];
+            /** Elapsed Ms */
+            elapsed_ms: number;
         };
         /** ModelResult */
         ModelResult: {
@@ -8778,6 +9145,40 @@ export interface components {
             mase_without_drivers?: number | null;
             /** Drivers */
             drivers?: components["schemas"]["DriverEffect"][];
+        };
+        /** ModelTableOut */
+        ModelTableOut: {
+            /** Id */
+            id: string;
+            /** Root Id */
+            root_id: string;
+            /** Name */
+            name: string;
+            /** Rows */
+            rows: number;
+            /** Columns */
+            columns: components["schemas"]["ModelColumnOut"][];
+            /** Keys */
+            keys: components["schemas"]["KeyOut"][];
+            /** Measures */
+            measures: number;
+            /** Attributes */
+            attributes: number;
+            /** Dates */
+            dates: number;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "fact" | "dimension" | "unrelated";
+            /** Depth */
+            depth: number | null;
+            /** Primary */
+            primary: boolean;
+            /** Role Reasons */
+            role_reasons: components["schemas"]["ReasonOut"][];
+            /** Versions */
+            versions: components["schemas"]["VersionOut"][];
         };
         /** ModelView */
         ModelView: {
@@ -9135,6 +9536,15 @@ export interface components {
             rules?: components["schemas"]["OutlierRule"][];
             /** Rows */
             rows?: components["schemas"]["OutlierRow"][];
+        };
+        /** OutputColumnOut */
+        OutputColumnOut: {
+            /** Name */
+            name: string;
+            /** Table Id */
+            table_id: string;
+            /** Column */
+            column: string;
         };
         /** OutputStep */
         OutputStep: {
@@ -9906,6 +10316,13 @@ export interface components {
             /** High */
             high: number | null;
         };
+        /** PositionIn */
+        PositionIn: {
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
         /** PredictStart */
         PredictStart: {
             /**
@@ -10150,6 +10567,25 @@ export interface components {
                 [key: string]: number;
             } | null;
         };
+        /** PreviewOut */
+        PreviewOut: {
+            /** Fact Id */
+            fact_id: string;
+            /** Rows Before */
+            rows_before: number;
+            /** Rows After */
+            rows_after: number;
+            /** Columns */
+            columns: components["schemas"]["OutputColumnOut"][];
+            /** Steps */
+            steps: components["schemas"]["StepOut"][];
+            /** Refused */
+            refused: components["schemas"]["ReasonOut"][];
+            /** Skipped */
+            skipped: components["schemas"]["ReasonOut"][];
+            /** Name */
+            name: string;
+        };
         /** PreviewRequest */
         PreviewRequest: {
             /** Path */
@@ -10306,6 +10742,16 @@ export interface components {
              */
             percent: boolean;
             format?: components["schemas"]["Format"];
+        };
+        /**
+         * ReasonOut
+         * @description A rule code and its sentence: why the app reads something this way.
+         */
+        ReasonOut: {
+            /** Code */
+            code: string;
+            /** Text */
+            text: string;
         };
         /**
          * Recipe
@@ -10807,6 +11253,89 @@ export interface components {
              * @enum {string}
              */
             status: "appeared" | "disappeared" | "changed" | "stable";
+        };
+        /** RelationIn */
+        RelationIn: {
+            /** Child Id */
+            child_id: string;
+            /** Child Columns */
+            child_columns: string[];
+            /** Parent Id */
+            parent_id: string;
+            /** Parent Columns */
+            parent_columns: string[];
+            /** Join Type */
+            join_type?: ("left" | "inner" | "right" | "full") | null;
+            /**
+             * Status
+             * @default accepted
+             * @enum {string}
+             */
+            status: "accepted" | "rejected";
+            /**
+             * Origin
+             * @default detected
+             * @enum {string}
+             */
+            origin: "detected" | "user";
+        };
+        /** RelationOut */
+        RelationOut: {
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "accepted" | "suggested";
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "detected" | "user";
+            /** Child Id */
+            child_id: string;
+            /** Child Columns */
+            child_columns: string[];
+            /** Parent Id */
+            parent_id: string;
+            /** Parent Columns */
+            parent_columns: string[];
+            /**
+             * Cardinality
+             * @enum {string}
+             */
+            cardinality: "1:1" | "n:1" | "n:m";
+            /**
+             * Join Type
+             * @enum {string}
+             */
+            join_type: "left" | "inner" | "right" | "full" | "none";
+            /**
+             * Recommended
+             * @enum {string}
+             */
+            recommended: "left" | "inner" | "right" | "full" | "none";
+            /** Confidence */
+            confidence: ("high" | "medium" | "low") | null;
+            /** Score */
+            score: number | null;
+            /** Inclusion */
+            inclusion: number | null;
+            /** Reasons */
+            reasons: components["schemas"]["ReasonOut"][];
+            check: components["schemas"]["CheckOut"] | null;
+            /** Problem */
+            problem?: string | null;
+        };
+        /** RelationPatch */
+        RelationPatch: {
+            /** Join Type */
+            join_type?: ("left" | "inner" | "right" | "full") | null;
+            /** Child Columns */
+            child_columns?: string[] | null;
+            /** Parent Columns */
+            parent_columns?: string[] | null;
         };
         /** RelationsAnswer */
         RelationsAnswer: {
@@ -12988,6 +13517,25 @@ export interface components {
              */
             label: string;
         };
+        /** StepOut */
+        StepOut: {
+            /** Relation Id */
+            relation_id: string;
+            /** Child Id */
+            child_id: string;
+            /** Parent Id */
+            parent_id: string;
+            /** Prefix */
+            prefix: string;
+            /**
+             * Join Type
+             * @enum {string}
+             */
+            join_type: "left" | "inner" | "right" | "full";
+            /** Columns */
+            columns: number;
+            check: components["schemas"]["CheckOut"];
+        };
         /** StepReport */
         StepReport: {
             /** Id */
@@ -14308,6 +14856,13 @@ export interface components {
             kept_bytes: number;
             /** Current */
             current: boolean;
+        };
+        /** VersionOut */
+        VersionOut: {
+            /** Id */
+            id: string;
+            /** Seq */
+            seq: number;
         };
         /**
          * VersionSettings
@@ -17006,6 +17561,347 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_model_api_v1_projects__project_id__model_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_relation_api_v1_projects__project_id__model_relations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_relation_api_v1_projects__project_id__model_relations__relation_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                relation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_relation_api_v1_projects__project_id__model_relations__relation_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                relation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelationPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_relation_api_v1_projects__project_id__model_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_layout_api_v1_projects__project_id__model_layout_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LayoutIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_build_api_v1_projects__project_id__model_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    build_api_v1_projects__project_id__model_build_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rebuild_api_v1_projects__project_id__model_builds__dataset_id__rebuild_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    aggregate_api_v1_projects__project_id__model_aggregate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AggregateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedOut"];
                 };
             };
             /** @description Validation Error */

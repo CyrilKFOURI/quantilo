@@ -36,6 +36,7 @@ def test_migrations_create_tables(tmp_path: Path) -> None:
         "0023_recipes",
         "0024_cleaning",
         "0025_projects",
+        "0027_project_model",
     ]
     expected = {
         "schema_migrations",
@@ -65,6 +66,9 @@ def test_migrations_create_tables(tmp_path: Path) -> None:
         "clean_drafts",
         "projects",
         "project_items",
+        "dataset_relations",
+        "project_models",
+        "model_builds",
     }
     assert expected <= tables
 
@@ -104,9 +108,46 @@ def test_projects_migration_is_additive_on_a_filled_0024_base(
     connection.commit()
 
     monkeypatch.undo()
-    assert db.apply_migrations(connection) == ["0025_projects"]
+    assert db.apply_migrations(connection) == ["0025_projects", "0027_project_model"]
     names = [row[0] for row in connection.execute("SELECT id FROM datasets ORDER BY id")]
     versions = connection.execute("SELECT count(*) FROM clean_versions").fetchone()[0]
     items = connection.execute("SELECT count(*) FROM project_items").fetchone()[0]
     connection.close()
     assert (names, versions, items) == (["child", "parent"], 1, 0)
+
+
+def test_model_migration_is_additive_on_a_filled_0025_base(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S15 (088): projects and their datasets are unchanged; no relation, no layout, no build."""
+    before = tmp_path / "before"
+    before.mkdir()
+    for migration in sorted(db.MIGRATIONS_DIR.glob("*.sql")):
+        if migration.stem <= "0025_projects":
+            shutil.copy(migration, before / migration.name)
+    monkeypatch.setattr(db, "MIGRATIONS_DIR", before)
+    connection = db.connect(tmp_path / "app.db")
+    db.apply_migrations(connection)
+    connection.execute(
+        "INSERT INTO datasets (id, name, source_path, source_kind, format, options, "
+        "fingerprint, storage_path, status, created_at) "
+        "VALUES ('d', 'd', '/x.csv', 'file', 'csv', '{}', 'f', 's', 'ready', '2026-01-01')"
+    )
+    connection.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES ('p', 'P', '', '')"
+    )
+    connection.execute(
+        "INSERT INTO project_items (project_id, item_kind, dataset_id, added_at) "
+        "VALUES ('p', 'dataset', 'd', '')"
+    )
+    connection.commit()
+
+    monkeypatch.undo()
+    assert db.apply_migrations(connection) == ["0027_project_model"]
+    items = connection.execute("SELECT count(*) FROM project_items").fetchone()[0]
+    counts = [
+        connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+        for table in ("dataset_relations", "project_models", "model_builds")
+    ]
+    connection.close()
+    assert (items, counts) == (1, [0, 0, 0])

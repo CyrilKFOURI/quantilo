@@ -1,4 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Network } from "lucide-react";
 
 import { useDataset, useDatasets } from "../../api/hooks";
 import { t } from "../../lib/i18n";
@@ -45,6 +46,18 @@ export function DatasetSwitcher({ datasetId, name }: { datasetId: string; name: 
       >
         {project.name}
       </Link>
+      {/* 088: the project's model, one click from any page of its datasets */}
+      {project.dataset_ids.length >= 2 && (
+        <Link
+          to="/projects/$projectId/model"
+          params={{ projectId: project.id }}
+          aria-label={t("model.openTitle", { name: project.name })}
+          title={t("model.openTitle", { name: project.name })}
+          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-surface-2 hover:text-accent max-sm:hidden"
+        >
+          <Network size={13} strokeWidth={1.5} aria-hidden />
+        </Link>
+      )}
       <span aria-hidden className="shrink-0 text-ink-3 max-sm:hidden">
         /
       </span>

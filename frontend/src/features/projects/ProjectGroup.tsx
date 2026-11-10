@@ -1,10 +1,10 @@
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { Link } from "@tanstack/react-router";
-import { Check, ChevronRight, FolderInput, FolderOpen, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronRight, FolderInput, FolderOpen, MoreHorizontal, Network, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState, type DragEvent, type ReactNode } from "react";
 
 import { t } from "../../lib/i18n";
-import { Button } from "../../ui/Button";
+import { Button, buttonClass } from "../../ui/Button";
 import { TextInput } from "../../ui/fields";
 import type { Project } from "./api";
 
@@ -118,8 +118,20 @@ export function ProjectGroup({
                 {dropActive ? t("projects.dropHere") : countLabel(count)}
               </span>
               {project && onRename && onDelete && (
-                <span className="ml-auto">
-                  <ProjectMenu project={project} open={open} onRename={() => setEditing(true)} onDelete={onDelete} />
+                <span className="ml-auto flex items-center gap-1">
+                  {/* 088: two datasets or more can be related */}
+                  {count >= 2 && (
+                    <Link
+                      to="/projects/$projectId/model"
+                      params={{ projectId: project.id }}
+                      className={buttonClass("ghost", "text-xs")}
+                      title={t("model.openTitle", { name: project.name })}
+                    >
+                      <Network size={14} strokeWidth={1.5} aria-hidden />
+                      {t("model.open")}
+                    </Link>
+                  )}
+                  <ProjectMenu project={project} open={open} canModel={count >= 2} onRename={() => setEditing(true)} onDelete={onDelete} />
                 </span>
               )}
             </div>
@@ -226,11 +238,13 @@ function NameInput({
 function ProjectMenu({
   project,
   open,
+  canModel,
   onRename,
   onDelete,
 }: {
   project: Project;
   open: boolean;
+  canModel: boolean;
   onRename: () => void;
   onDelete: () => void;
 }) {
@@ -246,6 +260,14 @@ function ProjectMenu({
               <Link to="/" search={{ project: project.id }}>
                 <FolderOpen size={14} strokeWidth={1.5} className="text-ink-3" aria-hidden />
                 {t("projects.open")}
+              </Link>
+            </Menu.Item>
+          )}
+          {canModel && (
+            <Menu.Item asChild className={itemClass}>
+              <Link to="/projects/$projectId/model" params={{ projectId: project.id }}>
+                <Network size={14} strokeWidth={1.5} className="text-ink-3" aria-hidden />
+                {t("model.open")}
               </Link>
             </Menu.Item>
           )}

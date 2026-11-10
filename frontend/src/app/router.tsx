@@ -16,6 +16,7 @@ import { ColumnsPage } from "../pages/columns/ColumnsPage";
 import { HelpPage } from "../pages/help/HelpPage";
 import { HomePage, validateHomeSearch } from "../pages/home/HomePage";
 import { LegalPage } from "../pages/legal/LegalPage";
+import { ModelPage } from "../pages/model/ModelPage";
 import { NotFoundPage } from "../pages/not-found/NotFoundPage";
 import { OverviewPage } from "../pages/overview/OverviewPage";
 import { RecipePage, validateRecipeSearch } from "../pages/recipes/RecipePage";
@@ -85,6 +86,12 @@ export function createAppRouter({
     getParentRoute: () => rootRoute,
     path: "/legal/$doc",
     component: LegalPage,
+  });
+  // 088: the model of a project (relations between its datasets), reached from the project
+  const modelRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/projects/$projectId/model",
+    component: ModelPage,
   });
   const recipesRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -164,6 +171,7 @@ export function createAppRouter({
       settingsRoute,
       helpRoute,
       legalRoute,
+      modelRoute,
       recipesRoute,
       recipeRoute,
       datasetRoute,
