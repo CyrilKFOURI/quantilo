@@ -12,6 +12,7 @@ import {
   ApiError,
   type ChartParams,
   type CompareParams,
+  type DurationParams,
   type DriverSpec,
   type ScenarioChange,
   type SeriesParams,
@@ -52,6 +53,9 @@ export const queryKeys = {
   browse: (path: string | null) => ["browse", path] as const,
   samples: ["samples"] as const,
   columns: (id: string) => ["datasets", id, "columns"] as const,
+  derived: (id: string) => ["datasets", id, "columns", "derived"] as const,
+  topics: (id: string, column: string, k: number | null, filters: Condition[]) =>
+    ["datasets", id, "topics", column, k, filters] as const,
   roles: ["column-roles"] as const,
   overview: (id: string, filters: Condition[] = []) =>
     ["datasets", id, "overview", filters] as const,
@@ -88,6 +92,8 @@ export const queryKeys = {
     ["datasets", id, "correlations", "structure", part, columns, filters] as const,
   compare: (id: string, params: CompareParams, filters: Condition[]) =>
     ["datasets", id, "compare", params, filters] as const,
+  durations: (id: string, kind: "survival" | "transitions", params: DurationParams, filters: Condition[]) =>
+    ["datasets", id, kind, params, filters] as const,
   series: (
     id: string,
     section: string,
@@ -274,6 +280,42 @@ export function useColumns(id: string, enabled: boolean) {
   });
 }
 
+/** 058: the derived columns offered for the pickers (filters, Compare, Correlations, KPI,
+ *  Segments), each listed right after its source by `withDerived`. */
+export function useDerivedColumns(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.derived(id),
+    queryFn: () => api.derivedColumns(id),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+/** 059: topics of a text column, asked for only once the user opens Advanced › More and clicks. */
+export function useTopics(id: string, column: string, k: number | null, filters: Condition[], enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.topics(id, column, k, filters),
+    queryFn: () => api.topics(id, column, k, filters),
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** Keep or forget topics as a column: the derived list changes, and every analysis with it. */
+export function useKeepTopics(id: string, column: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ k, filters, keep }: { k: number | null; filters: Condition[]; keep: boolean }) =>
+      keep ? api.keepTopics(id, column, k, filters) : api.forgetTopics(id, column).then(() => null),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.derived(id) });
+      void client.invalidateQueries({ queryKey: ["datasets", id, "topics", column] });
+      void client.invalidateQueries({ queryKey: queryKeys.dataset(id), exact: true });
+    },
+  });
+}
+
 export function useRoles() {
   return useQuery({
     queryKey: queryKeys.roles,
@@ -289,6 +331,7 @@ export function useUpdateColumns(id: string) {
     mutationFn: (changes: ColumnChange[]) => api.updateColumns(id, changes),
     onSuccess: (columns) => {
       client.setQueryData(queryKeys.columns(id), columns);
+      void client.invalidateQueries({ queryKey: queryKeys.derived(id) });
       void client.invalidateQueries({
         queryKey: queryKeys.dataset(id),
         exact: true,
@@ -498,6 +541,32 @@ export function useCompare(id: string, params: CompareParams | null) {
     queryKey: queryKeys.compare(id, params ?? { x: "", y: "" }, filters),
     queryFn: () => api.compare(id, params as CompareParams, filters),
     enabled: Boolean(params),
+    staleTime: 60_000,
+    placeholderData: (previous) => previous,
+    retry: false,
+  });
+}
+
+/** 062: survival curves; no columns = the reading a rule detects (setup null: none). */
+export function useSurvival(id: string, params: DurationParams, enabled = true) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: queryKeys.durations(id, "survival", params, filters),
+    queryFn: () => api.survival(id, params, filters),
+    enabled,
+    staleTime: 60_000,
+    placeholderData: (previous) => previous,
+    retry: false,
+  });
+}
+
+/** 062: status transitions (Markov chain); `detect_only` says whether a rule finds one. */
+export function useTransitions(id: string, params: DurationParams, enabled = true) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: queryKeys.durations(id, "transitions", params, filters),
+    queryFn: () => api.transitions(id, params, filters),
+    enabled,
     staleTime: 60_000,
     placeholderData: (previous) => previous,
     retry: false,
@@ -1046,6 +1115,31 @@ export function useRegressionInstruments(
     queryFn: () => api.regressionInstruments(id, params, endogenous, instruments, filters),
     enabled: Boolean(params.target) && endogenous.length > 0 && instruments.length > 0,
     staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/** 070: the partial plots of one column, asked for only once it is chosen (R-REG-TERM-11). */
+export function useRegressionPartial(id: string, params: RegressionParams, column: string | null) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: ["datasets", id, "regression", "partial", params, column, filters] as const,
+    queryFn: () => api.regressionPartial(id, params, column as string, filters),
+    enabled: Boolean(params.target) && Boolean(column),
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/** 072: Huber, Tukey and one quantile beside least squares, asked for when the section opens. */
+export function useRegressionRobust(id: string, params: RegressionParams, quantile: number, enabled: boolean) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: ["datasets", id, "regression", "robust", params, quantile, filters] as const,
+    queryFn: () => api.regressionRobust(id, params, quantile, filters),
+    enabled: enabled && Boolean(params.target),
+    staleTime: 60_000,
+    placeholderData: (previous) => previous,
     retry: false,
   });
 }

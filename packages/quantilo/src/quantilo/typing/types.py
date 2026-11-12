@@ -29,6 +29,22 @@ TEXT_LIKE_TYPES: tuple[AnalysisType, ...] = (
 Confidence = Literal["high", "medium", "low"]
 
 
+class TopicRule(BaseModel):
+    """A topic as the Topic rule reads it (059, R-TOP-05): its words and their weights."""
+
+    label: str
+    words: dict[str, float]
+
+
+class DerivedSpec(BaseModel):
+    """What a derived column is computed from (058): a source column and a part of it."""
+
+    source: str
+    part: str  # "length", "words", ..., "has" (with `option`), "count", "topic"
+    option: str | None = None  # a list of choices: the option of "has <option>"
+    topics: list[TopicRule] = []  # "topic": the topics, in order
+
+
 class Parser(BaseModel):
     """How to read a stored value in its analysis type, applied at query time.
 
@@ -39,16 +55,18 @@ class Parser(BaseModel):
     - year: integer year → date (January 1st)
     - text: the value as text, null tokens removed
     - time: a time of day (TIME, or text with a strptime `format`) → hours since midnight (092)
+    - derived: a value computed from another column (`derived`, 058): the length of a text...
 
     A date read with two formats (092, R-TYP-06) lists them in `formats`, the first one in `format`.
     """
 
-    kind: Literal["raw", "number", "date", "boolean", "year", "text", "time"] = "raw"
+    kind: Literal["raw", "number", "date", "boolean", "year", "text", "time", "derived"] = "raw"
     decimal: Literal[".", ","] = "."
     format: str | None = None
     formats: list[str] = []
     true_values: list[str] = []
     false_values: list[str] = []
+    derived: DerivedSpec | None = None
 
 
 @dataclass

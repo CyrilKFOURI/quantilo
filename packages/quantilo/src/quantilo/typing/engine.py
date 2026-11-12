@@ -13,6 +13,7 @@ import duckdb
 
 from quantilo.ingestion.normalize import stored_notes
 from quantilo.ingestion.sql import ident, lit
+from quantilo.typing import date_parts
 from quantilo.typing.knowledge_base import MEASURE_ROLES, KnowledgeBase, Role, load, name_tokens
 from quantilo.typing.parsers import (
     DATE_FORMATS,
@@ -1081,6 +1082,33 @@ def swap_day_month(date_format: str) -> str | None:
     return None
 
 
+# R-TYP-12: how a date part may be read (a single year everywhere is "ignored", still a part)
+PART_TYPES = frozenset(
+    [
+        *("datetime", "numeric_discrete", "numeric_continuous"),
+        *("categorical_ordinal", "categorical_nominal", "ignored"),
+    ]
+)
+
+
+def date_part_notes(detections: list[ColumnDetection]) -> None:
+    """R-TYP-12 (fix1): a year, a month and a day read as separate columns are pointed at on the
+    year's reasons; Clean checks their values and proposes the assembled date (B-20). Nothing is
+    assembled here: the reading of each column stays as it is."""
+    by_name = {d.name: d for d in detections}
+    for group in date_parts.groups(by_name):
+        if any(by_name[c].type not in PART_TYPES for c in group.columns):
+            continue
+        year = by_name[group.parts["year"]]
+        year.reasons.append(
+            rule(
+                f"{group.listed} look like the parts of one date: Clean proposes to assemble "
+                f"them into a '{group.name}' column (B-20)",
+                "R-TYP-12",
+            )
+        )
+
+
 def detect_columns(
     connection: duckdb.DuckDBPyConnection,
     source_sql: str,
@@ -1101,6 +1129,7 @@ def detect_columns(
         for position, (name, dtype, *_rest) in enumerate(columns)
     ]
     connection.execute(f"DROP TABLE IF EXISTS {VALUES_TABLE}")
+    date_part_notes(detections)
     # What the import changed in a column (R-ING-01) is said first in its reasons (092).
     if (stored := PARQUET_SOURCE.fullmatch(source_sql.strip())) is not None:
         notes = stored_notes(connection, stored.group(1).replace("''", "'"))

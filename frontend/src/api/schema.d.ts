@@ -232,6 +232,29 @@ export interface paths {
         patch: operations["update_columns_api_v1_datasets__dataset_id__columns_patch"];
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/columns/derived": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Derived
+         * @description Derived columns offered by rule (058): the length of a text, an option of a list of
+         *     choices... Each name can be used wherever a column name is (filters, compare, correlations,
+         *     KPI, segments).
+         *     `parser.derived` names the source and the part; `reasons` carry the rule.
+         */
+        get: operations["list_derived_api_v1_datasets__dataset_id__columns_derived_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/datasets/{dataset_id}/columns/detect": {
         parameters: {
             query?: never;
@@ -478,6 +501,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/survival": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Survival
+         * @description Kaplan-Meier curves (95 % log-log intervals), median survival and the log-rank test.
+         *     Without columns, the reading a rule detects (R-SRV-01 duration + event, R-SRV-02 start + end
+         *     dates); `setup` is null when no rule fires (the section stays hidden).
+         */
+        get: operations["survival_api_v1_datasets__dataset_id__survival_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/transitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Transitions
+         * @description Status transitions as a Markov chain: matrix, stationary shares, absorbing states and the
+         *     expected steps before reaching them. Without columns, the reading R-MKV-01 detects;
+         *     `detect_only` returns it without reading the rows.
+         */
+        get: operations["transitions_api_v1_datasets__dataset_id__transitions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/datasets/{dataset_id}/correlations": {
         parameters: {
             query?: never;
@@ -704,6 +771,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/regression/partial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Partial
+         * @description Advanced > Terms > Shape (070, asked for once a column is chosen): the added-variable
+         *     and component + residual plots of one column.
+         */
+        get: operations["partial_api_v1_datasets__dataset_id__regression_partial_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/regression/robust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Robust
+         * @description Advanced > Robust & quantile (072): Huber, Tukey and one quantile side by side with least
+         *     squares, and the law and tail of the residuals.
+         */
+        get: operations["robust_api_v1_datasets__dataset_id__regression_robust_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/regression/quantiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Quantiles
+         * @description Advanced > More > Along the distribution (072, computed only when opened): the
+         *     coefficients at τ = 0.1…0.9, the test of 0.1 against 0.9, Student-t errors.
+         */
+        get: operations["quantiles_api_v1_datasets__dataset_id__regression_quantiles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/datasets/{dataset_id}/regression/instruments": {
         parameters: {
             query?: never;
@@ -863,6 +993,26 @@ export interface paths {
          * @description What changed since the previous version (or since dataset `vs`), from the two photos.
          */
         get: operations["changes_api_v1_datasets__dataset_id__changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/changes/words": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Words
+         * @description 059: the words that rise in each version of a text column (both versions' rows needed).
+         */
+        get: operations["words_api_v1_datasets__dataset_id__changes_words_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1258,6 +1408,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/text/topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Topics
+         * @description TF-IDF then NMF on at most 20,000 texts (R-TOP-01 to 05); `k` from 3 to 12, else by
+         *     R-TOP-03. Slow: the page asks for it only when the user opens Advanced, More.
+         */
+        get: operations["topics_api_v1_datasets__dataset_id__text_topics_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Forget Topics
+         * @description Forget the kept topics: the Topic column is no longer offered.
+         */
+        delete: operations["forget_topics_api_v1_datasets__dataset_id__text_topics_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/text/topics/keep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Keep Topics
+         * @description Keep these topics on the column (R-TOP-06): its Topic column becomes a derived column.
+         */
+        post: operations["keep_topics_api_v1_datasets__dataset_id__text_topics_keep_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/modules/timeseries/datasets/{dataset_id}/overview": {
         parameters: {
             query?: never;
@@ -1292,6 +1487,28 @@ export interface paths {
          *     methods the data suggests (rules only: no model is fitted without a method).
          */
         get: operations["smoothing_api_v1_modules_timeseries_datasets__dataset_id__smoothing_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/timeseries/datasets/{dataset_id}/regimes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Regimes
+         * @description Regimes of the series: a Markov-switching model (statsmodels MarkovRegression, its own
+         *     mean and variance per regime), 2 or 3 regimes by BIC, on the level or on the period changes
+         *     by rule (R-RG-01/02). Slow (seconds): called only on demand.
+         */
+        get: operations["regimes_api_v1_modules_timeseries_datasets__dataset_id__regimes_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2440,6 +2657,26 @@ export interface paths {
          * @description Draw the map with t-SNE (at most 5,000 rows), in the background.
          */
         post: operations["tsne_api_v1_modules_segments_datasets__dataset_id__runs__run_id__tsne_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/segments/datasets/{dataset_id}/runs/{run_id}/words": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Words
+         * @description 059: the words over-represented in each segment's texts (computed when asked).
+         */
+        get: operations["words_api_v1_modules_segments_datasets__dataset_id__runs__run_id__words_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3964,6 +4201,49 @@ export interface components {
             bic: number | null;
         };
         /**
+         * AssembleDate
+         * @description A new date column from its parts held in separate columns (fix1, B-20): the year, the
+         *     month (a number or a month name), the day (the 1st when there is none), and the hour and minute
+         *     when given. The part columns stay as they are; a row whose parts make no date (a 31 February,
+         *     a missing part) gets an empty date.
+         */
+        AssembleDate: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "assemble_date";
+            /** Year */
+            year: string;
+            /** Month */
+            month: string;
+            /** Day */
+            day?: string | null;
+            /** Hour */
+            hour?: string | null;
+            /** Minute */
+            minute?: string | null;
+            /** To */
+            to: string;
+        };
+        /**
          * AutoEntry
          * @description One model the Auto tried: a row of the final leaderboard.
          */
@@ -4550,6 +4830,40 @@ export interface components {
             /** After */
             after: string | null;
         };
+        /** Chain */
+        Chain: {
+            /** States */
+            states: string[];
+            /** Counts */
+            counts: number[][];
+            /** Probabilities */
+            probabilities: number[][];
+            /** Absorbing */
+            absorbing: string[];
+            /** Never Left */
+            never_left: string[];
+            /** Stay Steps */
+            stay_steps: (number | null)[];
+            /** Stationary */
+            stationary: number[] | null;
+            /** Stationary Note */
+            stationary_note: string | null;
+            /** Steps To Absorption */
+            steps_to_absorption?: {
+                [key: string]: number;
+            };
+            /** Absorption */
+            absorption?: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /**
+             * Transitions
+             * @default 0
+             */
+            transitions: number;
+        };
         /** ChangeCase */
         ChangeCase: {
             /** Id */
@@ -4960,7 +5274,7 @@ export interface components {
             /** Dataset Id */
             dataset_id: string;
             /** Steps */
-            steps: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
+            steps: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
             /** Automatic */
             automatic: boolean;
             /** Updated At */
@@ -5014,6 +5328,10 @@ export interface components {
             created_at: string;
             /** Out Of Date */
             out_of_date: boolean;
+            /** Source Id */
+            source_id?: string | null;
+            /** Source Seq */
+            source_seq?: number | null;
         };
         /** CleanPreview */
         CleanPreview: {
@@ -5043,7 +5361,7 @@ export interface components {
         /** CleanPreviewRequest */
         CleanPreviewRequest: {
             /** Steps */
-            steps?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
+            steps?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
             /** Step Id */
             step_id?: string | null;
         };
@@ -5111,6 +5429,18 @@ export interface components {
              */
             mode: "A" | "S" | "I";
             /**
+             * Impact
+             * @default values
+             * @enum {string}
+             */
+            impact: "format" | "values" | "types" | "rows" | "columns";
+            /**
+             * Risk
+             * @default review
+             * @enum {string}
+             */
+            risk: "safe" | "review";
+            /**
              * Order
              * @default 0
              */
@@ -5134,7 +5464,7 @@ export interface components {
             /** Examples */
             examples?: components["schemas"]["Example"][];
             /** Step */
-            step?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"]) | null;
+            step?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"]) | null;
         };
         /** CleanSuggestions */
         CleanSuggestions: {
@@ -5166,8 +5496,12 @@ export interface components {
             /** Out Of Date */
             out_of_date: boolean;
             /** Steps */
-            steps?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
+            steps?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
             report?: components["schemas"]["CleanReport"] | null;
+            /** Source Id */
+            source_id?: string | null;
+            /** Source Seq */
+            source_seq?: number | null;
         };
         /** Coefficient */
         Coefficient: {
@@ -5585,7 +5919,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "scatter" | "groups" | "contingency" | "timeline" | "date_counts";
+            kind: "scatter" | "groups" | "contingency" | "timeline" | "date_counts" | "words";
             /** X */
             x: string;
             /** Y */
@@ -5596,7 +5930,7 @@ export interface components {
             color: string | null;
             /** Roles */
             roles: {
-                [key: string]: "num" | "cat" | "date";
+                [key: string]: "num" | "cat" | "date" | "text";
             };
             /** Rows */
             rows: number;
@@ -5633,6 +5967,7 @@ export interface components {
             /** Differences */
             differences?: components["schemas"]["GroupDifference"][];
             multiple?: components["schemas"]["MultipleTesting"] | null;
+            words?: components["schemas"]["DistinctiveWords"] | null;
         };
         /** CompatibleRecipe */
         CompatibleRecipe: {
@@ -5865,6 +6200,17 @@ export interface components {
              * @enum {string}
              */
             decimal: "." | ",";
+        };
+        /** CurveLine */
+        CurveLine: {
+            /** Label */
+            label: string;
+            /** Y */
+            y: number[];
+            /** Low */
+            low: number[];
+            /** High */
+            high: number[];
         };
         /** CurvePoint */
         CurvePoint: {
@@ -6147,6 +6493,23 @@ export interface components {
             /** Output */
             output: string;
         };
+        /**
+         * DerivedSpec
+         * @description What a derived column is computed from (058): a source column and a part of it.
+         */
+        DerivedSpec: {
+            /** Source */
+            source: string;
+            /** Part */
+            part: string;
+            /** Option */
+            option?: string | null;
+            /**
+             * Topics
+             * @default []
+             */
+            topics: components["schemas"]["TopicRule"][];
+        };
         /** Describe */
         Describe: {
             /** Rows */
@@ -6304,6 +6667,41 @@ export interface components {
             known: string[];
             /** Sensitive */
             sensitive: string;
+        };
+        /** DistinctiveWord */
+        DistinctiveWord: {
+            /** Word */
+            word: string;
+            /** Score */
+            score: number;
+            /** Share */
+            share: number;
+            /** Elsewhere */
+            elsewhere: number;
+            /** Texts */
+            texts: number;
+        };
+        /**
+         * DistinctiveWords
+         * @description The words of a text column that mark each group (Compare, Segments, Changes).
+         */
+        DistinctiveWords: {
+            /** Column */
+            column: string;
+            /** By */
+            by: string;
+            /** Texts */
+            texts: number;
+            /** Sampled */
+            sampled: boolean;
+            /** Groups */
+            groups: components["schemas"]["GroupWords"][];
+            /** Groups Left */
+            groups_left: number;
+            /** Sentence */
+            sentence: string;
+            /** Rules */
+            rules: string[];
         };
         /** Distribution */
         Distribution: {
@@ -6631,6 +7029,19 @@ export interface components {
             value: number | null;
             /** Magnitude */
             magnitude: ("negligible" | "small" | "medium" | "large") | null;
+        };
+        /** EffectCurve */
+        EffectCurve: {
+            /** Column */
+            column: string;
+            /** X */
+            x: number[];
+            /** Lines */
+            lines: components["schemas"]["CurveLine"][];
+            /** Sentence */
+            sentence: string;
+            /** Scale */
+            scale: string;
         };
         /** EnsembleResult */
         EnsembleResult: {
@@ -7970,6 +8381,17 @@ export interface components {
             /** Error */
             error?: string | null;
         };
+        /** GroupWords */
+        GroupWords: {
+            /** Group */
+            group: string;
+            /** Texts */
+            texts: number;
+            /** Words */
+            words?: components["schemas"]["DistinctiveWord"][];
+            /** Note */
+            note?: string | null;
+        };
         /**
          * GroupsSetup
          * @description Every series of the group column, before forecasting them all (039).
@@ -8356,6 +8778,13 @@ export interface components {
             finished_at: string | null;
         };
         JsonValue: unknown;
+        /** KeepTopics */
+        KeepTopics: {
+            /** Column */
+            column: string;
+            /** K */
+            k?: number | null;
+        };
         /** KeyFigure */
         KeyFigure: {
             /** Id */
@@ -8573,6 +9002,23 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** LevelEffect */
+        LevelEffect: {
+            /** Column */
+            column: string;
+            /** Level */
+            level: string;
+            /** Estimate */
+            estimate: number;
+            /** Low */
+            low: number | null;
+            /** High */
+            high: number | null;
+            /** P Value */
+            p_value: number | null;
+            /** Derived */
+            derived: boolean;
+        };
         /** LevelError */
         LevelError: {
             /** Level */
@@ -8655,6 +9101,21 @@ export interface components {
             step: string;
             /** Message */
             message: string;
+        };
+        /** LogRankResult */
+        LogRankResult: {
+            /** Statistic */
+            statistic: number;
+            /** Df */
+            df: number;
+            /** P Value */
+            p_value: number;
+            /** Significant */
+            significant: boolean;
+            /** Observed */
+            observed: number[];
+            /** Expected */
+            expected: number[];
         };
         /** LoggedDecisions */
         LoggedDecisions: {
@@ -9935,6 +10396,7 @@ export interface components {
          *     - year: integer year → date (January 1st)
          *     - text: the value as text, null tokens removed
          *     - time: a time of day (TIME, or text with a strptime `format`) → hours since midnight (092)
+         *     - derived: a value computed from another column (`derived`, 058): the length of a text...
          *
          *     A date read with two formats (092, R-TYP-06) lists them in `formats`, the first one in `format`.
          */
@@ -9944,7 +10406,7 @@ export interface components {
              * @default raw
              * @enum {string}
              */
-            kind: "raw" | "number" | "date" | "boolean" | "year" | "text" | "time";
+            kind: "raw" | "number" | "date" | "boolean" | "year" | "text" | "time" | "derived";
             /**
              * Decimal
              * @default .
@@ -9968,6 +10430,47 @@ export interface components {
              * @default []
              */
             false_values: string[];
+            derived?: components["schemas"]["DerivedSpec"] | null;
+        };
+        /** PartialPlot */
+        PartialPlot: {
+            /** Column */
+            column: string;
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string;
+            /** X Resid */
+            x_resid?: number[];
+            /** Y Resid */
+            y_resid?: number[];
+            /** Slope */
+            slope?: number | null;
+            /** X */
+            x?: number[];
+            /** Component Resid */
+            component_resid?: number[];
+            /** Line X */
+            line_x?: number[];
+            /** Line Y */
+            line_y?: number[];
+            /** Rows */
+            rows?: number[];
+            /**
+             * Points
+             * @default 0
+             */
+            points: number;
+            /**
+             * Of
+             * @default 0
+             */
+            of: number;
+            /**
+             * Sentence
+             * @default
+             */
+            sentence: string;
         };
         /** Period */
         Period: {
@@ -10729,6 +11232,74 @@ export interface components {
             /** Notable */
             notable: boolean;
         };
+        /** QuantileCurve */
+        QuantileCurve: {
+            /** Term */
+            term: string;
+            /** Taus */
+            taus: number[];
+            /** Estimates */
+            estimates: number[];
+            /** Low */
+            low: (number | null)[];
+            /** High */
+            high: (number | null)[];
+            /** Ols */
+            ols: number;
+            /** Ols Low */
+            ols_low: number | null;
+            /** Ols High */
+            ols_high: number | null;
+            /** Difference */
+            difference: number | null;
+            /** P Value */
+            p_value: number | null;
+            /** Q Value */
+            q_value?: number | null;
+            /**
+             * Sentence
+             * @default
+             */
+            sentence: string;
+        };
+        /** QuantileProcess */
+        QuantileProcess: {
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string;
+            /** Taus */
+            taus?: number[];
+            /** Curves */
+            curves?: components["schemas"]["QuantileCurve"][];
+            /**
+             * Tested
+             * @default 0
+             */
+            tested: number;
+            /**
+             * Changing
+             * @default 0
+             */
+            changing: number;
+            /**
+             * Rows
+             * @default 0
+             */
+            rows: number;
+            /**
+             * Sampled
+             * @default false
+             */
+            sampled: boolean;
+            multiple?: components["schemas"]["MultipleTesting"] | null;
+            /**
+             * Sentence
+             * @default
+             */
+            sentence: string;
+            t_errors?: components["schemas"]["TErrors"] | null;
+        };
         /** RareValue */
         RareValue: {
             /** Column */
@@ -11045,6 +11616,80 @@ export interface components {
             others: number;
             /** Reason */
             reason: string;
+            /**
+             * Coding
+             * @default reference
+             */
+            coding: string;
+        };
+        /** Regime */
+        Regime: {
+            /** Name */
+            name: string;
+            /** Mean */
+            mean: number;
+            /** Std */
+            std: number;
+            /** Share */
+            share: number;
+            /** Expected Duration */
+            expected_duration: number | null;
+            /** Stay */
+            stay: number;
+        };
+        /** RegimeFit */
+        RegimeFit: {
+            /** K */
+            k: number;
+            /** Aic */
+            aic: number | null;
+            /** Bic */
+            bic: number | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** Regimes */
+        Regimes: {
+            /**
+             * On
+             * @enum {string}
+             */
+            on: "level" | "changes";
+            /** On Reason */
+            on_reason: string;
+            /** K */
+            k?: number | null;
+            /**
+             * K Reason
+             * @default
+             */
+            k_reason: string;
+            /**
+             * Start
+             * @default 0
+             */
+            start: number;
+            /** Fits */
+            fits?: components["schemas"]["RegimeFit"][];
+            /** Regimes */
+            regimes?: components["schemas"]["Regime"][];
+            /** Transition */
+            transition?: number[][];
+            /** Probabilities */
+            probabilities?: number[][];
+            /** Most Likely */
+            most_likely?: number[];
+            /** Values */
+            values?: number[];
+            /**
+             * Switches
+             * @default 0
+             */
+            switches: number;
+            /** Sentence */
+            sentence?: string | null;
+            /** Message */
+            message?: string | null;
         };
         /** Regression */
         Regression: {
@@ -11076,6 +11721,8 @@ export interface components {
             column?: string | null;
             /** Family */
             family?: string | null;
+            /** Term */
+            term?: string | null;
         };
         /** RegressionCoefficient */
         RegressionCoefficient: {
@@ -11132,6 +11779,8 @@ export interface components {
             ratio_high?: number | null;
             /** Outcome */
             outcome?: string | null;
+            /** Group */
+            group?: string | null;
         };
         /** RegressionPick */
         RegressionPick: {
@@ -11514,6 +12163,20 @@ export interface components {
             /** File Name */
             file_name?: string | null;
         };
+        /** ResidualLaw */
+        ResidualLaw: {
+            /** Name */
+            name: string;
+            /** Aic */
+            aic: number;
+            /** Df */
+            df?: number | null;
+            /**
+             * Best
+             * @default false
+             */
+            best: boolean;
+        };
         /** ResidualPlots */
         ResidualPlots: {
             /** Fitted */
@@ -11600,6 +12263,87 @@ export interface components {
             sample: number;
             /** Note */
             note?: string | null;
+        };
+        /** RobustColumn */
+        RobustColumn: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "ols" | "huber" | "tukey" | "quantile" | "t";
+            /** Label */
+            label: string;
+            /** Estimates */
+            estimates: (number | null)[];
+            /** Low */
+            low: (number | null)[];
+            /** High */
+            high: (number | null)[];
+            /** P Values */
+            p_values: (number | null)[];
+            /** Note */
+            note: string;
+        };
+        /** RobustTable */
+        RobustTable: {
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string;
+            /** Terms */
+            terms?: string[];
+            /** Columns */
+            columns?: components["schemas"]["RobustColumn"][];
+            /**
+             * Quantile
+             * @default 0.5
+             */
+            quantile: number;
+            /** Quantiles */
+            quantiles?: number[];
+            /** Moved */
+            moved?: string[];
+            /**
+             * Downweighted
+             * @default 0
+             */
+            downweighted: number;
+            /**
+             * Rejected
+             * @default 0
+             */
+            rejected: number;
+            /**
+             * Rows
+             * @default 0
+             */
+            rows: number;
+            /**
+             * Quantile Rows
+             * @default 0
+             */
+            quantile_rows: number;
+            /** Laws */
+            laws?: components["schemas"]["ResidualLaw"][];
+            /**
+             * Law Sentence
+             * @default
+             */
+            law_sentence: string;
+            /** Tail Xi */
+            tail_xi?: number | null;
+            /**
+             * Tail Sentence
+             * @default
+             */
+            tail_sentence: string;
+            /**
+             * Sentence
+             * @default
+             */
+            sentence: string;
+            /** Notes */
+            notes?: string[];
         };
         /** RoleOut */
         RoleOut: {
@@ -12099,7 +12843,7 @@ export interface components {
         /** SaveRequest */
         SaveRequest: {
             /** Steps */
-            steps: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
+            steps: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
         };
         /** SavedAnalysis */
         SavedAnalysis: {
@@ -13064,6 +13808,18 @@ export interface components {
             /** Message */
             message?: string | null;
         };
+        /**
+         * SeriesRegimes
+         * @description Regimes of the series (062), computed on demand only (Advanced).
+         */
+        SeriesRegimes: {
+            setup: components["schemas"]["SeriesSetup"];
+            /** Periods */
+            periods: string[];
+            regimes: components["schemas"]["Regimes"];
+            /** Filled */
+            filled: number;
+        };
         /** SeriesResiduals */
         SeriesResiduals: {
             setup: components["schemas"]["SeriesSetup"];
@@ -13427,6 +14183,23 @@ export interface components {
             /** Value */
             value?: number | null;
         };
+        /** SimpleSlope */
+        SimpleSlope: {
+            /** Term */
+            term: string;
+            /** Column */
+            column: string;
+            /** At */
+            at: string;
+            /** Slope */
+            slope: number;
+            /** Low */
+            low: number | null;
+            /** High */
+            high: number | null;
+            /** P Value */
+            p_value: number | null;
+        };
         /**
          * Slice
          * @description A subgroup where the model is notably worse than on average.
@@ -13604,7 +14377,7 @@ export interface components {
              */
             schema: 1;
             /** Steps */
-            steps?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
+            steps?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
         };
         /** StorageInfo */
         StorageInfo: {
@@ -13743,6 +14516,113 @@ export interface components {
             /** Notes */
             notes?: string[];
         };
+        /** Survival */
+        Survival: {
+            setup: components["schemas"]["SurvivalSetup"] | null;
+            choices: components["schemas"]["SurvivalChoices"];
+            /** Group */
+            group?: string | null;
+            /**
+             * Rows
+             * @default 0
+             */
+            rows: number;
+            /**
+             * Events
+             * @default 0
+             */
+            events: number;
+            /**
+             * Censored
+             * @default 0
+             */
+            censored: number;
+            /**
+             * Dropped
+             * @default 0
+             */
+            dropped: number;
+            /** Curves */
+            curves?: components["schemas"]["SurvivalCurve"][];
+            log_rank?: components["schemas"]["LogRankResult"] | null;
+            /**
+             * Others
+             * @default 0
+             */
+            others: number;
+            /** Sentence */
+            sentence?: string | null;
+            /** Message */
+            message?: string | null;
+        };
+        /** SurvivalChoices */
+        SurvivalChoices: {
+            /** Durations */
+            durations?: string[];
+            /** Events */
+            events?: string[];
+            /** Dates */
+            dates?: string[];
+            /** Groups */
+            groups?: string[];
+        };
+        /** SurvivalCurve */
+        SurvivalCurve: {
+            /** Label */
+            label: string;
+            /** N */
+            n: number;
+            /** Events */
+            events: number;
+            /** Times */
+            times: number[];
+            /** Survival */
+            survival: number[];
+            /** Lower */
+            lower: number[];
+            /** Upper */
+            upper: number[];
+            /** At Risk */
+            at_risk: number[];
+            /** Median */
+            median: number | null;
+            /** Median Lower */
+            median_lower: number | null;
+            /** Median Upper */
+            median_upper: number | null;
+        };
+        /** SurvivalSetup */
+        SurvivalSetup: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "duration" | "dates";
+            /** Duration */
+            duration?: string | null;
+            /** Event */
+            event?: string | null;
+            /** Start */
+            start?: string | null;
+            /** End */
+            end?: string | null;
+            /** Event Value */
+            event_value?: string | null;
+            /** Event Reason */
+            event_reason?: string | null;
+            /** Unit */
+            unit?: string | null;
+            /**
+             * Detected
+             * @default true
+             */
+            detected: boolean;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+        };
         /** Synthesis */
         Synthesis: {
             /**
@@ -13869,6 +14749,39 @@ export interface components {
             privacy: number;
             /** Utility */
             utility?: number | null;
+        };
+        /** TErrors */
+        TErrors: {
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string;
+            /**
+             * Converged
+             * @default false
+             */
+            converged: boolean;
+            /** Df */
+            df?: number | null;
+            /** Scale */
+            scale?: number | null;
+            /** Terms */
+            terms?: string[];
+            /** Estimates */
+            estimates?: number[];
+            /** Low */
+            low?: (number | null)[];
+            /** High */
+            high?: (number | null)[];
+            /** Aic */
+            aic?: number | null;
+            /** Ols Aic */
+            ols_aic?: number | null;
+            /**
+             * Sentence
+             * @default
+             */
+            sentence: string;
         };
         /** TableView */
         TableView: {
@@ -14025,6 +14938,49 @@ export interface components {
             /** Rows */
             rows: number;
         };
+        /**
+         * TermNote
+         * @description What a term did, or why it could not (shown in Advanced › Terms).
+         */
+        TermNote: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "used" | "added" | "refused";
+            /** Reason */
+            reason: string;
+            /** Rule */
+            rule: string;
+        };
+        /** TermTest */
+        TermTest: {
+            /** Key */
+            key: string;
+            /** Question */
+            question: string;
+            /** Columns */
+            columns: number;
+            /** Statistic */
+            statistic: number | null;
+            /** Df Num */
+            df_num: number;
+            /** Df Den */
+            df_den: number;
+            /** P Value */
+            p_value: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "info";
+            /** Sentence */
+            sentence: string;
+        };
         /** TermsTable */
         TermsTable: {
             /** References */
@@ -14037,6 +14993,30 @@ export interface components {
             condition: number | null;
             /** Sentence */
             sentence: string;
+            /** Specs */
+            specs?: string[];
+            /**
+             * Center
+             * @default false
+             */
+            center: boolean;
+            /**
+             * Coding
+             * @default reference
+             */
+            coding: string;
+            /** Notes */
+            notes?: components["schemas"]["TermNote"][];
+            /** Tests */
+            tests?: components["schemas"]["TermTest"][];
+            /** Curves */
+            curves?: components["schemas"]["EffectCurve"][];
+            /** Slopes */
+            slopes?: components["schemas"]["SimpleSlope"][];
+            /** Contrasts */
+            contrasts?: components["schemas"]["LevelEffect"][];
+            /** Numbers */
+            numbers?: string[];
         };
         /** TestResult */
         TestResult: {
@@ -14321,6 +15301,70 @@ export interface components {
             /** Share */
             share: number;
         };
+        /** Topic */
+        Topic: {
+            /** Number */
+            number: number;
+            /** Label */
+            label: string;
+            /** Words */
+            words: components["schemas"]["TopicWord"][];
+            /** Texts */
+            texts: number;
+            /** Share */
+            share: number;
+            /** Examples */
+            examples?: string[];
+        };
+        /**
+         * TopicRule
+         * @description A topic as the Topic rule reads it (059, R-TOP-05): its words and their weights.
+         */
+        TopicRule: {
+            /** Label */
+            label: string;
+            /** Words */
+            words: {
+                [key: string]: number;
+            };
+        };
+        /** TopicWord */
+        TopicWord: {
+            /** Word */
+            word: string;
+            /** Weight */
+            weight: number;
+        };
+        /** Topics */
+        Topics: {
+            /** Column */
+            column: string;
+            /** Texts */
+            texts: number;
+            /** Sampled */
+            sampled: boolean;
+            /** K */
+            k: number;
+            /** K Rule */
+            k_rule: string;
+            /** Topics */
+            topics: components["schemas"]["Topic"][];
+            /** No Topic */
+            no_topic: number;
+            /** Agreement */
+            agreement: number;
+            /** Sentence */
+            sentence: string;
+            /** Rules */
+            rules: components["schemas"]["TopicRule"][];
+            /** Reasons */
+            reasons: string[];
+            /**
+             * Kept
+             * @default false
+             */
+            kept: boolean;
+        };
         /** TrainingJob */
         TrainingJob: {
             /** Id */
@@ -14356,6 +15400,61 @@ export interface components {
             shapiro_after: number | null;
             /** Bins */
             bins: components["schemas"]["Bin"][];
+        };
+        /** TransitionChoices */
+        TransitionChoices: {
+            /** Entities */
+            entities?: string[];
+            /** Times */
+            times?: string[];
+            /** Statuses */
+            statuses?: string[];
+        };
+        /** TransitionSetup */
+        TransitionSetup: {
+            /** Entity */
+            entity: string;
+            /** Time */
+            time: string;
+            /** Status */
+            status: string;
+            /**
+             * Detected
+             * @default true
+             */
+            detected: boolean;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+        };
+        /** Transitions */
+        Transitions: {
+            setup: components["schemas"]["TransitionSetup"] | null;
+            choices: components["schemas"]["TransitionChoices"];
+            /**
+             * Entities
+             * @default 0
+             */
+            entities: number;
+            /**
+             * Rows
+             * @default 0
+             */
+            rows: number;
+            chain?: components["schemas"]["Chain"] | null;
+            /** Step Days */
+            step_days?: number | null;
+            /**
+             * Others
+             * @default 0
+             */
+            others: number;
+            /** Sentence */
+            sentence?: string | null;
+            /** Message */
+            message?: string | null;
         };
         /** TreeNode */
         TreeNode: {
@@ -14955,6 +16054,17 @@ export interface components {
             rows: number;
             /** Towards */
             towards?: string | null;
+        };
+        /**
+         * WordsAnswer
+         * @description 059: the words that rise in each version of a text column, when both are at hand.
+         */
+        WordsAnswer: {
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string | null;
+            words?: components["schemas"]["DistinctiveWords"] | null;
         };
         /** YearLine */
         YearLine: {
@@ -15821,6 +16931,37 @@ export interface operations {
             };
         };
     };
+    list_derived_api_v1_datasets__dataset_id__columns_derived_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ColumnOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     detect_columns_api_v1_datasets__dataset_id__columns_detect_post: {
         parameters: {
             query?: never;
@@ -16328,6 +17469,84 @@ export interface operations {
             };
         };
     };
+    survival_api_v1_datasets__dataset_id__survival_get: {
+        parameters: {
+            query?: {
+                duration?: string | null;
+                event?: string | null;
+                start?: string | null;
+                end?: string | null;
+                group?: string | null;
+                event_value?: string | null;
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Survival"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transitions_api_v1_datasets__dataset_id__transitions_get: {
+        parameters: {
+            query?: {
+                entity?: string | null;
+                time?: string | null;
+                status?: string | null;
+                detect_only?: boolean;
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transitions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     correlations_api_v1_datasets__dataset_id__correlations_get: {
         parameters: {
             query?: {
@@ -16460,6 +17679,12 @@ export interface operations {
                 family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
                 /** @description Exposure of a count, its log the offset (absent: role exposure). */
                 exposure?: string | null;
+                /** @description 070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level. */
+                terms?: string;
+                /** @description 070: numbers centred at their mean (R-REG-TERM-05). */
+                center?: boolean;
+                /** @description 070: categories against a reference level, or their average. */
+                coding?: "reference" | "deviation";
             };
             header?: never;
             path: {
@@ -16544,6 +17769,12 @@ export interface operations {
                 family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
                 /** @description Exposure of a count, its log the offset (absent: role exposure). */
                 exposure?: string | null;
+                /** @description 070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level. */
+                terms?: string;
+                /** @description 070: numbers centred at their mean (R-REG-TERM-05). */
+                center?: boolean;
+                /** @description 070: categories against a reference level, or their average. */
+                coding?: "reference" | "deviation";
             };
             header?: never;
             path: {
@@ -16593,6 +17824,12 @@ export interface operations {
                 family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
                 /** @description Exposure of a count, its log the offset (absent: role exposure). */
                 exposure?: string | null;
+                /** @description 070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level. */
+                terms?: string;
+                /** @description 070: numbers centred at their mean (R-REG-TERM-05). */
+                center?: boolean;
+                /** @description 070: categories against a reference level, or their average. */
+                coding?: "reference" | "deviation";
             };
             header?: never;
             path: {
@@ -16642,6 +17879,12 @@ export interface operations {
                 family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
                 /** @description Exposure of a count, its log the offset (absent: role exposure). */
                 exposure?: string | null;
+                /** @description 070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level. */
+                terms?: string;
+                /** @description 070: numbers centred at their mean (R-REG-TERM-05). */
+                center?: boolean;
+                /** @description 070: categories against a reference level, or their average. */
+                coding?: "reference" | "deviation";
             };
             header?: never;
             path: {
@@ -16691,6 +17934,12 @@ export interface operations {
                 family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
                 /** @description Exposure of a count, its log the offset (absent: role exposure). */
                 exposure?: string | null;
+                /** @description 070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level. */
+                terms?: string;
+                /** @description 070: numbers centred at their mean (R-REG-TERM-05). */
+                center?: boolean;
+                /** @description 070: categories against a reference level, or their average. */
+                coding?: "reference" | "deviation";
             };
             header?: never;
             path: {
@@ -16740,6 +17989,12 @@ export interface operations {
                 family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
                 /** @description Exposure of a count, its log the offset (absent: role exposure). */
                 exposure?: string | null;
+                /** @description 070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level. */
+                terms?: string;
+                /** @description 070: numbers centred at their mean (R-REG-TERM-05). */
+                center?: boolean;
+                /** @description 070: categories against a reference level, or their average. */
+                coding?: "reference" | "deviation";
             };
             header?: never;
             path: {
@@ -16789,6 +18044,12 @@ export interface operations {
                 family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
                 /** @description Exposure of a count, its log the offset (absent: role exposure). */
                 exposure?: string | null;
+                /** @description 070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level. */
+                terms?: string;
+                /** @description 070: numbers centred at their mean (R-REG-TERM-05). */
+                center?: boolean;
+                /** @description 070: categories against a reference level, or their average. */
+                coding?: "reference" | "deviation";
             };
             header?: never;
             path: {
@@ -16805,6 +18066,175 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PanelTable"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    partial_api_v1_datasets__dataset_id__regression_partial_get: {
+        parameters: {
+            query: {
+                /** @description The explanatory column to show. */
+                column: string;
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+                /** @description Column to explain (default: R-REG-20). */
+                target?: string | null;
+                /** @description Comma-separated explanatory columns (absent: R-REG-21; empty: none). */
+                columns?: string | null;
+                /** @description Weight column (absent: a column of role weight; empty: none). */
+                weights?: string | null;
+                /** @description Grouped by: errors clustered on it. */
+                cluster?: string | null;
+                se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+                /** @description The column the conclusion speaks of. */
+                focus?: string | null;
+                /** @description Model family (default: chosen from the target, 069). */
+                family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
+                /** @description Exposure of a count, its log the offset (absent: role exposure). */
+                exposure?: string | null;
+                /** @description 070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level. */
+                terms?: string;
+                /** @description 070: numbers centred at their mean (R-REG-TERM-05). */
+                center?: boolean;
+                /** @description 070: categories against a reference level, or their average. */
+                coding?: "reference" | "deviation";
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartialPlot"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    robust_api_v1_datasets__dataset_id__regression_robust_get: {
+        parameters: {
+            query?: {
+                /** @description 072: the quantile, one of 0.1, 0.25, 0.5, 0.75, 0.9. */
+                quantile?: number;
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+                /** @description Column to explain (default: R-REG-20). */
+                target?: string | null;
+                /** @description Comma-separated explanatory columns (absent: R-REG-21; empty: none). */
+                columns?: string | null;
+                /** @description Weight column (absent: a column of role weight; empty: none). */
+                weights?: string | null;
+                /** @description Grouped by: errors clustered on it. */
+                cluster?: string | null;
+                se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+                /** @description The column the conclusion speaks of. */
+                focus?: string | null;
+                /** @description Model family (default: chosen from the target, 069). */
+                family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
+                /** @description Exposure of a count, its log the offset (absent: role exposure). */
+                exposure?: string | null;
+                /** @description 070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level. */
+                terms?: string;
+                /** @description 070: numbers centred at their mean (R-REG-TERM-05). */
+                center?: boolean;
+                /** @description 070: categories against a reference level, or their average. */
+                coding?: "reference" | "deviation";
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RobustTable"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quantiles_api_v1_datasets__dataset_id__regression_quantiles_get: {
+        parameters: {
+            query?: {
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+                /** @description Column to explain (default: R-REG-20). */
+                target?: string | null;
+                /** @description Comma-separated explanatory columns (absent: R-REG-21; empty: none). */
+                columns?: string | null;
+                /** @description Weight column (absent: a column of role weight; empty: none). */
+                weights?: string | null;
+                /** @description Grouped by: errors clustered on it. */
+                cluster?: string | null;
+                se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+                /** @description The column the conclusion speaks of. */
+                focus?: string | null;
+                /** @description Model family (default: chosen from the target, 069). */
+                family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
+                /** @description Exposure of a count, its log the offset (absent: role exposure). */
+                exposure?: string | null;
+                /** @description 070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level. */
+                terms?: string;
+                /** @description 070: numbers centred at their mean (R-REG-TERM-05). */
+                center?: boolean;
+                /** @description 070: categories against a reference level, or their average. */
+                coding?: "reference" | "deviation";
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantileProcess"];
                 };
             };
             /** @description Validation Error */
@@ -16842,6 +18272,12 @@ export interface operations {
                 family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
                 /** @description Exposure of a count, its log the offset (absent: role exposure). */
                 exposure?: string | null;
+                /** @description 070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level. */
+                terms?: string;
+                /** @description 070: numbers centred at their mean (R-REG-TERM-05). */
+                center?: boolean;
+                /** @description 070: categories against a reference level, or their average. */
+                coding?: "reference" | "deviation";
             };
             header?: never;
             path: {
@@ -17163,6 +18599,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Changes"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    words_api_v1_datasets__dataset_id__changes_words_get: {
+        parameters: {
+            query: {
+                column: string;
+                /** @description Another dataset to compare with (default: the previous version). */
+                vs?: string | null;
+                /** @description An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`. */
+                version?: number | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WordsAnswer"];
                 };
             };
             /** @description Validation Error */
@@ -17933,6 +19406,111 @@ export interface operations {
             };
         };
     };
+    topics_api_v1_datasets__dataset_id__text_topics_get: {
+        parameters: {
+            query: {
+                column: string;
+                k?: number | null;
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Topics"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forget_topics_api_v1_datasets__dataset_id__text_topics_delete: {
+        parameters: {
+            query: {
+                column: string;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    keep_topics_api_v1_datasets__dataset_id__text_topics_keep_post: {
+        parameters: {
+            query?: {
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeepTopics"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Topics"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     overview_api_v1_modules_timeseries_datasets__dataset_id__overview_get: {
         parameters: {
             query?: {
@@ -18016,6 +19594,51 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeriesSmoothing"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regimes_api_v1_modules_timeseries_datasets__dataset_id__regimes_get: {
+        parameters: {
+            query?: {
+                k?: number | null;
+                on?: "auto" | "level" | "changes";
+                time?: string | null;
+                value?: string | null;
+                group?: string | null;
+                series?: string | null;
+                period?: ("hour" | "day" | "week" | "month" | "quarter" | "year") | "auto";
+                agg?: ("sum" | "mean" | "median" | "min" | "max" | "count") | "auto";
+                window?: number | null;
+                align?: "trailing" | "centered";
+                gaps?: "leave" | "interpolate" | "zero" | "carry" | "kalman";
+                season?: number | null;
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesRegimes"];
                 };
             };
             /** @description Validation Error */
@@ -20474,6 +22097,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SegmentJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    words_api_v1_modules_segments_datasets__dataset_id__runs__run_id__words_get: {
+        parameters: {
+            query: {
+                column: string;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DistinctiveWords"];
                 };
             };
             /** @description Validation Error */

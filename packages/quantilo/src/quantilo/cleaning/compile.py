@@ -19,6 +19,7 @@ from quantilo.cleaning import model as m
 from quantilo.cleaning.text import SQL_INVISIBLE, SQL_SPACE_RUN
 from quantilo.ingestion.sql import ident, lit
 from quantilo.typing.conversion import default_boolean_parser
+from quantilo.typing.knowledge_base import load as load_knowledge
 from quantilo.typing.parsers import DATE_FORMATS, clean_text, number_sql
 
 ROW = "__quantilo_row"
@@ -385,6 +386,67 @@ def _duplicate(step: m.DuplicateColumn, prev: Stage) -> Body:
     return _select(prev, after={step.column: [(step.to, ident(step.column))]})
 
 
+def _whole(column: str, dtype: str) -> str:
+    """A whole number from a column of any type ('2024', 2024, 2024.0), else NULL."""
+    name = ident(column)
+    if is_number(dtype):
+        value = f"CAST({name} AS DOUBLE)"
+    elif is_text(dtype):
+        value = f"TRY_CAST(trim({name}) AS DOUBLE)"
+    else:
+        value = f"TRY_CAST({name} AS DOUBLE)"
+    return f"CASE WHEN {value} = trunc({value}) THEN CAST({value} AS INTEGER) END"
+
+
+def month_names() -> dict[str, int]:
+    """Month names and abbreviations of the known orders (Jan, janvier…) → 1 to 12."""
+    names: dict[str, int] = {}
+    for order in load_knowledge().orders:
+        if len(order) == 12:
+            for number, word in enumerate(order, start=1):
+                names.setdefault(word.lower(), number)
+    return names
+
+
+def month_sql(column: str, dtype: str) -> str:
+    number = _whole(column, dtype)
+    if not is_text(dtype):
+        return number
+    cases = " ".join(f"WHEN {lit(word)} THEN {k}" for word, k in month_names().items())
+    return f"coalesce({number}, CASE lower(trim({ident(column)})) {cases} END)"
+
+
+def assembled_date_sql(step: m.AssembleDate, prev: Stage) -> str:
+    """B-20: the date its parts make, NULL when they make none (out of range or impossible)."""
+    year = _whole(step.year, prev.dtype(step.year))
+    month = month_sql(step.month, prev.dtype(step.month))
+    day = _whole(step.day, prev.dtype(step.day)) if step.day else "1"
+    checks = [
+        f"{year} BETWEEN 1000 AND 2200",
+        f"{month} BETWEEN 1 AND 12",
+        f"{day} BETWEEN 1 AND 31",
+    ]
+    if step.hour is None:
+        text = f"printf('%04d-%02d-%02d', {year}, {month}, {day})"
+        return f"CASE WHEN {' AND '.join(checks)} THEN TRY_CAST({text} AS DATE) END"
+    hour = _whole(step.hour, prev.dtype(step.hour))
+    minute = _whole(step.minute, prev.dtype(step.minute)) if step.minute else "0"
+    checks += [f"{hour} BETWEEN 0 AND 23", f"{minute} BETWEEN 0 AND 59"]
+    text = f"printf('%04d-%02d-%02d %02d:%02d:00', {year}, {month}, {day}, {hour}, {minute})"
+    return f"CASE WHEN {' AND '.join(checks)} THEN TRY_CAST({text} AS TIMESTAMP) END"
+
+
+def _assemble_date(step: m.AssembleDate, prev: Stage) -> Body:
+    parts = [c for c in (step.year, step.month, step.day, step.hour, step.minute) if c]
+    _require(prev, *parts)
+    if step.to in prev.names:
+        raise m.CleanError(f"A column '{step.to}' already exists.")
+    if step.minute and not step.hour:
+        raise m.CleanError("A minute needs an hour.")
+    last = max(parts, key=prev.names.index)  # the new date goes after its last part
+    return _select(prev, after={last: [(step.to, assembled_date_sql(step, prev))]})
+
+
 def _condition(condition: m.RowCondition, prev: Stage) -> str:
     _require(prev, condition.column)
     dtype = prev.dtype(condition.column)
@@ -456,6 +518,7 @@ BUILDERS: dict[str, Callable[[Any, Stage], Body]] = {
     "rename_column": _rename,
     "drop_columns": _drop,
     "duplicate_column": _duplicate,
+    "assemble_date": _assemble_date,
     "change_type": _change_type,
     "normalize_spaces": _normalize_spaces,
     "remove_invisible": _remove_invisible,

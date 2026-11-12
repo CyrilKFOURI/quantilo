@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 from quantilo.filters.model import Condition, parse_filters
 from quantilo.segments.engine import RowValue, SegmentPlan, SegmentRequest
+from quantilo.text.distinctive import DistinctiveWords
 
 from app.modules.segments.service import (
     MarkChange,
@@ -123,6 +124,17 @@ def rename(dataset_id: str, run_id: str, body: Names, service: Service) -> Segme
 def tsne(dataset_id: str, run_id: str, service: Service) -> SegmentJob:
     """Draw the map with t-SNE (at most 5,000 rows), in the background."""
     return service.start_tsne(dataset_id, run_id)
+
+
+@router.get("/datasets/{dataset_id}/runs/{run_id}/words")
+def words(
+    dataset_id: str,
+    run_id: str,
+    service: Service,
+    column: Annotated[str, Query(min_length=1)],
+) -> DistinctiveWords:
+    """059: the words over-represented in each segment's texts (computed when asked)."""
+    return service.words(dataset_id, run_id, column)
 
 
 @router.get("/datasets/{dataset_id}/runs/{run_id}/profiles.csv")

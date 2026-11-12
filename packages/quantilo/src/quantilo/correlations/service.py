@@ -31,6 +31,7 @@ from quantilo.correlations.structure import (
 )
 from quantilo.filters.model import Condition, filters_key
 from quantilo.filters.scope import scoped_source, where_for
+from quantilo.typing.derived import with_derived
 
 CACHE_SIZE = 16
 
@@ -52,7 +53,7 @@ class CorrelationService:
         self, dataset_id: str, chosen: list[str] | None, conditions: list[Condition]
     ) -> tuple[Any, ...]:
         dataset = self.columns.ready(dataset_id)
-        views = self.columns.columns(dataset_id)
+        views = with_derived(self.columns.columns(dataset_id), chosen or [])
         return (
             dataset_id,
             dataset.imported_at,
@@ -72,7 +73,7 @@ class CorrelationService:
     ) -> Correlations:
         conditions = conditions or []
         dataset = self.columns.ready(dataset_id)
-        views = self.columns.columns(dataset_id)
+        views = with_derived(self.columns.columns(dataset_id), chosen or [])  # 058, R-DER-07
         key = (*self._key(dataset_id, chosen, conditions), method, correction)
         if key in self._cache:
             self._cache.move_to_end(key)
@@ -102,7 +103,7 @@ class CorrelationService:
         """The numeric columns of the matrix (same choice, filters and sample), read once;
         codes typed as numbers left out with their reason (R-STR-2, R-COR-01)."""
         dataset = self.columns.ready(dataset_id)
-        views = self.columns.columns(dataset_id)
+        views = with_derived(self.columns.columns(dataset_id), chosen or [])
         columns = [MatrixColumn(v.name, v.type, v.parser, v.role) for v in views if not v.excluded]
         usable, _excluded, _truncated = eligible(columns, chosen)
         numeric = [c for c in usable if ROLES[c.type] == "num"]

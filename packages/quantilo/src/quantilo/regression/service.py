@@ -21,6 +21,8 @@ from quantilo.ingestion.sql import ident
 from quantilo.regression import analyze as an
 from quantilo.regression import iv as ivs
 from quantilo.regression import panel as panels
+from quantilo.regression import robust as rb
+from quantilo.regression import terms as tm
 from quantilo.regression.design import DesignError, LeftOutTerm, Variable, codes
 from quantilo.regression.families import EXPOSURE_ROLE, MAX_CLASSES, FamilyRequest
 from quantilo.regression.panel import PanelTable
@@ -46,13 +48,14 @@ MAX_CANDIDATES = 5
 NUMERIC = ("numeric_continuous", "numeric_discrete")
 CATEGORY = ("categorical_nominal", "categorical_ordinal", "boolean")
 REFUSED = {
-    "datetime": "a date: compare it with Two variables (terms of dates will come with 070)",
+    "datetime": "a date: add it as a trend, a month or a day of the week in Advanced › Terms "
+    "(R-REG-TERM-08)",
     "text": "free text has no coefficient",
     "identifier": "an identifier: one level per row, no effect to estimate",
 }
 WEIGHT_ROLE = "weight"
 YES = ("true", "1", "yes", "oui", "y")
-Section = Literal["standard_errors", "influence", "terms", "more", "panel", "families"]
+Section = Literal["standard_errors", "influence", "terms", "more", "panel", "families", "quantiles"]
 
 
 class RegressionError(ExplorerError):
@@ -70,6 +73,9 @@ class Request:
     focus: str | None = None
     family: FamilyRequest = "auto"  # 069: "auto" follows the rules (R-REG-01…07)
     exposure: str | None = None  # 069: None: a column of role exposure if any; "": none
+    terms: tuple[str, ...] = ()  # 070: `spline:age`, `interaction:a|b`, `log:x`, …
+    center: bool = False  # 070: numbers centred at their mean (R-REG-TERM-05)
+    coding: tm.Coding = "reference"  # 070: categories against a reference or their average
 
 
 class RegressionService:
@@ -120,6 +126,7 @@ class RegressionService:
         | an.MoreChecks
         | PanelTable
         | an.FamilyAlternatives
+        | rb.QuantileProcess
     ):
         conditions = conditions or []
         key = (*self._key(dataset_id, request, conditions), name)
@@ -134,6 +141,7 @@ class RegressionService:
             "more": an.more,
             "families": an.family_alternatives,
             "panel": panels.section,  # 071
+            "quantiles": rb.process,  # 072: Advanced › More
         }
         if name not in builders:
             raise RegressionError(f"Unknown section {name!r}.", "unknown_section")
@@ -188,6 +196,49 @@ class RegressionService:
             found = an.finite(ivs.estimate(inputs, list(endogenous), list(instruments)))
         except (DesignError, ivs.IvError) as error:
             raise RegressionError(str(error), "iv") from error
+        self._results[key] = found
+        if len(self._results) > RESULT_CACHE:
+            self._results.popitem(last=False)
+        return found
+
+    def robust(
+        self,
+        dataset_id: str,
+        request: Request,
+        quantile: float = 0.5,
+        conditions: list[Condition] | None = None,
+    ) -> rb.RobustTable:
+        """072: Huber, Tukey and one quantile side by side with least squares."""
+        conditions = conditions or []
+        key = (*self._key(dataset_id, request, conditions), "robust", quantile)
+        if key in self._results:
+            self._results.move_to_end(key)
+            return self._results[key]
+        fit = self._fit(dataset_id, request, conditions)
+        try:
+            found = an.finite(rb.table(fit, quantile))
+        except rb.RobustError as error:
+            raise RegressionError(str(error), "quantile") from error
+        self._results[key] = found
+        if len(self._results) > RESULT_CACHE:
+            self._results.popitem(last=False)
+        return found
+
+    def partial(
+        self,
+        dataset_id: str,
+        request: Request,
+        column: str,
+        conditions: list[Condition] | None = None,
+    ) -> tm.PartialPlot:
+        """070: the added-variable and component + residual plots of one column, asked for only
+        once it is chosen (R-REG-TERM-11)."""
+        conditions = conditions or []
+        key = (*self._key(dataset_id, request, conditions), "partial", column)
+        if key in self._results:
+            self._results.move_to_end(key)
+            return self._results[key]
+        found = an.finite(an.partial_plot(self._fit(dataset_id, request, conditions), column))
         self._results[key] = found
         if len(self._results) > RESULT_CACHE:
             self._results.popitem(last=False)
@@ -269,16 +320,37 @@ class RegressionService:
             )
         weights = self._weights(views, request)
         exposure = self._exposure(views, request, target.name)
+        try:
+            plan = tm.plan_of(request.terms, request.center, request.coding, request.columns)
+        except tm.TermError as error:
+            raise RegressionError(str(error), "term") from error
+        dated: list[tuple[ColumnView, str]] = []
+        for spec in plan.dates():
+            view = self._view(views, spec.columns[0])
+            if view.type != "datetime":
+                raise RegressionError(
+                    f"`{view.name}` is not a date: no {tm.DATE_LABELS[spec.kind].lower()} to take "
+                    "from it (R-REG-TERM-08).",
+                    "term",
+                )
+            dated.append((view, spec.kind))
+        for name in plan.columns():  # a curve or an interaction on a date: its trend
+            view = self._view(views, name)
+            if view.type == "datetime" and (view, "trend") not in dated:
+                dated.append((view, "trend"))
+        with_terms = {view.name for view, _ in dated}
         refused: list[LeftOutTerm] = []
         chosen: list[ColumnView] = []
-        for name in dict.fromkeys(request.columns):
+        # 070: a term reads its columns even when they are not among the explanatory ones
+        for name in dict.fromkeys([*request.columns, *plan.columns()]):
             if name == target.name:
                 continue
             view = self._view(views, name)
             if weights is not None and name == weights[0].name:
                 continue
             if view.type in REFUSED:
-                refused.append(LeftOutTerm(name, name, REFUSED[view.type]))
+                if name in request.columns and name not in with_terms:
+                    refused.append(LeftOutTerm(name, name, REFUSED[view.type]))
             else:
                 chosen.append(view)
         cluster = self._view(views, request.cluster) if request.cluster else None
@@ -294,6 +366,7 @@ class RegressionService:
             sorted({*periods, *entities} - set(dates), key=[v.name for v in views].index),
             {v.name: v for v in views},
             exposure[0] if exposure else None,
+            list({view.name: view for view, _ in dated}.values()),
         )
         frame, total = loaded
         rows = len(frame)
@@ -304,6 +377,7 @@ class RegressionService:
         variables = [
             self._variable(view, cast(pd.Series, frame[f"__x{i}"])) for i, view in enumerate(chosen)
         ]
+        variables += self._date_variables(frame, dated)
         inputs = an.Inputs(
             target.name,
             y,
@@ -317,6 +391,7 @@ class RegressionService:
             shape,
             requested=request.se,
             focus=request.focus,
+            plan=plan,
         )
         inputs.target_role, inputs.outcomes, inputs.family = target.role, outcomes, request.family
         if exposure is not None:
@@ -416,6 +491,7 @@ class RegressionService:
         groups: list[str],
         by_name: dict[str, ColumnView],
         exposure: ColumnView | None = None,
+        term_dates: list[ColumnView] | None = None,
     ) -> tuple[pd.DataFrame, int]:
         source = scoped_source(storage, where, numbered=True)
 
@@ -434,6 +510,8 @@ class RegressionService:
             expressions.append(f"{group} AS __g")
         for name in dates:
             expressions.append(f"{typed_sql(name, by_name[name].parser)} AS {ident(name)}")
+        for i, view in enumerate(term_dates or []):
+            expressions.append(f"{typed_sql(view.name, view.parser)} AS __t{i}")
         for name in groups:
             view = by_name[name]
             expression = number_sql(view) if view.type in NUMERIC else label_sql(view)
@@ -501,6 +579,21 @@ class RegressionService:
         positive = next((i for i, level in enumerate(levels) if level.lower() in YES), 1)
         y = np.where(found >= 0, (found == positive).astype(float), np.nan)
         return y, (levels[1 - positive], levels[positive]), []
+
+    @staticmethod
+    def _date_variables(frame: pd.DataFrame, dated: list[tuple[ColumnView, str]]) -> list[Variable]:
+        """070 (R-REG-TERM-08): a date as a trend in years, a month or a day of the week."""
+        columns = list(dict.fromkeys(view.name for view, _ in dated))
+        found: list[Variable] = []
+        for view, kind in dated:
+            values = cast(pd.Series, frame[f"__t{columns.index(view.name)}"])
+            numbers, labels, _ = tm.date_values(values, kind)
+            name = tm.date_name(view.name, kind)
+            if labels is None:
+                found.append(Variable(name, "num", numbers, source=view.name))
+            else:
+                found.append(Variable(name, "cat", numbers, labels, source=view.name))
+        return found
 
     @staticmethod
     def _variable(view: ColumnView, values: pd.Series) -> Variable:

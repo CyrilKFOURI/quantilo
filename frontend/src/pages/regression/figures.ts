@@ -1,6 +1,7 @@
 import type { Data, Layout } from "plotly.js-dist-min";
 
-import type { Regression } from "../../api/client";
+import type { Regression, RegressionCurve, RegressionPartial, RegressionQuantileCurve } from "../../api/client";
+import { withAlpha } from "../../charts/figures";
 import type { ChartTokens } from "../../charts/theme";
 
 type Built = { data: Data[]; layout?: Partial<Layout> };
@@ -86,4 +87,132 @@ export function influenceFigure(plots: Plots): (tokens: ChartTokens) => Built {
       },
     };
   };
+}
+
+const plain = (text: string) => text.replaceAll("`", "");
+
+/** 070 (R-REG-TERM-10): the fitted target along a column, with its 95 % band; one line per
+ *  level of the partner of an interaction. */
+export function effectCurveFigure(curve: RegressionCurve): (tokens: ChartTokens) => Built {
+  return (tokens) => {
+    const data: Data[] = [];
+    const several = curve.lines.length > 1;
+    curve.lines.forEach((line, i) => {
+      const color = several ? (tokens.palette[i % tokens.palette.length] ?? tokens.numeric) : tokens.numeric;
+      data.push(
+        { type: "scatter", mode: "lines", x: curve.x, y: line.high, line: { width: 0, color }, hoverinfo: "skip", showlegend: false } as Data,
+        {
+          type: "scatter",
+          mode: "lines",
+          x: curve.x,
+          y: line.low,
+          fill: "tonexty",
+          fillcolor: withAlpha(color, 0.12),
+          line: { width: 0, color },
+          hoverinfo: "skip",
+          showlegend: false,
+        } as Data,
+        {
+          type: "scatter",
+          mode: "lines",
+          name: plain(line.label),
+          x: curve.x,
+          y: line.y,
+          line: { color, width: 2 },
+          showlegend: several,
+          hovertemplate: `${plain(curve.column)} %{x:,.4g}<br>fitted %{y:,.4g}<extra>${plain(line.label)}</extra>`,
+        } as Data,
+      );
+    });
+    return {
+      data,
+      layout: {
+        xaxis: axis(plain(curve.column)),
+        yaxis: axis(`Fitted ${plain(curve.scale)}`),
+        showlegend: several,
+        legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom", font: { size: 11 } },
+      },
+    };
+  };
+}
+
+/** 070 (R-REG-TERM-11): residuals of the target against residuals of the column once the
+ *  other terms are taken out; the slope of the line is the coefficient. */
+export function addedVariableFigure(plot: RegressionPartial): (tokens: ChartTokens) => Built {
+  return (tokens) => {
+    const low = Math.min(...plot.x_resid);
+    const high = Math.max(...plot.x_resid);
+    const slope = plot.slope ?? 0;
+    return {
+      data: [
+        {
+          type: "scatter",
+          mode: "markers",
+          x: plot.x_resid,
+          y: plot.y_resid,
+          customdata: plot.rows,
+          marker: { color: tokens.numeric, size: 4, opacity: 0.4 },
+          hovertemplate: "row %{customdata}<br>%{x:,.4g} ; %{y:,.4g}<extra></extra>",
+        } as Data,
+        { type: "scatter", mode: "lines", x: [low, high], y: [slope * low, slope * high], line: { color: tokens.accent, width: 2 }, hoverinfo: "skip" } as Data,
+      ],
+      layout: { showlegend: false, xaxis: axis(`${plain(plot.column)} | other terms`), yaxis: axis("Target | other terms") },
+    };
+  };
+}
+
+/** 070: the estimated contribution of the column (its curve included) plus the residuals. */
+export function componentFigure(plot: RegressionPartial): (tokens: ChartTokens) => Built {
+  return (tokens) => ({
+    data: [
+      {
+        type: "scatter",
+        mode: "markers",
+        x: plot.x,
+        y: plot.component_resid,
+        customdata: plot.rows,
+        marker: { color: tokens.numeric, size: 4, opacity: 0.4 },
+        hovertemplate: "row %{customdata}<br>%{x:,.4g} ; %{y:,.4g}<extra></extra>",
+      } as Data,
+      { type: "scatter", mode: "lines", x: plot.line_x, y: plot.line_y, line: { color: tokens.accent, width: 2 }, hoverinfo: "skip" } as Data,
+    ],
+    layout: { showlegend: false, xaxis: axis(plain(plot.column)), yaxis: axis("Component + residual") },
+  });
+}
+
+/** 072 (R-REG-QR-02): a coefficient along τ with its band, least squares dashed. */
+export function quantileFigure(curve: RegressionQuantileCurve): (tokens: ChartTokens) => Built {
+  return (tokens) => ({
+    data: [
+      { type: "scatter", mode: "lines", x: curve.taus, y: curve.high, line: { width: 0, color: tokens.numeric }, hoverinfo: "skip" } as Data,
+      {
+        type: "scatter",
+        mode: "lines",
+        x: curve.taus,
+        y: curve.low,
+        fill: "tonexty",
+        fillcolor: withAlpha(tokens.numeric, 0.15),
+        line: { width: 0, color: tokens.numeric },
+        hoverinfo: "skip",
+      } as Data,
+      {
+        type: "scatter",
+        mode: "lines+markers",
+        x: curve.taus,
+        y: curve.estimates,
+        line: { color: tokens.numeric, width: 2 },
+        marker: { size: 5 },
+        hovertemplate: "τ = %{x}<br>%{y:,.4g}<extra></extra>",
+      } as Data,
+      {
+        type: "scatter",
+        mode: "lines",
+        x: [curve.taus[0], curve.taus[curve.taus.length - 1]],
+        y: [curve.ols, curve.ols],
+        line: { color: tokens.ink3, width: 1.5, dash: "dash" },
+        hovertemplate: "least squares %{y:,.4g}<extra></extra>",
+      } as Data,
+    ],
+    layout: { showlegend: false, xaxis: { ...axis("Quantile τ"), range: [0.05, 0.95] }, yaxis: axis("Effect") },
+  });
 }

@@ -93,6 +93,10 @@ def time_sql(raw: str, text: str, time_format: str | None) -> str:
 
 def typed_sql(column: str, parser: Parser) -> str:
     """Expression giving the column's value in its analysis type."""
+    if parser.kind == "derived" and parser.derived is not None:
+        from quantilo.typing.derived import derived_sql  # derived reads this module
+
+        return derived_sql(parser.derived)
     raw = ident(column)
     if parser.kind == "raw":
         return raw
@@ -117,5 +121,7 @@ def typed_sql(column: str, parser: Parser) -> str:
 
 def present_sql(column: str, parser: Parser) -> str:
     """Expression that is non-NULL when the stored value is present (before parsing)."""
+    if parser.kind == "derived":
+        return typed_sql(column, parser)
     raw_kinds = ("raw", "year") + (("time",) if parser.format is None else ())
     return ident(column) if parser.kind in raw_kinds else clean_text(column)

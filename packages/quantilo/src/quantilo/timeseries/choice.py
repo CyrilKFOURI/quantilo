@@ -1,4 +1,4 @@
-"""The time series the page opens on, when the user has not chosen (093, rules R-TS-01 to R-TS-06).
+"""The time series the page opens on, when the user has not chosen (093, rules R-TS-01 to R-TS-07).
 
 The date of the event, then a measure that adds up (summed), a level (averaged), a measurement
 taken once per date (averaged) or, when no column measures anything, the number of rows per
@@ -26,6 +26,8 @@ LEVEL_WORDS = frozenset(
 MEASUREMENT_ROWS = 2.0  # R-TS-04: at most this many rows per distinct date: a reading per date
 MIN_LEVELS = 30  # R-TS-04: whole numbers with fewer distinct values are levels or codes
 NOT_VALUES = frozenset(["year", "month", "weekday", "hour", "latitude", "longitude", "angle"])
+# R-TS-07: the value of a series that counts the rows themselves (no numeric column at all).
+ROWS = ""
 
 
 @dataclass
@@ -95,8 +97,12 @@ def _rows(view: Any) -> int:
 
 
 def choose_time(dates: Sequence[Any]) -> tuple[Any, str]:
-    """R-TS-01: the date of the event first; a birth or construction date last."""
-    ranked = sorted(enumerate(dates), key=lambda item: (semantics.date_tier(item[1].name), item[0]))
+    """R-TS-01: the date of the event first; a birth or construction date last; at equal rank a
+    full date before a column of years only (fix1: 'sold date' assembled by B-20, not 'Yr Sold')."""
+    ranked = sorted(
+        enumerate(dates),
+        key=lambda item: (semantics.date_tier(item[1].name), item[1].role == "year", item[0]),
+    )
     chosen = ranked[0][1]
     tier = semantics.date_tier(chosen.name)
     others = [view.name for _, view in ranked[1:3]]
@@ -255,6 +261,12 @@ def choose(
     else:
         time, why = choose_time(dates)
         reasons.append(why)
+    if not numbers or requested_value == ROWS:
+        why = (
+            "R-TS-07 · No numeric column to measure: each row is an event, and the series counts "
+            f"the rows per period (rows with a {time.name})."
+        )
+        return Choice(time.name, ROWS, "count", reasons, why)
     if requested_value in {v.name for v in numbers}:
         view = by_name[requested_value]
         aggregate, why = aggregate_for(view, found.get(view.name))

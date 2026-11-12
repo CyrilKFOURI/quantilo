@@ -403,3 +403,15 @@ def test_kalman_gaps_anomalies_and_structural_model(client: TestClient, sales: s
     done = wait(client, job)
     structural = next(m for m in done["result"]["results"] if m["key"] == "structural")
     assert structural["info"].startswith("UCM(") and structural["scores"] is not None
+
+
+def test_regimes_route(client: TestClient, sales: str) -> None:
+    result = get(client, sales, "regimes", period="day", k=2)
+    assert result.status_code == 200, result.text
+    body = result.json()
+    found = body["regimes"]
+    if found["message"] is None:
+        assert found["k"] == 2 and len(found["regimes"]) == 2
+        assert len(body["periods"]) == len(found["values"]) == len(found["most_likely"])
+        assert found["on_reason"].startswith("R-RG-01")
+    assert get(client, sales, "regimes", k=5).status_code == 422

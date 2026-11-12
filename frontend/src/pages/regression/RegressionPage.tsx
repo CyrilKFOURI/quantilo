@@ -48,6 +48,12 @@ export type RegressionSearch = {
   family?: string;
   /** 069: absent: a column of role exposure; "none": no exposure. */
   exposure?: string;
+  /** 070: comma-separated terms (`spline:age`, `interaction:a|b`…). */
+  terms?: string;
+  /** 070: "1": numbers centered at their mean. */
+  center?: string;
+  /** 070: "deviation": categories against the average of their levels. */
+  coding?: string;
 };
 
 const text = (value: unknown) => (typeof value === "string" && value ? value : undefined);
@@ -62,6 +68,9 @@ export function validateRegressionSearch(search: Record<string, unknown>): Regre
     focus: text(search.focus),
     family: text(search.family),
     exposure: text(search.exposure),
+    terms: text(search.terms),
+    center: text(search.center),
+    coding: text(search.coding),
   };
 }
 
@@ -88,10 +97,12 @@ const SECTIONS: Record<string, RegressionSection> = {
   terms: "terms",
   more: "more",
   panel: "panel",
+  robust: "robust",
 };
 
 const splitColumns = (value: string | undefined) =>
   value === undefined ? undefined : value === NO_COLUMNS ? [] : value.split(",").filter(Boolean);
+const splitTerms = (value: string | undefined) => (value ? value.split(",").filter(Boolean) : []);
 
 export function RegressionPage() {
   const phone = useMedia(PHONE);
@@ -120,6 +131,9 @@ export function RegressionPage() {
           focus: search.focus,
           family: (search.family as RegressionFamilyKind | undefined) ?? "auto",
           exposure: search.exposure === NO_EXPOSURE ? "" : search.exposure,
+          terms: splitTerms(search.terms),
+          center: search.center === "1",
+          coding: search.coding === "deviation" ? "deviation" : "reference",
         }
       : null;
   const regression = useRegression(datasetId, params);
@@ -140,6 +154,9 @@ export function RegressionPage() {
 
   const set = (patch: RegressionSearch) =>
     void navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true });
+  // 070: the terms live in the address, like every other setting (R-REGUI-01)
+  const terms = splitTerms(search.terms);
+  const setTerms = (next: string[]) => set({ terms: next.length ? [...new Set(next)].join(",") : undefined });
   const setColumns = (next: string[]) => set({ columns: next.length ? next.join(",") : NO_COLUMNS, focus: next.includes(search.focus ?? "") ? search.focus : undefined });
   const open = (section: RegressionSection) => {
     setAdvanced(true);
@@ -157,7 +174,7 @@ export function RegressionPage() {
       chosen={chosen ?? []}
       reasons={reasons}
       targetReason={search.target ? null : (suggestion.data?.target?.reason ?? null)}
-      onTarget={(name) => set({ target: name, columns: undefined, focus: undefined, family: undefined, exposure: undefined })}
+      onTarget={(name) => set({ target: name, columns: undefined, focus: undefined, family: undefined, exposure: undefined, terms: undefined, center: undefined, coding: undefined })}
       onColumns={setColumns}
     />
   );
@@ -236,7 +253,14 @@ export function RegressionPage() {
           <Conclusion result={result} />
           <QualityBand result={result} />
           <Coefficients result={result} standardized={standardized} onStandardized={setStandardized} />
-          <Checks result={result} datasetId={datasetId} onOpen={open} onFamily={(family) => set({ family })} />
+          <Checks
+            result={result}
+            datasetId={datasetId}
+            onOpen={open}
+            onFamily={(family) => set({ family })}
+            onTerm={(term) => setTerms([...terms, term])}
+            onCenter={() => set({ center: "1" })}
+          />
           <Charts result={result} />
           <section className="rounded-lg border border-line bg-surface-1">
             <button
@@ -258,6 +282,13 @@ export function RegressionPage() {
                 onToggle={toggle}
                 onUse={(kind) => set({ se: kind })}
                 onFamily={(family) => set({ family })}
+                usable={usable}
+                terms={terms}
+                onTerms={setTerms}
+                center={search.center === "1"}
+                onCenter={(next) => set({ center: next ? "1" : undefined })}
+                coding={search.coding === "deviation" ? "deviation" : "reference"}
+                onCoding={(next) => set({ coding: next === "deviation" ? next : undefined })}
               />
             )}
           </section>
@@ -651,11 +682,15 @@ function Checks({
   datasetId,
   onOpen,
   onFamily,
+  onTerm,
+  onCenter,
 }: {
   result: Regression;
   datasetId: string;
   onOpen: (section: RegressionSection) => void;
   onFamily: (family: string) => void;
+  onTerm: (term: string) => void;
+  onCenter: () => void;
 }) {
   return (
     <section>
@@ -675,7 +710,7 @@ function Checks({
                 <Sentence text={check.sentence} />
               </p>
               <span className="col-start-2 sm:col-start-auto">
-                <CheckAction check={check} datasetId={datasetId} target={result.target} onOpen={onOpen} onFamily={onFamily} />
+                <CheckAction check={check} datasetId={datasetId} target={result.target} onOpen={onOpen} onFamily={onFamily} onTerm={onTerm} onCenter={onCenter} />
               </span>
             </li>
           );
@@ -691,15 +726,40 @@ function CheckAction({
   target,
   onOpen,
   onFamily,
+  onTerm,
+  onCenter,
 }: {
   check: RegressionCheck;
   datasetId: string;
   target: string;
   onOpen: (section: RegressionSection) => void;
   onFamily: (family: string) => void;
+  onTerm: (term: string) => void;
+  onCenter: () => void;
 }): ReactNode {
   const style = "text-xs whitespace-nowrap text-accent hover:underline";
   const family = check.family;
+  const term = check.term;
+  // 070 (R-REG-10): a curve on the column that bends the most, and the curve to look at
+  if (check.action === "term" && term)
+    return (
+      <span className="flex flex-wrap gap-x-3 gap-y-1">
+        <button type="button" className={style} onClick={() => onTerm(term)}>
+          {t("regression.tryCurve")}
+        </button>
+        {check.column && (
+          <Link to="/d/$datasetId/compare" params={{ datasetId }} search={(previous) => ({ ...previous, x: check.column ?? undefined, y: target, z: undefined, color: undefined })} className={style}>
+            {t("regression.seeCurve")}
+          </Link>
+        )}
+      </span>
+    );
+  if (check.action === "center")
+    return (
+      <button type="button" className={style} onClick={onCenter}>
+        {t("regression.centerAction")}
+      </button>
+    );
   if (check.action === "family" && family)
     return (
       <button type="button" className={style} onClick={() => onFamily(family)}>

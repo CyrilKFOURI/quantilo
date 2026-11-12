@@ -43,6 +43,8 @@ from quantilo.errors import ExplorerError
 from quantilo.ingestion.sql import lit
 from quantilo.kpi.definition import Definition
 from quantilo.rows.service import ExportFile
+from quantilo.text.distinctive import DistinctiveWords
+from quantilo.text.service import words_between
 
 from app.core import db
 from app.core.errors import AppError
@@ -94,6 +96,15 @@ class VersionInfo:
     kept: bool  # its rows are at hand (row by row, KPIs, relations)
     kept_bytes: int
     current: bool
+
+
+@dataclass
+class WordsAnswer:
+    """059: the words that rise in each version of a text column, when both are at hand."""
+
+    available: bool
+    reason: str | None
+    words: DistinctiveWords | None = None
 
 
 @dataclass
@@ -454,6 +465,23 @@ class VersionService:
             connection.close()
         how = "rowmap" if alignment is not None else "key"
         return RowsAnswer(True, None, candidates, result, how, paired, note)
+
+    def words(
+        self, dataset_id: str, column: str, vs: str | None = None, version: int | None = None
+    ) -> WordsAnswer:
+        """R-WRD-07: the words over-represented in each version of a text column."""
+        before, after = self._sides(dataset_id, vs, version)
+        if before.storage_path is None or after.storage_path is None:
+            return WordsAnswer(False, NOT_KEPT)
+        old = next((v for v in before.views if v.name == column), None)
+        new = next((v for v in after.views if v.name == column), None)
+        if old is None or new is None:
+            raise AppError(
+                f"{column!r} is not in both versions.", code="unknown_column", status_code=404
+            )
+        labels = (before.label, after.label)
+        found = words_between(column, (before.storage_path, old), (after.storage_path, new), labels)
+        return WordsAnswer(True, None, found)
 
     def export_rows(
         self, dataset_id: str, vs: str | None, key: str | None, version: int | None = None

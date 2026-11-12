@@ -27,6 +27,7 @@ from quantilo.timeseries.service import (
     SeriesDecomposition,
     SeriesDrivers,
     SeriesOverview,
+    SeriesRegimes,
     SeriesResiduals,
     SeriesSeasonality,
     SeriesSetup,
@@ -103,6 +104,11 @@ class TimeSeries:
     def volatility(self, spread_window: int | None = None) -> SeriesVolatility:
         """Heteroscedasticity tests (Breusch–Pagan, White, ARCH-LM…) and the rolling spread."""
         return self._service.volatility(*self._args(), self._methods, spread_window)
+
+    def regimes(self, k: int | None = None, on: str = "auto") -> SeriesRegimes:
+        """Markov-switching regimes (statsmodels MarkovRegression): 2 or 3 by BIC, on the level or
+        on the changes by rule (R-RG-01/02). Slow: a few seconds."""
+        return self._service.regimes(*self._args(), k, on)  # type: ignore[arg-type]
 
     def residuals(self, source: rs.Source = "residuals") -> SeriesResiduals:
         return self._service.residuals(*self._args(), source)

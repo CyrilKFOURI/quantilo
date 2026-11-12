@@ -10,6 +10,7 @@ import itertools
 import json
 import os
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,8 @@ import pyarrow as pa
 
 from quantilo.ingestion.structured.build import Emitter, dumps
 from quantilo.ingestion.structured.errors import StructuredError
+from quantilo.ingestion.structured.kinds import detect as detect_kinds
+from quantilo.ingestion.structured.kinds import split_by_kind
 from quantilo.ingestion.structured.model import (
     Format,
     RuleHit,
@@ -181,6 +184,10 @@ class Reader:
     ) -> StructuredLayout:
         options = self.options
         flat = {path for path, choice in options.overrides.items() if choice == "flatten"}
+        kinds = None if options.one_table else detect_kinds(sample, options.discriminator)
+        if kinds is not None:
+            # R-SST-24: the kinds go to their own tables, so the column limit is per kind
+            options = replace(options, max_columns=options.max_columns * kinds[1])
         try:
             profile, maps = profile_records(sample, flat)
             root, forced = make_plan(
@@ -209,6 +216,8 @@ class Reader:
             layout.tables.append(self.describe(plan, rows, table))
             layout._data[layout.tables[-1].name] = table
         self.relations(layout, root)
+        if kinds is not None:
+            split_by_kind(layout, kinds[0])
         if options.one_table and layout.tables and count:
             main = layout.tables[0]
             ratio = main.rows / count

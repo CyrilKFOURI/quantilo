@@ -15,9 +15,11 @@ from quantilo.regression.analyze import (
 from quantilo.regression.families import FamilyRequest
 from quantilo.regression.iv import IvTable
 from quantilo.regression.panel import PanelTable
+from quantilo.regression.robust import QuantileProcess, RobustTable
 from quantilo.regression.rules import RegressionSuggestion, SeRequest
 from quantilo.regression.service import RegressionService
 from quantilo.regression.service import Request as RegressionRequest
+from quantilo.regression.terms import Coding, PartialPlot
 
 from app.api.filters import Filters
 
@@ -53,6 +55,22 @@ def regression_request(
         str | None,
         Query(description="Exposure of a count, its log the offset (absent: role exposure)."),
     ] = None,
+    terms: Annotated[
+        str,
+        Query(
+            description=(
+                "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, "
+                "trend:date, month:date, weekday:date, reference:column|level."
+            )
+        ),
+    ] = "",
+    center: Annotated[
+        bool, Query(description="070: numbers centred at their mean (R-REG-TERM-05).")
+    ] = False,
+    coding: Annotated[
+        Coding,
+        Query(description="070: categories against a reference level, or their average."),
+    ] = "reference",
 ) -> RegressionRequest:
     chosen = tuple(name for name in columns.split(",") if name) if columns is not None else None
     return RegressionRequest(
@@ -64,6 +82,9 @@ def regression_request(
         focus or None,
         family,
         exposure,
+        tuple(term for term in terms.split(",") if term),
+        center,
+        coding,
     )
 
 
@@ -139,6 +160,43 @@ def panel(dataset_id: str, service: Service, filters: Filters, asked: Asked) -> 
     between and random effects, clustered by entity; Mundlak chooses, Hausman informs."""
     found = service.section(dataset_id, "panel", asked, filters)
     assert isinstance(found, PanelTable)
+    return found
+
+
+@router.get("/datasets/{dataset_id}/regression/partial")
+def partial(
+    dataset_id: str,
+    service: Service,
+    filters: Filters,
+    asked: Asked,
+    column: Annotated[str, Query(description="The explanatory column to show.")],
+) -> PartialPlot:
+    """Advanced > Terms > Shape (070, asked for once a column is chosen): the added-variable
+    and component + residual plots of one column."""
+    return service.partial(dataset_id, asked, column, filters)
+
+
+@router.get("/datasets/{dataset_id}/regression/robust")
+def robust(
+    dataset_id: str,
+    service: Service,
+    filters: Filters,
+    asked: Asked,
+    quantile: Annotated[
+        float, Query(description="072: the quantile, one of 0.1, 0.25, 0.5, 0.75, 0.9.")
+    ] = 0.5,
+) -> RobustTable:
+    """Advanced > Robust & quantile (072): Huber, Tukey and one quantile side by side with least
+    squares, and the law and tail of the residuals."""
+    return service.robust(dataset_id, asked, quantile, filters)
+
+
+@router.get("/datasets/{dataset_id}/regression/quantiles")
+def quantiles(dataset_id: str, service: Service, filters: Filters, asked: Asked) -> QuantileProcess:
+    """Advanced > More > Along the distribution (072, computed only when opened): the
+    coefficients at τ = 0.1…0.9, the test of 0.1 against 0.9, Student-t errors."""
+    found = service.section(dataset_id, "quantiles", asked, filters)
+    assert isinstance(found, QuantileProcess)
     return found
 
 

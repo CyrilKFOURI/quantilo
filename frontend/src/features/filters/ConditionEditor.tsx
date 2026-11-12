@@ -3,6 +3,8 @@ import { useMemo, useState } from "react";
 import type { Column } from "../../api/client";
 import type { Condition } from "../../api/filters";
 import { useChart } from "../../api/hooks";
+import { ColumnOptions } from "../derived/ColumnOptions";
+import { derivedNote } from "../derived/derived";
 import { formatCount } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
@@ -271,11 +273,7 @@ export function ConditionEditor({ datasetId, columns, others = columns, initial,
             );
           }}
         >
-          {columns.map((c) => (
-            <option key={c.name} value={c.name}>
-              {c.name}
-            </option>
-          ))}
+          <ColumnOptions columns={columns} />
         </Select>
         <Select
           aria-label={t("filters.condition")}
@@ -294,6 +292,7 @@ export function ConditionEditor({ datasetId, columns, others = columns, initial,
           ))}
         </Select>
       </div>
+      {derivedNote(column) && <p className="text-xs text-ink-3">{derivedNote(column)}</p>}
 
       {choice?.input === "value" && (
         <TextInput

@@ -1,6 +1,7 @@
 """Chart data and tests for a pair (or triple) of columns, chosen from their analysis types."""
 
 import math
+from collections import Counter
 from dataclasses import dataclass, field
 from itertools import combinations
 from typing import Literal
@@ -25,6 +26,10 @@ from quantilo.compare.stats import (
 from quantilo.errors import ExplorerError
 from quantilo.filters.scope import TypedColumn
 from quantilo.ingestion.sql import lit
+from quantilo.text.distinctive import DistinctiveWords
+from quantilo.text.service import group_words
+from quantilo.text.service import sample as text_sample
+from quantilo.text.tokens import stop_words
 from quantilo.timeseries import builder
 from quantilo.timeseries import series as ts
 from quantilo.timeseries.trend import trend as trend_of
@@ -33,8 +38,8 @@ from quantilo.typing.parsers import typed_sql
 from quantilo.typing.types import AnalysisType, Parser
 from quantilo.variable.source import SEED, clean
 
-Role = Literal["num", "cat", "date"]
-Kind = Literal["scatter", "groups", "contingency", "timeline", "date_counts"]
+Role = Literal["num", "cat", "date", "text"]
+Kind = Literal["scatter", "groups", "contingency", "timeline", "date_counts", "words"]
 
 ROLES: dict[str, Role] = {
     "numeric_continuous": "num",
@@ -72,11 +77,14 @@ class CompareColumn:
     order: list[str] | None = None
     semantic_role: str | None = None  # amount, quantity, age… (column roles)
     as_category: bool = False  # a whole number with few values, read as levels (R-CMP-01)
+    language: str | None = None  # a text column's language (050): its stop words (059)
 
     @property
     def role(self) -> Role:
         if self.as_category:
             return "cat"
+        if self.type == "text" and self.semantic_role != "choices":
+            return "text"  # 059, R-WRD-06: its distinctive words by group
         role = ROLES.get(self.type)
         if role is None:
             raise NotComparableError(f"{self.name!r} ({self.type}) can't be compared.")
@@ -404,6 +412,7 @@ class Comparison:
     intervals: str | None = None  # groups: which method gave the intervals (051)
     differences: list[GroupDifference] = field(default_factory=list)  # groups, pairwise (051)
     multiple: MultipleTesting | None = None  # the correction over the differences
+    words: DistinctiveWords | None = None  # text and category: distinctive words (059)
 
 
 def label_sql(column: TypedColumn) -> str:
@@ -480,6 +489,8 @@ class Comparer:
             return number_sql(column)
         if role == "date":
             return f"CAST({typed_sql(column.name, column.parser)} AS TIMESTAMP)"
+        if role == "text":
+            return f"CAST({typed_sql(column.name, column.parser)} AS VARCHAR)"
         if column.as_category:
             return number_label_sql(column)
         return label_sql(column)
@@ -507,7 +518,9 @@ class Comparer:
     def compare(self) -> Comparison:
         roles: dict[str, Role] = {self.x.name: self.x.role, self.y.name: self.y.role}
         pair = (self.x.role, self.y.role)
-        if pair == ("num", "num"):
+        if "text" in pair:
+            result = self.text_words()
+        elif pair == ("num", "num"):
             result = self.scatter()
         elif "date" in pair and "num" in pair:
             result = self.timeline()
@@ -539,6 +552,31 @@ class Comparer:
             rows,
             self.total(),
         )
+
+    # --- text and category (059) ----------------------------------------------------------------
+
+    def text_words(self) -> Comparison:
+        """R-WRD-06: the words over-represented in each group of the category."""
+        text, other = (self.x, self.y) if self.x.role == "text" else (self.y, self.x)
+        if other.role != "cat" or self.color is not None or self.z is not None:
+            raise NotComparableError(
+                f"{text.name!r} is text: compare it with a category to read its distinctive "
+                "words by group (R-WRD-06)."
+            )
+        source = (
+            f"(SELECT {self.value_sql(text)} AS t_v, {self.value_sql(other)} AS g_v, "
+            f"file_row_number FROM {self.source})"
+        )
+        texts, groups, total = text_sample(self.connection, source, "t_v", "g_v")
+        counts = Counter(groups)
+        order = ordered([label for label, _ in counts.most_common()], other)
+        stop = stop_words(text.language)
+        words = group_words(text.name, other.name, texts, groups, total, stop, order)
+        result = self.base("words", total)
+        result.sample = len(texts) if total > len(texts) else None
+        result.words = words
+        result.message = words.sentence
+        return result
 
     # --- num × num -------------------------------------------------------------------------------
 

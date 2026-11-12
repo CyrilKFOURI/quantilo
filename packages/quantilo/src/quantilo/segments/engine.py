@@ -44,6 +44,7 @@ from quantilo.segments.unusual import (
     UnusualRow,
     UnusualThreshold,
 )
+from quantilo.typing.derived import names_in, with_derived
 
 AUTO_CATEGORICAL = 0.3  # k-prototypes from this share of category columns on
 MethodChoice = Literal["auto", "kmeans", "kprototypes", "gmm", "ward", "hdbscan"]
@@ -230,9 +231,13 @@ class SegmentsEngine:
     def __init__(self, columns: Catalog) -> None:
         self.columns = columns
 
-    def _fields(self, dataset_id: str, conditions: list[Condition]) -> tuple[list[Field], str]:
+    def _fields(
+        self, dataset_id: str, conditions: list[Condition], request: Any = None
+    ) -> tuple[list[Field], str]:
+        """The columns (with the derived ones the request names, 058) and the filtered rows."""
         dataset = self.columns.ready(dataset_id)
         views = [v for v in self.columns.columns(dataset_id) if not v.excluded]
+        views = with_derived(views, names_in(request))
         fields = [Field(v.name, v.type, v.parser, v.role, v.order) for v in views]
         source = scoped_source(dataset.storage_path, where_for(views, conditions), numbered=True)
         return fields, source
@@ -274,7 +279,7 @@ class SegmentsEngine:
     ) -> SegmentPlan:
         """The columns used (each with its rule and reason) and the method Auto would take."""
         request = request or SegmentRequest()
-        fields, source = self._fields(dataset_id, conditions)
+        fields, source = self._fields(dataset_id, conditions, request)
         rows, preparation = self._rows(fields, source, request)
         method, why = auto_method(preparation, rows.rows)
         return SegmentPlan(
@@ -299,7 +304,7 @@ class SegmentsEngine:
         """Prepare, try k = 2 to 10, keep the k the scores agree on, check its stability, give
         every row its segment, describe each one. Raises `Cancelled` when `should_stop()`."""
         started = time.perf_counter()
-        fields, source = self._fields(dataset_id, conditions)
+        fields, source = self._fields(dataset_id, conditions, request)
         progress("loading", None, None)
         rows, preparation = self._rows(fields, source, request)
         if not preparation.used:
@@ -552,7 +557,8 @@ class SegmentsEngine:
                 "Distance to its segment needs a segmentation: run Segments first.",
                 "no_segmentation",
             )
-        fields, source = self._fields(dataset_id, conditions)
+        asked = [request, segments.request if segments is not None else None]
+        fields, source = self._fields(dataset_id, conditions, asked)
         progress("loading", None, None)
         columns, choices = request.columns, request.preparation
         if request.method == "segment" and segments is not None:

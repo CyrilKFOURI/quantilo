@@ -700,6 +700,53 @@
         }
       }
     },
+    "/api/v1/datasets/{dataset_id}/columns/derived": {
+      "get": {
+        "tags": [
+          "columns"
+        ],
+        "summary": "List Derived",
+        "description": "Derived columns offered by rule (058): the length of a text, an option of a list of\nchoices... Each name can be used wherever a column name is (filters, compare, correlations,\nKPI, segments).\n`parser.derived` names the source and the part; `reasons` carry the rule.",
+        "operationId": "list_derived_api_v1_datasets__dataset_id__columns_derived_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ColumnOut"
+                  },
+                  "title": "Response List Derived Api V1 Datasets  Dataset Id  Columns Derived Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/datasets/{dataset_id}/columns/detect": {
       "post": {
         "tags": [
@@ -1813,6 +1860,293 @@
         }
       }
     },
+    "/api/v1/datasets/{dataset_id}/survival": {
+      "get": {
+        "tags": [
+          "compare"
+        ],
+        "summary": "Survival",
+        "description": "Kaplan-Meier curves (95 % log-log intervals), median survival and the log-rank test.\nWithout columns, the reading a rule detects (R-SRV-01 duration + event, R-SRV-02 start + end\ndates); `setup` is null when no rule fires (the section stays hidden).",
+        "operationId": "survival_api_v1_datasets__dataset_id__survival_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "duration",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Duration"
+            }
+          },
+          {
+            "name": "event",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End"
+            }
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Group"
+            }
+          },
+          {
+            "name": "event_value",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Value"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Survival"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/transitions": {
+      "get": {
+        "tags": [
+          "compare"
+        ],
+        "summary": "Transitions",
+        "description": "Status transitions as a Markov chain: matrix, stationary shares, absorbing states and the\nexpected steps before reaching them. Without columns, the reading R-MKV-01 detects;\n`detect_only` returns it without reading the rows.",
+        "operationId": "transitions_api_v1_datasets__dataset_id__transitions_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "entity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entity"
+            }
+          },
+          {
+            "name": "time",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Time"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "detect_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Detect Only"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transitions"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/datasets/{dataset_id}/correlations": {
       "get": {
         "tags": [
@@ -2294,6 +2628,46 @@
               "title": "Exposure"
             },
             "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
           }
         ],
         "responses": {
@@ -2589,6 +2963,46 @@
               "title": "Exposure"
             },
             "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
           }
         ],
         "responses": {
@@ -2806,6 +3220,46 @@
               "title": "Exposure"
             },
             "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
           }
         ],
         "responses": {
@@ -3023,6 +3477,46 @@
               "title": "Exposure"
             },
             "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
           }
         ],
         "responses": {
@@ -3240,6 +3734,46 @@
               "title": "Exposure"
             },
             "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
           }
         ],
         "responses": {
@@ -3457,6 +3991,46 @@
               "title": "Exposure"
             },
             "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
           }
         ],
         "responses": {
@@ -3674,6 +4248,46 @@
               "title": "Exposure"
             },
             "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
           }
         ],
         "responses": {
@@ -3683,6 +4297,800 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PanelTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/regression/partial": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Partial",
+        "description": "Advanced > Terms > Shape (070, asked for once a column is chosen): the added-variable\nand component + residual plots of one column.",
+        "operationId": "partial_api_v1_datasets__dataset_id__regression_partial_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "column",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The explanatory column to show.",
+              "title": "Column"
+            },
+            "description": "The explanatory column to show."
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartialPlot"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/regression/robust": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Robust",
+        "description": "Advanced > Robust & quantile (072): Huber, Tukey and one quantile side by side with least\nsquares, and the law and tail of the residuals.",
+        "operationId": "robust_api_v1_datasets__dataset_id__regression_robust_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "quantile",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "description": "072: the quantile, one of 0.1, 0.25, 0.5, 0.75, 0.9.",
+              "default": 0.5,
+              "title": "Quantile"
+            },
+            "description": "072: the quantile, one of 0.1, 0.25, 0.5, 0.75, 0.9."
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RobustTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/regression/quantiles": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Quantiles",
+        "description": "Advanced > More > Along the distribution (072, computed only when opened): the\ncoefficients at \u03c4 = 0.1\u20260.9, the test of 0.1 against 0.9, Student-t errors.",
+        "operationId": "quantiles_api_v1_datasets__dataset_id__regression_quantiles_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantileProcess"
                 }
               }
             }
@@ -3915,6 +5323,46 @@
               "title": "Exposure"
             },
             "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
           }
         ],
         "responses": {
@@ -4581,6 +6029,96 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Changes"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/changes/words": {
+      "get": {
+        "tags": [
+          "changes"
+        ],
+        "summary": "Words",
+        "description": "059: the words that rise in each version of a text column (both versions' rows needed).",
+        "operationId": "words_api_v1_datasets__dataset_id__changes_words_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "column",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Column"
+            }
+          },
+          {
+            "name": "vs",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Another dataset to compare with (default: the previous version).",
+              "title": "Vs"
+            },
+            "description": "Another dataset to compare with (default: the previous version)."
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`.",
+              "title": "Version"
+            },
+            "description": "An earlier import of this dataset to compare with (default: the previous one). Ignored with `vs`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WordsAnswer"
                 }
               }
             }
@@ -5806,6 +7344,212 @@
         }
       }
     },
+    "/api/v1/datasets/{dataset_id}/text/topics": {
+      "get": {
+        "tags": [
+          "text"
+        ],
+        "summary": "Topics",
+        "description": "TF-IDF then NMF on at most 20,000 texts (R-TOP-01 to 05); `k` from 3 to 12, else by\nR-TOP-03. Slow: the page asks for it only when the user opens Advanced, More.",
+        "operationId": "topics_api_v1_datasets__dataset_id__text_topics_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "column",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Column"
+            }
+          },
+          {
+            "name": "k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 12,
+                  "minimum": 3
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "K"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Topics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "text"
+        ],
+        "summary": "Forget Topics",
+        "description": "Forget the kept topics: the Topic column is no longer offered.",
+        "operationId": "forget_topics_api_v1_datasets__dataset_id__text_topics_delete",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "column",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Column"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/text/topics/keep": {
+      "post": {
+        "tags": [
+          "text"
+        ],
+        "summary": "Keep Topics",
+        "description": "Keep these topics on the column (R-TOP-06): its Topic column becomes a derived column.",
+        "operationId": "keep_topics_api_v1_datasets__dataset_id__text_topics_keep_post",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeepTopics"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Topics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/modules/timeseries/datasets/{dataset_id}/overview": {
       "get": {
         "tags": [
@@ -6431,6 +8175,285 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SeriesSmoothing"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/modules/timeseries/datasets/{dataset_id}/regimes": {
+      "get": {
+        "tags": [
+          "module:timeseries"
+        ],
+        "summary": "Regimes",
+        "description": "Regimes of the series: a Markov-switching model (statsmodels MarkovRegression, its own\nmean and variance per regime), 2 or 3 regimes by BIC, on the level or on the period changes\nby rule (R-RG-01/02). Slow (seconds): called only on demand.",
+        "operationId": "regimes_api_v1_modules_timeseries_datasets__dataset_id__regimes_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 3,
+                  "minimum": 2
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "K"
+            }
+          },
+          {
+            "name": "on",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "level",
+                "changes"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "On"
+            }
+          },
+          {
+            "name": "time",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Time"
+            }
+          },
+          {
+            "name": "value",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Value"
+            }
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Group"
+            }
+          },
+          {
+            "name": "series",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Series"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "hour",
+                    "day",
+                    "week",
+                    "month",
+                    "quarter",
+                    "year"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "const": "auto",
+                  "type": "string"
+                }
+              ],
+              "default": "auto",
+              "title": "Period"
+            }
+          },
+          {
+            "name": "agg",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "sum",
+                    "mean",
+                    "median",
+                    "min",
+                    "max",
+                    "count"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "const": "auto",
+                  "type": "string"
+                }
+              ],
+              "default": "auto",
+              "title": "Agg"
+            }
+          },
+          {
+            "name": "window",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 365,
+                  "minimum": 2
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Window"
+            }
+          },
+          {
+            "name": "align",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "trailing",
+                "centered"
+              ],
+              "type": "string",
+              "default": "trailing",
+              "title": "Align"
+            }
+          },
+          {
+            "name": "gaps",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "leave",
+                "interpolate",
+                "zero",
+                "carry",
+                "kalman"
+              ],
+              "type": "string",
+              "default": "leave",
+              "title": "Gaps"
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 400,
+                  "minimum": 2
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filters"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesRegimes"
                 }
               }
             }
@@ -13510,6 +15533,68 @@
         }
       }
     },
+    "/api/v1/modules/segments/datasets/{dataset_id}/runs/{run_id}/words": {
+      "get": {
+        "tags": [
+          "module:segments"
+        ],
+        "summary": "Words",
+        "description": "059: the words over-represented in each segment's texts (computed when asked).",
+        "operationId": "words_api_v1_modules_segments_datasets__dataset_id__runs__run_id__words_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "column",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Column"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DistinctiveWords"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/modules/segments/datasets/{dataset_id}/runs/{run_id}/profiles.csv": {
       "get": {
         "tags": [
@@ -18531,6 +20616,127 @@
         ],
         "title": "ArOrder"
       },
+      "AssembleDate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^s[0-9]{1,4}$",
+            "title": "Id"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "suggested",
+              "manual"
+            ],
+            "title": "Origin",
+            "default": "manual"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 600
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggestion"
+          },
+          "op": {
+            "type": "string",
+            "const": "assemble_date",
+            "title": "Op",
+            "default": "assemble_date"
+          },
+          "year": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Year"
+          },
+          "month": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Month"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "hour": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hour"
+          },
+          "minute": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minute"
+          },
+          "to": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "To"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "year",
+          "month",
+          "to"
+        ],
+        "title": "AssembleDate",
+        "description": "A new date column from its parts held in separate columns (fix1, B-20): the year, the\nmonth (a number or a month name), the day (the 1st when there is none), and the hour and minute\nwhen given. The part columns stay as they are; a row whose parts make no date (a 31 February,\na missing part) gets an empty date."
+      },
       "AutoEntry": {
         "properties": {
           "id": {
@@ -20178,6 +22384,124 @@
         ],
         "title": "CellEdit"
       },
+      "Chain": {
+        "properties": {
+          "states": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "States"
+          },
+          "counts": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Counts"
+          },
+          "probabilities": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Probabilities"
+          },
+          "absorbing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Absorbing"
+          },
+          "never_left": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Never Left"
+          },
+          "stay_steps": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Stay Steps"
+          },
+          "stationary": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stationary"
+          },
+          "stationary_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stationary Note"
+          },
+          "steps_to_absorption": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Steps To Absorption"
+          },
+          "absorption": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Absorption"
+          },
+          "transitions": {
+            "type": "integer",
+            "title": "Transitions",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "states",
+          "counts",
+          "probabilities",
+          "absorbing",
+          "never_left",
+          "stay_steps",
+          "stationary",
+          "stationary_note"
+        ],
+        "title": "Chain"
+      },
       "ChangeCase": {
         "properties": {
           "id": {
@@ -21341,6 +23665,9 @@
                   "$ref": "#/components/schemas/DuplicateColumn"
                 },
                 {
+                  "$ref": "#/components/schemas/AssembleDate"
+                },
+                {
                   "$ref": "#/components/schemas/ChangeType"
                 },
                 {
@@ -21389,6 +23716,7 @@
               "discriminator": {
                 "propertyName": "op",
                 "mapping": {
+                  "assemble_date": "#/components/schemas/AssembleDate",
                   "change_case": "#/components/schemas/ChangeCase",
                   "change_type": "#/components/schemas/ChangeType",
                   "drop_columns": "#/components/schemas/DropColumns",
@@ -21560,6 +23888,28 @@
           "out_of_date": {
             "type": "boolean",
             "title": "Out Of Date"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Seq"
           }
         },
         "type": "object",
@@ -21660,6 +24010,9 @@
                   "$ref": "#/components/schemas/DuplicateColumn"
                 },
                 {
+                  "$ref": "#/components/schemas/AssembleDate"
+                },
+                {
                   "$ref": "#/components/schemas/ChangeType"
                 },
                 {
@@ -21708,6 +24061,7 @@
               "discriminator": {
                 "propertyName": "op",
                 "mapping": {
+                  "assemble_date": "#/components/schemas/AssembleDate",
                   "change_case": "#/components/schemas/ChangeCase",
                   "change_type": "#/components/schemas/ChangeType",
                   "drop_columns": "#/components/schemas/DropColumns",
@@ -21873,6 +24227,27 @@
             ],
             "title": "Mode"
           },
+          "impact": {
+            "type": "string",
+            "enum": [
+              "format",
+              "values",
+              "types",
+              "rows",
+              "columns"
+            ],
+            "title": "Impact",
+            "default": "values"
+          },
+          "risk": {
+            "type": "string",
+            "enum": [
+              "safe",
+              "review"
+            ],
+            "title": "Risk",
+            "default": "review"
+          },
           "order": {
             "type": "integer",
             "title": "Order",
@@ -21924,6 +24299,9 @@
                     "$ref": "#/components/schemas/DuplicateColumn"
                   },
                   {
+                    "$ref": "#/components/schemas/AssembleDate"
+                  },
+                  {
                     "$ref": "#/components/schemas/ChangeType"
                   },
                   {
@@ -21972,6 +24350,7 @@
                 "discriminator": {
                   "propertyName": "op",
                   "mapping": {
+                    "assemble_date": "#/components/schemas/AssembleDate",
                     "change_case": "#/components/schemas/ChangeCase",
                     "change_type": "#/components/schemas/ChangeType",
                     "drop_columns": "#/components/schemas/DropColumns",
@@ -22088,6 +24467,9 @@
                   "$ref": "#/components/schemas/DuplicateColumn"
                 },
                 {
+                  "$ref": "#/components/schemas/AssembleDate"
+                },
+                {
                   "$ref": "#/components/schemas/ChangeType"
                 },
                 {
@@ -22136,6 +24518,7 @@
               "discriminator": {
                 "propertyName": "op",
                 "mapping": {
+                  "assemble_date": "#/components/schemas/AssembleDate",
                   "change_case": "#/components/schemas/ChangeCase",
                   "change_type": "#/components/schemas/ChangeType",
                   "drop_columns": "#/components/schemas/DropColumns",
@@ -22169,6 +24552,28 @@
                 "type": "null"
               }
             ]
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Seq"
           }
         },
         "type": "object",
@@ -23656,7 +26061,8 @@
               "groups",
               "contingency",
               "timeline",
-              "date_counts"
+              "date_counts",
+              "words"
             ],
             "title": "Kind"
           },
@@ -23696,7 +26102,8 @@
               "enum": [
                 "num",
                 "cat",
-                "date"
+                "date",
+                "text"
               ]
             },
             "type": "object",
@@ -23895,6 +26302,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/MultipleTesting"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "words": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DistinctiveWords"
               },
               {
                 "type": "null"
@@ -24562,6 +26979,43 @@
         },
         "type": "object",
         "title": "CsvOptions"
+      },
+      "CurveLine": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "y": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Y"
+          },
+          "low": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Low"
+          },
+          "high": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "High"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "y",
+          "low",
+          "high"
+        ],
+        "title": "CurveLine"
       },
       "CurvePoint": {
         "properties": {
@@ -25445,6 +27899,44 @@
         ],
         "title": "Dependence"
       },
+      "DerivedSpec": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "part": {
+            "type": "string",
+            "title": "Part"
+          },
+          "option": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option"
+          },
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/TopicRule"
+            },
+            "type": "array",
+            "title": "Topics",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "part"
+        ],
+        "title": "DerivedSpec",
+        "description": "What a derived column is computed from (058): a source column and a part of it."
+      },
       "Describe": {
         "properties": {
           "rows": {
@@ -25962,6 +28454,94 @@
           "sensitive"
         ],
         "title": "DisclosureRequest"
+      },
+      "DistinctiveWord": {
+        "properties": {
+          "word": {
+            "type": "string",
+            "title": "Word"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "share": {
+            "type": "number",
+            "title": "Share"
+          },
+          "elsewhere": {
+            "type": "number",
+            "title": "Elsewhere"
+          },
+          "texts": {
+            "type": "integer",
+            "title": "Texts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "word",
+          "score",
+          "share",
+          "elsewhere",
+          "texts"
+        ],
+        "title": "DistinctiveWord"
+      },
+      "DistinctiveWords": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "by": {
+            "type": "string",
+            "title": "By"
+          },
+          "texts": {
+            "type": "integer",
+            "title": "Texts"
+          },
+          "sampled": {
+            "type": "boolean",
+            "title": "Sampled"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/GroupWords"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "groups_left": {
+            "type": "integer",
+            "title": "Groups Left"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "rules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rules"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "by",
+          "texts",
+          "sampled",
+          "groups",
+          "groups_left",
+          "sentence",
+          "rules"
+        ],
+        "title": "DistinctiveWords",
+        "description": "The words of a text column that mark each group (Compare, Segments, Changes)."
       },
       "Distribution": {
         "properties": {
@@ -26910,6 +29490,45 @@
           "magnitude"
         ],
         "title": "Effect"
+      },
+      "EffectCurve": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "x": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "X"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/CurveLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "scale": {
+            "type": "string",
+            "title": "Scale"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "x",
+          "lines",
+          "sentence",
+          "scale"
+        ],
+        "title": "EffectCurve"
       },
       "EnsembleResult": {
         "properties": {
@@ -31197,6 +33816,42 @@
         ],
         "title": "GroupRow"
       },
+      "GroupWords": {
+        "properties": {
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "texts": {
+            "type": "integer",
+            "title": "Texts"
+          },
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/DistinctiveWord"
+            },
+            "type": "array",
+            "title": "Words"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group",
+          "texts"
+        ],
+        "title": "GroupWords"
+      },
       "GroupsSetup": {
         "properties": {
           "setup": {
@@ -32419,6 +35074,33 @@
         "title": "JobOut"
       },
       "JsonValue": {},
+      "KeepTopics": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Column"
+          },
+          "k": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 12.0,
+                "minimum": 3.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "K"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column"
+        ],
+        "title": "KeepTopics"
+      },
       "KeyFigure": {
         "properties": {
           "id": {
@@ -33068,6 +35750,70 @@
         ],
         "title": "LeftOutTerm"
       },
+      "LevelEffect": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level"
+          },
+          "estimate": {
+            "type": "number",
+            "title": "Estimate"
+          },
+          "low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low"
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "derived": {
+            "type": "boolean",
+            "title": "Derived"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "level",
+          "estimate",
+          "low",
+          "high",
+          "p_value",
+          "derived"
+        ],
+        "title": "LevelEffect"
+      },
       "LevelError": {
         "properties": {
           "level": {
@@ -33364,6 +36110,50 @@
           "message"
         ],
         "title": "LogLine"
+      },
+      "LogRankResult": {
+        "properties": {
+          "statistic": {
+            "type": "number",
+            "title": "Statistic"
+          },
+          "df": {
+            "type": "integer",
+            "title": "Df"
+          },
+          "p_value": {
+            "type": "number",
+            "title": "P Value"
+          },
+          "significant": {
+            "type": "boolean",
+            "title": "Significant"
+          },
+          "observed": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Observed"
+          },
+          "expected": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Expected"
+          }
+        },
+        "type": "object",
+        "required": [
+          "statistic",
+          "df",
+          "p_value",
+          "significant",
+          "observed",
+          "expected"
+        ],
+        "title": "LogRankResult"
       },
       "LoggedDecisions": {
         "properties": {
@@ -37167,7 +39957,8 @@
               "boolean",
               "year",
               "text",
-              "time"
+              "time",
+              "derived"
             ],
             "title": "Kind",
             "default": "raw"
@@ -37215,11 +40006,119 @@
             "type": "array",
             "title": "False Values",
             "default": []
+          },
+          "derived": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DerivedSpec"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
         "title": "Parser",
-        "description": "How to read a stored value in its analysis type, applied at query time.\n\n- raw: the stored value as is\n- number: text with a given decimal separator (thousands separators, %, currency stripped)\n- date: text with a strptime format\n- boolean: text mapped with true/false vocabularies (empty lists: cast the value)\n- year: integer year \u2192 date (January 1st)\n- text: the value as text, null tokens removed\n- time: a time of day (TIME, or text with a strptime `format`) \u2192 hours since midnight (092)\n\nA date read with two formats (092, R-TYP-06) lists them in `formats`, the first one in `format`."
+        "description": "How to read a stored value in its analysis type, applied at query time.\n\n- raw: the stored value as is\n- number: text with a given decimal separator (thousands separators, %, currency stripped)\n- date: text with a strptime format\n- boolean: text mapped with true/false vocabularies (empty lists: cast the value)\n- year: integer year \u2192 date (January 1st)\n- text: the value as text, null tokens removed\n- time: a time of day (TIME, or text with a strptime `format`) \u2192 hours since midnight (092)\n- derived: a value computed from another column (`derived`, 058): the length of a text...\n\nA date read with two formats (092, R-TYP-06) lists them in `formats`, the first one in `format`."
+      },
+      "PartialPlot": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "x_resid": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "X Resid"
+          },
+          "y_resid": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Y Resid"
+          },
+          "slope": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slope"
+          },
+          "x": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "X"
+          },
+          "component_resid": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Component Resid"
+          },
+          "line_x": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Line X"
+          },
+          "line_y": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Line Y"
+          },
+          "rows": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points",
+            "default": 0
+          },
+          "of": {
+            "type": "integer",
+            "title": "Of",
+            "default": 0
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "available",
+          "reason"
+        ],
+        "title": "PartialPlot"
       },
       "Period": {
         "properties": {
@@ -39655,6 +42554,211 @@
         ],
         "title": "QualityChange"
       },
+      "QuantileCurve": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "taus": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Taus"
+          },
+          "estimates": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Estimates"
+          },
+          "low": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Low"
+          },
+          "high": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "High"
+          },
+          "ols": {
+            "type": "number",
+            "title": "Ols"
+          },
+          "ols_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ols Low"
+          },
+          "ols_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ols High"
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "q_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q Value"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "taus",
+          "estimates",
+          "low",
+          "high",
+          "ols",
+          "ols_low",
+          "ols_high",
+          "difference",
+          "p_value"
+        ],
+        "title": "QuantileCurve"
+      },
+      "QuantileProcess": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "taus": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Taus"
+          },
+          "curves": {
+            "items": {
+              "$ref": "#/components/schemas/QuantileCurve"
+            },
+            "type": "array",
+            "title": "Curves"
+          },
+          "tested": {
+            "type": "integer",
+            "title": "Tested",
+            "default": 0
+          },
+          "changing": {
+            "type": "integer",
+            "title": "Changing",
+            "default": 0
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows",
+            "default": 0
+          },
+          "sampled": {
+            "type": "boolean",
+            "title": "Sampled",
+            "default": false
+          },
+          "multiple": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MultipleTesting"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          },
+          "t_errors": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TErrors"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "QuantileProcess"
+      },
       "RareValue": {
         "properties": {
           "column": {
@@ -40575,6 +43679,11 @@
           "reason": {
             "type": "string",
             "title": "Reason"
+          },
+          "coding": {
+            "type": "string",
+            "title": "Coding",
+            "default": "reference"
           }
         },
         "type": "object",
@@ -40586,6 +43695,217 @@
           "reason"
         ],
         "title": "ReferenceLevel"
+      },
+      "Regime": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "mean": {
+            "type": "number",
+            "title": "Mean"
+          },
+          "std": {
+            "type": "number",
+            "title": "Std"
+          },
+          "share": {
+            "type": "number",
+            "title": "Share"
+          },
+          "expected_duration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Duration"
+          },
+          "stay": {
+            "type": "number",
+            "title": "Stay"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "mean",
+          "std",
+          "share",
+          "expected_duration",
+          "stay"
+        ],
+        "title": "Regime"
+      },
+      "RegimeFit": {
+        "properties": {
+          "k": {
+            "type": "integer",
+            "title": "K"
+          },
+          "aic": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aic"
+          },
+          "bic": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bic"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "k",
+          "aic",
+          "bic"
+        ],
+        "title": "RegimeFit"
+      },
+      "Regimes": {
+        "properties": {
+          "on": {
+            "type": "string",
+            "enum": [
+              "level",
+              "changes"
+            ],
+            "title": "On"
+          },
+          "on_reason": {
+            "type": "string",
+            "title": "On Reason"
+          },
+          "k": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "K"
+          },
+          "k_reason": {
+            "type": "string",
+            "title": "K Reason",
+            "default": ""
+          },
+          "start": {
+            "type": "integer",
+            "title": "Start",
+            "default": 0
+          },
+          "fits": {
+            "items": {
+              "$ref": "#/components/schemas/RegimeFit"
+            },
+            "type": "array",
+            "title": "Fits"
+          },
+          "regimes": {
+            "items": {
+              "$ref": "#/components/schemas/Regime"
+            },
+            "type": "array",
+            "title": "Regimes"
+          },
+          "transition": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Transition"
+          },
+          "probabilities": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Probabilities"
+          },
+          "most_likely": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Most Likely"
+          },
+          "values": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Values"
+          },
+          "switches": {
+            "type": "integer",
+            "title": "Switches",
+            "default": 0
+          },
+          "sentence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentence"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "on",
+          "on_reason"
+        ],
+        "title": "Regimes"
       },
       "Regression": {
         "properties": {
@@ -40684,6 +44004,17 @@
               }
             ],
             "title": "Family"
+          },
+          "term": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term"
           }
         },
         "type": "object",
@@ -40922,6 +44253,17 @@
               }
             ],
             "title": "Outcome"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
           }
         },
         "type": "object",
@@ -42245,6 +45587,40 @@
         ],
         "title": "ReportJob"
       },
+      "ResidualLaw": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "aic": {
+            "type": "number",
+            "title": "Aic"
+          },
+          "df": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Df"
+          },
+          "best": {
+            "type": "boolean",
+            "title": "Best",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "aic"
+        ],
+        "title": "ResidualLaw"
+      },
       "ResidualPlots": {
         "properties": {
           "fitted": {
@@ -42575,6 +45951,207 @@
           "sample"
         ],
         "title": "Robust"
+      },
+      "RobustColumn": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ols",
+              "huber",
+              "tukey",
+              "quantile",
+              "t"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "estimates": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Estimates"
+          },
+          "low": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Low"
+          },
+          "high": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "High"
+          },
+          "p_values": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "P Values"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "estimates",
+          "low",
+          "high",
+          "p_values",
+          "note"
+        ],
+        "title": "RobustColumn"
+      },
+      "RobustTable": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Terms"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/RobustColumn"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "quantile": {
+            "type": "number",
+            "title": "Quantile",
+            "default": 0.5
+          },
+          "quantiles": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Quantiles"
+          },
+          "moved": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Moved"
+          },
+          "downweighted": {
+            "type": "integer",
+            "title": "Downweighted",
+            "default": 0
+          },
+          "rejected": {
+            "type": "integer",
+            "title": "Rejected",
+            "default": 0
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows",
+            "default": 0
+          },
+          "quantile_rows": {
+            "type": "integer",
+            "title": "Quantile Rows",
+            "default": 0
+          },
+          "laws": {
+            "items": {
+              "$ref": "#/components/schemas/ResidualLaw"
+            },
+            "type": "array",
+            "title": "Laws"
+          },
+          "law_sentence": {
+            "type": "string",
+            "title": "Law Sentence",
+            "default": ""
+          },
+          "tail_xi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tail Xi"
+          },
+          "tail_sentence": {
+            "type": "string",
+            "title": "Tail Sentence",
+            "default": ""
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "RobustTable"
       },
       "RoleOut": {
         "properties": {
@@ -43985,6 +47562,9 @@
                   "$ref": "#/components/schemas/DuplicateColumn"
                 },
                 {
+                  "$ref": "#/components/schemas/AssembleDate"
+                },
+                {
                   "$ref": "#/components/schemas/ChangeType"
                 },
                 {
@@ -44033,6 +47613,7 @@
               "discriminator": {
                 "propertyName": "op",
                 "mapping": {
+                  "assemble_date": "#/components/schemas/AssembleDate",
                   "change_case": "#/components/schemas/ChangeCase",
                   "change_type": "#/components/schemas/ChangeType",
                   "drop_columns": "#/components/schemas/DropColumns",
@@ -47318,6 +50899,36 @@
         ],
         "title": "SeriesOverview"
       },
+      "SeriesRegimes": {
+        "properties": {
+          "setup": {
+            "$ref": "#/components/schemas/SeriesSetup"
+          },
+          "periods": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Periods"
+          },
+          "regimes": {
+            "$ref": "#/components/schemas/Regimes"
+          },
+          "filled": {
+            "type": "integer",
+            "title": "Filled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "setup",
+          "periods",
+          "regimes",
+          "filled"
+        ],
+        "title": "SeriesRegimes",
+        "description": "Regimes of the series (062), computed on demand only (Advanced)."
+      },
       "SeriesResiduals": {
         "properties": {
           "setup": {
@@ -48562,6 +52173,70 @@
         ],
         "title": "SignalCell"
       },
+      "SimpleSlope": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "slope": {
+            "type": "number",
+            "title": "Slope"
+          },
+          "low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low"
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "column",
+          "at",
+          "slope",
+          "low",
+          "high",
+          "p_value"
+        ],
+        "title": "SimpleSlope"
+      },
       "Slice": {
         "properties": {
           "where": {
@@ -49053,6 +52728,9 @@
                   "$ref": "#/components/schemas/DuplicateColumn"
                 },
                 {
+                  "$ref": "#/components/schemas/AssembleDate"
+                },
+                {
                   "$ref": "#/components/schemas/ChangeType"
                 },
                 {
@@ -49101,6 +52779,7 @@
               "discriminator": {
                 "propertyName": "op",
                 "mapping": {
+                  "assemble_date": "#/components/schemas/AssembleDate",
                   "change_case": "#/components/schemas/ChangeCase",
                   "change_type": "#/components/schemas/ChangeType",
                   "drop_columns": "#/components/schemas/DropColumns",
@@ -49508,6 +53187,341 @@
         ],
         "title": "Suggestions"
       },
+      "Survival": {
+        "properties": {
+          "setup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SurvivalSetup"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "choices": {
+            "$ref": "#/components/schemas/SurvivalChoices"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows",
+            "default": 0
+          },
+          "events": {
+            "type": "integer",
+            "title": "Events",
+            "default": 0
+          },
+          "censored": {
+            "type": "integer",
+            "title": "Censored",
+            "default": 0
+          },
+          "dropped": {
+            "type": "integer",
+            "title": "Dropped",
+            "default": 0
+          },
+          "curves": {
+            "items": {
+              "$ref": "#/components/schemas/SurvivalCurve"
+            },
+            "type": "array",
+            "title": "Curves"
+          },
+          "log_rank": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LogRankResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "others": {
+            "type": "integer",
+            "title": "Others",
+            "default": 0
+          },
+          "sentence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentence"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "setup",
+          "choices"
+        ],
+        "title": "Survival"
+      },
+      "SurvivalChoices": {
+        "properties": {
+          "durations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Durations"
+          },
+          "events": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "dates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dates"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Groups"
+          }
+        },
+        "type": "object",
+        "title": "SurvivalChoices"
+      },
+      "SurvivalCurve": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          },
+          "events": {
+            "type": "integer",
+            "title": "Events"
+          },
+          "times": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Times"
+          },
+          "survival": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Survival"
+          },
+          "lower": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Lower"
+          },
+          "upper": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Upper"
+          },
+          "at_risk": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "At Risk"
+          },
+          "median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          },
+          "median_lower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Lower"
+          },
+          "median_upper": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Upper"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "n",
+          "events",
+          "times",
+          "survival",
+          "lower",
+          "upper",
+          "at_risk",
+          "median",
+          "median_lower",
+          "median_upper"
+        ],
+        "title": "SurvivalCurve"
+      },
+      "SurvivalSetup": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "duration",
+              "dates"
+            ],
+            "title": "Kind"
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration"
+          },
+          "event": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "event_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Value"
+          },
+          "event_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Reason"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "detected": {
+            "type": "boolean",
+            "title": "Detected",
+            "default": true
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "SurvivalSetup"
+      },
       "Synthesis": {
         "properties": {
           "verdict": {
@@ -49911,6 +53925,120 @@
           "privacy"
         ],
         "title": "SyntheticScores"
+      },
+      "TErrors": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "converged": {
+            "type": "boolean",
+            "title": "Converged",
+            "default": false
+          },
+          "df": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Df"
+          },
+          "scale": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scale"
+          },
+          "terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Terms"
+          },
+          "estimates": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Estimates"
+          },
+          "low": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Low"
+          },
+          "high": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "High"
+          },
+          "aic": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aic"
+          },
+          "ols_aic": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ols Aic"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "TErrors"
       },
       "TableView": {
         "properties": {
@@ -50481,6 +54609,116 @@
         ],
         "title": "Targets"
       },
+      "TermNote": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "used",
+              "added",
+              "refused"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "status",
+          "reason",
+          "rule"
+        ],
+        "title": "TermNote",
+        "description": "What a term did, or why it could not (shown in Advanced \u203a Terms)."
+      },
+      "TermTest": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "columns": {
+            "type": "integer",
+            "title": "Columns"
+          },
+          "statistic": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statistic"
+          },
+          "df_num": {
+            "type": "integer",
+            "title": "Df Num"
+          },
+          "df_den": {
+            "type": "integer",
+            "title": "Df Den"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "info"
+            ],
+            "title": "Status"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "question",
+          "columns",
+          "statistic",
+          "df_num",
+          "df_den",
+          "p_value",
+          "status",
+          "sentence"
+        ],
+        "title": "TermTest"
+      },
       "TermsTable": {
         "properties": {
           "references": {
@@ -50518,6 +54756,65 @@
           "sentence": {
             "type": "string",
             "title": "Sentence"
+          },
+          "specs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Specs"
+          },
+          "center": {
+            "type": "boolean",
+            "title": "Center",
+            "default": false
+          },
+          "coding": {
+            "type": "string",
+            "title": "Coding",
+            "default": "reference"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/TermNote"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "tests": {
+            "items": {
+              "$ref": "#/components/schemas/TermTest"
+            },
+            "type": "array",
+            "title": "Tests"
+          },
+          "curves": {
+            "items": {
+              "$ref": "#/components/schemas/EffectCurve"
+            },
+            "type": "array",
+            "title": "Curves"
+          },
+          "slopes": {
+            "items": {
+              "$ref": "#/components/schemas/SimpleSlope"
+            },
+            "type": "array",
+            "title": "Slopes"
+          },
+          "contrasts": {
+            "items": {
+              "$ref": "#/components/schemas/LevelEffect"
+            },
+            "type": "array",
+            "title": "Contrasts"
+          },
+          "numbers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Numbers"
           }
         },
         "type": "object",
@@ -51412,6 +55709,166 @@
         ],
         "title": "TopGroup"
       },
+      "Topic": {
+        "properties": {
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/TopicWord"
+            },
+            "type": "array",
+            "title": "Words"
+          },
+          "texts": {
+            "type": "integer",
+            "title": "Texts"
+          },
+          "share": {
+            "type": "number",
+            "title": "Share"
+          },
+          "examples": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Examples"
+          }
+        },
+        "type": "object",
+        "required": [
+          "number",
+          "label",
+          "words",
+          "texts",
+          "share"
+        ],
+        "title": "Topic"
+      },
+      "TopicRule": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "words": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Words"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "words"
+        ],
+        "title": "TopicRule",
+        "description": "A topic as the Topic rule reads it (059, R-TOP-05): its words and their weights."
+      },
+      "TopicWord": {
+        "properties": {
+          "word": {
+            "type": "string",
+            "title": "Word"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight"
+          }
+        },
+        "type": "object",
+        "required": [
+          "word",
+          "weight"
+        ],
+        "title": "TopicWord"
+      },
+      "Topics": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "texts": {
+            "type": "integer",
+            "title": "Texts"
+          },
+          "sampled": {
+            "type": "boolean",
+            "title": "Sampled"
+          },
+          "k": {
+            "type": "integer",
+            "title": "K"
+          },
+          "k_rule": {
+            "type": "string",
+            "title": "K Rule"
+          },
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/Topic"
+            },
+            "type": "array",
+            "title": "Topics"
+          },
+          "no_topic": {
+            "type": "number",
+            "title": "No Topic"
+          },
+          "agreement": {
+            "type": "number",
+            "title": "Agreement"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/TopicRule"
+            },
+            "type": "array",
+            "title": "Rules"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "kept": {
+            "type": "boolean",
+            "title": "Kept",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "texts",
+          "sampled",
+          "k",
+          "k_rule",
+          "topics",
+          "no_topic",
+          "agreement",
+          "sentence",
+          "rules",
+          "reasons"
+        ],
+        "title": "Topics"
+      },
       "TrainingJob": {
         "properties": {
           "id": {
@@ -51549,6 +56006,147 @@
           "bins"
         ],
         "title": "Transform"
+      },
+      "TransitionChoices": {
+        "properties": {
+          "entities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Entities"
+          },
+          "times": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Times"
+          },
+          "statuses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Statuses"
+          }
+        },
+        "type": "object",
+        "title": "TransitionChoices"
+      },
+      "TransitionSetup": {
+        "properties": {
+          "entity": {
+            "type": "string",
+            "title": "Entity"
+          },
+          "time": {
+            "type": "string",
+            "title": "Time"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "detected": {
+            "type": "boolean",
+            "title": "Detected",
+            "default": true
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity",
+          "time",
+          "status"
+        ],
+        "title": "TransitionSetup"
+      },
+      "Transitions": {
+        "properties": {
+          "setup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TransitionSetup"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "choices": {
+            "$ref": "#/components/schemas/TransitionChoices"
+          },
+          "entities": {
+            "type": "integer",
+            "title": "Entities",
+            "default": 0
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows",
+            "default": 0
+          },
+          "chain": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Chain"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "step_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Days"
+          },
+          "others": {
+            "type": "integer",
+            "title": "Others",
+            "default": 0
+          },
+          "sentence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentence"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "setup",
+          "choices"
+        ],
+        "title": "Transitions"
       },
       "TreeNode": {
         "properties": {
@@ -53233,6 +57831,42 @@
           "rows"
         ],
         "title": "Word"
+      },
+      "WordsAnswer": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "words": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DistinctiveWords"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "WordsAnswer",
+        "description": "059: the words that rise in each version of a text column, when both are at hand."
       },
       "YearLine": {
         "properties": {

@@ -22,7 +22,7 @@ const version = (child: string, parent: string, seq: number) => ({
   origin: "user",
   steps: 1,
   created_at: "2026-11-10T10:00:00Z",
-  out_of_date: false,
+  out_of_date: false, source_id: null, source_seq: null,
 });
 
 const datasets = [

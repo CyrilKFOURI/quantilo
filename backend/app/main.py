@@ -12,6 +12,7 @@ from quantilo.correlations.service import CorrelationService
 from quantilo.profiling.service import ProfilingService
 from quantilo.regression.service import RegressionService
 from quantilo.rows.service import RowService
+from quantilo.text.service import TextService
 from quantilo.variable.service import VariableService
 
 from app.api import (
@@ -30,6 +31,7 @@ from app.api import (
     report,
     rows,
     sources,
+    text,
     variable,
 )
 from app.api import settings as settings_api
@@ -85,6 +87,7 @@ def create_app(settings: Settings | None = None, job_runner: JobRunner | None = 
     app.state.saved_filters = SavedFilterService(workspace, column_service)
     app.state.compare = CompareService(column_service)
     app.state.correlations = CorrelationService(column_service)
+    app.state.text = TextService(column_service)  # 059
     app.state.regression = RegressionService(column_service, app.state.correlations)
     app.state.rows = RowService(column_service)
     app.state.reports = ReportService(
@@ -124,7 +127,7 @@ def create_app(settings: Settings | None = None, job_runner: JobRunner | None = 
 
     api = APIRouter(prefix=API_PREFIX)
     routers = (health, datasets, sources, jobs, columns, profiling, variable, filters, compare)
-    others = (correlations, regression, rows, report, changes, settings_api, projects, model)
+    others = (correlations, regression, rows, report, changes, settings_api, projects, model, text)
     for module in (*routers, *others):
         api.include_router(module.router)
     app.include_router(api)

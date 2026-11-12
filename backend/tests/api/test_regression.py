@@ -160,3 +160,35 @@ def test_panel_and_instruments(client: TestClient, tmp_path) -> None:
     assert found["se"]["kind"] == "cluster"
     assert found["first_stages"][0]["effective_f"] > 10
     assert {t["key"] for t in found["tests"]} == {"endogeneity", "anderson_rubin", "overid"}
+
+
+def test_terms_partial_robust_and_quantiles(client: TestClient, traps: str) -> None:
+    """070 and 072: terms in the query, the partial plots, the robust and quantile routes."""
+    params = {
+        "target": "price_eur",
+        "columns": "age,income,segment",
+        "terms": "spline:age,interaction:income|segment",
+        "center": "true",
+    }
+    body = client.get(url(traps), params=params).json()
+    names = [t["term"] for t in body["terms"]]
+    assert "age · curve 1" in names
+    assert any(n.startswith("income × segment = ") for n in names)  # noqa: RUF001
+    assert any(t["group"] == "spline:age" for t in body["terms"])
+    terms = client.get(url(traps, "/terms"), params=params).json()
+    assert terms["specs"] == ["spline:age", "interaction:income|segment"] and terms["center"]
+    assert any(t["question"] == "Is the effect of `age` a curve?" for t in terms["tests"])
+    assert terms["slopes"] and terms["curves"]
+    shape = client.get(url(traps, "/partial"), params={**params, "column": "income"}).json()
+    assert shape["available"] and shape["slope"] is not None
+    bad = client.get(url(traps), params={**params, "terms": "curve:age"})
+    assert bad.status_code == 422
+    plain = {"target": "price_eur", "columns": "age,income"}
+    robust = client.get(url(traps, "/robust"), params={**plain, "quantile": 0.75}).json()
+    assert robust["available"] and [c["kind"] for c in robust["columns"]] == [
+        "ols", "huber", "tukey", "quantile",
+    ]  # fmt: skip
+    assert robust["quantile"] == 0.75
+    assert client.get(url(traps, "/robust"), params={**plain, "quantile": 0.3}).status_code == 422
+    process = client.get(url(traps, "/quantiles"), params=plain).json()
+    assert process["available"] and process["taus"][0] == 0.1 and process["curves"]

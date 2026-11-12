@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { request, type MlChoicesInput } from "../../api/client";
+import { request, type DistinctiveWords, type MlChoicesInput } from "../../api/client";
 import { filtersParam, useActiveFilters, type Condition } from "../../api/filters";
 import type { components } from "../../api/schema";
 
@@ -58,6 +58,12 @@ export const segmentsApi = {
   job: (jobId: string) => request<SegmentJob>("GET", `${BASE}/jobs/${jobId}`),
   cancel: (jobId: string) => request<SegmentJob>("DELETE", `${BASE}/jobs/${jobId}`),
   runs: (id: string) => request<SegmentRunSummary[]>("GET", `${BASE}/datasets/${id}/runs`),
+  /** 059: the words that mark each segment's texts, asked for when Advanced is opened. */
+  words: (id: string, runId: string, column: string) =>
+    request<DistinctiveWords>(
+      "GET",
+      `${BASE}/datasets/${id}/runs/${runId}/words?${new URLSearchParams({ column })}`,
+    ),
   run: (id: string, runId: string) => request<SegmentRun>("GET", `${BASE}/datasets/${id}/runs/${runId}`),
   compare: (id: string, runIds: string[]) =>
     request<SegmentComparison>("GET", `${BASE}/datasets/${id}/runs/compare?runs=${runIds.map(encodeURIComponent).join(",")}`),

@@ -18,6 +18,7 @@ import { NumericChart } from "../../features/variable/NumericChart";
 import { OutliersPanel } from "../../features/variable/OutliersPanel";
 import { RobustBlock } from "../../features/variable/RobustBlock";
 import { TailPanel } from "../../features/variable/TailPanel";
+import { offersTopics, TopicsSection } from "../../features/text/TopicsSection";
 import {
   CategoricalPanel,
   DatePanel,
@@ -201,6 +202,7 @@ function VariableSections({ datasetId, column, profile }: { datasetId: string; c
       {profile.categorical && <FullCategories datasetId={datasetId} column={column} />}
       {profile.date && <DatePanel profile={profile.date} />}
       {profile.text && <TextPanel profile={profile.text} />}
+      {profile.text && offersTopics(column) && <TopicsSection datasetId={datasetId} column={column} />}
       {profile.identifier && <IdentifierPanel profile={profile.identifier} />}
     </div>
   );

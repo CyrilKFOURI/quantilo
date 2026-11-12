@@ -2,6 +2,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from quantilo.compare.analyze import Comparison
+from quantilo.compare.durations import Survival, Transitions
 from quantilo.compare.service import CompareService
 from quantilo.timeseries.series import Aggregate, Align, Options, Period
 
@@ -40,3 +41,40 @@ def compare(
     options = Options(period, agg, window, align)
     kept = [n for n in (numbers or "").split(",") if n]
     return service.compare(dataset_id, x, y, z, color, filters, options, kept)
+
+
+Column = Annotated[str | None, Query(min_length=1)]
+
+
+@router.get("/datasets/{dataset_id}/survival")
+def survival(
+    dataset_id: str,
+    service: Service,
+    filters: Filters,
+    duration: Column = None,
+    event: Column = None,
+    start: Column = None,
+    end: Column = None,
+    group: Column = None,
+    event_value: Annotated[str | None, Query(max_length=200)] = None,
+) -> Survival:
+    """Kaplan-Meier curves (95 % log-log intervals), median survival and the log-rank test.
+    Without columns, the reading a rule detects (R-SRV-01 duration + event, R-SRV-02 start + end
+    dates); `setup` is null when no rule fires (the section stays hidden)."""
+    return service.survival(dataset_id, filters, duration, event, start, end, group, event_value)
+
+
+@router.get("/datasets/{dataset_id}/transitions")
+def transitions(
+    dataset_id: str,
+    service: Service,
+    filters: Filters,
+    entity: Column = None,
+    time: Column = None,
+    status: Column = None,
+    detect_only: bool = False,
+) -> Transitions:
+    """Status transitions as a Markov chain: matrix, stationary shares, absorbing states and the
+    expected steps before reaching them. Without columns, the reading R-MKV-01 detects;
+    `detect_only` returns it without reading the rows."""
+    return service.transitions(dataset_id, filters, entity, time, status, detect_only)

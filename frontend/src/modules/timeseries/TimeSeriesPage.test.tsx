@@ -435,6 +435,31 @@ const columns = [
   column({ name: "units", position: 1, role: "quantity" }),
 ];
 
+const regimes = {
+  setup: overview.setup,
+  periods: ["2024-01-01", "2024-01-02", "2024-01-03"],
+  filled: 0,
+  regimes: {
+    on: "changes",
+    on_reason: "R-RG-01: the series has a unit root (ADF p = 0.8).",
+    k: 2,
+    k_reason: "R-RG-02: 2 regimes, the lower BIC.",
+    start: 1,
+    fits: [],
+    regimes: [
+      { name: "calm", mean: 0, std: 1, share: 0.7, expected_duration: 40, stay: 0.975 },
+      { name: "turbulent", mean: 0, std: 4, share: 0.3, expected_duration: 12, stay: 0.92 },
+    ],
+    transition: [[0.975, 0.025], [0.08, 0.92]],
+    probabilities: [[0.9, 0.8, 0.1], [0.1, 0.2, 0.9]],
+    most_likely: [0, 0, 1],
+    values: [1, -1, 6],
+    switches: 1,
+    sentence: "2 regimes of the changes, 1 switches; the series ends in the turbulent regime.",
+    message: null,
+  },
+};
+
 function setupApi() {
   return mockApi({
     "GET /health": health,
@@ -451,6 +476,7 @@ function setupApi() {
     "GET /modules/timeseries/datasets/d1/volatility": volatility,
     "GET /modules/timeseries/datasets/d1/residuals": residuals,
     "GET /modules/timeseries/datasets/d1/breaks": breaks,
+    "GET /modules/timeseries/datasets/d1/regimes": regimes,
     "GET /modules/timeseries/datasets/d1/drivers": drivers,
     "POST /modules/timeseries/datasets/d1/forecast": {
       ...forecastJob,
@@ -838,7 +864,8 @@ describe("Smooth row and Kalman gaps (064)", () => {
     fireEvent.click(within(overviewSection).getByRole("button", { name: "Add a smoothing method" }));
 
     const more = screen.getByText("More").closest("details");
-    const advanced = screen.getByText("Advanced").closest("details");
+    // the Advanced of the smoothing list (Breaks has its own, 062)
+    const advanced = more?.parentElement?.closest("details") ?? null;
     expect(advanced).not.toHaveAttribute("open");
     expect(more).not.toHaveAttribute("open");
     expect(advanced?.contains(more ?? null)).toBe(true);
@@ -872,3 +899,18 @@ describe("Smooth row and Kalman gaps (064)", () => {
   });
 });
 
+describe("Regimes (062)", () => {
+  it("are folded under Advanced in Breaks and fitted only when asked", async () => {
+    const calls = setupApi();
+    renderAt(SERIES);
+    const summary = await screen.findByText("Regimes (Markov switching)");
+    const asked = () => calls.filter((c) => c.key.endsWith("/regimes"));
+    expect(asked()).toHaveLength(0);
+    fireEvent.click(summary);
+    fireEvent.change(screen.getByLabelText("Regimes"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Find regimes" }));
+    expect(await screen.findByText(/ends in the turbulent regime/)).toBeInTheDocument();
+    expect(asked().at(-1)?.params.get("k")).toBe("2");
+    expect(screen.getByText(/R-RG-01/)).toBeInTheDocument();
+  });
+});

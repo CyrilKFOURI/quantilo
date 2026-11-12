@@ -177,7 +177,8 @@ function Catalog({ onPick, onClose }: { onPick: (op: Op) => void; onClose: () =>
     <Dialog open onOpenChange={(open) => !open && onClose()} title={t("clean.catalog.title")} size="md">
       <label className="relative mb-3 block">
         <Search size={14} strokeWidth={1.5} className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-ink-3" aria-hidden />
-        <TextInput autoFocus aria-label={t("clean.catalog.search")} placeholder={t("clean.catalog.search")} value={query} onChange={(event) => setQuery(event.target.value)} className="w-full pl-7" />
+        {/* 096: not focused on open (it would pop the keyboard on a phone); a tap focuses it */}
+        <TextInput aria-label={t("clean.catalog.search")} placeholder={t("clean.catalog.search")} value={query} onChange={(event) => setQuery(event.target.value)} className="w-full pl-7" />
       </label>
       {found.length === 0 && <p className="text-[13px] text-ink-2">{t("clean.catalog.none")}</p>}
       <div className="space-y-4">

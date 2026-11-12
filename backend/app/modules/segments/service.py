@@ -39,6 +39,8 @@ from quantilo.segments.engine import (
 )
 from quantilo.segments.export import with_columns
 from quantilo.segments.facade import SEGMENT_COLUMN, free_name
+from quantilo.text.distinctive import DistinctiveWords
+from quantilo.text.service import TextError, TextService
 from sklearn.metrics import adjusted_rand_score
 
 from app.core import db
@@ -169,6 +171,7 @@ class SegmentsService(SegmentsEngine):
     """The engine, plus jobs, saved runs, names, t-SNE maps, marks and new datasets."""
 
     def __init__(self, columns: ColumnService, workspace: Workspace) -> None:
+        self._text = TextService(columns)  # 059: words of each segment
         super().__init__(columns)
         self.columns: ColumnService = columns
         self.workspace = workspace
@@ -240,7 +243,8 @@ class SegmentsService(SegmentsEngine):
     def start(
         self, dataset_id: str, request: SegmentRequest, conditions: list[Condition]
     ) -> SegmentJob:
-        fields, _ = self._fields(dataset_id, conditions)  # unknown dataset or filter: fail now
+        # unknown dataset or filter: fail now
+        fields, _ = self._fields(dataset_id, conditions, request)
         self.check(fields, request)
         job = self._job("segments")
 
@@ -404,6 +408,20 @@ class SegmentsService(SegmentsEngine):
         self._executor.submit(self._follow, job, work)
         return job
 
+    def words(self, dataset_id: str, run_id: str, column: str) -> DistinctiveWords:
+        """059, R-WRD-07: the words over-represented in each segment's texts."""
+        run = self.run(dataset_id, run_id)
+        names = {s.id: s.name for s in run.result.segments}
+        labels = self.labels(dataset_id, run_id)
+        groups = [names.get(int(v), str(v)) for v in labels["segment"]]
+        order = [s.name for s in run.result.segments]
+        try:
+            return self._text.words_by_rows(
+                dataset_id, column, labels["row"].astype(int).tolist(), groups, "segment", order
+            )
+        except TextError as error:
+            raise SegmentsError(error.message, "not_text") from error
+
     def profiles_csv(self, dataset_id: str, run_id: str) -> bytes:
         """The profile table: one line per column, the whole then each segment."""
         result = self.run(dataset_id, run_id).result
@@ -489,7 +507,7 @@ class SegmentsService(SegmentsEngine):
     def start_unusual(
         self, dataset_id: str, request: UnusualStart, conditions: list[Condition]
     ) -> SegmentJob:
-        fields, _ = self._fields(dataset_id, conditions)
+        fields, _ = self._fields(dataset_id, conditions, request)
         self.check(fields, request)
         segments = None
         if request.segments_run:

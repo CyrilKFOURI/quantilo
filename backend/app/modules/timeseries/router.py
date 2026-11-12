@@ -10,6 +10,7 @@ from quantilo.timeseries import drivers as dv
 from quantilo.timeseries import forecast as fc
 from quantilo.timeseries import groups as gr
 from quantilo.timeseries import methods
+from quantilo.timeseries import regimes as rg
 from quantilo.timeseries import residuals as rs
 from quantilo.timeseries import smoothing as sm
 from quantilo.timeseries import stationarity as st
@@ -25,6 +26,7 @@ from quantilo.timeseries.service import (
     SeriesDecomposition,
     SeriesDrivers,
     SeriesOverview,
+    SeriesRegimes,
     SeriesResiduals,
     SeriesSeasonality,
     SeriesSmoothing,
@@ -118,6 +120,21 @@ def smoothing(
         hp_lambda=hp_lambda,
     )
     return service.smoothing(dataset_id, request, filters, keys, params)
+
+
+@router.get("/datasets/{dataset_id}/regimes")
+def regimes(
+    dataset_id: str,
+    service: Service,
+    request: Series,
+    filters: Filters,
+    k: Annotated[int | None, Query(ge=2, le=3)] = None,
+    on: rg.On = "auto",
+) -> SeriesRegimes:
+    """Regimes of the series: a Markov-switching model (statsmodels MarkovRegression, its own
+    mean and variance per regime), 2 or 3 regimes by BIC, on the level or on the period changes
+    by rule (R-RG-01/02). Slow (seconds): called only on demand."""
+    return service.regimes(dataset_id, request, filters, k, on)
 
 
 @router.get("/datasets/{dataset_id}/seasonality")

@@ -16,7 +16,7 @@ from quantilo.cleaning.apply import apply_steps
 from quantilo.cleaning.compile import compile_steps
 from quantilo.cleaning.preview import CleanPreview, preview
 from quantilo.cleaning.report import CleanReport, TypeChange
-from quantilo.cleaning.suggest import default_steps, suggest, with_suggestion
+from quantilo.cleaning.suggest import default_steps, suggest, suggest_advanced, with_suggestion
 from quantilo.cleaning.suggestion import CleanSuggestion
 from quantilo.typing.engine import DEFAULT_THRESHOLDS
 
@@ -73,8 +73,9 @@ def type_changes(before: list[Any], after: list[Any], steps: list[Any]) -> list[
 
 
 class Cleaning:
-    """Suggestions computed on opening; `steps` starts with the automatic ones. `use()` /
-    `skip()` a suggestion, `add()` a step, `preview()`, then `apply()` for the cleaned dataset."""
+    """Basic suggestions computed on opening; `advanced()` adds the Advanced ones on demand.
+    `steps` starts with the automatic ones. `use()` / `skip()` a suggestion, `add()` a step,
+    `preview()`, then `apply()` for the cleaned dataset."""
 
     def __init__(self, dataset: Dataset, steps: list[Any] | None = None) -> None:
         self.dataset = dataset.unfiltered()
@@ -90,6 +91,22 @@ class Cleaning:
         )
         self.report: CleanReport | None = None
         self.rowmap: Path | None = None  # child row → parent row, after apply()
+        self._advanced: list[CleanSuggestion] | None = None
+
+    def advanced(self) -> list[CleanSuggestion]:
+        """The Advanced suggestions (097), computed on the first call only (C-16) and added to
+        `suggestions`; none is ticked (mode S or I, C-17): `use()` one to add its step."""
+        if self._advanced is None:
+            basic = [s for s in self.suggestions if s.layer == "basic"]
+            connection = duckdb.connect()
+            try:
+                self._advanced = suggest_advanced(
+                    connection, str(self.dataset.path), self.dataset.types, basic
+                )
+            finally:
+                connection.close()
+            self.suggestions = [*self.suggestions, *self._advanced]
+        return self._advanced
 
     def __repr__(self) -> str:
         return (

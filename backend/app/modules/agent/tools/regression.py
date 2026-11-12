@@ -43,6 +43,18 @@ class RegressionInput(BaseModel):
             "gamma or fractional only when a check proposes it or the user asks."
         ),
     )  # fmt: skip
+    terms: list[str] | None = Field(
+        None,
+        description=(
+            "070: extra terms: 'spline:x' (a curve, when the straight-lines check proposes it), "
+            "'square:x', 'log:x', 'interaction:a|b' (only for a hypothesis the user states), "
+            "'trend:date', 'month:date', 'weekday:date', 'reference:column|level'."
+        ),
+        max_length=20,
+    )
+    center: bool = Field(
+        False, description="070: centre the numbers (main effects read at the mean of the others)."
+    )
 
 
 def _term(t: RegressionCoefficient) -> dict[str, Any]:
@@ -125,6 +137,7 @@ def regression_content(r: RegressionReport) -> dict[str, Any]:
         "checks": [
             {"check": c.title, "status": c.status, "sentence": c.sentence}
             | ({"try_family": c.family} if c.family else {})
+            | ({"try_term": c.term} if c.term else {})
             for c in r.checks
         ],
         "left_out": [{"term": item.term, "reason": item.reason} for item in r.left_out],
@@ -174,6 +187,8 @@ class FitRegression(Tool[RegressionInput]):
             cluster,
             args.se,
             family=args.family,
+            terms=tuple(args.terms or ()),
+            center=args.center,
         )
         try:
             found = service.regression(ctx.dataset_id, request, ctx.conditions)
@@ -191,6 +206,10 @@ class FitRegression(Tool[RegressionInput]):
             params["se"] = args.se
         if args.family != "auto":
             params["family"] = args.family
+        if args.terms:
+            params["terms"] = ",".join(args.terms)
+        if args.center:
+            params["center"] = "1"
         return ToolOutput(
             summary, regression_content(found), AppLink("regression", params, "Open the regression")
         )

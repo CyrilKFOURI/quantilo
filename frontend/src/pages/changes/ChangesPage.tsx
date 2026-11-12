@@ -2,7 +2,7 @@ import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router"
 import { useMemo } from "react";
 
 import type { Changes } from "../../api/client";
-import { ApiError } from "../../api/client";
+import { api, ApiError } from "../../api/client";
 import { useChanges, useColumns, useDataset, useDatasets, useVersions } from "../../api/hooks";
 import { ChangesSummary } from "../../features/changes/ChangesBanner";
 import { useFamily, type FamilyVersion } from "../../features/lineage/api";
@@ -10,6 +10,7 @@ import { describeStep } from "../../features/lineage/steps";
 import { t, type MessageKey } from "../../lib/i18n";
 import { ErrorNote, Select } from "../../ui/fields";
 import { Tabs } from "../../ui/Tabs";
+import { TextWords, wordColumns } from "../../features/text/TextWords";
 import { DistributionsTab } from "./DistributionsTab";
 import { KpisTab, RelationsTab } from "./FollowTabs";
 import { RowsTab } from "./RowsTab";
@@ -125,12 +126,24 @@ export function ChangesPage() {
             {tab === "schema" && <SchemaTab changes={changes.data} />}
             {tab === "quality" && <QualityTab changes={changes.data} />}
             {tab === "distributions" && (
-              <DistributionsTab
-                changes={changes.data}
-                types={types}
-                column={search.column}
-                onColumn={(column) => update({ column })}
-              />
+              <div className="flex flex-col gap-5">
+                <DistributionsTab
+                  changes={changes.data}
+                  types={types}
+                  column={search.column}
+                  onColumn={(column) => update({ column })}
+                />
+                <TextWords
+                  columns={wordColumns(columns.data)}
+                  queryKey={["datasets", datasetId, "changes", vs, "words"]}
+                  fetch={async (column) => {
+                    const answer = await api.changeWords(datasetId, vs, column);
+                    if (!answer.available) throw new Error(answer.reason ?? "");
+                    return answer.words;
+                  }}
+                  hint={t("changes.wordsHint")}
+                />
+              </div>
             )}
             {tab === "rows" && <RowsTab dataset={dataset.data} vs={vs} />}
             {tab === "kpis" && <KpisTab dataset={dataset.data} vs={vs} />}

@@ -2,8 +2,9 @@ import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { Columns3 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import type { AnalysisType, AssociationMatrix, CorrelationMethod, Correction } from "../../api/client";
-import { useColumns, useCorrelations, useDataset } from "../../api/hooks";
+import type { AnalysisType, AssociationMatrix, Column, CorrelationMethod, Correction } from "../../api/client";
+import { useColumns, useCorrelations, useDataset, useDerivedColumns } from "../../api/hooks";
+import { derivedNote } from "../../features/derived/derived";
 import { Plot, type PointClick } from "../../charts/Plot";
 import { EvidenceBadge, evidenceRank } from "../../features/correlations/evidence";
 import { FocusPanel } from "../../features/correlations/FocusPanel";
@@ -36,6 +37,8 @@ export function CorrelationsPage() {
   const dataset = useDataset(datasetId);
   const ready = dataset.data?.status === "ready";
   const columns = useColumns(datasetId, ready);
+  // 058: derived columns can be ticked in the chooser, never in the matrix by default (R-DER-07)
+  const derived = useDerivedColumns(datasetId, ready);
   const key = (name: string) => `de.correlations.${datasetId}.${name}`;
   const [method, setMethod] = useStoredState<CorrelationMethod>(key("method"), "pearson");
   const [clustered, setClustered] = useStoredState(key("clustered"), true);
@@ -54,7 +57,14 @@ export function CorrelationsPage() {
     [matrix, clustered],
   );
   const figure = useMemo(() => (matrix ? matrixFigure(matrix, order) : null), [matrix, order]);
-  const types = useMemo(() => new Map((columns.data ?? []).map((c) => [c.name, c.type])), [columns.data]);
+  const derivedEligible = useMemo(
+    () => (derived.data ?? []).filter((c) => ELIGIBLE.has(c.type)),
+    [derived.data],
+  );
+  const types = useMemo(
+    () => new Map([...(columns.data ?? []), ...(derived.data ?? [])].map((c) => [c.name, c.type])),
+    [columns.data, derived.data],
+  );
   const typeOf = (name: string): AnalysisType | undefined => types.get(name);
 
   const openPair = (point: PointClick) => {
@@ -105,7 +115,7 @@ export function CorrelationsPage() {
           </Select>
         </label>
         <Checkbox label={t("correlations.cluster")} checked={clustered} onChange={(event) => setClustered(event.target.checked)} className="text-[13px] text-ink-2" />
-        <ColumnChooser eligible={eligible} chosen={chosen} onChange={setChosen} />
+        <ColumnChooser eligible={eligible} derived={derivedEligible} chosen={chosen} onChange={setChosen} />
         {matrix && (
           <span className="text-xs text-ink-3">
             {matrix.sampled
@@ -147,10 +157,13 @@ export function CorrelationsPage() {
 
 function ColumnChooser({
   eligible,
+  derived,
   chosen,
   onChange,
 }: {
   eligible: string[];
+  /** 058: derived columns, unticked until the user ticks them (R-DER-07). */
+  derived: Column[];
   chosen: string[] | null;
   onChange: (columns: string[] | null) => void;
 }) {
@@ -158,7 +171,9 @@ function ColumnChooser({
   const selected = chosen ?? eligible;
   const toggle = (name: string) => {
     const next = selected.includes(name) ? selected.filter((item) => item !== name) : [...selected, name];
-    onChange(next.length === eligible.length ? null : eligible.filter((item) => next.includes(item)));
+    const stored = eligible.filter((item) => next.includes(item));
+    const extra = derived.map((c) => c.name).filter((item) => next.includes(item));
+    onChange(stored.length === eligible.length && !extra.length ? null : [...stored, ...extra]);
   };
   return (
     <Popover
@@ -193,6 +208,26 @@ function ColumnChooser({
             <span className="truncate font-mono text-xs">{name}</span>
           </label>
         ))}
+        {derived.length > 0 && (
+          <>
+            <p className="mt-2 border-t border-line px-1 pt-2 text-xs text-ink-3">{t("correlations.derived")}</p>
+            {derived.map((column) => (
+              <label
+                key={column.name}
+                title={derivedNote(column) ?? undefined}
+                className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-[13px] hover:bg-surface-2"
+              >
+                <input
+                  type="checkbox"
+                  className="size-3.5 accent-(--accent)"
+                  checked={selected.includes(column.name)}
+                  onChange={() => toggle(column.name)}
+                />
+                <span className="truncate font-mono text-xs">{column.name}</span>
+              </label>
+            ))}
+          </>
+        )}
       </div>
     </Popover>
   );

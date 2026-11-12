@@ -91,6 +91,7 @@ function VersionRow({ version, latest, originalId, onDelete }: { version: CleanV
             <span className="font-medium text-ink-2">{t("clean.versions.name", { seq: String(version.seq) })}</span>
           )}
           {version.origin === "auto" && <span className="text-xs text-ink-3">{t("clean.versions.auto")}</span>}
+          {version.source_seq !== null && version.source_seq !== undefined && <span className="text-xs text-ink-3">{t("clean.versions.from", { seq: String(version.source_seq) })}</span>}
           {latest && <span className="text-xs text-accent">{t("clean.versions.latest")}</span>}
           {!ready && <span className="text-xs text-ink-3">{t("clean.versions.importing")}</span>}
           {version.out_of_date && (

@@ -6,7 +6,13 @@ from quantilo.changes.compare import Changes
 from quantilo.changes.kpis import KpiChange
 from starlette.background import BackgroundTask
 
-from app.services.versions.service import RelationsAnswer, RowsAnswer, VersionInfo, VersionService
+from app.services.versions.service import (
+    RelationsAnswer,
+    RowsAnswer,
+    VersionInfo,
+    VersionService,
+    WordsAnswer,
+)
 
 router = APIRouter(tags=["changes"])
 
@@ -49,6 +55,18 @@ def changes(
     """What changed since the previous version (or since dataset `vs`), from the two photos."""
     chosen = [name for name in focus.split(",") if name] if focus else []
     return service.changes(dataset_id, vs, chosen, version)
+
+
+@router.get("/datasets/{dataset_id}/changes/words")
+def words(
+    dataset_id: str,
+    service: Service,
+    column: Annotated[str, Query(min_length=1)],
+    vs: Versus = None,
+    version: Version = None,
+) -> WordsAnswer:
+    """059: the words that rise in each version of a text column (both versions' rows needed)."""
+    return service.words(dataset_id, column, vs, version)
 
 
 @router.get("/datasets/{dataset_id}/changes/rows")

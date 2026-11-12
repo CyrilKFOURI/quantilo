@@ -18,6 +18,8 @@ dependencies = [
     "duckdb>=1.5.6",
     "numpy>=2.5.4",
     "openpyxl>=3.1.5",
+    # Decoding, EXIF orientation, resizing and WebP thumbnails of image sets (103).
+    "pillow>=11",
     "pyarrow>=26.0.0",
     "pydantic>=2.14",
     "scikit-learn>=1.9.1",
@@ -126,6 +128,9 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 # The One table factor (×4.7) and arrows in the structured reader's reasons (083).
 "src/quantilo/ingestion/structured/*" = ["RUF001", "RUF002", "RUF003"]
 "tests/test_structured*.py" = ["RUF001", "RUF002", "RUF003"]
+# Advanced cleaning reasons speak in formulas and ranges (total = a × b + c, ÷100, 0–1) (097).
+"src/quantilo/cleaning/rules/advanced.py" = ["RUF001", "RUF002", "RUF003"]
+"tests/test_cleaning_advanced.py" = ["RUF001", "RUF002", "RUF003"]
 
 [tool.pyright]
 pythonVersion = "3.12"

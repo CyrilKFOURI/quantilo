@@ -115,12 +115,12 @@ def test_save_a_cleaned_version(client: TestClient, traps: str, settings: Settin
             "steps": len(steps),
             "created_at": version["created_at"],
             "out_of_date": False,
+            "source_id": None,
+            "source_seq": None,
         }
     ]
     second = save(client, traps, steps[:2])
     assert client.get(f"/api/v1/datasets/{second}").json()["name"].endswith("Cleaned v2")
-    refused = client.post(f"{BASE}/datasets/{child}/versions", json={"steps": steps[:1]})
-    assert refused.status_code == 409  # Clean starts from the original
 
     retype = {"changes": [{"name": "age", "type": "categorical_nominal"}]}
     assert client.patch(f"/api/v1/datasets/{traps}/columns", json=retype).status_code == 200
@@ -130,6 +130,32 @@ def test_save_a_cleaned_version(client: TestClient, traps: str, settings: Settin
     client.delete(f"/api/v1/datasets/{traps}")
     assert client.get(f"{BASE}/lineage").json() == []
     assert client.get(f"/api/v1/datasets/{second}").json()["status"] == "ready"  # still there
+
+
+def test_clean_a_cleaned_version(client: TestClient, traps: str) -> None:
+    """096: Clean works on the selected version; v1 cleaned again gives v2, made from v1, in the
+    same family under the original."""
+    original = client.get(f"/api/v1/datasets/{traps}").json()
+    first = save(client, traps, client.get(f"{BASE}/datasets/{traps}/draft").json()["steps"])
+    found = client.get(f"{BASE}/datasets/{first}/suggestions").json()
+    assert found["dataset_id"] == first  # computed on v1, not on the original
+    steps = [{"id": "s1", "op": "rename_column", "column": "city", "to": "town"}]
+    second = save(client, first, steps)
+    child = client.get(f"/api/v1/datasets/{second}").json()
+    assert child["name"] == f"{original['name']} · Cleaned v2"
+    columns = {c["name"] for c in client.get(f"/api/v1/datasets/{second}/columns").json()}
+    assert "town" in columns and "city" not in columns
+    assert child["row_count"] == client.get(f"/api/v1/datasets/{first}").json()["row_count"]
+    family = client.get(f"{BASE}/datasets/{second}/versions").json()
+    assert family["original_id"] == traps
+    assert [(v["seq"], v["source_seq"]) for v in family["versions"]] == [(1, None), (2, 1)]
+    assert family["versions"][1]["source_id"] == first
+    lineage = {item["dataset_id"]: item for item in client.get(f"{BASE}/lineage").json()}
+    assert lineage[second]["parent_id"] == traps  # grouped under the original
+    assert lineage[second]["source_id"] == first
+    client.delete(f"/api/v1/datasets/{first}")  # the version it was made from
+    [left] = client.get(f"{BASE}/datasets/{second}/versions").json()["versions"]
+    assert (left["seq"], left["source_id"], left["out_of_date"]) == (2, None, False)
 
 
 def test_a_broken_step_is_refused_at_save(client: TestClient, traps: str) -> None:

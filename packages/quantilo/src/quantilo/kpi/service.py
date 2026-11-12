@@ -22,8 +22,26 @@ from quantilo.kpi.suggest import (
     split_candidates,
     suggest,
 )
+from quantilo.profiling import aggregates
+from quantilo.typing.derived import names_in, with_derived
 
 CACHE_SIZE = 16
+
+
+def aggregate_notes(found: list[aggregates.AggregateRows]) -> list[str]:
+    """R-SUG-30 (fix1, KPI-2): a category holding rows that sum up the others (World, Total):
+    any total over it counts the same rows twice. Said, never filtered on its own."""
+    said = []
+    for item in found:
+        first = item.found[0]
+        said.append(
+            f"R-SUG-30 · {item.column} holds {len(item.found)} "
+            f"label{'s' if len(item.found) != 1 else ''} ({item.rows:,} rows) that "
+            "sum up other rows "
+            f"({item.shown()}; '{first.label}': {first.why}): a total over {item.column} counts "
+            "them twice. Filter them out, or leave them out in Clean (B-21)."
+        )
+    return said
 
 
 @dataclass
@@ -40,7 +58,8 @@ class Suggestions:
     kpis: list[SuggestedKpi]  # best first, 12 at most
     splits: list[str]  # the best columns to split by, best first
     hierarchies: list[Hierarchy]  # parent then child splits (048, R-SUG-18)
-    # 093: columns the rules read differently from their role (R-SUG-25 to 27), with the reason
+    # 093: columns the rules read differently from their role (R-SUG-25 to 27), with the reason;
+    # fix1: rows that sum up other rows (R-SUG-30)
     notes: list[str] = field(default_factory=list)
 
 
@@ -83,6 +102,7 @@ class KpiEngine:
                 [by_name[n] for n in numbers],
                 [by_name[n] for n in keys],
             )
+            summed_up = aggregates.find(connection, source, views)
         finally:
             connection.close()
         found = suggest(views, facts)
@@ -90,7 +110,7 @@ class KpiEngine:
             [SuggestedKpi(s.rule, s.name, s.definition, s.score, s.reasons) for s in found],
             split_candidates(views, facts),
             hierarchies(views, facts),
-            notes(views),
+            [*notes(views), *aggregate_notes(summed_up)],
         )
         self._suggested[key] = result
         if len(self._suggested) > CACHE_SIZE:
@@ -103,7 +123,7 @@ class KpiEngine:
         self, dataset_id: str, definition: Definition, conditions: list[Condition]
     ) -> KpiResult:
         dataset = self.columns.ready(dataset_id)
-        views = self._views(dataset_id)
+        views = with_derived(self._views(dataset_id), names_in(definition))  # 058
         if definition.time is not None and not definition.time.page_filters:
             conditions = []  # the KPI only sees its own period
         data = definition.model_dump(mode="json", exclude={"view"})  # display needs no recompute

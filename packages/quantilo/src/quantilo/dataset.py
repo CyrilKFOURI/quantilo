@@ -42,6 +42,7 @@ from quantilo.changes.rows import (
 from quantilo.changes.snapshot import Snapshot, take_snapshot
 from quantilo.charts.prepare import Chart, ChartParams
 from quantilo.compare.analyze import Comparison
+from quantilo.compare.durations import Survival, Transitions
 from quantilo.compare.multiple import Correction
 from quantilo.compare.service import CompareService
 from quantilo.correlations.matrix import Method
@@ -75,19 +76,25 @@ from quantilo.regression.analyze import (
 from quantilo.regression.families import FamilyRequest
 from quantilo.regression.iv import IvTable
 from quantilo.regression.panel import PanelTable
+from quantilo.regression.robust import QuantileProcess, RobustTable
 from quantilo.regression.rules import RegressionSuggestion, SeRequest
 from quantilo.regression.service import RegressionService
 from quantilo.regression.service import Request as RegressionRequest
 from quantilo.regression.service import Section as RegressionSection
+from quantilo.regression.terms import PartialPlot
 from quantilo.report.generate import ReportServices, generate
 from quantilo.rows.export import Format
 from quantilo.rows.service import RowService
 from quantilo.rows.view import Mode, RowsPage, View
+from quantilo.text.distinctive import DistinctiveWords
+from quantilo.text.service import TextService, topics_summary
+from quantilo.text.topics import Topics
 from quantilo.timeseries.facade import TimeSeries
 from quantilo.timeseries.series import Aggregate, Align, Gaps, Period
 from quantilo.timeseries.series import Options as SeriesOptions
 from quantilo.timeseries.service import Request as SeriesRequest
 from quantilo.timeseries.service import TimeSeriesService
+from quantilo.typing.derived import derived_columns, resolve
 from quantilo.typing.engine import DEFAULT_THRESHOLDS, Thresholds, detect_columns
 from quantilo.typing.knowledge_base import load
 from quantilo.typing.types import AnalysisType
@@ -248,6 +255,25 @@ class Dataset:
             raise ColumnNotFound(name, self.columns)
         return record
 
+    def _known(self, name: str) -> None:
+        """A stored column or a derived one (058, R-DER-03); else ColumnNotFound."""
+        if name in self._state.records:
+            return
+        if resolve({view.name: view for view in self.types}, name) is None:
+            raise ColumnNotFound(name, self.columns)
+
+    @property
+    def derived(self) -> list[ColumnView]:
+        """The derived columns offered (058): the length of a text, an option of a list of
+        choices... Each name works wherever a column name does (filters, compare, correlations,
+        KPI, segments)."""
+        connection = duckdb.connect()
+        try:
+            source = f"read_parquet({lit(self._state.info.storage_path)})"
+            return derived_columns(connection, source, self.types)
+        finally:
+            connection.close()
+
     def _change(self, change: ColumnChange) -> Dataset:
         """Changes the dataset in place (every filtered view of it sees the change)."""
         record = self._record(change.name)
@@ -279,7 +305,7 @@ class Dataset:
         if isinstance(column, Condition):
             condition = column
         else:
-            self._record(column)
+            self._known(column)
             fields: dict[str, Any] = {"column": column, "op": op, "negate": negate, **options}
             if op in ("in", "part_in"):
                 values = value if isinstance(value, list | tuple | set) else [value]
@@ -308,17 +334,17 @@ class Dataset:
 
     def variable(self, column: str) -> VariableProfile:
         """Descriptive statistics, normality tests and the profile matching the column's type."""
-        self._record(column)
+        self._known(column)
         return self._state.service(VariableService).profile(self._id, column, self.conditions)
 
     def fit(self, column: str) -> Fit:
         """Probability laws fitted to a numeric column, ranked by AIC."""
-        self._record(column)
+        self._known(column)
         return self._state.service(VariableService).fit(self._id, column, self.conditions)
 
     def outliers(self, column: str, method: OutlierMethod = "iqr") -> Outliers:
         """Outliers of a numeric column by every rule, with the rows of `method`."""
-        self._record(column)
+        self._known(column)
         return self._state.service(VariableService).outliers(
             self._id, column, method, self.conditions
         )
@@ -327,14 +353,14 @@ class Dataset:
         """The right tail of a numeric column: a generalised Pareto law above a threshold,
         return levels ("1 in 1,000 rows exceed X") with intervals, Hill and mean-excess curves,
         VaR and Expected Shortfall at 95 and 99 %. `.rule` says whether the app shows it."""
-        self._record(column)
+        self._known(column)
         return self._state.service(VariableService).tail(self._id, column, self.conditions)
 
     def chart(
         self, column: str, view: str | None = None, *, top_n: int = 10, bins: int | None = None
     ) -> Chart:
         """The data of a column's chart, as on the Overview cards (`view`: one of `.views`)."""
-        self._record(column)
+        self._known(column)
         params = ChartParams(view=view, top_n=top_n, bins=bins)
         return self._state.service(ProfilingService).chart(
             self._id, column, params, self.conditions
@@ -404,9 +430,40 @@ class Dataset:
         bootstrap intervals by rule and pairwise differences adjusted by `correction`."""
         for name in (x, y, z, color):
             if name is not None:
-                self._record(name)
+                self._known(name)
         return self._state.service(CompareService).compare(
             self._id, x, y, z, color, self.conditions, options, numbers, correction
+        )
+
+    def survival(
+        self,
+        duration: str | None = None,
+        event: str | None = None,
+        *,
+        start: str | None = None,
+        end: str | None = None,
+        group: str | None = None,
+        event_value: str | None = None,
+    ) -> Survival:
+        """Kaplan-Meier curves with 95 % intervals, median survival and the log-rank test across
+        `group`. Without columns, the reading a rule detects (R-SRV-01/02), if any."""
+        for name in (duration, event, start, end, group):
+            if name is not None:
+                self._record(name)
+        return self._state.service(CompareService).survival(
+            self._id, self.conditions, duration, event, start, end, group, event_value
+        )
+
+    def transitions(
+        self, entity: str | None = None, time: str | None = None, status: str | None = None
+    ) -> Transitions:
+        """Status transitions as a Markov chain: matrix, stationary shares, and the expected
+        steps before an absorbing state. Without columns, the reading R-MKV-01 detects."""
+        for name in (entity, time, status):
+            if name is not None:
+                self._record(name)
+        return self._state.service(CompareService).transitions(
+            self._id, self.conditions, entity, time, status
         )
 
     def correlations(
@@ -418,7 +475,7 @@ class Dataset:
         """The mixed association matrix (r or ρ, Cramér's V, η), ranked pairs and insights;
         p-values adjusted over the pairs (`correction`: auto, bh, holm, bonferroni)."""
         for name in columns or []:
-            self._record(name)
+            self._known(name)
         return self._state.service(CorrelationService).correlations(
             self._id, method, columns, self.conditions, correction
         )
@@ -439,6 +496,31 @@ class Dataset:
             self._id, columns, self.conditions, k
         )
 
+    # --- Text (059) -------------------------------------------------------------------------
+
+    def distinctive_words(self, column: str, by: str) -> DistinctiveWords:
+        """The words over-represented in each group of `by` among the texts of `column`
+        (R-WRD-01 to 06): what Compare shows for a text and a category."""
+        found = self.compare(by, column).words
+        assert found is not None
+        return found
+
+    def topics(self, column: str, k: int | None = None) -> Topics:
+        """Topics of a free text column (TF-IDF then NMF, R-TOP-01 to 05), `k` of them or as
+        many as R-TOP-03 says. `.agreement`: how often the column's rule matches the model."""
+        self._record(column)
+        return self._state.service(TextService).topics(self._id, column, k, self.conditions)
+
+    def keep_topics(self, topics: Topics) -> Dataset:
+        """Keep these topics on their column (R-TOP-06): its Topic column becomes a derived
+        column, usable everywhere a column name is."""
+        record = self._record(topics.column)
+        summary = json.loads(record.summary) if record.summary else {}
+        summary["topics"] = topics_summary(topics)
+        self._state.records[topics.column] = replace(record, summary=json.dumps(summary))
+        self._state.info.types_version += 1  # analyses cached on the old topics are stale
+        return self
+
     def _regression_service(self) -> RegressionService:
         services = self._state._services
         if "RegressionService" not in services:
@@ -457,6 +539,9 @@ class Dataset:
         focus: str | None = None,
         family: FamilyRequest = "auto",
         exposure: str | None = None,
+        terms: list[str] | None = None,
+        center: bool = False,
+        coding: Literal["reference", "deviation"] = "reference",
     ) -> RegressionReport:
         """Linear regression with inference (067): OLS, WLS for a weight column, logistic for a
         yes/no target; standard errors chosen by rule (HC3, clustered for a panel or a
@@ -466,7 +551,10 @@ class Dataset:
         cluster2 or dk. `family` (069) forces ols, logit, probit, poisson, negbin, gamma,
         log_ols, boxcox, fractional or mnlogit instead of the rules' choice (R-REG-01…07);
         `exposure` names the offset of a count model (`""`: none, default: a column of role
-        exposure)."""
+        exposure). `terms` (070): `spline:x`, `square:x`, `cube:x`, `log:x`, `interaction:a|b`,
+        `trend:date`, `month:date`, `weekday:date`, `reference:column|level`; `center` centres
+        the numbers at their mean; `coding="deviation"` reads each level against the average of
+        the levels."""
         request = RegressionRequest(
             target,
             tuple(columns) if columns is not None else None,
@@ -476,6 +564,9 @@ class Dataset:
             focus,
             family,
             exposure,
+            tuple(terms or ()),
+            center,
+            coding,
         )
         return self._regression_service().regression(self._id, request, self.conditions)
 
@@ -494,6 +585,9 @@ class Dataset:
         se: SeRequest = "auto",
         family: FamilyRequest = "auto",
         exposure: str | None = None,
+        terms: list[str] | None = None,
+        center: bool = False,
+        coding: Literal["reference", "deviation"] = "reference",
     ) -> (
         StandardErrorTable
         | InfluenceTable
@@ -501,12 +595,14 @@ class Dataset:
         | MoreChecks
         | PanelTable
         | FamilyAlternatives
+        | QuantileProcess
     ):
         """An Advanced section of the same regression: standard_errors (every kind side by side),
         influence (the 20 most influential rows, DFBETAS), terms (references, left out, VIF),
         more (White's test, the fit without the influential rows), panel (071: fixed, first
         differences, between and random effects, Mundlak and Hausman), families (069: probit,
-        Box-Cox, fractional and multinomial logit on the same rows)."""
+        Box-Cox, fractional and multinomial logit on the same rows), quantiles (072: the
+        coefficients at τ = 0.1…0.9, Student-t errors)."""
         request = RegressionRequest(
             target,
             tuple(columns) if columns is not None else None,
@@ -515,8 +611,60 @@ class Dataset:
             se,
             family=family,
             exposure=exposure,
+            terms=tuple(terms or ()),
+            center=center,
+            coding=coding,
         )
         return self._regression_service().section(self._id, section, request, self.conditions)
+
+    def regression_robust(
+        self,
+        target: str | None = None,
+        columns: list[str] | None = None,
+        *,
+        quantile: float = 0.5,
+        weights: str | None = None,
+        cluster: str | None = None,
+        se: SeRequest = "auto",
+        family: FamilyRequest = "auto",
+        terms: list[str] | None = None,
+        center: bool = False,
+    ) -> RobustTable:
+        """Robust and quantile regression (072): Huber and Tukey (RLM) and the `quantile`
+        (0.1, 0.25, 0.5, 0.75 or 0.9) side by side with least squares, and the law and tail of the
+        residuals."""
+        request = RegressionRequest(
+            target,
+            tuple(columns) if columns is not None else None,
+            weights,
+            cluster,
+            se,
+            family=family,
+            terms=tuple(terms or ()),
+            center=center,
+        )
+        return self._regression_service().robust(self._id, request, quantile, self.conditions)
+
+    def regression_partial(
+        self,
+        column: str,
+        target: str | None = None,
+        columns: list[str] | None = None,
+        *,
+        weights: str | None = None,
+        terms: list[str] | None = None,
+        center: bool = False,
+    ) -> PartialPlot:
+        """Added-variable and component + residual plots of one column of the regression (070):
+        least squares only, 2 000 points at most."""
+        request = RegressionRequest(
+            target,
+            tuple(columns) if columns is not None else None,
+            weights,
+            terms=tuple(terms or ()),
+            center=center,
+        )
+        return self._regression_service().partial(self._id, request, column, self.conditions)
 
     def regression_iv(
         self,
@@ -748,7 +896,7 @@ class Dataset:
         from quantilo.segments.engine import SegmentsEngine
 
         for name in columns or []:
-            self._record(name)
+            self._known(name)
         engine = self._state.service(SegmentsEngine)
         chosen = facade.request(columns, method, k, preparation, seed)
         return facade.Segments(self, engine, self._id, self.conditions, chosen)
@@ -769,7 +917,7 @@ class Dataset:
         from quantilo.segments.engine import SegmentsEngine
 
         for name in columns or []:
-            self._record(name)
+            self._known(name)
         engine = self._state.service(SegmentsEngine)
         chosen = facade.unusual_request(columns, method, preparation, seed)
         labels = segments.as_labels() if segments is not None else None

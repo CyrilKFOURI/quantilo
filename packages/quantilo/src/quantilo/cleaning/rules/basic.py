@@ -21,8 +21,10 @@ from quantilo.catalog import ColumnView
 from quantilo.cleaning import model as m
 from quantilo.cleaning import text as tx
 from quantilo.cleaning.compile import (
+    Stage,
     _date_expr,
     as_text,
+    assembled_date_sql,
     is_integer,
     is_number,
     is_temporal,
@@ -30,8 +32,10 @@ from quantilo.cleaning.compile import (
 )
 from quantilo.cleaning.suggestion import CleanSuggestion, Example, Mode
 from quantilo.ingestion.sql import ident, lit
+from quantilo.profiling import aggregates
+from quantilo.typing import date_parts
 from quantilo.typing.knowledge_base import Role, load
-from quantilo.typing.parsers import DATE_FORMATS, clean_text, number_sql
+from quantilo.typing.parsers import DATE_FORMATS, clean_text, number_sql, typed_sql
 
 MAX_DISTINCT = 50_000  # text columns with more distinct values get the SQL-only checks
 MAX_EXAMPLES = 3
@@ -92,11 +96,47 @@ ORDER = {
     "B-10": 150,
     "B-14": 160,
     "B-19": 170,
+    "B-20": 165,  # fix1: after the value fixes, before B-19 can drop a constant year column
+    "B-21": 166,  # fix1: rows that sum up other rows (World, Total), after the value fixes
+}
+# 096 (spec catalogue): how each rule changes the dataset; by step for the rules with two steps.
+IMPACT: dict[str, m.Impact] = {
+    "B-01": "format",
+    "B-02": "format",
+    "B-05": "format",  # a map_values, but only the encoding changes
+    "B-06": "format",
+    "B-03": "values",
+    "B-04": "values",
+    "B-09": "values",
+    "B-16": "values",
+    "B-11": "types",
+    "B-17": "types",
+    "B-18": "types",
+    "B-14": "rows",
+    "B-15": "rows",
+    "B-19": "columns",
+    "B-20": "columns",  # fix1: a new date column assembled from its parts
+    "B-21": "rows",  # fix1: rows that sum up other rows, left out
+}
+STEP_IMPACT: dict[tuple[str, str], m.Impact] = {
+    ("B-07", "map_values"): "values",  # bounds in words
+    ("B-07", "change_type"): "types",
+    ("B-10", "null_outside"): "values",
+    ("B-10", "filter_rows"): "rows",
+    ("B-12", "replace_values"): "format",  # a trailing '.0'
+    ("B-12", "change_type"): "types",
+    ("B-13", "pad_zeros"): "values",
+    ("B-13", "change_type"): "types",
 }
 
 
 def n(count: int | float) -> str:
     return f"{count:,}"
+
+
+def rows_of(count: int, noun: str) -> str:
+    """'1 empty row', '7 empty rows'."""
+    return f"{n(count)} {noun}" + ("" if count == 1 else "s")
 
 
 def q(value: str | None, width: int = 40) -> str:
@@ -205,10 +245,15 @@ class Context:
             step.origin = "auto" if mode == "A" else "suggested"
             step.rule = rule
         target = column.name if column else "rows"
+        op = step.op if step is not None else ""
+        impact: m.Impact | None = STEP_IMPACT.get((rule, op)) or IMPACT.get(rule)
+        assert impact is not None, f"{rule}: no impact in the catalogue"
         suggestion = CleanSuggestion(
             id=f"{rule}:{target}" + (f":{key}" if key else ""),
             rule=rule,
             mode=mode,
+            impact=impact,
+            risk="safe" if mode == "A" else "review",  # CL-02
             order=ORDER[rule] * 10_000 + (column.position if column else 0),
             title=title,
             reason=reason,
@@ -1296,8 +1341,8 @@ def b15_empty_rows(context: Context) -> None:
             "B-15",
             "A",
             None,
-            f"Remove {n(blanks)} empty rows",
-            f"{n(blanks)} rows have no value at all.",
+            f"Remove {rows_of(blanks, 'empty row')}",
+            f"{rows_of(blanks, 'row')} {'has' if blanks == 1 else 'have'} no value at all.",
             m.DropEmptyRows(id=_id()),
             rows=blanks,
         )
@@ -1308,7 +1353,7 @@ def b15_empty_rows(context: Context) -> None:
             "B-15",
             "A",
             None,
-            f"Remove {n(headers)} repeated header rows",
+            f"Remove {rows_of(headers, 'repeated header row')}",
             f"{n(headers)} rows repeat the column names: files pasted one after the other.",
             m.DropHeaderRows(id=_id()),
             rows=headers,
@@ -1342,7 +1387,7 @@ def b14_duplicates(context: Context) -> None:
         "B-14",
         "A" if identified else "S",
         None,
-        f"Remove {n(copies)} identical rows",
+        f"Remove {rows_of(copies, 'identical row')}",
         reason,
         m.DropDuplicates(id=_id(), keys=None, keep="first"),
         rows=copies,
@@ -1370,6 +1415,112 @@ def b19_columns(context: Context) -> None:
         )
 
 
+def _already_dated(context: Context, year: str, month: str) -> str | None:
+    """A date column whose year and month are these parts on 95 % of the rows (a `Date` beside
+    the `Year` and `Month` derived from it): nothing to assemble."""
+    for column in context.columns:
+        view = column.view
+        if view is None or view.type != "datetime" or view.role == "year" or column.nonnull == 0:
+            continue
+        moment = f"CAST({typed_sql(view.name, view.parser)} AS TIMESTAMP)"
+        (same,) = context.one(
+            f"SELECT count(*) FILTER (WHERE year({moment}) = TRY_CAST({ident(year)} AS DOUBLE) "
+            f"AND month({moment}) = TRY_CAST({ident(month)} AS DOUBLE)) FROM {context.source}"
+        )
+        if same >= DATE_COVERAGE * column.nonnull:
+            return column.name
+    return None
+
+
+def b20_assemble_dates(context: Context) -> None:
+    """fix1 (TYP-6): a year, a month and a day (an hour, a minute) in separate columns whose names
+    say the same thing ("an, mois, jour", "Yr Sold, Mo Sold") make one date: proposed as a new
+    column (mode S) when 95 % of the rows with every part make a valid date."""
+    by_name = {c.name: c for c in context.columns}
+    names = set(by_name)
+    stage = Stage("source", [(c.name, c.dtype) for c in context.columns])
+    for group in date_parts.groups(c.name for c in context.columns):
+        if _already_dated(context, group.parts["year"], group.parts["month"]):
+            continue
+        target = group.name
+        while target in names:
+            target = f"{target} (assembled)"
+        parts = group.parts
+        step = m.AssembleDate(
+            id=_id(),
+            year=parts["year"],
+            month=parts["month"],
+            day=parts.get("day"),
+            hour=parts.get("hour"),
+            minute=parts.get("minute"),
+            to=target,
+        )
+        made_sql = assembled_date_sql(step, stage)
+        given = " AND ".join(f"{ident(c)} IS NOT NULL" for c in group.columns)
+        filled, made = context.one(
+            f"SELECT count(*) FILTER (WHERE {given}), count({made_sql}) FROM {context.source}"
+        )
+        if not filled or made < DATE_COVERAGE * filled:
+            continue
+        shown = ", ".join(ident(c) for c in group.columns)
+        examples: list[tuple[str | None, str | None]] = [
+            (" · ".join("" if v is None else str(v) for v in row[:-1]), str(row[-1]))
+            for row in context.connection.execute(
+                f"SELECT {shown}, CAST({made_sql} AS VARCHAR) FROM {context.source} "
+                f"WHERE {made_sql} IS NOT NULL LIMIT {MAX_EXAMPLES}"
+            ).fetchall()
+        ]
+        first = "" if "day" in group.parts else " (the 1st of the month: there is no day)"
+        context.add(
+            "B-20",
+            "S",
+            by_name[group.parts["year"]],
+            f"Assemble a date from {', '.join(group.columns)}",
+            f"{group.listed} hold the parts of one date: {n(made)} of {n(filled)} rows with "
+            f"every part ({made / filled:.1%}) make a valid date. A new column '{target}' holds "
+            f"it{first}; the part columns stay as they are, and a date that cannot exist "
+            "(31 February, a missing part) stays empty.",
+            step,
+            cells=made,
+            examples=examples,
+        )
+        context.found[-1].columns = group.columns
+        names.add(target)
+
+
+def b21_aggregate_rows(context: Context) -> None:
+    """fix1 (KPI-2): rows whose label sums up other rows (OWID's World, Europe, High-income
+    countries; a Total row), found by the written signals of `profiling/aggregates.py`: proposed
+    to leave out (mode S), never removed on their own."""
+    views = [c.view for c in context.columns if c.view is not None]
+    labels = {c.name: c.values for c in context.columns if c.values is not None}
+    by_name = {c.name: c for c in context.columns}
+    for found in aggregates.find(context.connection, context.source, views, labels):
+        if len(found.found) > m.MAX_VALUES:  # one condition holds this many values at most
+            continue
+        column = by_name[found.column]
+        first = found.found[0]
+        context.add(
+            "B-21",
+            "S",
+            column,
+            f"Leave out {n(found.rows)} row{'s' if found.rows != 1 else ''} that sum up other "
+            f"{column.name} rows",
+            f"{len(found.found)} of the {n(found.labels)} labels of {column.name} sum up other "
+            f"rows rather than being one ({found.shown()}; '{first.label}': {first.why}). In a "
+            f"total over {column.name} they count the same rows twice. Removed only if you tick "
+            "it; the original dataset keeps them, and a filter can leave them out instead.",
+            m.FilterRows(
+                id=_id(),
+                conditions=[m.RowCondition(column=column.name, op="in", values=found.names)],
+                combine="all",
+                action="remove",
+            ),
+            rows=found.rows,
+            examples=[(item.label, item.why) for item in found.found],
+        )
+
+
 def run(context: Context) -> list[CleanSuggestion]:
     b15_empty_rows(context)
     b02_invisible(context)
@@ -1389,4 +1540,6 @@ def run(context: Context) -> list[CleanSuggestion]:
     b10_ranges(context, sentinels)
     b14_duplicates(context)
     b19_columns(context)
+    b20_assemble_dates(context)
+    b21_aggregate_rows(context)
     return sorted(context.found, key=lambda s: s.order)

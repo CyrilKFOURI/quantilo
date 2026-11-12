@@ -196,7 +196,7 @@ def test_points_are_sampled_beyond_the_limit(connection: duckdb.DuckDBPyConnecti
         (col("x", NUM), col("x", NUM), None, None, "two different"),
         (col("x", NUM), col("y", NUM), col("g", CAT), None, "three numeric"),
         (col("x", NUM), col("y", NUM), None, col("z", NUM), "Color needs a category"),
-        (col("x", NUM), col("y", "text"), None, None, "can't be compared"),
+        (col("x", NUM), col("y", "text"), None, None, "compare it with a category"),  # 059
         (col("when", DATE), col("when2", DATE), None, None, "Two dates"),
     ],
 )

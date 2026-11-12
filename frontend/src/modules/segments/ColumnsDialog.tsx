@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-import type { MlChoicesInput } from "../../api/client";
+import type { Column, MlChoicesInput } from "../../api/client";
+import { derivedNote } from "../../features/derived/derived";
 import { t, type MessageKey } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
 import { Select } from "../../ui/fields";
@@ -19,12 +20,15 @@ export function ColumnsDialog({
   plan,
   shared,
   onShared,
+  derived = [],
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   plan: SegmentPlan;
   shared: Shared;
   onShared: (next: Shared) => void;
+  /** 058: derived columns ("review › Length"), added only when ticked (R-DER-07). */
+  derived?: Column[];
 }) {
   const [draft, setDraft] = useState<Record<string, ColumnChoice>>(shared.preparation?.columns ?? {});
   const change = (column: string, patch: ColumnChoice) => setDraft({ ...draft, [column]: { ...draft[column], ...patch } });
@@ -70,6 +74,14 @@ export function ColumnsDialog({
           ))}
         </tbody>
       </table>
+      <DerivedChoices
+        derived={derived.filter((c) => !plan.preparation.decisions.some((d) => d.column === c.name))}
+        added={(name) => draft[name]?.use === true}
+        onToggle={(name, on) => {
+          if (on) change(name, { use: true });
+          else setDraft(Object.fromEntries(Object.entries(draft).filter(([key]) => key !== name)));
+        }}
+      />
     </Dialog>
   );
 }
@@ -120,5 +132,41 @@ function Row({ decision, choice, onChange }: { decision: SegmentDecision; choice
         ))}
       </td>
     </tr>
+  );
+}
+
+/** 058: derived columns of the text columns, each added as a column of its own when ticked. */
+function DerivedChoices({
+  derived,
+  added,
+  onToggle,
+}: {
+  derived: Column[];
+  added: (name: string) => boolean;
+  onToggle: (name: string, on: boolean) => void;
+}) {
+  if (!derived.length) return null;
+  return (
+    <section className="mt-4 border-t border-line pt-3">
+      <h3 className="text-xs font-medium text-ink-2">{t("segments.derived")}</h3>
+      <p className="text-xs text-ink-3">{t("segments.derivedHint")}</p>
+      <div className="mt-2 grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
+        {derived.map((column) => (
+          <label
+            key={column.name}
+            title={derivedNote(column) ?? undefined}
+            className="flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1 text-[13px] hover:bg-surface-2"
+          >
+            <input
+              type="checkbox"
+              className="size-3.5 accent-(--accent)"
+              checked={added(column.name)}
+              onChange={(event) => onToggle(column.name, event.target.checked)}
+            />
+            <span className="truncate font-mono text-xs">{column.name}</span>
+          </label>
+        ))}
+      </div>
+    </section>
   );
 }

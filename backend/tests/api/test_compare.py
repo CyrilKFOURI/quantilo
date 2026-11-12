@@ -110,3 +110,33 @@ def test_whole_numbers_with_few_values_read_as_categories(client: TestClient, tr
     many = client.get(url, params={"x": "segment", "y": "income", "color": "city"}).json()
     assert many["layout"]["axis"] == "city" and many["layout"]["swapped"]
     assert len(many["groups"]) <= 15
+
+
+def test_survival_and_transitions_routes(client: TestClient, tmp_path: Path) -> None:
+    lines = ["customer_id,month,status,tenure,Churn,Contract"]
+    for i in range(60):
+        lines.append(
+            f"c{i % 20},2024-{1 + i // 20:02d}-01,{['trial', 'paid', 'churned'][min(i // 20, 2)]},"
+            f"{i % 37},{'Yes' if i % 3 == 0 else 'No'},{'Two year' if i % 2 else 'Monthly'}"
+        )
+    path = tmp_path / "subs.csv"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    dataset = import_path(client, path)
+    found = client.get(f"/api/v1/datasets/{dataset}/survival").json()
+    assert found["setup"]["duration"] == "tenure" and found["setup"]["event"] == "Churn"
+    assert found["setup"]["reason"].startswith("R-SRV-01")
+    assert found["curves"][0]["times"][0] == 0
+    grouped = client.get(
+        f"/api/v1/datasets/{dataset}/survival", params={"group": "Contract"}
+    ).json()
+    assert len(grouped["curves"]) == 2 and grouped["log_rank"]["df"] == 1
+    detected = client.get(
+        f"/api/v1/datasets/{dataset}/transitions", params={"detect_only": True}
+    ).json()
+    assert detected["setup"]["status"] == "status" and detected["chain"] is None
+    chain = client.get(f"/api/v1/datasets/{dataset}/transitions").json()["chain"]
+    assert chain["absorbing"] == ["churned"]
+    bad = client.get(
+        f"/api/v1/datasets/{dataset}/survival", params={"duration": "nope", "event": "Churn"}
+    )
+    assert bad.status_code == 422

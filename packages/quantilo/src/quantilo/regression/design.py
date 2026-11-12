@@ -2,10 +2,12 @@
 frequent level (Top 20 + Others), incomplete rows left out and counted, and the columns that
 cannot be estimated (constant, exact combination of others) left out with their reason."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Literal
 
 import numpy as np
+
+from quantilo.regression import terms as tm
 
 MAX_LEVELS = 20  # R-REG-22: beyond, the levels go to "Others"
 MAX_TERMS = 200  # columns of the design, indicators included (study § 3.5)
@@ -28,6 +30,7 @@ class Variable:
     kind: Kind
     values: np.ndarray
     labels: list[str] = field(default_factory=list)  # by code, for categories
+    source: str | None = None  # 070: the dataset column of a log term or a date part
 
 
 @dataclass
@@ -37,6 +40,7 @@ class ReferenceLevel:
     levels: int  # levels kept as indicators (the reference not counted)
     others: int  # levels merged into "Others"
     reason: str
+    coding: str = "reference"  # 070: "deviation": each level against the average of the levels
 
 
 @dataclass
@@ -63,6 +67,14 @@ class Design:
     references: list[ReferenceLevel]
     left_out: list[LeftOutTerm]
     missing: list[MissingRows]
+    # 070: the term each column comes from, how it is computed, what the terms did
+    groups: list[str] = field(default_factory=list)
+    recipes: list[tm.Recipe] = field(default_factory=list)
+    notes: list[tm.TermNote] = field(default_factory=list)
+    sources: dict[str, str] = field(default_factory=dict)  # display name → dataset column
+    kinds: dict[str, tuple[str, list[str]]] = field(default_factory=dict)  # variable → kind, labels
+    values: dict[str, np.ndarray] = field(default_factory=dict)  # over the used rows
+    centres: dict[str, float] = field(default_factory=dict)  # centred numbers (R-REG-TERM-05)
 
 
 def codes(labels: list[str | None]) -> tuple[np.ndarray, list[str]]:
@@ -80,26 +92,53 @@ def codes(labels: list[str | None]) -> tuple[np.ndarray, list[str]]:
 
 
 def _indicators(
-    variable: Variable, used: np.ndarray
-) -> tuple[np.ndarray, list[str], ReferenceLevel]:
+    variable: Variable, used: np.ndarray, chosen: str | None = None, coding: str = "reference"
+) -> tuple[np.ndarray, list[str], ReferenceLevel, list[tm.Recipe], str | None]:
     """Indicator columns of a category over the used rows; the most frequent level is the
-    reference. Levels beyond MAX_LEVELS share one "Others" column."""
+    reference unless one is chosen (R-REG-TERM-06). Levels beyond MAX_LEVELS share one "Others"
+    column. Deviation coding: the reference rows are −1 in every column."""
     values = variable.values[used]
     counts = np.bincount(values, minlength=len(variable.labels))
     order = [int(c) for c in np.argsort(-counts, kind="stable") if counts[c] > 0]
-    reference, rest = order[0], order[1:]
+    refused = None
+    picked = variable.labels.index(chosen) if chosen in variable.labels else None
+    if chosen is not None and (picked is None or counts[picked] == 0):
+        refused = f"`{chosen}` is not a level of `{variable.name}` on the rows used"
+        picked = None
+    reference = picked if picked is not None else order[0]
+    rest = [c for c in order if c != reference]
     kept, merged = rest[:MAX_LEVELS], rest[MAX_LEVELS:]
     names = [variable.labels[c] for c in kept]
-    columns = [(values == c).astype(float) for c in kept]
+    deviation = coding == "deviation"
+    sign = (values == reference).astype(float) if deviation else 0.0
+    columns = [(values == c).astype(float) - sign for c in kept]
+    off = reference if deviation else -1
+    recipes = [tm.Recipe("ind", (variable.name,), levels=(c,), reference=off) for c in kept]
     if merged:
-        columns.append(np.isin(values, merged).astype(float))
+        columns.append(np.isin(values, merged).astype(float) - sign)
         names.append(OTHERS)
+        recipes.append(tm.Recipe("ind", (variable.name,), levels=tuple(merged), reference=off))
     label = variable.labels[reference]
     share = counts[reference] / max(len(values), 1)
-    why = f"most frequent level ({share:.0%} of the rows): the narrowest intervals"
-    found = ReferenceLevel(variable.name, label, len(kept), len(merged), why)
+    if picked is not None:
+        why = "chosen in the settings (R-REG-TERM-06)"
+    else:
+        why = f"most frequent level ({share:.0%} of the rows): the narrowest intervals"
+    if deviation:
+        why += (
+            "; each level reads against the average of the levels (deviation coding), this one "
+            "by contrast"
+        )
+    found = ReferenceLevel(
+        variable.name,
+        label,
+        len(kept),
+        len(merged),
+        why,
+        "deviation" if deviation else "reference",
+    )
     matrix = np.column_stack(columns) if columns else np.empty((len(values), 0))
-    return matrix, names, found
+    return matrix, names, found, recipes, refused
 
 
 def _combination(names: list[str], coefficients: np.ndarray, scale: np.ndarray) -> str:
@@ -120,8 +159,17 @@ def build(
     target: np.ndarray,
     variables: list[Variable],
     extra: dict[str, np.ndarray] | None = None,
+    plan: tm.Plan | None = None,
 ) -> Design:
-    """`extra`: other arrays a used row needs (weights, groups): NaN or −1 marks them missing."""
+    """`extra`: other arrays a used row needs (weights, groups): NaN or −1 marks them missing.
+    `plan` (070): curves, logs, interactions, contrasts and centring."""
+    plan = plan or tm.Plan()
+    prepared = tm.prepare_logs(
+        [(v.name, v.kind, v.values if v.kind == "num" else None) for v in variables], plan
+    )
+    for v in variables:
+        if v.source:
+            prepared.sources[v.name] = v.source
     used = np.isfinite(target)
     missing: list[MissingRows] = []
     named: list[tuple[str, np.ndarray]] = [
@@ -138,23 +186,102 @@ def build(
         missing.insert(0, MissingRows("target", lost))
     if int(used.sum()) < 3:
         raise DesignError("Fewer than 3 complete rows: nothing to estimate.")
+    if prepared.transforms:
+        variables = [
+            replace(
+                v,
+                name=tm.log_name(v.name, how),
+                values=tm.apply_log(v.values, how),
+                source=v.name,
+            )
+            if (how := prepared.transforms.get(v.name))
+            else v
+            for v in variables
+        ]
 
-    blocks: list[np.ndarray] = [np.ones((int(used.sum()), 1))]
+    n = int(used.sum())
+    blocks: list[np.ndarray] = [np.ones((n, 1))]
     terms, columns, levels = [INTERCEPT], [INTERCEPT], [None]
+    groups, recipes = [""], [tm.Recipe("const")]
     references: list[ReferenceLevel] = []
+    notes = list(prepared.notes)
+    main: dict[str, tuple[str, list[tm.Recipe], np.ndarray, list[str]]] = {}
+    kinds: dict[str, tuple[str, list[str]]] = {}
+    values_used: dict[str, np.ndarray] = {}
+    centres: dict[str, float] = {}
     for variable in variables:
+        kinds[variable.name] = (variable.kind, variable.labels)
         if variable.kind == "num":
-            blocks.append(variable.values[used][:, None])
+            values = variable.values[used]
+            values_used[variable.name] = values
+            centre = float(values.mean()) if plan.center else 0.0
+            if not plan.center and variable.source and variable.name.endswith(" › Trend"):
+                centre = float(np.floor(values.min()))  # R-REG-TERM-08: years since a round year
+            if plan.center:
+                centres[variable.name] = centre
+            recipe = tm.Recipe("num", (variable.name,), centre=centre)
+            column = (values - centre)[:, None]
+            blocks.append(column)
+            main[variable.name] = ("num", [recipe], column, [])
             terms.append(variable.name)
             columns.append(variable.name)
             levels.append(None)
+            groups.append(variable.name)
+            recipes.append(recipe)
             continue
-        matrix, names, reference = _indicators(variable, used)
+        values_used[variable.name] = variable.values[used]
+        chosen = plan.reference(variable.name)
+        matrix, names, reference, made, refused = _indicators(variable, used, chosen, plan.coding)
+        if refused:
+            notes.append(
+                tm.TermNote(
+                    f"reference:{variable.name}|{chosen}",
+                    f"reference of `{variable.name}`",
+                    "refused",
+                    refused + "; the most frequent level stays the reference",
+                    "R-REG-TERM-06",
+                )
+            )
         references.append(reference)
         blocks.append(matrix)
+        main[variable.name] = ("cat", made, matrix, names)
         terms += [f"{variable.name} = {name}" for name in names]
         columns += [variable.name] * len(names)
         levels += names
+        groups += [variable.name] * len(names)
+        recipes += made
+    notes += tm.hierarchy_notes(plan, {v.source or v.name for v in variables})
+    for v in variables:  # R-REG-TERM-08: a date as a trend, a month or a day of the week
+        kind = next(
+            (k for k in tm.DATE_KINDS if v.source and v.name == tm.date_name(v.source, k)), None
+        )
+        if kind is not None and v.source is not None:
+            what = {
+                "trend": "the date in decimal years (2014.5 = mid-2014): effects read per year",
+                "month": "the month of the year, each against the most frequent one",
+                "weekday": "the day of the week, each against the most frequent one",
+            }[kind]
+            notes.append(
+                tm.TermNote(f"{kind}:{v.source}", f"`{v.name}`", "used", what, "R-REG-TERM-08")
+            )
+    for block in tm.blocks(plan, main, values_used, notes, prepared.sources):
+        blocks.append(block.matrix)
+        terms += block.names
+        columns += block.columns
+        levels += [None] * len(block.names)
+        groups += [block.group] * len(block.names)
+        recipes += block.recipes
+    for spec in plan.specs:
+        if spec.kind == "reference" and spec.columns[0] not in kinds:
+            notes.append(
+                tm.TermNote(
+                    spec.key,
+                    f"reference of `{spec.columns[0]}`",
+                    "refused",
+                    f"`{spec.columns[0]}` is not a category of the model",
+                    "R-REG-TERM-06",
+                )
+            )
     x = np.hstack(blocks)
     if x.shape[1] > MAX_TERMS:
         raise DesignError(
@@ -172,6 +299,13 @@ def build(
         references,
         left_out,
         missing,
+        [groups[i] for i in keep],
+        [recipes[i] for i in keep],
+        notes,
+        prepared.sources,
+        kinds,
+        values_used,
+        centres,
     )
 
 

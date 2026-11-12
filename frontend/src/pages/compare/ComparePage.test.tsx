@@ -255,7 +255,15 @@ describe("Compare page", () => {
   });
 
   it("asks for two columns first and hides non-comparable ones", async () => {
-    setup();
+    mockApi({
+      "GET /health": health,
+      "GET /datasets/d1": dataset(),
+      "GET /datasets/d1/columns": [
+        ...columns,
+        column({ name: "customer_id", position: 5, type: "identifier", detected_type: "identifier" }),
+      ],
+      "GET /column-roles": roles,
+    });
     renderAt("/d/d1/compare");
 
     expect(
@@ -263,11 +271,52 @@ describe("Compare page", () => {
     ).toBeInTheDocument();
     const x = screen.getByLabelText("X");
     expect(
-      within(x).queryByRole("option", { name: "comment" }),
+      within(x).queryByRole("option", { name: "customer_id" }),
     ).not.toBeInTheDocument();
+    // 059 (R-WRD-06): a text compares with a category by its distinctive words
+    expect(within(x).getByRole("option", { name: "comment" })).toBeInTheDocument();
     expect(
       within(x).getByRole("option", { name: "segment" }),
     ).toBeInTheDocument();
+  });
+
+  it("offers derived columns under their source and shows a text's words by group", async () => {
+    mockApi({
+      "GET /health": health,
+      "GET /datasets/d1": dataset(),
+      "GET /datasets/d1/columns": columns,
+      "GET /datasets/d1/columns/derived": [
+        column({
+          name: "comment › Length",
+          position: 3,
+          type: "numeric_discrete",
+          parser: { kind: "derived", derived: { source: "comment", part: "length", option: null, topics: [] } },
+          reasons: ["derived from 'comment': number of characters (R-DER-01)"],
+        }),
+      ],
+      "GET /column-roles": roles,
+      "GET /datasets/d1/compare": {
+        ...scatter,
+        kind: "words",
+        x: "segment",
+        y: "comment",
+        words: {
+          column: "comment",
+          by: "segment",
+          texts: 40,
+          sampled: false,
+          groups_left: 0,
+          sentence: "“late” marks segment = B2B: 60% of its texts use it, 5% of the others.",
+          rules: ["R-WRD-01"],
+          groups: [{ group: "B2B", texts: 20, note: null, words: [{ word: "late", score: 4, share: 0.6, elsewhere: 0.05, texts: 12 }] }],
+        },
+      },
+    });
+    renderAt("/d/d1/compare?x=segment&y=comment");
+    expect(await screen.findByText("“late” marks segment = B2B: 60% of its texts use it, 5% of the others.")).toBeInTheDocument();
+    const y = screen.getByLabelText("Y");
+    const options = within(y).getAllByRole("option").map((o) => o.textContent);
+    expect(options.indexOf("comment › Length")).toBe(options.indexOf("comment") + 1);
   });
 
   it("shows the chart and the tests for the chosen pair", async () => {

@@ -43,6 +43,7 @@ import { ForecastSection } from "./Forecast";
 import { MethodsRow, MethodsTable, useMethods } from "./Methods";
 import { RollingControls, type Layers } from "./RollingControls";
 import { SavedAnalyses } from "./SavedAnalyses";
+import { RegimesPanel } from "./Regimes";
 import { SmoothRow } from "./Smooth";
 import { parseWindows, rolling } from "./Windows";
 import {
@@ -534,6 +535,7 @@ function SeriesAnalysis({ datasetId, search, ready }: { datasetId: string; searc
                     />
                   )}
                 </SectionBody>
+                <RegimesPanel datasetId={datasetId} params={params} />
               </Section>
               <Section id="forecast" open={isOpen("forecast")} onToggle={toggle} verdict={null}>
                 <ForecastSection
@@ -571,6 +573,8 @@ function SeriesAnalysis({ datasetId, search, ready }: { datasetId: string; searc
 }
 
 function valueLabel(data: SeriesOverview): string {
+  // R-TS-07: without a numeric column the series counts the rows (value "").
+  if (!data.setup.value) return t("ts.pick.rows").toLowerCase();
   return `${t(`time.agg.${data.setup.aggregate}` as MessageKey).toLowerCase()} ${data.setup.value}`;
 }
 
@@ -620,7 +624,9 @@ function ConfigBar({
     {pick(
       t("ts.value"),
       setup.value,
-      setup.numbers.map((n) => ({ value: n, label: n })),
+      setup.value
+        ? setup.numbers.map((n) => ({ value: n, label: n }))
+        : [{ value: "", label: t("ts.saved.rows") }, ...setup.numbers.map((n) => ({ value: n, label: n }))],
       (v) => ({ value: v }),
     )}
     {pick(

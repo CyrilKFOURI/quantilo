@@ -11,6 +11,7 @@ export const CATALOG: { op: Op; group: CatalogGroup }[] = [
   { op: "rename_column", group: "columns" },
   { op: "drop_columns", group: "columns" },
   { op: "duplicate_column", group: "columns" },
+  { op: "assemble_date", group: "columns" },
   { op: "change_type", group: "columns" },
   { op: "replace_values", group: "text" },
   { op: "normalize_spaces", group: "text" },
@@ -49,6 +50,8 @@ export function newStep(op: Op, id: string, column: string): Step {
       return { ...common, op, column, to: `${column} 2` };
     case "duplicate_column":
       return { ...common, op, column, to: `${column} copy` };
+    case "assemble_date":
+      return { ...common, op, year: column, month: column, day: null, hour: null, minute: null, to: "date" };
     case "drop_columns":
       return { ...common, op, columns: [column] };
     case "change_type":

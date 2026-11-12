@@ -1,7 +1,8 @@
 import { Filter, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { useColumns, useOverview } from "../../api/hooks";
+import { useColumns, useDerivedColumns, useOverview } from "../../api/hooks";
+import { withDerived } from "../derived/derived";
 import { formatCount } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { Popover } from "../../ui/Popover";
@@ -23,6 +24,8 @@ export function FilterButton({ datasetId, showChips, onShowChips }: FilterButton
   const [open, setOpen] = useState(false);
   const { conditions } = useFilters(datasetId);
   const columns = useColumns(datasetId, true);
+  // 058: derived columns ("review › Has question") under their source, fetched with the panel
+  const derived = useDerivedColumns(datasetId, open);
   const overview = useOverview(datasetId, conditions.length > 0);
   const counts = conditions.length ? overview.data : undefined;
 
@@ -81,7 +84,7 @@ export function FilterButton({ datasetId, showChips, onShowChips }: FilterButton
       >
         <FilterPanel
           datasetId={datasetId}
-          columns={columns.data ?? []}
+          columns={withDerived(columns.data ?? [], derived.data)}
           rows={counts?.rows}
           totalRows={counts?.total_rows}
           showChips={showChips}

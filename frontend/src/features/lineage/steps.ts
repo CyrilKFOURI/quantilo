@@ -16,6 +16,7 @@ export function stepColumns(step: CleanStep): string[] {
   if ("columns" in step) return step.columns;
   if (step.op === "filter_rows") return step.conditions.map((condition) => condition.column);
   if (step.op === "drop_duplicates") return step.keys ?? [];
+  if (step.op === "assemble_date") return [step.year, step.month, step.day, step.hour, step.minute].filter((name): name is string => Boolean(name));
   return [];
 }
 

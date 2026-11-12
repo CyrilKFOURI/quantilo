@@ -110,9 +110,12 @@ class CleanVersion:
     origin: str
     status: str  # the child dataset's: importing, ready, error
     created_at: str
-    out_of_date: bool  # the parent was reimported or retyped since (S7)
+    out_of_date: bool  # the dataset it was made from was reimported or retyped since (S7)
     steps: list[m.Step] = field(default_factory=list)
     report: CleanReport | None = None
+    # 096: the cleaned version it was made from (None: the original, or that version is gone)
+    source_id: str | None = None
+    source_seq: int | None = None
 
 
 @dataclass
@@ -133,6 +136,8 @@ class CleanLineageItem:
     steps: int
     created_at: str
     out_of_date: bool
+    source_id: str | None = None  # 096: made from this cleaned version (parent_id: the original)
+    source_seq: int | None = None
 
 
 @dataclass
@@ -148,6 +153,8 @@ class _Pending:
     rowmap: Path
     changes: list[ColumnChange]
     upload: Path
+    source_id: str | None = None  # 096: a cleaned version cleaned again
+    source_seq: int | None = None
 
 
 def _now() -> str:
@@ -161,6 +168,28 @@ def _stamp(record: DatasetRecord) -> str:
 def _rows_state(stamp: str) -> str:
     """The part of a stamp that changes with the rows (a reimport), not with a type correction."""
     return "|".join(stamp.split("|")[:2])
+
+
+SOURCE = "source"  # 096: the report's key for the cleaned version a version was made from
+
+
+def _source(report: dict[str, Any], stamps: dict[str, str]) -> tuple[str | None, int | None]:
+    """The cleaned version a version was made from, popped from its report: its id while it
+    exists, and its number."""
+    source = report.pop(SOURCE, None)
+    if not source:
+        return None, None
+    found = source["dataset_id"] if source["dataset_id"] in stamps else None
+    return found, source.get("seq")
+
+
+def _out_of_date(row: sqlite3.Row, report: dict[str, Any], stamps: dict[str, str]) -> bool:
+    """S7: the dataset it was made from changed since; one deleted since compares nothing."""
+    source = report.get(SOURCE)
+    made_from = source["dataset_id"] if source else row["parent_id"]
+    if made_from not in stamps:
+        return False
+    return stamps[made_from] != row["parent_stamp"]
 
 
 def _safe_name(name: str) -> str:
@@ -308,13 +337,6 @@ class CleanService:
     def save(self, dataset_id: str, steps: list[Any], origin: str = "user") -> CleanJob:
         """Write a cleaned version in the background, then import it (S4)."""
         self.columns.ready(dataset_id)
-        if self.parent_of(dataset_id) is not None:
-            raise AppError(
-                "This is a cleaned version: clean its original instead (Clean always starts "
-                "from the original).",
-                code="not_original",
-                status_code=409,
-            )
         m.Steps(steps=steps)
         job = CleanJob(uuid.uuid4().hex[:12], "running", "queued", dataset_id)
         with self._lock:
@@ -339,15 +361,22 @@ class CleanService:
             self._stops.discard(job.id)
 
     def _write(self, job: CleanJob, steps: list[Any], origin: str) -> str:
+        """096: `job.dataset_id` may be a cleaned version: the steps run on it, and the new
+        version joins the original's family (`parent_id`), made from it (`source`)."""
         parent = self.columns.ready(job.dataset_id)
+        original_id = self.parent_of(parent.id) or parent.id
+        original = self.datasets.get(original_id)
         with self._db() as connection:
             row = connection.execute(
                 "SELECT coalesce(max(seq), 0) FROM clean_versions WHERE parent_id = ?",
-                (parent.id,),
+                (original_id,),
+            ).fetchone()
+            source = connection.execute(
+                "SELECT seq FROM clean_versions WHERE dataset_id = ?", (parent.id,)
             ).fetchone()
             records = columns_repo.list_columns(connection, parent.id)
         seq = int(row[0]) + 1
-        name = f"{parent.name} · Cleaned v{seq}"
+        name = f"{original.name} · Cleaned v{seq}"
         target = self.datasets.new_upload_path(f"{_safe_name(name)}.parquet")
         rowmap = target.with_name("rowmap.parquet")
         job.stage, job.progress = "cleaning", 0.1
@@ -377,7 +406,7 @@ class CleanService:
             raise CleanCancelled
         job.progress = 0.7
         self._pending[str(self.datasets.resolve(str(target)))] = _Pending(
-            parent_id=parent.id,
+            parent_id=original_id,
             seq=seq,
             steps=m.Steps(steps=steps).to_json(),
             origin=origin,
@@ -386,6 +415,8 @@ class CleanService:
             rowmap=rowmap,
             changes=corrections(steps, records),
             upload=target,
+            source_id=parent.id if source else None,
+            source_seq=int(source["seq"]) if source else None,
         )
         record, _ = self.datasets.start_import(str(target), name, ImportOptions())
         # done once the version is a ready dataset, recorded in clean_versions (the page then
@@ -433,8 +464,12 @@ class CleanService:
         steps = m.parse_steps(pending.steps).steps
         with self._db() as connection:
             child = [to_view(r) for r in columns_repo.list_columns(connection, dataset_id)]
-            parent = [to_view(r) for r in columns_repo.list_columns(connection, pending.parent_id)]
+            made_from = pending.source_id or pending.parent_id
+            parent = [to_view(r) for r in columns_repo.list_columns(connection, made_from)]
         pending.report.type_changes = type_changes(parent, child, steps)
+        report = pending.report.to_dict()
+        if pending.source_id:  # 096: kept beside the report, no migration
+            report[SOURCE] = {"dataset_id": pending.source_id, "seq": pending.source_seq}
         folder = self._folder(dataset_id)
         folder.mkdir(parents=True, exist_ok=True)
         if pending.rowmap.is_file():
@@ -450,7 +485,7 @@ class CleanService:
                     pending.steps,
                     pending.origin,
                     pending.stamp,
-                    json.dumps(pending.report.to_dict()),
+                    json.dumps(report),
                     _now(),
                 ),
             )
@@ -512,6 +547,9 @@ class CleanService:
         self, row: sqlite3.Row, stamps: dict[str, str], names: dict[str, Any]
     ) -> CleanVersion:
         child = names.get(row["dataset_id"])
+        report = json.loads(row["report"])
+        out_of_date = _out_of_date(row, report, stamps)
+        source_id, source_seq = _source(report, stamps)
         return CleanVersion(
             dataset_id=row["dataset_id"],
             parent_id=row["parent_id"],
@@ -520,9 +558,11 @@ class CleanService:
             origin=row["origin"],
             status=child.status if child else "error",
             created_at=row["created_at"],
-            out_of_date=stamps.get(row["parent_id"]) != row["parent_stamp"],
+            out_of_date=out_of_date,
             steps=m.parse_steps(row["steps"]).steps,
-            report=CleanReport.from_dict(json.loads(row["report"])),
+            report=CleanReport.from_dict(report),
+            source_id=source_id,
+            source_seq=source_seq,
         )
 
     def family(self, dataset_id: str) -> CleanFamily:
@@ -542,21 +582,26 @@ class CleanService:
         stamps = {r.id: _stamp(r) for r in self.datasets.list_all()}
         with self._db() as connection:
             rows = connection.execute(
-                "SELECT dataset_id, parent_id, seq, origin, steps, parent_stamp, created_at "
-                "FROM clean_versions ORDER BY parent_id, seq"
+                "SELECT dataset_id, parent_id, seq, origin, steps, parent_stamp, report, "
+                "created_at FROM clean_versions ORDER BY parent_id, seq"
             ).fetchall()
-        return [
-            CleanLineageItem(
-                dataset_id=row["dataset_id"],
-                parent_id=row["parent_id"],
-                seq=int(row["seq"]),
-                origin=row["origin"],
-                steps=len(json.loads(row["steps"]).get("steps", [])),
-                created_at=row["created_at"],
-                out_of_date=stamps.get(row["parent_id"]) != row["parent_stamp"],
-            )
-            for row in rows
-        ]
+        return [self._item(row, stamps) for row in rows]
+
+    def _item(self, row: sqlite3.Row, stamps: dict[str, str]) -> CleanLineageItem:
+        report = json.loads(row["report"])
+        out_of_date = _out_of_date(row, report, stamps)
+        source_id, source_seq = _source(report, stamps)
+        return CleanLineageItem(
+            dataset_id=row["dataset_id"],
+            parent_id=row["parent_id"],
+            seq=int(row["seq"]),
+            origin=row["origin"],
+            steps=len(json.loads(row["steps"]).get("steps", [])),
+            created_at=row["created_at"],
+            out_of_date=out_of_date,
+            source_id=source_id,
+            source_seq=source_seq,
+        )
 
     def row_link(self, dataset_id: str) -> RowLink | None:
         """For Changes (095): a cleaned version's original and row map, to pair their rows. The

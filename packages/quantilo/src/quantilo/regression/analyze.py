@@ -15,6 +15,7 @@ from quantilo.correlations.evidence import Evidence, effect_size, grade
 from quantilo.regression import covariance as cov
 from quantilo.regression import diagnostics as dg
 from quantilo.regression import families as fm
+from quantilo.regression import terms as tm
 from quantilo.regression.covariance import LABELS, Kind
 from quantilo.regression.design import (
     INTERCEPT,
@@ -102,6 +103,7 @@ class Inputs:
     exposure_reason: str | None = None
     out_of_sample: bool = True  # off for the alternatives of Advanced › More
     period_order: np.ndarray | None = None  # 071: each row's period rank (first differences)
+    plan: tm.Plan = field(default_factory=tm.Plan)  # 070: curves, logs, interactions, contrasts
 
 
 @dataclass
@@ -129,6 +131,7 @@ class RegressionCoefficient:
     ratio_low: float | None = None
     ratio_high: float | None = None
     outcome: str | None = None  # multinomial logit: the class this coefficient is about
+    group: str | None = None  # 070: the term it comes from (a column, `spline:age`, …)
 
 
 @dataclass
@@ -162,6 +165,7 @@ class RegressionCheck:
     action: str | None = None  # an Advanced section, "compare" or "correlations"
     column: str | None = None  # the column the action is about
     family: str | None = None  # action "family": the family to switch to (069)
+    term: str | None = None  # action "term": the term to add (070, `spline:age`)
 
 
 @dataclass
@@ -275,6 +279,16 @@ class TermsTable:
     vifs: list[dg.Vif]
     condition: float | None
     sentence: str
+    # 070: the terms in use and how they read
+    specs: list[str] = field(default_factory=list)
+    center: bool = False
+    coding: str = "reference"
+    notes: list[tm.TermNote] = field(default_factory=list)
+    tests: list[tm.TermTest] = field(default_factory=list)
+    curves: list[tm.EffectCurve] = field(default_factory=list)
+    slopes: list[tm.SimpleSlope] = field(default_factory=list)
+    contrasts: list[tm.LevelEffect] = field(default_factory=list)
+    numbers: list[str] = field(default_factory=list)  # columns a partial plot can show
 
 
 @dataclass
@@ -447,14 +461,14 @@ def run(inputs: Inputs) -> Fitted:
             extra[inputs.shape.entity] = inputs.entity_codes
         if inputs.period_codes is not None and inputs.shape.period:
             extra[inputs.shape.period] = inputs.period_codes
-    design = build(inputs.y, inputs.variables, extra)
+    design = build(inputs.y, inputs.variables, extra, inputs.plan)
     profile = fm.profile(design.y, inputs.binary, inputs.outcomes, inputs.target_role)
     family = fm.choose(profile, inputs.family, inputs.target, inputs.binary)
     offset_all = _offset(inputs, family.kind)
     if offset_all is not None and inputs.exposure:
         # R-REG-02: the exposure is the offset, not a column of the design
         variables = [v for v in inputs.variables if v.name != inputs.exposure]
-        design = build(inputs.y, variables, {**extra, inputs.exposure: offset_all})
+        design = build(inputs.y, variables, {**extra, inputs.exposure: offset_all}, inputs.plan)
     for item in design.missing:
         if item.column == "target":
             item.column = inputs.target
@@ -583,7 +597,16 @@ def _terms(fit: Fitted) -> list[RegressionCoefficient]:
         se = float(ses[j]) if math.isfinite(ses[j]) else None
         low, high, t, p = _interval(b, se, df)
         term = RegressionCoefficient(
-            name, design.columns[j], design.levels[j], b, se, low, high, t, p
+            name,
+            design.columns[j],
+            design.levels[j],
+            b,
+            se,
+            low,
+            high,
+            t,
+            p,
+            group=design.groups[j] if design.groups else None,
         )
         if j > 0:
             if fit.logit is not None:
@@ -641,7 +664,17 @@ def _glm_terms(fit: Fitted, glm: fm.GlmFit) -> list[RegressionCoefficient]:
             low, high, t, p = _interval(b, se, df)
             name = design.terms[j] if outcome is None else f"{outcome} · {design.terms[j]}"
             term = RegressionCoefficient(
-                name, design.columns[j], design.levels[j], b, se, low, high, t, p, outcome=outcome
+                name,
+                design.columns[j],
+                design.levels[j],
+                b,
+                se,
+                low,
+                high,
+                t,
+                p,
+                outcome=outcome,
+                group=design.groups[j] if design.groups else None,
             )
             if j > 0:
                 ame = float(glm.marginal[i])
@@ -676,18 +709,32 @@ def _adjust(terms: list[RegressionCoefficient]) -> MultipleTesting:
 
 
 def _sentence(
-    term: RegressionCoefficient, fit: Fitted, references: dict[str, str], tests: int
+    term: RegressionCoefficient,
+    fit: Fitted,
+    references: dict[str, str],
+    tests: int,
+    index: int = -1,
 ) -> str:
     target = fit.inputs.target
     ci = f"[{fmt(term.ci_low)} ; {fmt(term.ci_high)}]"
+    special = _term_sentence(term, index, fit, references)
+    if special is not None:
+        if term.q_value is not None and term.q_value >= 0.05:
+            special += (
+                f" Not clear after correcting for {tests} tests (adj. p = {term.q_value:.2g})."
+            )
+        return special
     if fit.family is not None and fit.family.kind not in ("ols", "logit"):
-        text = _family_sentence(term, fit, references)
+        text = _family_sentence(term, fit, references) + _main_suffix(term, fit, references)
         if term.column != INTERCEPT and term.q_value is not None and term.q_value >= 0.05:
             text += f" Not clear after correcting for {tests} tests (adj. p = {term.q_value:.2g})."
         return text
     if term.term == INTERCEPT:
+        where = (
+            "every number at its mean" if fit.design.centres else "every column at 0"
+        )  # R-REG-TERM-05
         return (
-            f"With every column at 0 (and categories at their reference), `{target}` is "
+            f"With {where} (and categories at their reference), `{target}` is "
             f"{fmt(term.estimate)} {ci}."
         )
     level = term.level
@@ -728,9 +775,121 @@ def _sentence(
             f"With `{term.column}` = {level}, `{target}` is {fmt(abs(term.estimate))} {side} {ci} "
             f"than with {references.get(term.column, 'the reference')}, other columns held fixed."
         )
+    text += _main_suffix(term, fit, references)
+    if term.level is None and term.column.endswith(" › Trend"):  # R-REG-TERM-08
+        source = fit.design.sources.get(term.column, term.column)
+        text = text.replace(f"Each extra unit of `{term.column}`", f"Each year later in `{source}`")
     if term.q_value is not None and term.q_value >= 0.05:
         text += f" Not clear after correcting for {tests} tests (adj. p = {term.q_value:.2g})."
     return text
+
+
+def _recipe(fit: Fitted, index: int) -> tm.Recipe | None:
+    recipes = fit.design.recipes
+    if index < 0 or not recipes:
+        return None
+    return recipes[index % len(recipes)]
+
+
+def _term_sentence(
+    term: RegressionCoefficient, index: int, fit: Fitted, references: dict[str, str]
+) -> str | None:
+    """070: the sentence of a term that is not a column as it is: part of a curve, an
+    interaction, the log of a column (R-REG-TERM-02…07)."""
+    group = term.group or ""
+    target = fit.inputs.target
+    reads = fit.family.reads if fit.family is not None else "units"
+    ci = f"[{fmt(term.ci_low)} ; {fmt(term.ci_high)}]"
+    design = fit.design
+    if group.startswith(("spline:", "square:", "cube:")):
+        return (
+            f"`{term.term}` is part of the curve of `{term.column}` ({fmt(term.estimate)} {ci}): "
+            "read the curve and its joint test in Advanced › Terms."
+        )
+    recipe = _recipe(fit, index)
+    if group.startswith("interaction:") and recipe is not None and recipe.kind == "product":
+        first, second = recipe.parts
+        if reads != "units":
+            return (
+                f"`{term.term}`: the effect of one column changes with the other "
+                f"({fmt(term.estimate)} {ci} on the model's scale); read the slopes in "
+                "Advanced › Terms."
+            )
+        if first.kind != "ind" and second.kind != "ind":
+            a, b = first.variables[0], second.variables[0]
+            way = "grows" if term.estimate >= 0 else "shrinks"
+            return (
+                f"The effect of each extra unit of `{a}` on `{target}` {way} by "
+                f"{fmt(abs(term.estimate))} {ci} for each extra unit of `{b}` (and the other way "
+                "round), other columns held fixed."
+            )
+        if first.kind != "ind":
+            a = first.variables[0]
+            b = second.variables[0]
+            level = term.term.rsplit(" = ", 1)[-1]
+            side = "more" if term.estimate >= 0 else "less"
+            return (
+                f"With `{b}` = {level}, each extra unit of `{a}` adds {fmt(abs(term.estimate))} "
+                f"{side} {ci} to `{target}` than with {references.get(b, 'the reference')}, other "
+                "columns held fixed."
+            )
+        return (
+            f"The combination `{term.term}` is {fmt(term.estimate)} {ci} away from what its two "
+            "levels give separately, other columns held fixed."
+        )
+    source = design.sources.get(term.column, term.column)
+    if term.level is None and source != term.column and term.column.startswith("log("):
+        plus = term.column.startswith("log(1 +")
+        what = f"1 + `{source}`" if plus else f"`{source}`"
+        if reads == "ratio":
+            return (
+                f"A 1 % rise in {what} raises `{target}` by about {fmt(term.estimate)} % "
+                f"{ci} (an elasticity), other columns held fixed."
+            ) + _main_suffix(term, fit, references)
+        if reads == "units":
+            low = None if term.ci_low is None else term.ci_low / 100
+            high = None if term.ci_high is None else term.ci_high / 100
+            way = "adds" if term.estimate >= 0 else "takes"
+            off = "to" if term.estimate >= 0 else "off"
+            return (
+                f"A 1 % rise in {what} {way} {fmt(abs(term.estimate) / 100)} {off} `{target}` "
+                f"[{fmt(low)} ; {fmt(high)}], other columns held fixed."
+            ) + _main_suffix(term, fit, references)
+    return None
+
+
+def _main_suffix(term: RegressionCoefficient, fit: Fitted, references: dict[str, str]) -> str:
+    """070: where a main effect reads when the column also has a square or an interaction."""
+    design, plan = fit.design, fit.inputs.plan
+    if not plan.specs or term.column == INTERCEPT or term.group != term.column:
+        return ""
+    name = term.column
+    source = design.sources.get(name, name)
+    parts: list[str] = []
+    if term.level is None and any(
+        s.kind in ("square", "cube") and s.columns[0] == source for s in plan.specs
+    ):
+        mean = next(
+            (r.centre for r in design.recipes if r.kind == "power" and r.variables == (name,)), None
+        )
+        parts.append(f"This is the slope at the mean of `{name}` ({fmt(mean)}).")
+    for spec in plan.specs:
+        if spec.kind != "interaction" or source not in spec.columns:
+            continue
+        other = spec.columns[1] if spec.columns[0] == source else spec.columns[0]
+        shown = next((n for n in design.kinds if design.sources.get(n, n) == other), other)
+        kind = design.kinds.get(shown, ("num", []))[0]
+        if kind == "cat":
+            if any(r.coding == "deviation" for r in design.references if r.column == shown):
+                at = f"at the average of the `{shown}` levels"
+            else:
+                at = f"with {references.get(shown, 'the reference')}"
+        elif shown in design.centres:
+            at = f"at the mean of `{shown}` ({fmt(design.centres[shown])})"
+        else:
+            at = f"at `{shown}` = 0"
+        parts.append(f"Read {at}: its interaction with `{shown}` is a separate term.")
+    return (" " + " ".join(parts)) if parts else ""
 
 
 def _pct(value: float | None) -> str:
@@ -1034,6 +1193,22 @@ def _checks(fit: Fitted, quality: RegressionQuality) -> list[RegressionCheck]:
                     None if robust else "standard_errors",
                 )
             )
+            driver = dg.spread_driver(a.e, a.x)
+            if driver is not None and fit.model in ("ols", "wls", "log_ols", "boxcox"):
+                column = design.sources.get(design.columns[driver], design.columns[driver])
+                checks.append(
+                    RegressionCheck(
+                        "quantile",
+                        "info",
+                        "Low and high values",
+                        f"The spread follows `{design.terms[driver]}` most: the effects may "
+                        f"differ for low and high values of `{inputs.target}`. Quantile "
+                        "regression shows it.",
+                        "R-REG-12",
+                        "robust",
+                        column,
+                    )
+                )
         else:
             checks.append(
                 RegressionCheck(
@@ -1078,13 +1253,28 @@ def _checks(fit: Fitted, quality: RegressionQuality) -> list[RegressionCheck]:
         )
         if rs.p_value is not None and rs.p_value < SPEC_P:
             numbers = {
-                t: design.x[:, j]
+                design.sources.get(t, t): design.x[:, j]
                 for j, t in enumerate(design.terms)
-                if j > 0 and design.levels[j] is None
+                if j > 0
+                and design.levels[j] is None
+                and (not design.recipes or design.recipes[j].kind == "num")
             }
             bend = dg.bending(fit.ls.resid, numbers)
+            curved = {s.columns[0] for s in inputs.plan.specs if s.kind == "spline"}
             text = f"The effects may not be straight lines (RESET {fmt_p(rs.p_value)})"
-            text += f": `{bend}` bends the most. See `{inputs.target}` against it." if bend else "."
+            if bend and bend not in curved:
+                text += (
+                    f": `{bend}` bends the most. Try a curve on it, or see `{inputs.target}` "
+                    "against it."
+                )
+            elif bend:
+                text += (
+                    f": `{bend}` bends the most, even with its curve. See `{inputs.target}` "
+                    "against it."
+                )
+            else:
+                text += "."
+            try_curve = bool(bend) and bend not in curved
             checks.append(
                 RegressionCheck(
                     "specification",
@@ -1092,8 +1282,9 @@ def _checks(fit: Fitted, quality: RegressionQuality) -> list[RegressionCheck]:
                     "Straight lines",
                     text,
                     "R-REG-10",
-                    "compare" if bend else None,
+                    ("term" if try_curve else "compare") if bend else None,
                     bend,
+                    term=f"spline:{bend}" if try_curve else None,
                 )
             )
         else:
@@ -1127,7 +1318,7 @@ def _checks(fit: Fitted, quality: RegressionQuality) -> list[RegressionCheck]:
             )
             status = "warn"
         checks.append(RegressionCheck("normality", status, "Normality of the residuals", text))
-    vifs, condition = dg.collinearity(design.x, design.terms)
+    vifs, condition = _collinearity(design)
     worst = max((v for v in vifs if v.vif is not None), key=lambda v: v.vif or 0, default=None)
     if worst is not None and worst.vif is not None and worst.vif > VIF_HIGH:
         checks.append(
@@ -1192,21 +1383,27 @@ def _checks(fit: Fitted, quality: RegressionQuality) -> list[RegressionCheck]:
     if fit.found is not None:
         share = fit.found.influential / max(n, 1)
         outliers = fit.found.outliers
-        if share > INFLUENTIAL_SHARE or outliers:
-            text = (
-                f"{_plural(fit.found.influential, 'row')} ({share:.1%}) weigh heavily on the "
-                "coefficients "
-                f"(Cook's distance > 4/n)"
-            )
-            text += (
-                f", {_plural(outliers, 'residual')} beyond the Bonferroni threshold."
-                if outliers
-                else "."
-            )
-            checks.append(
-                RegressionCheck(
-                    "influence", "warn", "Influential rows", text, "R-REG-11", "influence"
+        xi = dg.tail_index(fit.ls.resid) if fit.ls is not None else None
+        heavy = xi is not None and xi > dg.HEAVY_XI
+        if share > INFLUENTIAL_SHARE or outliers or heavy:
+            if share > INFLUENTIAL_SHARE or outliers:
+                text = (
+                    f"{_plural(fit.found.influential, 'row')} ({share:.1%}) weigh heavily on the "
+                    "coefficients "
+                    f"(Cook's distance > 4/n)"
                 )
+                text += (
+                    f", {_plural(outliers, 'residual')} beyond the Bonferroni threshold."
+                    if outliers
+                    else "."
+                )
+            else:
+                text = "No row stands out by Cook's distance."
+            if heavy and xi is not None:
+                text += f" The residuals have a heavy tail (Hill ξ = {xi:.2f})."
+            text += " Huber's robust fit shows whether they change the coefficients."
+            checks.append(
+                RegressionCheck("influence", "warn", "Influential rows", text, "R-REG-11", "robust")
             )
         else:
             checks.append(
@@ -1248,6 +1445,7 @@ def _checks(fit: Fitted, quality: RegressionQuality) -> list[RegressionCheck]:
                     "R-REG-25",
                 )
             )
+    checks.extend(_term_checks(fit))
     if se.warning:
         checks.append(
             RegressionCheck(
@@ -1265,6 +1463,67 @@ def _checks(fit: Fitted, quality: RegressionQuality) -> list[RegressionCheck]:
             )
         )
     return checks
+
+
+def _collinearity(design: Design) -> tuple[list[dg.Vif], float]:
+    """VIF per column (067); with curves or interactions (070), a curve read with its column
+    (generalized VIF) and the interaction columns left out of the alarm."""
+    termed = ("spline:", "square:", "cube:", "interaction:")
+    if not design.recipes or not any(g.startswith(termed) for g in design.groups):
+        return dg.collinearity(design.x, design.terms)
+    owners: list[str | None] = []
+    for j, recipe in enumerate(design.recipes):
+        if j == 0 or recipe.kind == "product":
+            owners.append(None)
+        elif recipe.kind in ("spline", "power", "num"):
+            owners.append(recipe.variables[0])
+        else:
+            owners.append(design.terms[j])
+    return dg.grouped_collinearity(design.x, design.terms, owners)
+
+
+def _term_checks(fit: Fitted) -> list[RegressionCheck]:
+    """070: a term that could not be made (said, never dropped in silence), and centring when
+    two numbers interact (R-REG-TERM-05)."""
+    found: list[RegressionCheck] = []
+    design, plan = fit.design, fit.inputs.plan
+    refused = [n for n in design.notes if n.status == "refused"]
+    if refused:
+        first = refused[0]
+        more = f" (and {_plural(len(refused) - 1, 'other')})" if len(refused) > 1 else ""
+        found.append(
+            RegressionCheck(
+                "terms",
+                "warn",
+                "Terms",
+                f"{first.label}: {first.reason}{more}.",
+                first.rule,
+                "terms",
+            )
+        )
+    if not plan.center:
+        for spec in plan.specs:
+            if spec.kind != "interaction":
+                continue
+            shown = [
+                next((n for n in design.kinds if design.sources.get(n, n) == c), c)
+                for c in spec.columns
+            ]
+            if all(design.kinds.get(n, ("cat", []))[0] == "num" for n in shown):
+                a, b = shown
+                found.append(
+                    RegressionCheck(
+                        "centering",
+                        "info",
+                        "Centering",
+                        f"`{a}` and `{b}` interact: the effect of each is read where the other "
+                        "is 0. Center the numbers to read it at the mean of the other.",
+                        "R-REG-TERM-05",
+                        "center",
+                    )
+                )
+                break
+    return found
 
 
 def _family_checks(fit: Fitted) -> list[RegressionCheck]:
@@ -1404,9 +1663,16 @@ def _result(fit: Fitted) -> RegressionReport:
     inputs, design = fit.inputs, fit.design
     terms = _terms(fit)
     multiple = _adjust(terms)
-    references = {r.column: f"`{r.column}` = {r.level} (the reference)" for r in design.references}
-    for term in terms:
-        term.sentence = _sentence(term, fit, references, multiple.tests)
+    references = {
+        r.column: (
+            f"the average of the `{r.column}` levels"
+            if r.coding == "deviation"
+            else f"`{r.column}` = {r.level} (the reference)"
+        )
+        for r in design.references
+    }
+    for index, term in enumerate(terms):
+        term.sentence = _sentence(term, fit, references, multiple.tests, index)
     quality = _quality(fit)
     body = terms[1:]
     chosen = None
@@ -1416,7 +1682,10 @@ def _result(fit: Fitted) -> RegressionReport:
         clear = [
             t
             for t in body
-            if t.q_value is not None and t.q_value < 0.05 and t.standardized is not None
+            if t.q_value is not None
+            and t.q_value < 0.05
+            and t.standardized is not None
+            and t.group in (None, t.column)  # 070: a column's own effect, not a curve's part
         ]
         chosen = max(clear, key=lambda t: abs(t.standardized or 0), default=None)
     if chosen is not None:
@@ -1574,12 +1843,64 @@ def influence_table(fit: Fitted) -> InfluenceTable:
     )
 
 
+def _scale(fit: Fitted) -> str:
+    target = fit.inputs.target
+    if fit.transform is not None and fit.transform.kind == "log_ols":
+        return f"log(`{target}`)"
+    if fit.transform is not None and fit.transform.kind == "boxcox":
+        return f"Box-Cox transform of `{target}`"
+    return f"`{target}`"
+
+
 def terms_table(fit: Fitted) -> TermsTable:
-    vifs, condition = dg.collinearity(fit.design.x, fit.design.terms)
+    design, plan = fit.design, fit.inputs.plan
+    vifs, condition = _collinearity(design)
     count = len(fit.result.left_out)
-    sentence = f"{_plural(len(fit.design.terms) - 1, 'term')} estimated"
+    sentence = f"{_plural(len(design.terms) - 1, 'term')} estimated"
     sentence += f", {_plural(count, 'column')} left out with the reason." if count else "."
-    return TermsTable(fit.design.references, fit.result.left_out, vifs, condition, sentence)
+    table = TermsTable(design.references, fit.result.left_out, vifs, condition, sentence)
+    table.specs = [s.key for s in plan.specs]
+    table.center, table.coding, table.notes = plan.center, plan.coding, design.notes
+    table.numbers = [
+        design.sources.get(n, n) for n, (kind, _) in design.kinds.items() if kind == "num"
+    ]
+    beta = _beta(fit)
+    if design.recipes and len(beta) == design.x.shape[1]:
+        reading = tm.read(
+            design.groups,
+            design.terms,
+            design.recipes,
+            design.sources,
+            design.kinds,
+            design.values,
+            design.x,
+            plan,
+            tm.Estimates(beta, fit.covariance, fit.df, fit.ls is not None, _scale(fit)),
+        )
+        table.tests, table.curves = reading.tests, reading.curves
+        table.slopes, table.contrasts = reading.slopes, reading.contrasts
+    return table
+
+
+def partial_plot(fit: Fitted, column: str) -> tm.PartialPlot:
+    """070 (R-REG-TERM-11): added-variable and component + residual plots of one column."""
+    if fit.ls is None:
+        return tm.PartialPlot(column, False, "Partial plots are for least squares.")
+    design = fit.design
+    return tm.partial(
+        column,
+        design.recipes,
+        design.sources,
+        design.kinds,
+        design.values,
+        design.x,
+        design.y,
+        fit.ls.beta,
+        fit.ls.resid,
+        fit.ls.weights,
+        fit.inputs.rows[design.used],
+        _scale(fit),
+    )
 
 
 def more(fit: Fitted) -> MoreChecks:

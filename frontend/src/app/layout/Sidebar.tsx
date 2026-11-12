@@ -15,6 +15,7 @@ import {
 import { useColumns, useDataset } from "../../api/hooks";
 import { useCurrentDataset } from "../../features/datasets/current";
 import { ThemeSwitcher } from "../../features/theme/ThemeSwitcher";
+import { ToolboxMenu } from "../../features/toolbox/ToolboxMenu";
 import { inToolbox } from "../../features/toolbox/tools";
 import { LockBadge } from "../../lite/Locked";
 import { t, type MessageKey } from "../../lib/i18n";
@@ -176,17 +177,14 @@ export function Sidebar({ collapsed, onToggle, modules, drawer = false, onNaviga
         <ul className="space-y-0.5 border-t border-line pt-3">
           <li>
             {datasetId ? (
-              <Link
-                to={"/d/$datasetId/toolbox" as never}
-                params={{ datasetId } as never}
-                title={collapsed ? t("nav.toolbox") : undefined}
-                aria-label={collapsed ? t("nav.toolbox") : undefined}
-                aria-current={inToolbox(pathname) ? "page" : undefined}
-                className={`${itemClass} hover:bg-surface-2 hover:text-ink-1 ${inToolbox(pathname) ? activeClass : ""}`}
-              >
-                <Toolbox size={16} strokeWidth={1.5} aria-hidden />
-                {!collapsed && t("nav.toolbox")}
-              </Link>
+              <ToolboxMenu
+                datasetId={datasetId}
+                modules={modules}
+                collapsed={collapsed}
+                drawer={drawer}
+                itemClass={itemClass}
+                active={inToolbox(pathname)}
+              />
             ) : (
               <span
                 aria-disabled="true"

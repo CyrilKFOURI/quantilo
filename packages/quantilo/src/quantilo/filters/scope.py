@@ -14,6 +14,7 @@ from quantilo.filters.sql import (
     where_sql,
 )
 from quantilo.ingestion.sql import lit
+from quantilo.typing.derived import names_in, with_derived
 from quantilo.typing.types import AnalysisType, Parser
 
 
@@ -38,6 +39,7 @@ def where_for(columns: Sequence[TypedColumn], conditions: list[Condition]) -> Wh
     """The filters, read through each column's effective type and parser (validated here)."""
     if not conditions:
         return Where()
+    columns = with_derived(columns, names_in(conditions))  # 058: a derived column in a filter
     known = {c.name: FilterColumn(c.name, c.type, c.parser) for c in columns}
     return Where(where_sql(conditions, known), tuple(row_steps(conditions, known)))
 

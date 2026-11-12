@@ -58,6 +58,20 @@ info.exif       # make, model, date_taken, orientation, has_location
 
 PNG, JPEG, GIF, WebP, BMP, TIFF, HEIC and AVIF are recognised by their first bytes, not their name, and read from their headers only: no pixel is decoded and Pillow is not needed. GPS coordinates are never read, only whether the photo has some (`has_location`). An SVG is refused (`is_image=False`, with the reason): it can carry scripts. At most 1 MiB is read, whatever the file size; a damaged header gives `None` and a note, never an exception. `info.vision` lists the computer-vision analyses that will come later (nothing is computed yet).
 
+A whole set of images becomes a dataset, one row per image:
+
+```python
+images = dx.image_set("beans/", workspace="work")   # a folder, a ZIP, a HF Parquet file or one image
+images.sentence   # '1,295 images from a folder: 3 labels (...); splits train 1,034, test 128, val 133.'
+images.rules      # every reading rule that fired: R-VIS-LAY-01 "Labels read from folder names", ...
+images.skipped    # the files left out, each with its rule and reason
+ds = images.open()                                # brightness, contrast, sharpness, phash... as columns
+dx.image_set("pets/", labels="labels.csv")        # labels from a file whose column names the images
+dx.image_set("beans/", ignore_rules={"R-VIS-LAY-01"})   # ignore folder labels
+```
+
+Labels come from sub-folders (ImageFolder), splits from `train`/`test`/`val` folders, normal images and pixel masks from the MVTec AD layout, or from a labels CSV; each reading is a written rule with a code and a reason, and can be undone by its code. Images are decoded with Pillow, safely: the size is checked before decoding (100 megapixels at most), truncated files are errors, SVG is refused, and no EXIF or GPS is kept. A ZIP is checked against path traversal and zip bombs and read in memory, never extracted under its own names. Files are stored by content (`workspace/images/<id>/files/<sha>`), with WebP thumbnails; every measure is taken at 512 pixels so that images of any size compare (`quantilo.vision.measures`), and pHash, dHash and the HSV, HOG and LBP descriptors are plain numpy (`quantilo.vision.hashes`, `quantilo.vision.descriptors`).
+
 JSON, JSON Lines and XML documents become linked tables:
 
 ```python

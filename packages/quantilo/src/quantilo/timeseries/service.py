@@ -26,6 +26,7 @@ from quantilo.timeseries import drivers as dv
 from quantilo.timeseries import forecast as fc
 from quantilo.timeseries import groups as gr
 from quantilo.timeseries import hierarchy as hi
+from quantilo.timeseries import regimes as rg
 from quantilo.timeseries import residuals as rs
 from quantilo.timeseries import series as ts
 from quantilo.timeseries import smoothing as sm
@@ -51,6 +52,7 @@ from quantilo.timeseries.seasonality import (
     starts,
     year_overlay,
 )
+from quantilo.typing import date_parts
 from quantilo.variable.source import clean
 
 DATES = {"datetime"}
@@ -216,6 +218,16 @@ class SeriesVolatility:
 
 
 @dataclass
+class SeriesRegimes:
+    """Regimes of the series (062), computed on demand only (Advanced)."""
+
+    setup: SeriesSetup
+    periods: list[str]  # the periods of `regimes.values`
+    regimes: rg.Regimes
+    filled: int  # here: empty periods skipped (R-RG-05), never filled
+
+
+@dataclass
 class SeriesResiduals:
     setup: SeriesSetup
     distribution: rs.Distribution | None
@@ -328,6 +340,14 @@ def _column(view: Any) -> CompareColumn:
     return CompareColumn(view.name, view.type, view.parser, view.order, view.role)
 
 
+def _value_column(by_name: dict[str, Any], value: str, time: str) -> CompareColumn:
+    """The value of the series; when it counts the rows (R-TS-07), a stand-in that is never read
+    (the rows only need their date)."""
+    if value == choice.ROWS:
+        return CompareColumn("(rows)", "numeric_continuous", by_name[time].parser)
+    return _column(by_name[value])
+
+
 def _choose(requested: str | None, names: list[str], fallback: str | None) -> str | None:
     return requested if requested in names else fallback
 
@@ -356,9 +376,14 @@ class TimeSeriesService:
         numbers = [v.name for v in views if v.type in NUMBERS]
         categories = [v.name for v in views if v.type in CATEGORIES]
         if not dates:
-            raise TimeSeriesError("This dataset has no date column.", "needs_date")
-        if not numbers:
-            raise TimeSeriesError("This dataset has no numeric column.", "needs_number")
+            pieces = date_parts.groups(v.name for v in views)
+            hint = (
+                f" {pieces[0].listed} look like the parts of one date: Clean "
+                "proposes to assemble them into one column (B-20)."
+                if pieces
+                else ""
+            )
+            raise TimeSeriesError(f"This dataset has no date column.{hint}", "needs_date")
         found = self._numbers_stats(dataset_id, dataset, [by_name[n] for n in [*numbers, *dates]])
         chosen_by = choice.choose(
             [by_name[n] for n in dates],
@@ -368,9 +393,10 @@ class TimeSeriesService:
             found,
         )
         time, value = chosen_by.time, chosen_by.value
+        rows_only = value == choice.ROWS  # R-TS-07: no numeric column, the rows are counted
         group = _choose(request.group, categories, None)
         options = request.options
-        if options.aggregate == "auto":
+        if options.aggregate == "auto" or rows_only:
             options = replace(options, aggregate=chosen_by.aggregate)
         key = (
             dataset_id,
@@ -384,7 +410,7 @@ class TimeSeriesService:
             request.season,
             tuple(
                 (v.name, v.type, v.role, v.parser.model_dump_json())
-                for v in (by_name[time], by_name[value], by_name.get(group or ""))
+                for v in (by_name[time], by_name.get(value), by_name.get(group or ""))
                 if v is not None
             ),
             filters_key(conditions),
@@ -401,10 +427,10 @@ class TimeSeriesService:
                 connection,
                 source,
                 _column(by_name[time]),
-                _column(by_name[value]),
+                _value_column(by_name, value, time),
                 color=_column(by_name[group]) if group else None,
             )
-            aliases = {"t": comparer.x, "v": comparer.y}
+            aliases = {"t": comparer.x} if rows_only else {"t": comparer.x, "v": comparer.y}
             if comparer.color:
                 aliases["c"] = comparer.color
             relation = comparer.rows_of(aliases)
@@ -424,7 +450,8 @@ class TimeSeriesService:
                 )
                 if found:
                     labels.append(request.series)
-            built = builder.aggregate(connection, relation, by_name[value].role, options, labels)
+            role = None if rows_only else by_name[value].role
+            built = builder.aggregate(connection, relation, role, options, labels)
             built.aggregate_auto = request.options.aggregate == "auto"
         finally:
             connection.close()
@@ -483,7 +510,11 @@ class TimeSeriesService:
             total,
             [
                 *chosen_by.reasons[:1],
-                *([chosen_by.aggregate_reason] if request.options.aggregate == "auto" else []),
+                *(
+                    [chosen_by.aggregate_reason]
+                    if request.options.aggregate == "auto" or rows_only
+                    else []
+                ),
                 *chosen_by.reasons[1:],
             ],
         )
@@ -722,6 +753,26 @@ class TimeSeriesService:
         view.methods = [vo.VOLATILITY[key](found.values) for key in chosen or vo.DEFAULT_VOLATILITY]
         return view
 
+    def regimes(
+        self,
+        dataset_id: str,
+        request: Request,
+        conditions: list[Condition],
+        k: int | None = None,
+        on: rg.On = "auto",
+    ) -> SeriesRegimes:
+        prepared = self.prepare(dataset_id, request, conditions)
+        # R-RG-05: empty periods are skipped, not interpolated: a straight line through a
+        # weekend would form a fake "calm" regime
+        kept = [
+            (p, v)
+            for p, v in zip(prepared.core_periods, prepared.core, strict=True)
+            if v is not None
+        ]
+        found = rg.find_regimes(np.array([v for _, v in kept], dtype=float), k, on)
+        periods = [p for p, _ in kept][found.start : found.start + len(found.values)]
+        return SeriesRegimes(prepared.setup, periods, found, len(prepared.core) - len(kept))
+
     def residuals(
         self,
         dataset_id: str,
@@ -895,7 +946,7 @@ class TimeSeriesService:
                 connection,
                 source,
                 _column(by_name[setup.time]),
-                _column(by_name[setup.value]),
+                _value_column(by_name, setup.value, setup.time),
                 color=_column(by_name[setup.group]) if setup.group else None,
             )
             selected = [f"{comparer.value_sql(comparer.x)} AS t"]
@@ -1092,13 +1143,14 @@ class TimeSeriesService:
             connection,
             source,
             _column(by_name[setup.time]),
-            _column(by_name[setup.value]),
+            _value_column(by_name, setup.value, setup.time),
             color=_column(by_name[setup.group]),
         )
         assert comparer.color is not None
+        counted = setup.value == choice.ROWS  # R-TS-07: every row counts once
         selected = [
             f"{comparer.value_sql(comparer.x)} AS t",
-            f"{comparer.value_sql(comparer.y)} AS v",
+            "1.0 AS v" if counted else f"{comparer.value_sql(comparer.y)} AS v",
             f"{comparer.value_sql(comparer.color)} AS c",
         ]
         for i, name in enumerate(parents):

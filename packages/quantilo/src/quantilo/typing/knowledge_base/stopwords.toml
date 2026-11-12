@@ -24,6 +24,9 @@ words = [
   "there", "these", "they", "this", "those", "through", "to", "too", "under", "until", "up",
   "very", "was", "wasn", "we", "were", "what", "when", "where", "which", "while", "who", "whom",
   "why", "will", "with", "would", "you", "your", "yours", "yourself", "yourselves",
+  # 059: what an apostrophe leaves of a contraction ("didn't" -> "didn", "I'll" -> "ll")
+  "aren", "couldn", "didn", "doesn", "hadn", "hasn", "haven", "ll", "re", "shouldn", "ve",
+  "weren", "won", "wouldn",
 ]
 
 [[language]]

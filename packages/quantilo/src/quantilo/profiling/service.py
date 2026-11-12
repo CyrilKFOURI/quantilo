@@ -11,6 +11,7 @@ from quantilo.errors import NotFoundError
 from quantilo.filters.model import Condition, filters_key
 from quantilo.filters.scope import scoped_source, where_for
 from quantilo.profiling.overview import Overview, dataset_overview
+from quantilo.typing.derived import with_derived
 from quantilo.typing.summary import summarize
 
 CACHE_SIZE = 64
@@ -63,7 +64,7 @@ class ProfilingService:
         conditions: list[Condition] | None = None,
     ) -> Chart:
         dataset = self.columns.ready(dataset_id)
-        views = self.columns.columns(dataset_id)
+        views = with_derived(self.columns.columns(dataset_id), [column])  # 058
         view = next((c for c in views if c.name == column), None)
         if view is None:
             raise NotFoundError(f"Column {column!r}")

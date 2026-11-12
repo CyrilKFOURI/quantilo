@@ -15,11 +15,13 @@
     layout = dx.detect_tables("report.xlsx")       # the real tables of a laid-out sheet (080)
     dx.inspect_image("photo.jpg")    # format, size, EXIF from the headers; GPS only "present" (084)
     layout = dx.read_structured("orders.json")      # JSON / JSON Lines / XML → linked tables (083)
+    images = dx.image_set("beans/")  # folder, ZIP or HF Parquet of images → a row per image (104)
 
 The engine of the Quantilo app: the same code computes the app's results.
 """
 
 import os
+from collections.abc import Collection
 from typing import TYPE_CHECKING
 
 from quantilo.catalog import ColumnView
@@ -38,6 +40,7 @@ if TYPE_CHECKING:
     from quantilo.ingestion.structured.model import Format, Override, StructuredLayout
     from quantilo.ml.saved import LoadedModel
     from quantilo.recipes import Recipe
+    from quantilo.vision.ingest import ImageSet
 
 
 def __getattr__(name: str) -> object:
@@ -75,6 +78,43 @@ def load_model(path: str | os.PathLike[str]) -> "LoadedModel":
     return load(path)
 
 
+def image_set(
+    source: str | os.PathLike[str],
+    *,
+    workspace: str | os.PathLike[str] | None = None,
+    dataset_id: str | None = None,
+    labels: str | os.PathLike[str] | None = None,
+    label_column: str | None = None,
+    ignore_rules: "Collection[str]" = (),
+    thumbnails: bool = True,
+    measure_side: int = 512,
+    max_images: int = 50_000,
+) -> "ImageSet":
+    """An image set as a dataset (103, 104): a folder (labels from sub-folders, train/test from
+    folder names), a ZIP (checked against zip slip and bombs), a Parquet file with an image column
+    (Hugging Face `datasets`) or a single image. Each image is decoded safely (Pillow), measured at
+    512 pixels (brightness, contrast, sharpness...), fingerprinted (pHash, dHash) and stored by
+    content with a WebP thumbnail; the table has one row per image.
+
+    `labels` is a CSV or Parquet file naming the images; `ignore_rules` undoes a reading rule by
+    its code (`{"R-VIS-LAY-01"}`: ignore folder labels). `images.rules` lists every rule that fired
+    with its reason, `images.skipped` what was left out, `images.open()` gives the Dataset; see
+    `quantilo.vision.ingest`. Pillow is imported on first use."""
+    from quantilo.vision.ingest import image_set as build
+
+    return build(
+        source,
+        workspace=workspace,
+        dataset_id=dataset_id,
+        labels=labels,
+        label_column=label_column,
+        ignore_rules=ignore_rules,
+        thumbnails=thumbnails,
+        measure_side=measure_side,
+        max_images=max_images,
+    )
+
+
 def read_structured(
     path: str | os.PathLike[str],
     *,
@@ -85,12 +125,16 @@ def read_structured(
     limit: int | None = None,
     format: "Format | None" = None,
     max_bytes: int | None = None,
+    discriminator: str | None = None,
 ) -> "StructuredLayout":
     """A JSON, JSON Lines or XML document as linked tables: objects flattened into dotted
     columns, lists of objects into child tables keyed by `_parent_id`, every table and column
     with its rule and reason (083). `records_path` picks the records ("" = the whole document as
     one record), `overrides` maps a dotted path to "flatten", "separate", "json" or "skip",
     `one_table` explodes the only list of objects, `limit` reads the first records only.
+    Records of several kinds told apart by a field such as `type` get one table per kind for the
+    fields only that kind has (R-SST-24); `discriminator=""` keeps one table, a field name forces
+    the split on it.
 
     `layout.arrow(name)`, `layout.write_parquet(folder)` and `layout.open(name)` give the data;
     see `quantilo.ingestion.structured`."""
@@ -105,6 +149,7 @@ def read_structured(
         overrides=dict(overrides or {}),
         max_bytes=max_bytes,
         limit=limit,
+        discriminator=discriminator,
     )
     return read(path, options)
 
@@ -128,6 +173,7 @@ __all__ = [
     "detect_tables",
     "from_arrow",
     "from_pandas",
+    "image_set",
     "inspect_image",
     "load_model",
     "open",

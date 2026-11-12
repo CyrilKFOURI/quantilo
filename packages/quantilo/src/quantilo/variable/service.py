@@ -10,6 +10,7 @@ from quantilo.catalog import Catalog
 from quantilo.errors import ExplorerError, NotFoundError
 from quantilo.filters.model import Condition, filters_key
 from quantilo.filters.scope import scoped_source, where_for
+from quantilo.typing.derived import with_derived
 from quantilo.variable.analyze import NUMERIC, VariableProfile, analyze
 from quantilo.variable.fitting import Fit, fit
 from quantilo.variable.numeric import describe
@@ -49,7 +50,7 @@ class VariableService:
         conditions: list[Condition],
     ):
         dataset = self.columns.ready(dataset_id)
-        views = self.columns.columns(dataset_id)
+        views = with_derived(self.columns.columns(dataset_id), [column])  # 058
         view = next((c for c in views if c.name == column), None)
         if view is None:
             raise NotFoundError(f"Column {column!r}")

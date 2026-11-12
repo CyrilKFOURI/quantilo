@@ -3,7 +3,8 @@ import { Activity, ChevronDown, Copy, FolderOpen, Pencil, Plus, Trash2 } from "l
 import { useState } from "react";
 
 import { ApiError, type KpiDefinition, type KpiResult, type SavedKpi } from "../../api/client";
-import { useColumns, useDataset, useKpiActions, useKpiCompute, useKpis, useKpiSuggestions } from "../../api/hooks";
+import { useColumns, useDataset, useDerivedColumns, useKpiActions, useKpiCompute, useKpis, useKpiSuggestions } from "../../api/hooks";
+import { withDerived } from "../../features/derived/derived";
 import { t } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
 import { ErrorNote } from "../../ui/fields";
@@ -110,6 +111,8 @@ export function KpiPage() {
   const dataset = useDataset(datasetId);
   const ready = dataset.data?.status === "ready";
   const columns = useColumns(datasetId, ready);
+  // 058: measures and splits can read a derived column ("review › Length", "skills › has SQL")
+  const derived = useDerivedColumns(datasetId, ready);
   const suggestions = useKpiSuggestions(datasetId, ready);
   const saved = useKpis(datasetId, ready);
   const actions = useKpiActions(datasetId);
@@ -238,7 +241,7 @@ export function KpiPage() {
           {columns.data && draft && (
             <Builder
               definition={draft}
-              columns={columns.data}
+              columns={withDerived(columns.data, derived.data)}
               result={result}
               invalid={typeof error?.details.field === "string" ? error.details.field : null}
               dirty={dirty}

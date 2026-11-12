@@ -51,6 +51,47 @@ function_words = ["de", "du", "des", "la", "le", "les", "d", "l", "del", "della"
 date_words = ["date", "time", "timestamp", "ts", "epoch", "datetime", "created", "updated",
               "jour", "day", "heure"]
 
+# fix1 (R-TYP-12, B-20): words of a name saying it holds one part of a date. A year and a month
+# (and a day, an hour, a minute) whose names say the same thing otherwise ("an, mois, jour",
+# "Yr Sold, Mo Sold") are the parts of one date: Clean proposes to assemble it. Whole words.
+[[date_part]]
+part = "year"
+words = ["year", "yr", "yyyy", "annee", "an", "ano", "anio", "jahr", "anno", "jaar"]
+
+[[date_part]]
+part = "month"
+words = ["month", "mo", "mon", "mm", "mois", "mes", "monat", "mese", "maand"]
+
+[[date_part]]
+part = "day"
+words = ["day", "dd", "jour", "dia", "tag", "giorno", "dag"]
+
+[[date_part]]
+part = "hour"
+words = ["hour", "hr", "hh", "heure", "hora", "stunde", "ora", "uur"]
+
+[[date_part]]
+part = "minute"
+words = ["minute", "minutes", "mi", "mn", "minuto", "minuta"]
+
+# fix1 (B-21, R-SUG-30): rows that sum up other rows (OWID's "World", "Europe", "High-income
+# countries"; a "Total" row). `code_prefixes`: codes given to such rows ("OWID_WRL"). `words`:
+# whole words of a label that say "every row" on their own. `group_words`: words of a group of
+# rows ("South Africa" is a country), only counted when the label has no code while the others do.
+[aggregates]
+code_prefixes = ["owid_"]
+words = [
+  "world", "total", "totals", "all", "global", "overall", "worldwide", "subtotal",
+  "monde", "ensemble", "tous", "toutes", "mondial", "mundo", "todos", "todas", "gesamt",
+  "insgesamt", "welt", "totale", "tutti",
+]
+group_words = [
+  "income", "countries", "regions", "union", "excl", "oecd", "continent", "members",
+  "africa", "asia", "europe", "oceania", "america", "americas", "caribbean", "antarctica",
+  "afrique", "asie", "amerique", "oceanie", "pays", "zone", "middle", "east", "saharan",
+  "latin", "pacific", "arab", "euro", "area", "developed", "developing",
+]
+
 # Pairs of words meaning true / false. A two-valued text column using one pair is boolean.
 [[boolean_pair]]
 true = ["true", "t"]

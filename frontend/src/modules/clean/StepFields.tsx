@@ -73,6 +73,31 @@ export function StepFields({ step, original, columns, onChange }: Props) {
     case "duplicate_column":
       cells.push(cell("to", "clean.field.to", text("to", "clean.field.to", step.to, (to) => to.trim() && set({ to: to.trim() }))));
       break;
+    case "assemble_date": {
+      const s = step as StepOf<"assemble_date">;
+      const optional = (key: "day" | "hour" | "minute", label: MessageKey, why?: string) =>
+        cell(
+          key,
+          label,
+          <Select aria-label={t(label)} value={s[key] ?? ""} onChange={(event) => set({ [key]: event.target.value || null })} className={field}>
+            <option value="">{t("clean.field.noPart")}</option>
+            {[...new Set([...(s[key] ? [s[key]] : []), ...columns])].map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </Select>,
+          false,
+          why,
+        );
+      cells.push(cell("year", "clean.field.year", columnSelect(s.year, (year) => set({ year }), "clean.field.year")));
+      cells.push(cell("month", "clean.field.month", columnSelect(s.month, (month) => set({ month }), "clean.field.month")));
+      cells.push(optional("day", "clean.field.day", t("clean.field.why.day")));
+      cells.push(optional("hour", "clean.field.hour"));
+      if (s.hour) cells.push(optional("minute", "clean.field.minute"));
+      cells.push(cell("to", "clean.field.to", text("to", "clean.field.to", s.to, (to) => to.trim() && set({ to: to.trim() }))));
+      break;
+    }
     case "change_type": {
       const s = step as StepOf<"change_type">;
       cells.push(cell("to", "clean.field.type", choice("clean.field.type", s.to, ["number", "integer", "date", "datetime", "boolean", "text"], "clean.type", (to) => set({ to }))));

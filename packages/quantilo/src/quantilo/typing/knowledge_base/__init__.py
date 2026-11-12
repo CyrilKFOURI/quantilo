@@ -110,6 +110,12 @@ class KnowledgeBase:
     unit_words: frozenset[str] = frozenset()
     function_words: frozenset[str] = frozenset()
     date_words: frozenset[str] = frozenset()
+    # fix1 (R-TYP-12): words saying a name holds one part of a date (year, month, day…)
+    date_parts: tuple[tuple[str, frozenset[str]], ...] = ()
+    # fix1 (B-21): codes and label words of rows that sum up other rows (World, Total…)
+    aggregate_prefixes: tuple[str, ...] = ()
+    aggregate_words: frozenset[str] = frozenset()
+    aggregate_group_words: frozenset[str] = frozenset()
 
     def language(self, language_id: str | None) -> Language | None:
         return next((item for item in self.languages if item.id == language_id), None)
@@ -235,6 +241,19 @@ def load() -> KnowledgeBase:
         unit_words=_words(vocabulary, "unit_words"),
         function_words=_words(vocabulary, "function_words"),
         date_words=_words(vocabulary, "date_words"),
+        date_parts=tuple(
+            (item["part"], frozenset(word.lower() for word in item["words"]))
+            for item in vocabulary.get("date_part", [])
+        ),
+        aggregate_prefixes=tuple(
+            word.lower() for word in vocabulary.get("aggregates", {}).get("code_prefixes", [])
+        ),
+        aggregate_words=frozenset(
+            word.lower() for word in vocabulary.get("aggregates", {}).get("words", [])
+        ),
+        aggregate_group_words=frozenset(
+            word.lower() for word in vocabulary.get("aggregates", {}).get("group_words", [])
+        ),
     )
 
 

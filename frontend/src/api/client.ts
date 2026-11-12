@@ -58,6 +58,13 @@ export type Transform = Fit["transforms"][number];
 export type Outliers = Complete<Schemas["Outliers"]>;
 export type Tail = Complete<Schemas["Tail"]>;
 export type TailSeries = NonNullable<Tail["hill"]>;
+/** 059: the words that mark each group of texts (Compare, Segments, Changes). */
+export type DistinctiveWords = Complete<Schemas["DistinctiveWords"]>;
+export type GroupWords = DistinctiveWords["groups"][number];
+/** 059: topics of a free text column (NMF), and the rule behind its Topic column. */
+export type Topics = Complete<Schemas["Topics"]>;
+export type Topic = Topics["topics"][number];
+export type WordsAnswer = Complete<Schemas["WordsAnswer"]>;
 export type Robust = NonNullable<NumericProfile["robust"]>;
 export type ColumnSummary = Schemas["ColumnSummary"];
 export type SavedFilter = Schemas["SavedFilter"];
@@ -94,7 +101,21 @@ export type RegressionSe = Regression["se"]["kind"];
 export type RegressionFamily = NonNullable<Regression["family"]>;
 export type RegressionFamilyKind = RegressionFamily["options"][number]["kind"];
 export type RegressionFamilies = Complete<Schemas["FamilyAlternatives"]>;
-export type RegressionSection = "standard-errors" | "influence" | "terms" | "more" | "panel" | "families";
+// 070: terms and partial plots; 072: robust and quantile regression
+export type RegressionCurve = RegressionTerms["curves"][number];
+export type RegressionPartial = Complete<Schemas["PartialPlot"]>;
+export type RegressionRobust = Complete<Schemas["RobustTable"]>;
+export type RegressionQuantiles = Complete<Schemas["QuantileProcess"]>;
+export type RegressionQuantileCurve = RegressionQuantiles["curves"][number];
+export type RegressionSection =
+  | "standard-errors"
+  | "influence"
+  | "terms"
+  | "more"
+  | "panel"
+  | "families"
+  | "robust"
+  | "quantiles";
 export type RegressionSections = {
   "standard-errors": RegressionStandardErrors;
   influence: RegressionInfluence;
@@ -102,6 +123,8 @@ export type RegressionSections = {
   more: RegressionMore;
   families: RegressionFamilies;
   panel: RegressionPanel;
+  robust: RegressionRobust;
+  quantiles: RegressionQuantiles;
 };
 /** What the page asks for: absent fields follow the rules (R-REG-20, 21, SE-04). */
 export type RegressionParams = {
@@ -115,7 +138,19 @@ export type RegressionParams = {
   family?: RegressionFamilyKind | "auto";
   /** 069: absent: a column of role exposure; "": none. */
   exposure?: string;
+  /** 070: `spline:age`, `interaction:a|b`, `log:x`, `trend:date`, `reference:c|level`… */
+  terms?: string[];
+  /** 070: numbers centered at their mean (R-REG-TERM-05). */
+  center?: boolean;
+  /** 070: categories against their reference level (default) or the average of the levels. */
+  coding?: "reference" | "deviation";
 };
+
+function durationQuery(params: DurationParams, filters?: Condition[]): URLSearchParams {
+  const query = new URLSearchParams(filtersParam(filters));
+  for (const [key, value] of Object.entries(params)) if (value) query.set(key, value);
+  return query;
+}
 
 function regressionQuery(params: RegressionParams, filters?: Condition[]): URLSearchParams {
   const query = new URLSearchParams(filtersParam(filters));
@@ -127,6 +162,9 @@ function regressionQuery(params: RegressionParams, filters?: Condition[]): URLSe
   if (params.focus) query.set("focus", params.focus);
   if (params.family && params.family !== "auto") query.set("family", params.family);
   if (params.exposure !== undefined) query.set("exposure", params.exposure);
+  if (params.terms?.length) query.set("terms", params.terms.join(","));
+  if (params.center) query.set("center", "true");
+  if (params.coding === "deviation") query.set("coding", "deviation");
   return query;
 }
 export type SeriesOverview = Complete<Schemas["SeriesOverview"]>;
@@ -138,6 +176,15 @@ export type SeriesVolatility = Complete<Schemas["SeriesVolatility"]>;
 export type SeriesResiduals = Complete<Schemas["SeriesResiduals"]>;
 export type SeriesBreaks = Complete<Schemas["SeriesBreaks"]>;
 export type SeriesSmoothing = Complete<Schemas["SeriesSmoothing"]>;
+/** 062: regimes of a series (Markov switching), computed on demand. */
+export type SeriesRegimes = Complete<Schemas["SeriesRegimes"]>;
+/** 062: survival curves and status transitions in Compare. */
+export type Survival = Complete<Schemas["Survival"]>;
+export type SurvivalCurve = Complete<Schemas["SurvivalCurve"]>;
+export type Transitions = Complete<Schemas["Transitions"]>;
+export type MarkovChain = Complete<Schemas["Chain"]>;
+/** Columns of a survival or transitions reading; none = the one a rule detects. */
+export type DurationParams = Record<string, string | undefined>;
 export type SmoothCurve = SeriesSmoothing["curves"][number];
 export type ForecastJob = Complete<Schemas["ForecastJob"]>;
 export type SeriesDrivers = Complete<Schemas["SeriesDrivers"]>;
@@ -255,6 +302,7 @@ export type SeriesSectionKey =
   | "volatility"
   | "residuals"
   | "breaks"
+  | "regimes"
   | "groups"
   | "drivers";
 /** Time series page parameters; undefined = automatic. */
@@ -494,6 +542,21 @@ export const api = {
     request<Head>("GET", `/datasets/${id}/head?limit=${limit}`),
 
   columns: (id: string) => request<Column[]>("GET", `/datasets/${id}/columns`),
+  /** 058: derived columns offered by rule ("review › Length"), never part of `columns`. */
+  derivedColumns: (id: string) => request<Column[]>("GET", `/datasets/${id}/columns/derived`),
+  topics: (id: string, column: string, k: number | null, filters?: Condition[]) => {
+    const query = new URLSearchParams({ column, ...filtersParam(filters) });
+    if (k) query.set("k", String(k));
+    return request<Topics>("GET", `/datasets/${id}/text/topics?${query}`);
+  },
+  keepTopics: (id: string, column: string, k: number | null, filters?: Condition[]) =>
+    request<Topics>(
+      "POST",
+      `/datasets/${id}/text/topics/keep?${new URLSearchParams(filtersParam(filters))}`,
+      { column, k },
+    ),
+  forgetTopics: (id: string, column: string) =>
+    request<void>("DELETE", `/datasets/${id}/text/topics?${new URLSearchParams({ column })}`),
   updateColumns: (id: string, changes: ColumnChange[]) =>
     request<Column[]>("PATCH", `/datasets/${id}/columns`, { changes }),
   detectColumns: (id: string) =>
@@ -566,6 +629,10 @@ export const api = {
     if (params.numbers?.length) query.set("numbers", params.numbers.join(","));
     return request<Comparison>("GET", `/datasets/${id}/compare?${query}`);
   },
+  survival: (id: string, params: DurationParams, filters?: Condition[]) =>
+    request<Survival>("GET", `/datasets/${id}/survival?${durationQuery(params, filters)}`),
+  transitions: (id: string, params: DurationParams, filters?: Condition[]) =>
+    request<Transitions>("GET", `/datasets/${id}/transitions?${durationQuery(params, filters)}`),
   seriesSection: <T>(
     id: string,
     section: SeriesSectionKey,
@@ -819,6 +886,16 @@ export const api = {
     ),
   regressionSection: <S extends RegressionSection>(id: string, section: S, params: RegressionParams, filters?: Condition[]) =>
     request<RegressionSections[S]>("GET", `/datasets/${id}/regression/${section}?${regressionQuery(params, filters)}`),
+  regressionPartial: (id: string, params: RegressionParams, column: string, filters?: Condition[]) => {
+    const query = regressionQuery(params, filters);
+    query.set("column", column);
+    return request<RegressionPartial>("GET", `/datasets/${id}/regression/partial?${query}`);
+  },
+  regressionRobust: (id: string, params: RegressionParams, quantile: number, filters?: Condition[]) => {
+    const query = regressionQuery(params, filters);
+    query.set("quantile", String(quantile));
+    return request<RegressionRobust>("GET", `/datasets/${id}/regression/robust?${query}`);
+  },
   regressionInstruments: (id: string, params: RegressionParams, endogenous: string[], instruments: string[], filters?: Condition[]) => {
     const query = regressionQuery(params, filters);
     query.set("endogenous", endogenous.join(","));
@@ -920,6 +997,8 @@ export const api = {
     request<RowsAnswer>("GET", `/datasets/${id}/changes/rows${versusQuery(vs, key ? { key } : {})}`),
   changeKpis: (id: string, vs: string | null) =>
     request<KpiChange[]>("GET", `/datasets/${id}/changes/kpis${versusQuery(vs)}`),
+  changeWords: (id: string, vs: string | null, column: string) =>
+    request<WordsAnswer>("GET", `/datasets/${id}/changes/words${versusQuery(vs, { column })}`),
   changeRelations: (id: string, vs: string | null) =>
     request<RelationsAnswer>("GET", `/datasets/${id}/changes/relations${versusQuery(vs)}`),
   clearCaches: () => request<void>("POST", "/storage/clear-caches"),

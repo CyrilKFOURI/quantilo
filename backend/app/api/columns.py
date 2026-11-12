@@ -31,6 +31,15 @@ def list_columns(dataset_id: str, service: Columns) -> list[ColumnOut]:
     return [ColumnOut.of(view) for view in service.columns(dataset_id)]
 
 
+@router.get("/datasets/{dataset_id}/columns/derived")
+def list_derived(dataset_id: str, service: Columns) -> list[ColumnOut]:
+    """Derived columns offered by rule (058): the length of a text, an option of a list of
+    choices... Each name can be used wherever a column name is (filters, compare, correlations,
+    KPI, segments).
+    `parser.derived` names the source and the part; `reasons` carry the rule."""
+    return [ColumnOut.of(view) for view in service.derived(dataset_id)]
+
+
 @router.patch("/datasets/{dataset_id}/columns")
 def update_columns(
     dataset_id: str, body: ColumnChangesRequest, service: Columns

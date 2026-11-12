@@ -42,6 +42,9 @@ class StructuredOptions:
     overrides: dict[str, Override] = field(default_factory=dict)
     max_bytes: int | None = None  # R-LIM-01; None = 200 MB native, 50 MB in the browser
     limit: int | None = None  # records materialized (a preview); None = all
+    # fix1 (R-SST-24): the field telling kinds of records apart; None = found by the rule,
+    # "" = never split, a field name = split on it
+    discriminator: str | None = None
 
 
 @dataclass

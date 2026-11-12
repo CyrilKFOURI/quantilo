@@ -183,7 +183,7 @@ def _design(inputs: Inputs) -> tuple[Design, Grouping, np.ndarray | None]:
         extra[inputs.shape.entity] = inputs.entity_codes
     if panel and inputs.period_codes is not None and inputs.shape.period:
         extra[inputs.shape.period] = inputs.period_codes
-    design = build(inputs.y, inputs.variables, extra)
+    design = build(inputs.y, inputs.variables, extra, inputs.plan)
     for item in design.missing:
         if item.column == "target":
             item.column = inputs.target

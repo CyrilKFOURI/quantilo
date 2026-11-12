@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatNumber } from "../../charts/figures";
 import { Plot } from "../../charts/Plot";
+import { useColumns } from "../../api/hooks";
+import { TextWords, wordColumns } from "../../features/text/TextWords";
 import { formatCount } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { LITE } from "../../lite/flag";
@@ -73,6 +75,7 @@ export function Results({ datasetId, run }: { datasetId: string; run: SegmentRun
       <Portraits datasetId={datasetId} run={run} />
       <MapSection datasetId={datasetId} run={run} names={names} />
       <ProfileTable result={result} profiles={result.profiles} />
+      <SegmentWords datasetId={datasetId} runId={run.id} />
       <div className="grid gap-6 xl:grid-cols-2">
         {result.stability && (
           <section aria-labelledby="segments-stability" className="space-y-1">
@@ -411,5 +414,18 @@ export function RunCompare({ datasetId, runIds }: { datasetId: string; runIds: s
       </div>
       <p className="text-xs text-ink-3">{t("segments.agreementHelp")}</p>
     </section>
+  );
+}
+
+/** 059 (R-WRD-07): the words of each segment's texts, under Advanced, asked for when opened. */
+function SegmentWords({ datasetId, runId }: { datasetId: string; runId: string }) {
+  const columns = useColumns(datasetId, true);
+  return (
+    <TextWords
+      columns={wordColumns(columns.data)}
+      queryKey={["datasets", datasetId, "segments", runId, "words"]}
+      fetch={(column) => segmentsApi.words(datasetId, runId, column)}
+      hint={t("segments.wordsHint")}
+    />
   );
 }

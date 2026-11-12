@@ -2,6 +2,7 @@ import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type {
+  Column,
   Regression,
   RegressionFamilies,
   RegressionInfluence,
@@ -10,7 +11,6 @@ import type {
   RegressionSe,
   RegressionSection,
   RegressionStandardErrors,
-  RegressionTerms,
 } from "../../api/client";
 import { useRegressionSection } from "../../api/hooks";
 import { formatNumber } from "../../charts/figures";
@@ -21,7 +21,9 @@ import { ErrorNote } from "../../ui/fields";
 import { Loading } from "../../ui/Loading";
 import { Instruments } from "./Instruments";
 import { PanelSection } from "./PanelSection";
+import { QuantilesBlock, RobustSection } from "./RobustSection";
 import { Sentence } from "./Sentence";
+import { TermsSection, type Coding } from "./TermsSection";
 
 type AdvancedProps = {
   datasetId: string;
@@ -32,6 +34,14 @@ type AdvancedProps = {
   onUse: (kind: RegressionSe) => void;
   /** 069: refit with another family (a niche one from More). */
   onFamily: (family: string) => void;
+  /** 070: the dataset's columns (a term may read one outside the model, a date for instance). */
+  usable: Column[];
+  terms: string[];
+  onTerms: (next: string[]) => void;
+  center: boolean;
+  onCenter: (next: boolean) => void;
+  coding: Coding;
+  onCoding: (next: Coding) => void;
 };
 
 const TITLES: Record<RegressionSection, MessageKey> = {
@@ -41,6 +51,8 @@ const TITLES: Record<RegressionSection, MessageKey> = {
   more: "regression.section.more",
   families: "regression.section.families",
   panel: "regression.section.panel",
+  robust: "regression.section.robust",
+  quantiles: "regression.quantiles.title",
 };
 const HINTS: Record<RegressionSection, MessageKey> = {
   "standard-errors": "regression.section.standardErrorsHint",
@@ -49,10 +61,13 @@ const HINTS: Record<RegressionSection, MessageKey> = {
   more: "regression.section.moreHint",
   families: "regression.section.familiesHint",
   panel: "regression.section.panelHint",
+  robust: "regression.section.robustHint",
+  quantiles: "regression.quantiles.hint",
 };
 
 /** Advanced (068): each section is asked for when it is opened, More only when More is (onion). */
-export function Advanced({ datasetId, params, result, opened, onToggle, onUse, onFamily }: AdvancedProps) {
+export function Advanced(props: AdvancedProps) {
+  const { datasetId, params, result, opened, onToggle, onUse, onFamily } = props;
   const fold = (section: RegressionSection, body: ReactNode, nested = false) => {
     const open = opened.includes(section);
     return (
@@ -75,13 +90,30 @@ export function Advanced({ datasetId, params, result, opened, onToggle, onUse, o
     <div>
       {fold("standard-errors", <StandardErrorsSection datasetId={datasetId} params={params} onUse={onUse} />)}
       {result.structure.kind === "panel" && fold("panel", <PanelSection datasetId={datasetId} params={params} />)}
-      {fold("terms", <TermsSection datasetId={datasetId} params={params} />)}
+      {fold(
+        "terms",
+        <TermsSection
+          datasetId={datasetId}
+          params={params}
+          result={result}
+          usable={props.usable}
+          terms={props.terms}
+          onTerms={props.onTerms}
+          center={props.center}
+          onCenter={props.onCenter}
+          coding={props.coding}
+          onCoding={props.onCoding}
+        />,
+      )}
+      {LEAST_SQUARES.has(result.model) && fold("robust", <RobustSection datasetId={datasetId} params={params} />)}
       {fold("influence", <InfluenceSection datasetId={datasetId} params={params} rows={result.quality.rows} />)}
       <div className="border-t border-line p-3">
         {fold(
           "more",
           <div className="space-y-4">
             <MoreSection datasetId={datasetId} params={params} result={result} />
+            {/* 072: the effects along the distribution, asked for only once More is open */}
+            {LEAST_SQUARES.has(result.model) && <QuantilesBlock datasetId={datasetId} params={params} />}
             {/* 069: the niche families, asked for only once More is open (onion rule) */}
             <FamiliesSection datasetId={datasetId} params={params} onFamily={onFamily} />
           </div>,
@@ -172,68 +204,6 @@ function StandardErrorsSection({
             </li>
           ))}
         </ul>
-      )}
-    </div>
-  );
-}
-
-function TermsSection({ datasetId, params }: { datasetId: string; params: RegressionParams }) {
-  const query = useSection(datasetId, "terms", params);
-  const data: RegressionTerms | undefined = query.data;
-  if (!data) return <Pending error={query.error} />;
-  return (
-    <div className="space-y-3 text-[13px]">
-      <p className="text-ink-2">
-        {data.sentence} {data.condition !== null && t("regression.condition", { value: data.condition.toFixed(1) })}
-      </p>
-      {data.references.length > 0 && (
-        <div>
-          <h3 className="mb-1 text-xs font-medium text-ink-2">{t("regression.references")}</h3>
-          <ul className="space-y-0.5 text-ink-2">
-            {data.references.map((ref) => (
-              <li key={ref.column}>
-                <code className="font-mono text-xs text-ink-1">{ref.column}</code> = {ref.level} · {ref.reason}
-                {ref.others > 0 && ` · ${t("regression.others", { count: String(ref.others) })}`}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {data.left_out.length > 0 && (
-        <div>
-          <h3 className="mb-1 text-xs font-medium text-ink-2">{t("regression.leftOut")}</h3>
-          <ul className="space-y-0.5 text-ink-2">
-            {data.left_out.map((item) => (
-              <li key={item.term}>
-                <code className="font-mono text-xs text-ink-1">{item.term}</code> · <Sentence text={item.reason} />
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {data.vifs.length > 0 && (
-        <div className="overflow-x-auto rounded-md border border-line">
-          <table className="w-full border-collapse">
-            <thead className="bg-surface-2 text-left text-xs text-ink-3">
-              <tr>
-                <th scope="col" className={th}>{t("regression.term")}</th>
-                <th scope="col" className={`${th} text-right`}>VIF</th>
-                <th scope="col" className={th}>{t("regression.partner")}</th>
-                <th scope="col" className={`${th} text-right`}>r</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.vifs.map((vif) => (
-                <tr key={vif.term} className="border-t border-line">
-                  <td className="px-3 py-1.5 font-mono text-xs">{vif.term}</td>
-                  <td className={`${td} text-right ${(vif.vif ?? 0) > 10 ? "text-bad" : "text-ink-1"}`}>{vif.vif === null ? "∞" : vif.vif.toFixed(1)}</td>
-                  <td className="px-3 py-1.5 font-mono text-xs text-ink-2">{vif.partner ?? "—"}</td>
-                  <td className={`${td} text-right text-ink-2`}>{vif.correlation === null ? "—" : vif.correlation.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       )}
     </div>
   );

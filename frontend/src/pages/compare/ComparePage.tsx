@@ -8,7 +8,7 @@ import { ArrowLeftRight } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { AnalysisType, Column, Comparison } from "../../api/client";
-import { useColumns, useCompare, useDataset } from "../../api/hooks";
+import { useColumns, useCompare, useDataset, useDerivedColumns } from "../../api/hooks";
 import { Plot } from "../../charts/Plot";
 import {
   contingencyFigure,
@@ -21,6 +21,7 @@ import {
   type GroupView,
   type TableView,
 } from "../../features/compare/figures";
+import { DurationsSection } from "../../features/compare/Durations";
 import { TestsPanel } from "../../features/compare/TestsPanel";
 import { GroupIntervals, PairwiseDifferences } from "../../features/compare/GroupInference";
 import {
@@ -32,6 +33,9 @@ import {
   type TimeSearch,
 } from "../../features/compare/TimeOptions";
 import { useExperimentCandidates } from "../../features/decisions/api";
+import { ColumnOptions } from "../../features/derived/ColumnOptions";
+import { derivedNote, withDerived } from "../../features/derived/derived";
+import { WordsPanel } from "../../features/text/WordsPanel";
 import { NoRows } from "../../features/filters/NoRows";
 import { t, type MessageKey } from "../../lib/i18n";
 import { PHONE, useMedia } from "../../lib/useMedia";
@@ -67,7 +71,7 @@ export function validateCompareSearch(
   };
 }
 
-type Role = "num" | "cat" | "date";
+type Role = "num" | "cat" | "date" | "text";
 const ROLE: Partial<Record<AnalysisType, Role>> = {
   numeric_continuous: "num",
   numeric_discrete: "num",
@@ -104,8 +108,12 @@ export function experimentOf(x: Column, y: Column): { variant: string; metric: s
   return variant && metric ? { variant: variant.name, metric: metric.name } : null;
 }
 
+/** 059 (R-WRD-06): a text, not a list of choices, compares with a category by its words. */
+const readsAsWords = (column: Column) => column.type === "text" && column.role !== "choices";
+
 function roleOf(column: Column, numbers: string[]): Role | undefined {
   if (readsAsLevels(column) && !numbers.includes(column.name)) return "cat";
+  if (readsAsWords(column)) return "text";
   return ROLE[column.type];
 }
 
@@ -116,13 +124,15 @@ export function ComparePage() {
   const navigate = useNavigate({ from: "/d/$datasetId/compare" });
   const dataset = useDataset(datasetId);
   const columns = useColumns(datasetId, dataset.data?.status === "ready");
+  // 058: derived columns ("review › Length") offered right under their source (R-DER-08)
+  const derived = useDerivedColumns(datasetId, dataset.data?.status === "ready");
 
   const usable = useMemo(
     () =>
-      (columns.data ?? [])
-        .filter((c) => !c.excluded && ROLE[c.type])
+      withDerived(columns.data ?? [], derived.data)
+        .filter((c) => !c.excluded && (ROLE[c.type] || readsAsWords(c)))
         .sort((a, b) => a.position - b.position),
-    [columns.data],
+    [columns.data, derived.data],
   );
   const byName = new Map(usable.map((c) => [c.name, c]));
   const numbers = (search.numbers ?? "").split(",").filter(Boolean);
@@ -149,6 +159,9 @@ export function ComparePage() {
       : "";
   // with a number and two categories, the server lays them out (R-CMP-04/05): any colour works
   const color = search.color ? byName.get(search.color) : undefined;
+  const notes = [x, y, z, color]
+    .map((c) => (c ? derivedNote(c) : null))
+    .filter((note): note is string => Boolean(note));
   const toggleNumbers = (name: string) => {
     const next = numbers.includes(name) ? numbers.filter((n) => n !== name) : [...numbers, name];
     set({ numbers: next.length ? next.join(",") : undefined });
@@ -324,6 +337,9 @@ export function ComparePage() {
       ) : comparison.data.total === 0 ? (
         <NoRows datasetId={datasetId} />
       ) : (
+        comparison.data.kind === "words" && comparison.data.words ? (
+          <WordsPanel words={comparison.data.words} />
+        ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
           {comparison.data.rows < 3 ? (
             <p className="rounded-lg border border-line bg-surface-1 px-4 py-10 text-center text-ink-2">
@@ -340,7 +356,16 @@ export function ComparePage() {
           )}
           <TestsPanel result={comparison.data} />
         </div>
+        )
       )}
+      {notes.length > 0 && (
+        <ul className="space-y-0.5 text-xs text-ink-3" aria-label={t("derived.notes")}>
+          {notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      )}
+      <DurationsSection datasetId={datasetId} ready={dataset.data?.status === "ready"} />
     </div>
   );
 }
@@ -385,15 +410,7 @@ function ColumnPicker({
         <option value="">
           {optional ? t("compare.none") : t("compare.choose")}
         </option>
-        {columns.map((column) => {
-          const reason = unavailable?.(column) ?? null;
-          return (
-            <option key={column.name} value={column.name} disabled={reason !== null} title={reason ?? undefined}>
-              {column.name}
-              {reason ? ` (${reason})` : ""}
-            </option>
-          );
-        })}
+        <ColumnOptions columns={columns} unavailable={unavailable} />
       </Select>
     </Field>
   );

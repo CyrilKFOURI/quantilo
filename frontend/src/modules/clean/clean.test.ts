@@ -14,10 +14,12 @@ const item = (dataset_id: string, parent_id: string, seq: number): LineageItem =
   steps: 3,
   created_at: "2026-11-10T10:00:00Z",
   out_of_date: false,
+  source_id: null,
+  source_seq: null,
 });
 
 const suggestion = (id: string, order: number, mode: "A" | "S", step: Step): Suggestion =>
-  ({ id, order, mode, rule: id.slice(0, 4), layer: "basic", title: id, reason: "why", columns: [], cells: 1, rows: 0, examples: [], step: { ...step, suggestion: id } }) as Suggestion;
+  ({ id, order, mode, impact: "values", risk: mode === "A" ? "safe" : "review", rule: id.slice(0, 4), layer: "basic", title: id, reason: "why", columns: [], cells: 1, rows: 0, examples: [], step: { ...step, suggestion: id } }) as Suggestion;
 
 describe("home families (065)", () => {
   const datasets = [dataset({ id: "v2" }), dataset({ id: "other" }), dataset({ id: "orig" }), dataset({ id: "v1" })] as unknown as Dataset[];

@@ -2,6 +2,7 @@ import { ChevronDown, Plus, Save, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import type { Column, KpiDefinition, KpiResult } from "../../api/client";
+import { ColumnOptions } from "../../features/derived/ColumnOptions";
 import { t, type MessageKey } from "../../lib/i18n";
 import { PHONE, useMedia } from "../../lib/useMedia";
 import { Button } from "../../ui/Button";
@@ -265,11 +266,7 @@ export function Builder({
           const columnSelect = (field: "column" | "until" | "weight", value: string | null | undefined, onPick: (name: string) => void, options: Column[], label: string) => (
             <Select aria-label={label} value={value ?? ""} onChange={(e) => onPick(e.target.value)} className={`${small} max-w-36 ${mark(`measures.${measure.id}.${field}`)}`}>
               {!options.some((c) => c.name === value) && value && <option value={value}>{value}</option>}
-              {options.map((c) => (
-                <option key={c.name} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
+              <ColumnOptions columns={options} />
             </Select>
           );
           return (
@@ -467,13 +464,7 @@ export function Builder({
               onChange={(e) => onChange({ ...definition, groups: groups.map((g, i) => (i === index ? { column: e.target.value } : g)) })}
               className={`${small} max-w-36 ${mark(`groups.${index}.column`)}`}
             >
-              {splits
-                .filter((c) => c.name === group.column || !groups.some((g) => g.column === c.name))
-                .map((c) => (
-                  <option key={c.name} value={c.name}>
-                    {c.name}
-                  </option>
-                ))}
+              <ColumnOptions columns={splits.filter((c) => c.name === group.column || !groups.some((g) => g.column === c.name))} />
             </Select>
             <Remove label={t("kpi.removeSplit")} onClick={() => onChange({ ...definition, groups: groups.filter((_, i) => i !== index) })} />
           </span>

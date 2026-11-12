@@ -43,7 +43,6 @@ describe("Main navigation (098)", () => {
       "KPI",
       "Machine learning",
       "Synthetic data",
-      "Toolbox",
       "Guide",
       "Settings",
     ]);
@@ -56,7 +55,7 @@ describe("Main navigation (098)", () => {
     renderAt("/d/d1/experiments?tab=plan");
 
     const sidebar = await nav();
-    expect(within(sidebar).getByRole("link", { name: "Toolbox" })).toHaveAttribute("aria-current", "page");
+    expect(within(sidebar).getByRole("button", { name: "Toolbox" })).toHaveAttribute("aria-current", "page");
   });
 
   it("keeps the dataset open while browsing Home, until it is closed", async () => {
@@ -70,7 +69,10 @@ describe("Main navigation (098)", () => {
     // the top bar still names it, the dataset entries still lead back to it
     expect(await screen.findByRole("button", { name: "Close the dataset" })).toBeInTheDocument();
     expect(within(sidebar).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/d/d1");
-    expect(within(sidebar).getByRole("link", { name: "Toolbox" })).toHaveAttribute("href", "/d/d1/toolbox");
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Toolbox" }));
+    const menu = within(sidebar).getByRole("dialog", { name: "Toolbox" });
+    expect(within(menu).getAllByRole("link").map((link) => link.getAttribute("href"))).toContain("/d/d1/compare");
+    fireEvent.keyDown(document, { key: "Escape" });
     expect(localStorage.getItem(CURRENT_DATASET_KEY)).toBe("d1");
 
     fireEvent.click(screen.getByRole("button", { name: "Close the dataset" }));

@@ -16,6 +16,7 @@ from quantilo.catalog import (
     to_view,
 )
 from quantilo.ingestion.sql import lit
+from quantilo.typing.derived import derived_columns
 from quantilo.typing.engine import DEFAULT_THRESHOLDS, Thresholds, detect_columns
 from quantilo.typing.knowledge_base import load
 from quantilo.typing.types import AnalysisType, Parser
@@ -84,6 +85,36 @@ class ColumnService:
         if not records:
             return self.detect_storage(dataset_id, dataset.storage_path)
         return [to_view(record) for record in records]
+
+    def derived(self, dataset_id: str) -> list[ColumnView]:
+        """The derived columns the pickers offer (058, R-DER-01 to 06)."""
+        dataset = self.ready(dataset_id)
+        duck = duckdb.connect()
+        try:
+            source = f"read_parquet({lit(dataset.storage_path)})"
+            return derived_columns(duck, source, self.columns(dataset_id))
+        finally:
+            duck.close()
+
+    def keep_topics(self, dataset_id: str, column: str, topics: dict | None) -> None:
+        """Keep (or forget, `None`) the topics of a text column in its summary (059, R-TOP-06):
+        its Topic column becomes a derived column. Cached analyses are dropped (types_version)."""
+        self.ready(dataset_id)
+        with self._db() as connection:
+            record = repo.get_column(connection, dataset_id, column)
+            if record is None:
+                raise NotFoundError(f"Column {column!r}")
+            summary = json.loads(record.summary) if record.summary else {}
+            if topics is None:
+                summary.pop("topics", None)
+            else:
+                summary["topics"] = topics
+            repo.update_column(connection, dataset_id, column, summary=json.dumps(summary))
+            datasets_repo.update_dataset(
+                connection,
+                dataset_id,
+                types_version=self._types_version(connection, dataset_id) + 1,
+            )
 
     # --- Corrections ---------------------------------------------------------------------------
 

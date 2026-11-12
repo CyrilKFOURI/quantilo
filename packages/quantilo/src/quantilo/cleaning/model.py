@@ -18,6 +18,13 @@ MAX_VALUES = 1_000
 Name = Annotated[str, Field(min_length=1, max_length=500)]
 Value = Annotated[str, Field(max_length=2_000)]
 Origin = Literal["auto", "suggested", "manual"]
+# 096/097: what a suggestion's correction touches, and whether it can be applied without a look.
+# format: the writing only, nothing lost; values: values change; types: the storage type changes;
+# rows: rows go; columns: columns go. safe: automatic (mode A); review: the user decides.
+Impact = Literal["format", "values", "types", "rows", "columns"]
+Risk = Literal["safe", "review"]
+IMPACTS: tuple[Impact, ...] = ("format", "values", "types", "rows", "columns")
+RISKS: tuple[Risk, ...] = ("safe", "review")
 
 
 class CleanError(ExplorerError):
@@ -56,6 +63,21 @@ class DropColumns(StepBase):
 class DuplicateColumn(StepBase):
     op: Literal["duplicate_column"] = "duplicate_column"
     column: Name
+    to: Name
+
+
+class AssembleDate(StepBase):
+    """A new date column from its parts held in separate columns (fix1, B-20): the year, the
+    month (a number or a month name), the day (the 1st when there is none), and the hour and minute
+    when given. The part columns stay as they are; a row whose parts make no date (a 31 February,
+    a missing part) gets an empty date."""
+
+    op: Literal["assemble_date"] = "assemble_date"
+    year: Name
+    month: Name
+    day: Name | None = None
+    hour: Name | None = None
+    minute: Name | None = None
     to: Name
 
 
@@ -220,6 +242,7 @@ Step = Annotated[
     RenameColumn
     | DropColumns
     | DuplicateColumn
+    | AssembleDate
     | ChangeType
     | NormalizeSpaces
     | RemoveInvisible
@@ -241,6 +264,7 @@ OPS = (
     "rename_column",
     "drop_columns",
     "duplicate_column",
+    "assemble_date",
     "change_type",
     "normalize_spaces",
     "remove_invisible",
@@ -258,6 +282,40 @@ OPS = (
     "drop_header_rows",
 )
 ROW_OPS = frozenset({"filter_rows", "drop_duplicates", "drop_empty_rows", "drop_header_rows"})
+
+# --- What a suggestion does to the dataset (096, shared with the Advanced layer of 097) ----------
+
+# `format`: no information changes (spaces, case, encoding, HTML, a trailing '.0'); `values`: values
+# change (variants merged, sentinels emptied, bounds read, units fixed); `types`: a column's type
+# changes; `rows`: rows removed or merged; `columns`: columns dropped, split or renamed.
+Impact = Literal["format", "values", "types", "rows", "columns"]
+IMPACTS: tuple[Impact, ...] = ("format", "values", "types", "rows", "columns")
+# `review`: information could be lost, or it is a judgement call; never ticked by default.
+Risk = Literal["safe", "review"]
+
+# The effect of a step by its op, when a rule does not say (a rule says it when it knows better:
+# B-05 repairs the encoding with a `map_values`, which is `format`, not `values`).
+OP_IMPACT: dict[str, Impact] = {
+    "rename_column": "columns",
+    "drop_columns": "columns",
+    "duplicate_column": "columns",
+    "assemble_date": "columns",
+    "change_type": "types",
+    "normalize_spaces": "format",
+    "remove_invisible": "format",
+    "change_case": "format",
+    "replace_values": "values",
+    "map_values": "values",
+    "fill": "values",
+    "fill_empty": "values",
+    "null_values": "values",
+    "null_outside": "values",
+    "pad_zeros": "values",
+    "filter_rows": "rows",
+    "drop_duplicates": "rows",
+    "drop_empty_rows": "rows",
+    "drop_header_rows": "rows",
+}
 
 
 class Steps(Strict):

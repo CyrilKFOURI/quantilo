@@ -46,6 +46,8 @@ class CleaningSuggestions(Tool[NoInput]):
                 {
                     "id": s.id,
                     "mode": s.mode,
+                    "impact": s.impact,  # 096: format, values, types, rows, columns
+                    "risk": s.risk,  # review: needs the user's decision
                     "title": s.title,
                     "why": s.reason,
                     "cells": s.cells,
@@ -55,8 +57,9 @@ class CleaningSuggestions(Tool[NoInput]):
             ]
         }
         automatic = sum(1 for s in found if s.mode == "A")
+        review = sum(1 for s in found if s.risk == "review")
         return ToolOutput(
-            f"{len(found)} cleaning suggestions ({automatic} automatic)",
+            f"{len(found)} cleaning suggestions ({automatic} automatic, {review} need a decision)",
             compact(content, max_items=25),
             AppLink("clean", {}, "Open in Clean"),
         )

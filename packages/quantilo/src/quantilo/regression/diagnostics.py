@@ -3,6 +3,7 @@ statsmodels in the tests: heteroscedasticity (Breusch–Pagan, White), autocorre
 Breusch–Godfrey, Ljung–Box), specification (RESET), normality (Jarque–Bera, Shapiro–Wilk),
 collinearity (VIF, condition number)."""
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -165,3 +166,83 @@ def collinearity(x: np.ndarray, terms: list[str]) -> tuple[list[Vif], float]:
     eigen = np.linalg.eigvalsh(scaled.T @ scaled)
     condition = float(np.sqrt(eigen[-1] / eigen[0])) if eigen[0] > 1e-300 else float("inf")
     return found, condition
+
+
+def grouped_collinearity(
+    x: np.ndarray, terms: list[str], owners: list[str | None]
+) -> tuple[list[Vif], float]:
+    """070: a curve's columns repeat their column by design; they are read together through the
+    generalized VIF of Fox & Monette (1992), GVIF^(1/df) so that it compares with a VIF.
+    Interaction columns (owner None) are left out: centering, not a VIF, is their answer."""
+    cols = [j for j in range(1, x.shape[1]) if owners[j] is not None]
+    if not cols:
+        return [], 1.0
+    sets: dict[str, list[int]] = {}
+    for i, j in enumerate(cols):
+        sets.setdefault(owners[j] or "", []).append(i)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        r = np.nan_to_num(np.atleast_2d(np.corrcoef(x[:, cols], rowvar=False)))
+
+    def logdet(m: np.ndarray) -> float:
+        if m.size == 0:
+            return 0.0
+        sign, value = np.linalg.slogdet(m)
+        return float(value) if sign > 0 else float("-inf")
+
+    whole = logdet(r)
+    found: list[Vif] = []
+    for idx in sets.values():
+        rest = [i for i in range(len(cols)) if i not in idx]
+        partner = correlation = None
+        if rest:
+            row = np.abs(r[idx[0], rest])
+            other = rest[int(np.argmax(row))]
+            partner, correlation = terms[cols[other]], float(r[idx[0], other])
+        if not np.isfinite(whole):
+            value = None
+        else:
+            gvif = math.exp(logdet(r[np.ix_(idx, idx)]) + logdet(r[np.ix_(rest, rest)]) - whole)
+            value = gvif ** (1 / len(idx))
+        found.append(Vif(terms[cols[idx[0]]], value, partner, correlation))
+    kept = x[:, [0, *(cols[idx[0]] for idx in sets.values())]]  # a curve's own columns aside
+    norms = np.linalg.norm(kept, axis=0)
+    scaled = kept / np.where(norms > 0, norms, 1)
+    eigen = np.linalg.eigvalsh(scaled.T @ scaled)
+    condition = float(np.sqrt(eigen[-1] / eigen[0])) if eigen[0] > 1e-300 else float("inf")
+    return found, condition
+
+
+# --- 072: the tail of the residuals and what drives their spread ---------------------------------
+
+TAIL_MIN = 500  # R-REG-11: rows before the tail index means anything
+HEAVY_XI = 0.25  # Hill ξ above: fewer than 4 moments, a heavy tail
+
+
+def tail_index(resid: np.ndarray) -> float | None:
+    """Hill's ξ of |residual| (056, `tails.hill`): the median over k of the estimates on the
+    10 % largest; None under TAIL_MIN rows."""
+    from quantilo.variable.tails import hill
+
+    if len(resid) < TAIL_MIN:
+        return None
+    found = hill(np.sort(np.abs(resid[np.isfinite(resid)])))
+    if found is None or not found.y:
+        return None
+    return float(np.median(found.y))
+
+
+def spread_driver(e: np.ndarray, x: np.ndarray) -> int | None:
+    """R-REG-12: the column of X (not the intercept) with the largest |t| in the auxiliary
+    regression of ê² on X, the one the spread follows most."""
+    if x.shape[1] < 2:
+        return None
+    u = e**2
+    beta, _, rank, _ = np.linalg.lstsq(x, u, rcond=None)
+    if rank < x.shape[1]:
+        return None
+    resid = u - x @ beta
+    s2 = float(resid @ resid) / max(len(u) - x.shape[1], 1)
+    bread = np.linalg.pinv(x.T @ x)
+    se = np.sqrt(np.clip(np.diag(bread) * s2, 1e-300, None))
+    t = np.abs(beta / se)
+    return int(np.argmax(t[1:]) + 1)

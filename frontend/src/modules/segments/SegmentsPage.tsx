@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
 import type { MlChoicesInput } from "../../api/client";
-import { useDataset } from "../../api/hooks";
+import { useDataset, useDerivedColumns } from "../../api/hooks";
 import { formatNumber } from "../../charts/figures";
 import { formatCount } from "../../lib/format";
 import { t, type MessageKey } from "../../lib/i18n";
@@ -113,6 +113,7 @@ function SegmentsWorkbench({
   const [jobId, setJobId] = useState<string | null>(null);
   const request: SegmentRequest = { columns: shared.columns, preparation: shared.preparation, method, k };
   const plan = useSegmentPlan(datasetId, { columns: shared.columns, preparation: shared.preparation }, true);
+  const derived = useDerivedColumns(datasetId, editing);
   const start = useStartSegments(datasetId);
   const cancel = useCancelSegmentJob();
   const job = useSegmentJob(jobId);
@@ -175,6 +176,7 @@ function SegmentsWorkbench({
             plan={plan.data}
             shared={shared}
             onShared={onShared}
+            derived={derived.data}
           />
         )}
         {phone ? (
