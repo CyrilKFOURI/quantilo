@@ -38,6 +38,8 @@ import {
   type MlCounterfactualRequest,
   type OutlierMethod,
   type DetectionSettings,
+  type RegressionMethodKind,
+  type RegressionMethodOptions,
   type RegressionParams,
   type RegressionSection,
   type RowsView,
@@ -1270,6 +1272,36 @@ export function useRegressionSection<S extends RegressionSection>(
   return useQuery({
     queryKey: ["datasets", id, "regression", section, params, filters] as const,
     queryFn: () => api.regressionSection(id, section, params as RegressionParams, filters),
+    enabled: enabled && Boolean(params?.target),
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/** 074–076: the methods of Advanced › More, asked for once More is open (cheap). */
+export function useRegressionMethods(id: string, params: RegressionParams | null, enabled: boolean) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: ["datasets", id, "regression", "methods", params, filters] as const,
+    queryFn: () => api.regressionMethods(id, params as RegressionParams, filters),
+    enabled: enabled && Boolean(params?.target),
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/** One method of More, asked for only once its fold is opened (onion rule). */
+export function useRegressionMethod<K extends RegressionMethodKind>(
+  id: string,
+  kind: K,
+  params: RegressionParams | null,
+  options: RegressionMethodOptions,
+  enabled: boolean,
+) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: ["datasets", id, "regression", "method", kind, params, options, filters] as const,
+    queryFn: () => api.regressionMethod(id, kind, params as RegressionParams, options, filters),
     enabled: enabled && Boolean(params?.target),
     staleTime: 60_000,
     retry: false,

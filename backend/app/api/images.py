@@ -4,13 +4,17 @@ a dataset with `format = 'images'`; its report; its files and thumbnails by imag
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from app.api.datasets import to_out
 from app.api.deps import Datasets, Projects
 from app.schemas.datasets import ImportResponse, JobOut
 from app.schemas.images import (
+    ImageDecisionsApplied,
+    ImageDecisionsIn,
+    ImageDecisionsOut,
     ImageImportRequest,
+    ImageIndexOut,
     ImagePreviewOut,
     ImagePreviewRequest,
     ImageReportOut,
@@ -89,6 +93,39 @@ def quality_rules() -> list[QualityRuleOut]:
 @router.get("/datasets/{dataset_id}/images/report")
 def image_set_report(dataset_id: str, service: ImageSets) -> ImageReportOut:
     return ImageReportOut.model_validate(service.report(dataset_id))
+
+
+@router.get("/datasets/{dataset_id}/images/index", response_model=ImageIndexOut)
+def image_set_index(dataset_id: str, service: ImageSets) -> Response:
+    """107: the gallery's columns, one list each, in the table's row order. Written straight to
+    JSON (50,000 images: a single response, no per-value validation)."""
+    return Response(service.index(dataset_id), media_type="application/json")
+
+
+@router.get("/datasets/{dataset_id}/images/decisions")
+def image_decisions(dataset_id: str, service: ImageSets) -> ImageDecisionsOut:
+    """108: the draft of the user's decisions, the saved ones, how many are not saved yet."""
+    return ImageDecisionsOut.model_validate(service.decisions(dataset_id))
+
+
+@router.put("/datasets/{dataset_id}/images/decisions")
+def set_image_decisions(
+    dataset_id: str, body: ImageDecisionsIn, service: ImageSets
+) -> ImageDecisionsOut:
+    """Merge decisions into the draft (`exclude`, `keep`, or null: back to the rules)."""
+    return ImageDecisionsOut.model_validate(service.set_decisions(dataset_id, body.decisions))
+
+
+@router.delete("/datasets/{dataset_id}/images/decisions")
+def discard_image_decisions(dataset_id: str, service: ImageSets) -> ImageDecisionsOut:
+    """The draft goes back to the saved decisions."""
+    return ImageDecisionsOut.model_validate(service.discard_decisions(dataset_id))
+
+
+@router.post("/datasets/{dataset_id}/images/decisions/apply")
+def apply_image_decisions(dataset_id: str, service: ImageSets) -> ImageDecisionsApplied:
+    """Save the draft as a new version of the set (031): Changes compares it with the previous."""
+    return ImageDecisionsApplied.model_validate(service.apply_decisions(dataset_id))
 
 
 def _serve(service: ImageSetService, dataset_id: str, image_id: str, kind: FileKind):

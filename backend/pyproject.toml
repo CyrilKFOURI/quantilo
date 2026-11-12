@@ -19,6 +19,9 @@ deep = ["quantilo[deep]", "torch>=2.14"]
 # AI agent (026): the official Anthropic SDK (Claude) and OpenAI SDK (OpenAI and every
 # OpenAI-compatible API: Gemini, Mistral, Groq, OpenRouter, local models). Optional.
 agent = ["anthropic>=2", "openai>=3"]
+# Deep vision (114): frozen DINOv2 / ResNet backbones, linear probe and kNN (torch, torchvision,
+# timm). Not in the default Docker image: docker build --build-arg QUANTILO_EXTRAS="agent vision".
+vision = ["quantilo[vision]"]
 
 [dependency-groups]
 dev = [
@@ -33,6 +36,11 @@ dev = [
 [tool.uv.sources]
 quantilo = { path = "../packages/quantilo", editable = true }
 torch = [
+    { index = "pytorch-cu130", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
+]
+# torchvision is built against one torch: same index as torch, or its C++ operators break.
+torchvision = [
     { index = "pytorch-cu130", marker = "sys_platform == 'win32'" },
     { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
 ]

@@ -6386,6 +6386,2421 @@
         }
       }
     },
+    "/api/v1/datasets/{dataset_id}/regression/methods": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Methods",
+        "description": "Advanced > More: the methods offered for these data, each with the rule that proposes it\nand its reason, and the columns the rules picked (uncertainty, event, groups). Cheap: each\nmethod is computed by its own route when its fold is opened.",
+        "operationId": "methods_api_v1_datasets__dataset_id__regression_methods_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoreMethods"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/regression/cross-section": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Cross Section",
+        "description": "Advanced > More > Fama-MacBeth and IC (074): one regression a period, the mean of the\ncoefficients with Newey-West errors, the IC and ICIR of each column.",
+        "operationId": "cross_section_api_v1_datasets__dataset_id__regression_cross_section_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrossSectionTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/regression/outputs": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Outputs",
+        "description": "Advanced > More > Several outcomes (074): the coefficient matrix, Wilks and Pillai, the GRS\ntest of the alphas for dated returns.",
+        "operationId": "outputs_api_v1_datasets__dataset_id__regression_outputs_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "outputs",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "074: comma-separated other outcomes, numeric, at most 10.",
+              "default": "",
+              "title": "Outputs"
+            },
+            "description": "074: comma-separated other outcomes, numeric, at most 10."
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutputsTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/regression/components": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Components",
+        "description": "Advanced > More > Principal components (074): the numeric columns through their principal\ncomponents, the coefficients back in the units of the columns.",
+        "operationId": "components_api_v1_datasets__dataset_id__regression_components_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComponentsTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/regression/measurement": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Measurement",
+        "description": "Advanced > More > Uncertainties and errors on x (075): the fit by 1/sigma^2, chi^2, pulls;\nDeming, York and total least squares.",
+        "operationId": "measurement_api_v1_datasets__dataset_id__regression_measurement_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "sigma",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "075: the uncertainty of the target (absent: role uncertainty; empty: none).",
+              "title": "Sigma"
+            },
+            "description": "075: the uncertainty of the target (absent: role uncertainty; empty: none)."
+          },
+          {
+            "name": "sigma_x",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "075: the uncertainty of x (absent: role uncertainty; empty: none).",
+              "title": "Sigma X"
+            },
+            "description": "075: the uncertainty of x (absent: role uncertainty; empty: none)."
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeasurementTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/regression/curves": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Curves",
+        "description": "Advanced > More > Curve (075): exponential, power, logistic, Michaelis-Menten and Gaussian\npeak, ranked by AIC with the straight line.",
+        "operationId": "curves_api_v1_datasets__dataset_id__regression_curves_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "sigma",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "075: the uncertainty of the target (absent: role uncertainty; empty: none).",
+              "title": "Sigma"
+            },
+            "description": "075: the uncertainty of the target (absent: role uncertainty; empty: none)."
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurvesTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/regression/survival": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Survival",
+        "description": "Advanced > More > Survival (076): the Cox model of the target as a time to the event,\nhazard ratios, the Schoenfeld test of proportional hazards.",
+        "operationId": "survival_api_v1_datasets__dataset_id__regression_survival_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "event",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "076: the yes/no event column (absent: R-SRV-01).",
+              "title": "Event"
+            },
+            "description": "076: the yes/no event column (absent: R-SRV-01)."
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoxTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/regression/tobit": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Tobit",
+        "description": "Advanced > More > Censored (076): the Tobit model of a target held at a bound.",
+        "operationId": "tobit_api_v1_datasets__dataset_id__regression_tobit_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TobitTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/regression/mixed": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Mixed",
+        "description": "Advanced > More > Mixed model (076): a random intercept by Grouped by (or the entity of the\npanel), its share of the variance, the test against least squares.",
+        "operationId": "mixed_api_v1_datasets__dataset_id__regression_mixed_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "slope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "076: a numeric term whose slope varies by group.",
+              "title": "Slope"
+            },
+            "description": "076: a numeric term whose slope varies by group."
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MixedTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/datasets/{dataset_id}/rows": {
       "get": {
         "tags": [
@@ -8840,6 +11255,227 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ImageReportOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/images/index": {
+      "get": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Image Set Index",
+        "description": "107: the gallery's columns, one list each, in the table's row order. Written straight to\nJSON (50,000 images: a single response, no per-value validation).",
+        "operationId": "image_set_index_api_v1_datasets__dataset_id__images_index_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageIndexOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/images/decisions": {
+      "get": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Image Decisions",
+        "description": "108: the draft of the user's decisions, the saved ones, how many are not saved yet.",
+        "operationId": "image_decisions_api_v1_datasets__dataset_id__images_decisions_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageDecisionsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Set Image Decisions",
+        "description": "Merge decisions into the draft (`exclude`, `keep`, or null: back to the rules).",
+        "operationId": "set_image_decisions_api_v1_datasets__dataset_id__images_decisions_put",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageDecisionsIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageDecisionsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Discard Image Decisions",
+        "description": "The draft goes back to the saved decisions.",
+        "operationId": "discard_image_decisions_api_v1_datasets__dataset_id__images_decisions_delete",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageDecisionsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/images/decisions/apply": {
+      "post": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Apply Image Decisions",
+        "description": "Save the draft as a new version of the set (031): Changes compares it with the previous.",
+        "operationId": "apply_image_decisions_api_v1_datasets__dataset_id__images_decisions_apply_post",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageDecisionsApplied"
                 }
               }
             }
@@ -27174,6 +29810,35 @@
         ],
         "title": "Coefficient"
       },
+      "CoefficientSeries": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "periods": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Periods"
+          },
+          "values": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Values"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "periods",
+          "values"
+        ],
+        "title": "CoefficientSeries"
+      },
       "CoefficientShift": {
         "properties": {
           "term": {
@@ -27984,6 +30649,92 @@
         ],
         "title": "ColumnErrors",
         "description": "The mean error per category or per quintile of one column."
+      },
+      "ColumnIc": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "mean": {
+            "type": "number",
+            "title": "Mean"
+          },
+          "sd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sd"
+          },
+          "icir": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icir"
+          },
+          "t": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "T"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "positive": {
+            "type": "number",
+            "title": "Positive"
+          },
+          "periods": {
+            "type": "integer",
+            "title": "Periods"
+          },
+          "ranks": {
+            "type": "boolean",
+            "title": "Ranks"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "mean",
+          "sd",
+          "icir",
+          "t",
+          "p_value",
+          "positive",
+          "periods",
+          "ranks"
+        ],
+        "title": "ColumnIc"
       },
       "ColumnInfo": {
         "properties": {
@@ -29028,6 +31779,222 @@
         ],
         "title": "CompatibleRecipe"
       },
+      "ComponentCoefficient": {
+        "properties": {
+          "component": {
+            "type": "string",
+            "title": "Component"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "share": {
+            "type": "number",
+            "title": "Share"
+          },
+          "estimate": {
+            "type": "number",
+            "title": "Estimate"
+          },
+          "std_error": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Std Error"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "component",
+          "label",
+          "share",
+          "estimate",
+          "std_error",
+          "p_value"
+        ],
+        "title": "ComponentCoefficient"
+      },
+      "ComponentEffect": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "estimate": {
+            "type": "number",
+            "title": "Estimate"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "least_squares": {
+            "type": "number",
+            "title": "Least Squares"
+          },
+          "ls_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ls Low"
+          },
+          "ls_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ls High"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "estimate",
+          "ci_low",
+          "ci_high",
+          "least_squares",
+          "ls_low",
+          "ls_high"
+        ],
+        "title": "ComponentEffect"
+      },
+      "ComponentsTable": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "kept": {
+            "type": "integer",
+            "title": "Kept",
+            "default": 0
+          },
+          "kept_reason": {
+            "type": "string",
+            "title": "Kept Reason",
+            "default": ""
+          },
+          "cumulative": {
+            "type": "number",
+            "title": "Cumulative",
+            "default": 0.0
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentCoefficient"
+            },
+            "type": "array",
+            "title": "Components"
+          },
+          "effects": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentEffect"
+            },
+            "type": "array",
+            "title": "Effects"
+          },
+          "r2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R2"
+          },
+          "ls_r2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ls R2"
+          },
+          "proposed": {
+            "type": "boolean",
+            "title": "Proposed",
+            "default": false
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "ComponentsTable"
+      },
       "ComputeSettings": {
         "properties": {
           "use_gpu": {
@@ -29776,6 +32743,122 @@
         ],
         "title": "Coverage"
       },
+      "CoxTable": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration"
+          },
+          "event": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event"
+          },
+          "event_reason": {
+            "type": "string",
+            "title": "Event Reason",
+            "default": ""
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows",
+            "default": 0
+          },
+          "events": {
+            "type": "integer",
+            "title": "Events",
+            "default": 0
+          },
+          "censored": {
+            "type": "integer",
+            "title": "Censored",
+            "default": 0
+          },
+          "sampled": {
+            "type": "boolean",
+            "title": "Sampled",
+            "default": false
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/HazardTerm"
+            },
+            "type": "array",
+            "title": "Terms"
+          },
+          "lr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lr"
+          },
+          "lr_df": {
+            "type": "integer",
+            "title": "Lr Df",
+            "default": 0
+          },
+          "lr_p": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lr P"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          },
+          "ph_sentence": {
+            "type": "string",
+            "title": "Ph Sentence",
+            "default": ""
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "CoxTable"
+      },
       "CreateRecipe": {
         "properties": {
           "name": {
@@ -29860,6 +32943,120 @@
           "dataset_id"
         ],
         "title": "CreatedOut"
+      },
+      "CrossSectionTable": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "entity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "periods": {
+            "type": "integer",
+            "title": "Periods",
+            "default": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped",
+            "default": 0
+          },
+          "rows": {
+            "type": "number",
+            "title": "Rows",
+            "default": 0.0
+          },
+          "lag": {
+            "type": "integer",
+            "title": "Lag",
+            "default": 0
+          },
+          "lag_reason": {
+            "type": "string",
+            "title": "Lag Reason",
+            "default": ""
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/MacBethTerm"
+            },
+            "type": "array",
+            "title": "Terms"
+          },
+          "r2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R2"
+          },
+          "ics": {
+            "items": {
+              "$ref": "#/components/schemas/ColumnIc"
+            },
+            "type": "array",
+            "title": "Ics"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/CoefficientSeries"
+            },
+            "type": "array",
+            "title": "Series"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          },
+          "ic_sentence": {
+            "type": "string",
+            "title": "Ic Sentence",
+            "default": ""
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "CrossSectionTable"
       },
       "CrossValidation": {
         "properties": {
@@ -29947,6 +33144,105 @@
         "type": "object",
         "title": "CsvOptions"
       },
+      "CurveFit": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "formula": {
+            "type": "string",
+            "title": "Formula"
+          },
+          "converged": {
+            "type": "boolean",
+            "title": "Converged"
+          },
+          "parameters": {
+            "items": {
+              "$ref": "#/components/schemas/CurveParameter"
+            },
+            "type": "array",
+            "title": "Parameters"
+          },
+          "r2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R2"
+          },
+          "aic": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aic"
+          },
+          "delta_aic": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta Aic"
+          },
+          "xs": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Xs"
+          },
+          "ys": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Ys"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "formula",
+          "converged",
+          "parameters",
+          "r2",
+          "aic",
+          "delta_aic",
+          "xs",
+          "ys"
+        ],
+        "title": "CurveFit"
+      },
       "CurveLine": {
         "properties": {
           "label": {
@@ -29984,6 +33280,60 @@
         ],
         "title": "CurveLine"
       },
+      "CurveParameter": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "estimate": {
+            "type": "number",
+            "title": "Estimate"
+          },
+          "std_error": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Std Error"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "estimate",
+          "std_error",
+          "ci_low",
+          "ci_high"
+        ],
+        "title": "CurveParameter"
+      },
       "CurvePoint": {
         "properties": {
           "per_group": {
@@ -30020,6 +33370,100 @@
           "absolute"
         ],
         "title": "CurvePoint"
+      },
+      "CurvesTable": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows",
+            "default": 0
+          },
+          "sampled": {
+            "type": "boolean",
+            "title": "Sampled",
+            "default": false
+          },
+          "weighted": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weighted"
+          },
+          "fits": {
+            "items": {
+              "$ref": "#/components/schemas/CurveFit"
+            },
+            "type": "array",
+            "title": "Fits"
+          },
+          "skipped": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skipped"
+          },
+          "data_x": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Data X"
+          },
+          "data_y": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Data Y"
+          },
+          "best": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "CurvesTable"
       },
       "CusumPath": {
         "properties": {
@@ -33174,6 +36618,83 @@
         ],
         "title": "ErrorPrediction",
         "description": "One held-out row: its prediction and how wrong it is."
+      },
+      "ErrorsInX": {
+        "properties": {
+          "column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column"
+          },
+          "ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratio"
+          },
+          "ratio_reason": {
+            "type": "string",
+            "title": "Ratio Reason"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/LineFit"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "tls": {
+            "items": {
+              "$ref": "#/components/schemas/TlsTerm"
+            },
+            "type": "array",
+            "title": "Tls"
+          },
+          "attenuation": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attenuation"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "ratio",
+          "ratio_reason",
+          "lines",
+          "tls",
+          "attenuation",
+          "sentence"
+        ],
+        "title": "ErrorsInX"
       },
       "Estimate": {
         "properties": {
@@ -37460,6 +40981,47 @@
         "title": "GroupsSetup",
         "description": "Every series of the group column, before forecasting them all (039)."
       },
+      "GrsTest": {
+        "properties": {
+          "f": {
+            "type": "number",
+            "title": "F"
+          },
+          "df1": {
+            "type": "integer",
+            "title": "Df1"
+          },
+          "df2": {
+            "type": "integer",
+            "title": "Df2"
+          },
+          "p_value": {
+            "type": "number",
+            "title": "P Value"
+          },
+          "alphas": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Alphas"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "f",
+          "df1",
+          "df2",
+          "p_value",
+          "alphas",
+          "sentence"
+        ],
+        "title": "GrsTest"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -37472,6 +41034,106 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HazardTerm": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "coefficient": {
+            "type": "number",
+            "title": "Coefficient"
+          },
+          "std_error": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Std Error"
+          },
+          "hazard_ratio": {
+            "type": "number",
+            "title": "Hazard Ratio"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "ph_p": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ph P"
+          },
+          "proportional": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proportional"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "coefficient",
+          "std_error",
+          "hazard_ratio",
+          "ci_low",
+          "ci_high",
+          "p_value",
+          "ph_p",
+          "proportional"
+        ],
+        "title": "HazardTerm"
       },
       "HeadOut": {
         "properties": {
@@ -37834,6 +41496,114 @@
         ],
         "title": "IdentifierProfile"
       },
+      "ImageDecisionsApplied": {
+        "properties": {
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "excluded": {
+            "type": "integer",
+            "title": "Excluded"
+          },
+          "decided": {
+            "type": "integer",
+            "title": "Decided"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "excluded",
+          "decided"
+        ],
+        "title": "ImageDecisionsApplied"
+      },
+      "ImageDecisionsIn": {
+        "properties": {
+          "decisions": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "exclude",
+                    "keep"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "maxProperties": 100000,
+            "title": "Decisions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decisions"
+        ],
+        "title": "ImageDecisionsIn",
+        "description": "108: decisions to merge into the draft, by the image's `rel_path` (exact copies share their\n`image_id`); None leaves an image to its rules again."
+      },
+      "ImageDecisionsOut": {
+        "properties": {
+          "draft": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "exclude",
+                "keep"
+              ]
+            },
+            "type": "object",
+            "title": "Draft"
+          },
+          "applied": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "exclude",
+                "keep"
+              ]
+            },
+            "type": "object",
+            "title": "Applied"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "draft",
+          "applied",
+          "pending",
+          "version"
+        ],
+        "title": "ImageDecisionsOut"
+      },
       "ImageImportRequest": {
         "properties": {
           "path": {
@@ -37871,6 +41641,569 @@
           "path"
         ],
         "title": "ImageImportRequest"
+      },
+      "ImageIndexOut": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "image_id": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Image Id"
+          },
+          "rel_path": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rel Path"
+          },
+          "file_name": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "File Name"
+          },
+          "label": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Label"
+          },
+          "split": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Split"
+          },
+          "format": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Format"
+          },
+          "color_mode": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Color Mode"
+          },
+          "camera": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Camera"
+          },
+          "dominant_colour": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Dominant Colour"
+          },
+          "decode_error": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Decode Error"
+          },
+          "decision": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "exclude",
+                    "keep"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Decision"
+          },
+          "width": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Width"
+          },
+          "height": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Height"
+          },
+          "file_bytes": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "File Bytes"
+          },
+          "bit_depth": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Bit Depth"
+          },
+          "frames": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Frames"
+          },
+          "duplicate_group": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Duplicate Group"
+          },
+          "megapixels": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Megapixels"
+          },
+          "aspect_ratio": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Aspect Ratio"
+          },
+          "brightness": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Brightness"
+          },
+          "luma_p05": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Luma P05"
+          },
+          "luma_p95": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Luma P95"
+          },
+          "contrast": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Contrast"
+          },
+          "entropy": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Entropy"
+          },
+          "saturation": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Saturation"
+          },
+          "colourfulness": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Colourfulness"
+          },
+          "sharpness": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Sharpness"
+          },
+          "clipped_dark": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Clipped Dark"
+          },
+          "clipped_light": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Clipped Light"
+          },
+          "is_normal": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Is Normal"
+          },
+          "is_grayscale": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Is Grayscale"
+          },
+          "has_location": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Has Location"
+          },
+          "decode_ok": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Decode Ok"
+          },
+          "excluded": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Excluded"
+          },
+          "rule_excluded": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Rule Excluded"
+          },
+          "has_mask": {
+            "items": {
+              "type": "boolean"
+            },
+            "type": "array",
+            "title": "Has Mask"
+          },
+          "issues": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Issues"
+          },
+          "date_taken": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Date Taken"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "image_id",
+          "rel_path",
+          "file_name",
+          "label",
+          "split",
+          "format",
+          "color_mode",
+          "camera",
+          "dominant_colour",
+          "decode_error",
+          "decision",
+          "width",
+          "height",
+          "file_bytes",
+          "bit_depth",
+          "frames",
+          "duplicate_group",
+          "megapixels",
+          "aspect_ratio",
+          "brightness",
+          "luma_p05",
+          "luma_p95",
+          "contrast",
+          "entropy",
+          "saturation",
+          "colourfulness",
+          "sharpness",
+          "clipped_dark",
+          "clipped_light",
+          "is_normal",
+          "is_grayscale",
+          "has_location",
+          "decode_ok",
+          "excluded",
+          "rule_excluded",
+          "has_mask",
+          "issues",
+          "date_taken"
+        ],
+        "title": "ImageIndexOut",
+        "description": "107: the gallery's index, one list per column in the table's row order (the quality\nreport's `rows` are positions in it). No disk path, no raw hash, no coordinate (R-107-04)."
       },
       "ImagePreviewOut": {
         "properties": {
@@ -40330,6 +44663,63 @@
         ],
         "title": "LevelShift"
       },
+      "LineFit": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "slope": {
+            "type": "number",
+            "title": "Slope"
+          },
+          "intercept": {
+            "type": "number",
+            "title": "Intercept"
+          },
+          "slope_se": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slope Se"
+          },
+          "intercept_se": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intercept Se"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "label",
+          "slope",
+          "intercept",
+          "slope_se",
+          "intercept_se",
+          "reason"
+        ],
+        "title": "LineFit"
+      },
       "LinkOut": {
         "properties": {
           "parent_id": {
@@ -40759,6 +45149,106 @@
         ],
         "title": "Lowess",
         "description": "LOWESS curve of a scatter (064, R-SM-12): drawn by default when it bends away from the\nstraight line, i.e. explains clearly more of Y than the line on the same points."
+      },
+      "MacBethTerm": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "estimate": {
+            "type": "number",
+            "title": "Estimate"
+          },
+          "std_error": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Std Error"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "t": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "T"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "pooled": {
+            "type": "number",
+            "title": "Pooled"
+          },
+          "pooled_se": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pooled Se"
+          },
+          "positive": {
+            "type": "number",
+            "title": "Positive"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "estimate",
+          "std_error",
+          "ci_low",
+          "ci_high",
+          "t",
+          "p_value",
+          "pooled",
+          "pooled_se",
+          "positive"
+        ],
+        "title": "MacBethTerm"
       },
       "MapValues": {
         "properties": {
@@ -41273,6 +45763,70 @@
         ],
         "title": "MeasureOut"
       },
+      "MeasurementTable": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "uncertainty": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UncertaintyFit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uncertainty_reason": {
+            "type": "string",
+            "title": "Uncertainty Reason",
+            "default": ""
+          },
+          "errors": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorsInX"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "errors_reason": {
+            "type": "string",
+            "title": "Errors Reason",
+            "default": ""
+          },
+          "sigma_x": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sigma X"
+          },
+          "sigma_x_reason": {
+            "type": "string",
+            "title": "Sigma X Reason",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "MeasurementTable"
+      },
       "Member": {
         "properties": {
           "entry": {
@@ -41579,6 +46133,239 @@
           "rows"
         ],
         "title": "MissingRows"
+      },
+      "MixedTable": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "group_reason": {
+            "type": "string",
+            "title": "Group Reason",
+            "default": ""
+          },
+          "slope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slope"
+          },
+          "groups": {
+            "type": "integer",
+            "title": "Groups",
+            "default": 0
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows",
+            "default": 0
+          },
+          "sampled": {
+            "type": "boolean",
+            "title": "Sampled",
+            "default": false
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/MixedTerm"
+            },
+            "type": "array",
+            "title": "Terms"
+          },
+          "group_variance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Variance"
+          },
+          "slope_variance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slope Variance"
+          },
+          "residual_variance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Residual Variance"
+          },
+          "icc": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icc"
+          },
+          "lr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lr"
+          },
+          "lr_p": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lr P"
+          },
+          "converged": {
+            "type": "boolean",
+            "title": "Converged",
+            "default": true
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "MixedTable"
+      },
+      "MixedTerm": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "estimate": {
+            "type": "number",
+            "title": "Estimate"
+          },
+          "std_error": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Std Error"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "least_squares": {
+            "type": "number",
+            "title": "Least Squares"
+          },
+          "ls_se": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ls Se"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "estimate",
+          "std_error",
+          "ci_low",
+          "ci_high",
+          "p_value",
+          "least_squares",
+          "ls_se"
+        ],
+        "title": "MixedTerm"
       },
       "MlStep": {
         "properties": {
@@ -42565,6 +47352,131 @@
         ],
         "title": "MoreChecks"
       },
+      "MoreMethod": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "cross_section",
+              "outputs",
+              "components",
+              "measurement",
+              "curves",
+              "survival",
+              "tobit",
+              "mixed"
+            ],
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "proposed": {
+            "type": "boolean",
+            "title": "Proposed"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "title",
+          "proposed",
+          "available",
+          "reason",
+          "rule"
+        ],
+        "title": "MoreMethod"
+      },
+      "MoreMethods": {
+        "properties": {
+          "methods": {
+            "items": {
+              "$ref": "#/components/schemas/MoreMethod"
+            },
+            "type": "array",
+            "title": "Methods"
+          },
+          "numbers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Numbers"
+          },
+          "events": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "slopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Slopes"
+          },
+          "sigma": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Pick"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sigma_x": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Pick"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "event": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Pick"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "group": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Pick"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "methods"
+        ],
+        "title": "MoreMethods"
+      },
       "MoveRequest": {
         "properties": {
           "dataset_ids": {
@@ -42653,6 +47565,102 @@
           "sentence"
         ],
         "title": "MultipleTesting"
+      },
+      "MultivariateTest": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "df": {
+            "type": "integer",
+            "title": "Df"
+          },
+          "wilks": {
+            "type": "number",
+            "title": "Wilks"
+          },
+          "wilks_f": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wilks F"
+          },
+          "wilks_df1": {
+            "type": "number",
+            "title": "Wilks Df1"
+          },
+          "wilks_df2": {
+            "type": "number",
+            "title": "Wilks Df2"
+          },
+          "wilks_p": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wilks P"
+          },
+          "pillai": {
+            "type": "number",
+            "title": "Pillai"
+          },
+          "pillai_f": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pillai F"
+          },
+          "pillai_df1": {
+            "type": "number",
+            "title": "Pillai Df1"
+          },
+          "pillai_df2": {
+            "type": "number",
+            "title": "Pillai Df2"
+          },
+          "pillai_p": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pillai P"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "df",
+          "wilks",
+          "wilks_f",
+          "wilks_df1",
+          "wilks_df2",
+          "wilks_p",
+          "pillai",
+          "pillai_f",
+          "pillai_df1",
+          "pillai_df2",
+          "pillai_p"
+        ],
+        "title": "MultivariateTest"
       },
       "Names": {
         "properties": {
@@ -43524,6 +48532,43 @@
         ],
         "title": "Outliers"
       },
+      "OutputCoefficient": {
+        "properties": {
+          "estimate": {
+            "type": "number",
+            "title": "Estimate"
+          },
+          "std_error": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Std Error"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "estimate",
+          "std_error",
+          "p_value"
+        ],
+        "title": "OutputCoefficient"
+      },
       "OutputColumnOut": {
         "properties": {
           "name": {
@@ -43594,6 +48639,101 @@
           "id"
         ],
         "title": "OutputStep"
+      },
+      "OutputsTable": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "outputs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Outputs"
+          },
+          "terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Terms"
+          },
+          "coefficients": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/OutputCoefficient"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Coefficients"
+          },
+          "r2": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "R2"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows",
+            "default": 0
+          },
+          "tests": {
+            "items": {
+              "$ref": "#/components/schemas/MultivariateTest"
+            },
+            "type": "array",
+            "title": "Tests"
+          },
+          "grs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GrsTest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grs_reason": {
+            "type": "string",
+            "title": "Grs Reason",
+            "default": ""
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "OutputsTable"
       },
       "Overview": {
         "properties": {
@@ -45114,6 +50254,24 @@
           "std"
         ],
         "title": "PermutationItem"
+      },
+      "Pick": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "reason"
+        ],
+        "title": "Pick"
       },
       "Pin": {
         "properties": {
@@ -47434,6 +52592,24 @@
           "explained"
         ],
         "title": "Projection"
+      },
+      "Pull": {
+        "properties": {
+          "row": {
+            "type": "integer",
+            "title": "Row"
+          },
+          "pull": {
+            "type": "number",
+            "title": "Pull"
+          }
+        },
+        "type": "object",
+        "required": [
+          "row",
+          "pull"
+        ],
+        "title": "Pull"
       },
       "QQ": {
         "properties": {
@@ -62190,6 +67366,29 @@
         "title": "TimeView",
         "description": "How a date and a number was turned into a series (each setting chosen or defaulted)."
       },
+      "TlsTerm": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "estimate": {
+            "type": "number",
+            "title": "Estimate"
+          },
+          "least_squares": {
+            "type": "number",
+            "title": "Least Squares"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "estimate",
+          "least_squares"
+        ],
+        "title": "TlsTerm"
+      },
       "ToDate": {
         "properties": {
           "period": {
@@ -62294,6 +67493,199 @@
           "elapsed"
         ],
         "title": "ToDate"
+      },
+      "TobitTable": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "lower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lower"
+          },
+          "upper": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upper"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows",
+            "default": 0
+          },
+          "at_lower": {
+            "type": "integer",
+            "title": "At Lower",
+            "default": 0
+          },
+          "at_upper": {
+            "type": "integer",
+            "title": "At Upper",
+            "default": 0
+          },
+          "sampled": {
+            "type": "boolean",
+            "title": "Sampled",
+            "default": false
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/TobitTerm"
+            },
+            "type": "array",
+            "title": "Terms"
+          },
+          "sigma": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sigma"
+          },
+          "sigma_se": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sigma Se"
+          },
+          "llf": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llf"
+          },
+          "converged": {
+            "type": "boolean",
+            "title": "Converged",
+            "default": true
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "TobitTable"
+      },
+      "TobitTerm": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "estimate": {
+            "type": "number",
+            "title": "Estimate"
+          },
+          "std_error": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Std Error"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "marginal": {
+            "type": "number",
+            "title": "Marginal"
+          },
+          "least_squares": {
+            "type": "number",
+            "title": "Least Squares"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "estimate",
+          "std_error",
+          "ci_low",
+          "ci_high",
+          "p_value",
+          "marginal",
+          "least_squares"
+        ],
+        "title": "TobitTerm"
       },
       "TopGroup": {
         "properties": {
@@ -63313,6 +68705,126 @@
           "after"
         ],
         "title": "TypeChange"
+      },
+      "UncertaintyFit": {
+        "properties": {
+          "sigma": {
+            "type": "string",
+            "title": "Sigma"
+          },
+          "sigma_reason": {
+            "type": "string",
+            "title": "Sigma Reason"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "dropped": {
+            "type": "integer",
+            "title": "Dropped"
+          },
+          "chi2": {
+            "type": "number",
+            "title": "Chi2"
+          },
+          "df": {
+            "type": "integer",
+            "title": "Df"
+          },
+          "reduced": {
+            "type": "number",
+            "title": "Reduced"
+          },
+          "p_value": {
+            "type": "number",
+            "title": "P Value"
+          },
+          "band_low": {
+            "type": "number",
+            "title": "Band Low"
+          },
+          "band_high": {
+            "type": "number",
+            "title": "Band High"
+          },
+          "absolute": {
+            "type": "boolean",
+            "title": "Absolute"
+          },
+          "absolute_reason": {
+            "type": "string",
+            "title": "Absolute Reason"
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/WeightedTerm"
+            },
+            "type": "array",
+            "title": "Terms"
+          },
+          "pull_sd": {
+            "type": "number",
+            "title": "Pull Sd"
+          },
+          "pull_high": {
+            "type": "integer",
+            "title": "Pull High"
+          },
+          "largest": {
+            "items": {
+              "$ref": "#/components/schemas/Pull"
+            },
+            "type": "array",
+            "title": "Largest"
+          },
+          "fitted": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Fitted"
+          },
+          "pulls": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Pulls"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "pull_sentence": {
+            "type": "string",
+            "title": "Pull Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sigma",
+          "sigma_reason",
+          "rows",
+          "dropped",
+          "chi2",
+          "df",
+          "reduced",
+          "p_value",
+          "band_low",
+          "band_high",
+          "absolute",
+          "absolute_reason",
+          "terms",
+          "pull_sd",
+          "pull_high",
+          "largest",
+          "fitted",
+          "pulls",
+          "sentence",
+          "pull_sentence"
+        ],
+        "title": "UncertaintyFit"
       },
       "UnpinRequest": {
         "properties": {
@@ -64575,6 +70087,84 @@
           "correlation"
         ],
         "title": "Vif"
+      },
+      "WeightedTerm": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "estimate": {
+            "type": "number",
+            "title": "Estimate"
+          },
+          "absolute_se": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Absolute Se"
+          },
+          "scaled_se": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scaled Se"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "estimate",
+          "absolute_se",
+          "scaled_se",
+          "ci_low",
+          "ci_high",
+          "p_value"
+        ],
+        "title": "WeightedTerm"
       },
       "Word": {
         "properties": {

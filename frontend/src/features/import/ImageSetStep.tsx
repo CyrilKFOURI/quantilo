@@ -42,7 +42,8 @@ export function ImageSetStep({ path, preview: tablePreview, onClose, onImported,
   const openDataset = (datasetId: string) => {
     onClose();
     if (onImported) return onImported(datasetId);
-    void navigate({ to: "/d/$datasetId", params: { datasetId } });
+    // R-107-02: an image set opens on its gallery
+    void navigate({ to: "/d/$datasetId/vision", params: { datasetId } } as never);
   };
   const finished = job.data?.status === "done" ? job.data.dataset_id : null;
   useEffect(() => {

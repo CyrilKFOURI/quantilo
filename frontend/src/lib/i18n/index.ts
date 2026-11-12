@@ -7,8 +7,10 @@ import clean from "./clean.json";
 import model from "./model.json";
 // Pinned rows (099): shared by Data, Unusual rows and Clean.
 import pins from "./pins.json";
+// Vision (107, 108): its texts in their own file too (the import step keeps vision.import.* in en.json).
+import vision from "./vision.json";
 
-const all = { ...en, ...recipes, ...clean, ...model, ...pins };
+const all = { ...en, ...recipes, ...clean, ...model, ...pins, ...vision };
 
 export type MessageKey = keyof typeof all;
 

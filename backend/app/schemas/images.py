@@ -129,3 +129,68 @@ class QualityRuleOut(BaseModel):
     reason: str
     effect: Literal["excluded", "flagged", "dataset"]
     parameters: dict[str, float]
+
+
+class ImageIndexOut(BaseModel):
+    """107: the gallery's index, one list per column in the table's row order (the quality
+    report's `rows` are positions in it). No disk path, no raw hash, no coordinate (R-107-04)."""
+
+    count: int
+    image_id: list[str]
+    rel_path: list[str]
+    file_name: list[str | None]
+    label: list[str | None]
+    split: list[str | None]
+    format: list[str | None]
+    color_mode: list[str | None]
+    camera: list[str | None]
+    dominant_colour: list[str | None]
+    decode_error: list[str | None]
+    decision: list[Literal["exclude", "keep"] | None]
+    width: list[int | None]
+    height: list[int | None]
+    file_bytes: list[int | None]
+    bit_depth: list[int | None]
+    frames: list[int | None]
+    duplicate_group: list[int | None]
+    megapixels: list[float | None]
+    aspect_ratio: list[float | None]
+    brightness: list[float | None]
+    luma_p05: list[float | None]
+    luma_p95: list[float | None]
+    contrast: list[float | None]
+    entropy: list[float | None]
+    saturation: list[float | None]
+    colourfulness: list[float | None]
+    sharpness: list[float | None]
+    clipped_dark: list[float | None]
+    clipped_light: list[float | None]
+    is_normal: list[bool | None]
+    is_grayscale: list[bool | None]
+    has_location: list[bool | None]
+    decode_ok: list[bool | None]
+    excluded: list[bool | None]
+    rule_excluded: list[bool | None]
+    has_mask: list[bool]
+    issues: list[list[str]]
+    date_taken: list[str | None]
+
+
+class ImageDecisionsIn(BaseModel):
+    """108: decisions to merge into the draft, by the image's `rel_path` (exact copies share their
+    `image_id`); None leaves an image to its rules again."""
+
+    decisions: dict[str, Literal["exclude", "keep"] | None] = Field(max_length=100_000)
+
+
+class ImageDecisionsOut(BaseModel):
+    draft: dict[str, Literal["exclude", "keep"]]
+    applied: dict[str, Literal["exclude", "keep"]]
+    pending: int
+    version: int | None
+
+
+class ImageDecisionsApplied(BaseModel):
+    version: int | None
+    excluded: int
+    decided: int

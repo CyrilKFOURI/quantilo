@@ -53,5 +53,8 @@ export type ModuleManifest = Base &
         /** Column types the page needs, or "images": the dataset is an image set (106). */
         requires?: Requirement[];
         requiresKey?: MessageKey;
+        /** 107: hidden (not greyed out) when the dataset does not meet `requires` (Vision: an image
+         *  set only, R-107-01). */
+        onlyWhenMet?: boolean;
       }
   );

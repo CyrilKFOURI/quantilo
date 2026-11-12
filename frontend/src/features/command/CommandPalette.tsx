@@ -24,7 +24,8 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { useColumns, useDatasets } from "../../api/hooks";
+import { useColumns, useDataset, useDatasets } from "../../api/hooks";
+import { meets, type Requirement } from "../../modules/types";
 import { t, type MessageKey } from "../../lib/i18n";
 import { savePreference, themePreference } from "../../lib/preferences";
 import { TYPE_META } from "../columns/columnTypes";
@@ -36,7 +37,17 @@ import { availableTools, themeName, toolName } from "../toolbox/tools";
 type Command = { id: string; group: MessageKey; label: string; hint?: string; icon: LucideIcon; tone?: string; run: () => void };
 
 /** What the palette needs of a registered module (098: every page and tool can be found). */
-export type PaletteModule = { id: string; labelKey: MessageKey; icon: LucideIcon; path: string; scope: string; locked?: boolean };
+export type PaletteModule = {
+  id: string;
+  labelKey: MessageKey;
+  icon: LucideIcon;
+  path: string;
+  scope: string;
+  locked?: boolean;
+  /** 107: listed only when the open dataset meets these (Vision: an image set). */
+  requires?: Requirement[];
+  onlyWhenMet?: boolean;
+};
 
 type CommandPaletteProps = {
   open: boolean;
@@ -52,6 +63,7 @@ export function CommandPalette({ open, onOpenChange, onShortcuts, modules = [] }
   const navigate = useNavigate();
   const { datasetId, routed } = useCurrentDataset();
   const datasets = useDatasets();
+  const format = useDataset(datasetId ?? undefined).data?.format;
   const columns = useColumns(datasetId ?? "", Boolean(datasetId) && open);
   const filters = useFilters(datasetId ?? "");
   const [query, setQuery] = useState("");
@@ -80,6 +92,7 @@ export function CommandPalette({ open, onOpenChange, onShortcuts, modules = [] }
       const covered = new Set(tools.map((tool) => tool.module));
       for (const module of modules) {
         if (module.scope !== "dataset" || covered.has(module.id)) continue;
+        if (module.onlyWhenMet && !(module.requires ?? []).every((need) => meets(need, format, []))) continue;
         list.push({
           id: `module:${module.id}`,
           group: "palette.pages",
@@ -146,7 +159,7 @@ export function CommandPalette({ open, onOpenChange, onShortcuts, modules = [] }
       { id: "shortcuts", group: "palette.actions", label: t("palette.shortcuts"), hint: "?", icon: Keyboard, run: onShortcuts },
     );
     return list;
-  }, [navigate, datasetId, routed, modules, columns.data, datasets.data, filters, onShortcuts]);
+  }, [navigate, datasetId, routed, modules, columns.data, datasets.data, filters, onShortcuts, format]);
 
   const needle = query.trim().toLowerCase();
   const results = (needle ? commands.filter((c) => c.label.toLowerCase().includes(needle)) : commands).slice(0, MAX_RESULTS);

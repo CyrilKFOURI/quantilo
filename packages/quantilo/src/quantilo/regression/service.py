@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from quantilo.catalog import Catalog, ColumnView
+from quantilo.compare import durations as du
 from quantilo.compare.analyze import label_sql, number_sql
 from quantilo.correlations.matrix import Matrix
 from quantilo.correlations.service import CorrelationService
@@ -19,12 +20,17 @@ from quantilo.filters.model import Condition, filters_key
 from quantilo.filters.scope import Where, scoped_source, where_for
 from quantilo.ingestion.sql import ident
 from quantilo.regression import analyze as an
+from quantilo.regression import crosssection as xs
 from quantilo.regression import iv as ivs
+from quantilo.regression import methods as mt
+from quantilo.regression import mixed as mx
 from quantilo.regression import panel as panels
+from quantilo.regression import physics as ph
 from quantilo.regression import resampling as rs
 from quantilo.regression import robust as rb
 from quantilo.regression import selection as sl
 from quantilo.regression import stability as st
+from quantilo.regression import survival as sv
 from quantilo.regression import terms as tm
 from quantilo.regression.design import DesignError, LeftOutTerm, Variable, codes
 from quantilo.regression.families import EXPOSURE_ROLE, MAX_CLASSES, FamilyRequest
@@ -72,6 +78,18 @@ Section = Literal[
 ]
 
 
+MethodResult = (
+    xs.CrossSectionTable
+    | xs.OutputsTable
+    | xs.ComponentsTable
+    | ph.MeasurementTable
+    | ph.CurvesTable
+    | sv.CoxTable
+    | sv.TobitTable
+    | mx.MixedTable
+)
+
+
 class RegressionError(ExplorerError):
     def __init__(self, message: str, code: str = "regression") -> None:
         super().__init__(message, code=code, status_code=422)
@@ -90,6 +108,17 @@ class Request:
     terms: tuple[str, ...] = ()  # 070: `spline:age`, `interaction:a|b`, `log:x`, …
     center: bool = False  # 070: numbers centred at their mean (R-REG-TERM-05)
     coding: tm.Coding = "reference"  # 070: categories against a reference or their average
+
+
+@dataclass(frozen=True)
+class MethodOptions:
+    """What a method of More may name (074–076); None follows the rules."""
+
+    outputs: tuple[str, ...] = ()  # R-REG-XS-04
+    sigma: str | None = None  # R-REG-PHY-01; "": none
+    sigma_x: str | None = None
+    event: str | None = None  # R-SRV-01
+    slope: str | None = None  # R-REG-MIX-01
 
 
 class RegressionService:
@@ -264,6 +293,208 @@ class RegressionService:
             self._results.popitem(last=False)
         return found
 
+    def methods(
+        self, dataset_id: str, request: Request, conditions: list[Condition] | None = None
+    ) -> mt.MoreMethods:
+        """074–076: the methods Advanced › More offers for these data, each with the rule that
+        proposes it (cheap: nothing is fitted beyond the first plane)."""
+        conditions = conditions or []
+        key = (*self._key(dataset_id, request, conditions), "methods")
+        if key in self._results:
+            self._results.move_to_end(key)
+            return self._results[key]
+        fit = self._fit(dataset_id, request, conditions)
+        infos = self._method_columns(dataset_id)
+        target = next(info for info in infos if info.name == fit.inputs.target)
+        used = {v.source or v.name for v in fit.inputs.variables}
+        if fit.inputs.weights:
+            used.add(fit.inputs.weights)
+        found = mt.listing(fit, target, infos, used)
+        return self._keep(key, found)
+
+    def method(
+        self,
+        dataset_id: str,
+        kind: mt.MethodKind,
+        request: Request,
+        options: MethodOptions | None = None,
+        conditions: list[Condition] | None = None,
+    ) -> MethodResult:
+        """074–076: one method of Advanced › More, computed only when its fold is opened."""
+        conditions = conditions or []
+        options = options or MethodOptions()
+        key = (*self._key(dataset_id, request, conditions), "method", kind, options)
+        if key in self._results:
+            self._results.move_to_end(key)
+            return self._results[key]
+        fit = self._fit(dataset_id, request, conditions)
+        offered = self.methods(dataset_id, request, conditions)
+        try:
+            found = self._method(dataset_id, kind, fit, offered, options, conditions)
+        except (xs.CrossSectionError, ph.PhysicsError, ValueError, np.linalg.LinAlgError) as error:
+            raise RegressionError(str(error), "method") from error
+        return self._keep(key, an.finite(found))
+
+    def _method(
+        self,
+        dataset_id: str,
+        kind: mt.MethodKind,
+        fit: an.Fitted,
+        offered: mt.MoreMethods,
+        options: MethodOptions,
+        conditions: list[Condition],
+    ) -> MethodResult:
+        if kind == "cross_section":
+            return xs.cross_section(fit)
+        if kind == "components":
+            return xs.components(fit)
+        if kind == "tobit":
+            return sv.tobit(fit)
+        if kind == "outputs":
+            names = tuple(dict.fromkeys(n for n in options.outputs if n != fit.inputs.target))
+            read = self._aligned(dataset_id, fit, names, conditions, numeric=True)
+            return xs.outputs(fit, {name: read[name] for name in names})
+        if kind in ("measurement", "curves"):
+            sigma = self._pick(options.sigma, offered.sigma, "the uncertainty of the target")
+            sigma_x = self._pick(options.sigma_x, offered.sigma_x, "the uncertainty of x")
+            names = tuple(p.column for p in (sigma, sigma_x) if p is not None)
+            read = self._aligned(dataset_id, fit, names, conditions, numeric=True)
+            sy = read[sigma.column] if sigma else None
+            if kind == "curves":
+                return ph.curves(fit, sy, sigma.column if sigma else None)
+            return ph.measurement(
+                fit,
+                sy,
+                sigma.column if sigma else None,
+                sigma.reason if sigma else "",
+                read[sigma_x.column] if sigma_x else None,
+                sigma_x.column if sigma_x else None,
+                sigma_x.reason if sigma_x else "",
+            )
+        if kind == "survival":
+            event = self._pick(options.event, offered.event, "the event")
+            if event is None:
+                return sv.CoxTable(
+                    False, "Pick the yes/no column of the event that ends the duration."
+                )
+            return self._cox(dataset_id, fit, event, conditions)
+        if kind == "mixed":
+            group = offered.group
+            if group is None:
+                return mx.mixed(fit, None, None, "", None)
+            codes = fit.grouping.cluster_codes if fit.inputs.cluster else fit.grouping.entity_codes
+            return mx.mixed(fit, codes, group.column, group.reason, options.slope or None)
+        raise RegressionError(f"Unknown method {kind!r}.", "unknown_method")
+
+    @staticmethod
+    def _pick(asked: str | None, rule: mt.Pick | None, what: str) -> mt.Pick | None:
+        if asked == "":
+            return None
+        if asked is not None:
+            return mt.Pick(asked, f"`{asked}` is {what}, chosen in the settings.")
+        return rule
+
+    def _cox(
+        self, dataset_id: str, fit: an.Fitted, event: mt.Pick, conditions: list[Condition]
+    ) -> sv.CoxTable:
+        """R-REG-SURV-01: the event read by R-SRV-03 over the used rows."""
+        views = {v.name: v for v in self.columns.columns(dataset_id) if not v.excluded}
+        view = views.get(event.column)
+        if view is None:
+            raise ColumnNotFound(event.column, list(views))
+        labels = self._aligned(dataset_id, fit, (event.column,), conditions)[event.column]
+        missing = [v is None or (isinstance(v, float) and np.isnan(v)) for v in labels]
+        text = [str(v) for v, gone in zip(labels, missing, strict=True) if not gone]
+        counts = {str(k): int(c) for k, c in pd.Series(text, dtype=object).value_counts().items()}
+        if len(counts) != 2:
+            return sv.CoxTable(
+                False, f"`{event.column}` takes {len(counts)} values: the event is yes or no."
+            )
+        column = du.DurationColumn(view.name, view.type, view.parser, view.role, 2)
+        level, why = du._event_level(column, counts, None)
+        happened = np.array(
+            [
+                np.nan if gone else float(str(v) == level)
+                for v, gone in zip(labels, missing, strict=True)
+            ]
+        )
+        return sv.cox(fit, happened, f"{event.column} = {level}", f"{event.reason} {why}")
+
+    def _aligned(
+        self,
+        dataset_id: str,
+        fit: an.Fitted,
+        names: tuple[str, ...],
+        conditions: list[Condition],
+        numeric: bool = False,
+    ) -> dict[str, np.ndarray]:
+        """Columns outside the model over the fit's used rows (same filters, same sample)."""
+        if not names:
+            return {}
+        dataset = self.columns.ready(dataset_id)
+        all_views = self.columns.columns(dataset_id)
+        views = [v for v in all_views if not v.excluded]
+        chosen = [self._view(views, name) for name in names]
+        for view in chosen:
+            if numeric and view.type not in NUMERIC:
+                raise RegressionError(f"`{view.name}` is not a number.", "method")
+        source = scoped_source(
+            dataset.storage_path, where_for(all_views, conditions), numbered=True
+        )
+        expressions = ["file_row_number AS __row"] + [
+            f"{number_sql(v) if v.type in NUMERIC else label_sql(v)} AS __c{i}"
+            for i, v in enumerate(chosen)
+        ]
+        connection = duckdb.connect()
+        try:
+            (total,) = connection.execute(f"SELECT count(*) FROM {source}").fetchone() or (0,)
+            query = f"SELECT {', '.join(expressions)} FROM {source}"
+            if total > MAX_ROWS:
+                picked = (
+                    f"SELECT file_row_number FROM {source} "
+                    f"ORDER BY hash(file_row_number + {SEED}) LIMIT {MAX_ROWS}"
+                )
+                query += f" WHERE file_row_number IN ({picked})"
+            frame = connection.execute(query + " ORDER BY file_row_number").df()
+        finally:
+            connection.close()
+        aligned = frame.set_index("__row").reindex(fit.inputs.rows[fit.design.used])
+        found: dict[str, np.ndarray] = {}
+        for i, view in enumerate(chosen):
+            values = cast(pd.Series, aligned[f"__c{i}"])
+            found[view.name] = (
+                values.to_numpy(dtype=float, na_value=np.nan)
+                if view.type in NUMERIC
+                else values.to_numpy(dtype=object)
+            )
+        return found
+
+    def _method_columns(self, dataset_id: str) -> list[mt.MethodColumn]:
+        found = []
+        for view in self.columns.columns(dataset_id):
+            if view.excluded:
+                continue
+            summary = view.summary or {}
+            numeric = summary.get("numeric") or {}
+            minimum = numeric.get("min") if isinstance(numeric, dict) else None
+            distinct = summary.get("distinct_count")
+            found.append(
+                mt.MethodColumn(
+                    view.name,
+                    view.type,
+                    view.role,
+                    int(distinct) if isinstance(distinct, int) else None,
+                    float(minimum) if isinstance(minimum, int | float) else None,
+                )
+            )
+        return found
+
+    def _keep[T](self, key: tuple[Any, ...], found: T) -> T:
+        self._results[key] = found
+        if len(self._results) > RESULT_CACHE:
+            self._results.popitem(last=False)
+        return found
+
     def clear(self) -> None:
         self._fits.clear()
         self._results.clear()
@@ -326,10 +557,26 @@ class RegressionService:
             found = rule(fitted)
             if found is not None:
                 fitted.result.checks.append(found)
+        self._time_to_event(dataset_id, fitted)  # 076: R-REG-06
         self._fits[key] = fitted
         if len(self._fits) > FIT_CACHE:
             self._fits.popitem(last=False)
         return fitted
+
+    def _time_to_event(self, dataset_id: str, fitted: an.Fitted) -> None:
+        """R-REG-06: a duration with its event, or a target held at a bound, said in the first
+        plane; the models themselves wait in More."""
+        infos = self._method_columns(dataset_id)
+        target = next((i for i in infos if i.name == fitted.inputs.target), None)
+        event = mt.event_column(target, infos) if target is not None else None
+        if event is not None and fitted.model in ("ols", "wls"):
+            fitted.result.checks.append(
+                sv.time_to_event(fitted.inputs.target, event.column, event.reason)
+            )
+            return
+        found = sv.censored_check(fitted)
+        if found is not None:
+            fitted.result.checks.append(found)
 
     def _load(self, dataset_id: str, request: Request, conditions: list[Condition]) -> an.Inputs:
         assert request.target is not None and request.columns is not None

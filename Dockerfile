@@ -17,14 +17,20 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never \
     UV_PROJECT_ENVIRONMENT=/opt/venv
 WORKDIR /app
+# Optional extras of the app, space-separated. The default image keeps "agent"; the deep vision
+# image (114: torch CPU, torchvision, timm; weights downloaded on confirmation, never in the
+# image) is built with: docker build --build-arg QUANTILO_EXTRAS="agent vision" -t quantilo:vision .
+ARG QUANTILO_EXTRAS="agent"
 COPY backend/pyproject.toml backend/uv.lock ./
 # Third-party dependencies first (cached layer); the engine package and the app come next.
-RUN uv sync --frozen --no-dev --no-install-project --no-install-local --extra agent
+RUN uv sync --frozen --no-dev --no-install-project --no-install-local \
+        $(for extra in $QUANTILO_EXTRAS; do printf -- '--extra %s ' "$extra"; done)
 # The engine is a path dependency (../packages): installed as a regular package, not editable.
 COPY packages/quantilo/ /packages/quantilo/
 COPY backend/ ./
 # Libraries' own test suites are never run here (~55 MB).
-RUN uv sync --frozen --no-dev --no-editable --extra agent \
+RUN uv sync --frozen --no-dev --no-editable \
+        $(for extra in $QUANTILO_EXTRAS; do printf -- '--extra %s ' "$extra"; done) \
     && find /opt/venv -type d -name tests -prune -exec rm -rf {} +
 
 # --- Runtime: Python backend serving the API and the built frontend (no uv, no build tools) --

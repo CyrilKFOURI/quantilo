@@ -19,11 +19,13 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import re
 import shutil
 import sqlite3
+import threading
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -59,6 +61,105 @@ MEDIA_TYPES = {
 LIST_LIMIT = 500  # files left out and label conflicts kept in the report (the counts are exact)
 FileKind = Literal["file", "thumb", "mask"]
 _COLUMN = {"file": "stored_path", "thumb": "thumb_path", "mask": "mask_path"}
+
+# 107: the gallery's index, one list per column, in the table's row order (the quality report's
+# `rows` are positions in it). Never a disk path, a raw hash or a coordinate (R-107-04).
+INDEX_TEXT = (
+    "image_id",
+    "rel_path",  # its path inside the source (unique: exact copies share their image_id)
+    "file_name",
+    "label",
+    "split",
+    "format",
+    "color_mode",
+    "camera",
+    "dominant_colour",
+    "decode_error",
+    "decision",
+)
+INDEX_INT = ("width", "height", "file_bytes", "bit_depth", "frames", "duplicate_group")
+INDEX_FLOAT = (
+    "megapixels",
+    "aspect_ratio",
+    "brightness",
+    "luma_p05",
+    "luma_p95",
+    "contrast",
+    "entropy",
+    "saturation",
+    "colourfulness",
+    "sharpness",
+    "clipped_dark",
+    "clipped_light",
+)
+INDEX_BOOL = (
+    "is_normal",
+    "is_grayscale",
+    "has_location",
+    "decode_ok",
+    "excluded",
+    "rule_excluded",
+)
+INDEX_CACHE = 4
+Decision = Literal["exclude", "keep"]
+DECISIONS = ("exclude", "keep")
+
+
+class _Index:
+    """The last few indexes, by storage stamp (a reimport or a saved version changes it)."""
+
+    def __init__(self) -> None:
+        self.entries: dict[str, tuple[str, bytes]] = {}
+
+    def get(self, dataset_id: str, stamp: str) -> bytes | None:
+        entry = self.entries.get(dataset_id)
+        return entry[1] if entry and entry[0] == stamp else None
+
+    def put(self, dataset_id: str, stamp: str, body: bytes) -> None:
+        self.entries.pop(dataset_id, None)
+        self.entries[dataset_id] = (stamp, body)
+        while len(self.entries) > INDEX_CACHE:
+            self.entries.pop(next(iter(self.entries)))
+
+
+def _stamp(path: Path) -> str:
+    stat = path.stat()
+    return f"{stat.st_size}:{stat.st_mtime_ns}"
+
+
+def _finite(value: Any) -> float | None:
+    if value is None:
+        return None
+    number = float(value)
+    return round(number, 4) if math.isfinite(number) else None
+
+
+def decided_table(table: Any, decisions: dict[str, str]) -> Any:
+    """The image table with the user's decisions (108): `decision`, `rule_excluded` (what the rules
+    said, kept from the first application, R-108-07) and `excluded` (R-108-05: `keep` wins over a
+    rule's exclusion, `exclude` over a flag, no decision leaves it to the rule)."""
+    import pyarrow as pa
+
+    names = table.column_names
+    keys = table["rel_path"].to_pylist()
+    source = "rule_excluded" if "rule_excluded" in names else "excluded"
+    by_rule = [bool(value) for value in table[source].to_pylist()]
+    chosen = [decisions.get(key) for key in keys]
+    excluded = [
+        choice == "exclude" or (rule and choice != "keep")
+        for choice, rule in zip(chosen, by_rule, strict=True)
+    ]
+    columns = {
+        "excluded": pa.array(excluded, type=pa.bool_()),
+        "rule_excluded": pa.array(by_rule, type=pa.bool_()),
+        "decision": pa.array(chosen, type=pa.string()),
+    }
+    for name, values in columns.items():
+        if name in table.column_names:
+            table = table.set_column(table.column_names.index(name), name, values)
+        else:
+            table = table.append_column(name, values)
+    return table
 
 
 class ImportStopped(Exception):
@@ -102,6 +203,8 @@ class ImageSetService:
         self.workspace = workspace
         self.datasets = datasets
         datasets.handlers[FORMAT] = self
+        self._index = _Index()
+        self._decisions_lock = threading.Lock()
 
     @contextmanager
     def _db(self) -> Iterator[sqlite3.Connection]:
@@ -116,6 +219,9 @@ class ImageSetService:
 
     def report_path(self, dataset_id: str) -> Path:
         return self.workspace.dataset_dir(dataset_id) / "images" / "report.json"
+
+    def decisions_path(self, dataset_id: str) -> Path:
+        return self.workspace.dataset_dir(dataset_id) / "images" / "decisions.json"
 
     # --- preview and import --------------------------------------------------------------------
 
@@ -271,6 +377,7 @@ class ImageSetService:
                 return
             if stopped():
                 return
+            self._reapply(dataset_id, target)  # 108: saved decisions survive a reimport
             self._write_report(dataset_id, result)
             repo.update_job(connection, job_id, progress=0.95, message="Detecting column types")
             for step in self.datasets.after_import:
@@ -285,7 +392,7 @@ class ImageSetService:
                 status="ready",
                 error=None,
                 row_count=result.n_images,
-                col_count=result.table.num_columns,
+                col_count=_column_count(target),
                 size_bytes=target.stat().st_size,
                 imported_at=stamp,
                 last_opened_at=stamp,
@@ -402,5 +509,182 @@ class ImageSetService:
                            status_code=415)  # fmt: skip
         return target, media
 
+    # --- the gallery's index (107) -------------------------------------------------------------
 
-__all__ = ["FORMAT", "ImageImportOptions", "ImageSetService"]
+    def index(self, dataset_id: str) -> bytes:
+        """Every column the gallery, the image sheet and the set's statistics read, as JSON lists in
+        the table's row order (R-107-03), cached by the table's stamp."""
+        import pyarrow.parquet as pq
+
+        record = self._ready(dataset_id)
+        path = Path(record.storage_path)
+        stamp = _stamp(path)
+        if (cached := self._index.get(dataset_id, stamp)) is not None:
+            return cached
+        table = pq.read_table(path)
+        names = set(table.column_names)
+        n = table.num_rows
+
+        def column(name: str) -> list[Any]:
+            return table[name].to_pylist() if name in names else [None] * n
+
+        body: dict[str, Any] = {"count": n}
+        for name in INDEX_TEXT:
+            body[name] = [None if v is None else str(v) for v in column(name)]
+        for name in INDEX_INT:
+            body[name] = [None if v is None else int(v) for v in column(name)]
+        for name in INDEX_FLOAT:
+            body[name] = [_finite(v) for v in column(name)]
+        for name in INDEX_BOOL:
+            body[name] = [None if v is None else bool(v) for v in column(name)]
+        if "rule_excluded" not in names:
+            body["rule_excluded"] = body["excluded"]
+        body["issues"] = [list(v or []) for v in column("issues")]
+        body["has_mask"] = [bool(v) for v in column("mask_path")]
+        body["date_taken"] = [None if v is None else v.isoformat() for v in column("date_taken")]
+        encoded = json.dumps(body, separators=(",", ":"), allow_nan=False).encode()
+        self._index.put(dataset_id, stamp, encoded)
+        return encoded
+
+    # --- decisions (108) -----------------------------------------------------------------------
+
+    def _read_decisions(self, dataset_id: str) -> dict[str, dict[str, str]]:
+        path = self.decisions_path(dataset_id)
+        if not path.is_file():
+            return {"draft": {}, "applied": {}}
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return {"draft": dict(data.get("draft") or {}), "applied": dict(data.get("applied") or {})}
+
+    def _write_decisions(self, dataset_id: str, data: dict[str, dict[str, str]]) -> None:
+        path = self.decisions_path(dataset_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        partial = path.with_name(path.name + ".partial")
+        partial.write_text(json.dumps(data, sort_keys=True), encoding="utf-8")
+        partial.replace(path)
+
+    def _version(self, dataset_id: str) -> int | None:
+        with self._db() as connection:
+            row = connection.execute(
+                "SELECT MAX(version) FROM dataset_versions WHERE dataset_id = ?", (dataset_id,)
+            ).fetchone()
+        return int(row[0]) if row and row[0] is not None else None
+
+    def _summary(self, dataset_id: str, data: dict[str, dict[str, str]]) -> dict[str, Any]:
+        draft, applied = data["draft"], data["applied"]
+        pending = sum(1 for key in set(draft) | set(applied) if draft.get(key) != applied.get(key))
+        return {
+            "draft": draft,
+            "applied": applied,
+            "pending": pending,
+            "version": self._version(dataset_id),
+        }
+
+    def decisions(self, dataset_id: str) -> dict[str, Any]:
+        self._ready(dataset_id)
+        return self._summary(dataset_id, self._read_decisions(dataset_id))
+
+    def _keys(self, record: DatasetRecord) -> set[str]:
+        import pyarrow.parquet as pq
+
+        table = pq.read_table(record.storage_path, columns=["rel_path"])
+        return {str(v) for v in table["rel_path"].to_pylist() if v is not None}
+
+    def set_decisions(self, dataset_id: str, patch: Mapping[str, str | None]) -> dict[str, Any]:
+        """Merge a patch into the draft (R-108-04), by the image's `rel_path` (unique, where exact
+        copies share their `image_id`): `exclude`, `keep`, or None to leave the image to its rules
+        again. Nothing is applied before `apply_decisions`."""
+        record = self._ready(dataset_id)
+        unknown = [k for k, v in patch.items() if v not in (*DECISIONS, None)]
+        if not unknown:
+            known = self._keys(record)
+            unknown = [k for k in patch if k not in known]
+        if unknown:
+            raise AppError(
+                f"Unknown image or decision: {', '.join(sorted(unknown)[:5])}.",
+                code="invalid_decision",
+                status_code=422,
+            )
+        with self._decisions_lock:
+            data = self._read_decisions(dataset_id)
+            for image_id, decision in patch.items():
+                if decision is None:
+                    data["draft"].pop(image_id, None)
+                else:
+                    data["draft"][image_id] = decision
+            self._write_decisions(dataset_id, data)
+        return self._summary(dataset_id, data)
+
+    def discard_decisions(self, dataset_id: str) -> dict[str, Any]:
+        """The draft goes back to the saved decisions."""
+        self._ready(dataset_id)
+        with self._decisions_lock:
+            data = self._read_decisions(dataset_id)
+            data["draft"] = dict(data["applied"])
+            self._write_decisions(dataset_id, data)
+        return self._summary(dataset_id, data)
+
+    def apply_decisions(self, dataset_id: str) -> dict[str, Any]:
+        """Save the draft as a new version of the set (R-108-06): the table is written again with
+        the decisions, through the steps of a reimport (previous version kept, types kept, 031
+        photo), so Changes compares it with the previous version like any other."""
+        import pyarrow.parquet as pq
+
+        record = self._ready(dataset_id)
+        with self._decisions_lock:
+            data = self._read_decisions(dataset_id)
+            if self._summary(dataset_id, data)["pending"] == 0:
+                raise AppError("No decision to save.", code="no_decision", status_code=409)
+            target = Path(record.storage_path)
+            table = decided_table(pq.read_table(target), data["draft"])
+            partial = target.with_name(target.name + ".decided")
+            pq.write_table(table, partial)
+            for step in self.datasets.before_reimport:
+                try:
+                    step(dataset_id, str(target))
+                except Exception:
+                    logger.exception("Pre-version step failed for image set %s", dataset_id)
+            partial.replace(target)
+            for step in self.datasets.after_import:
+                try:
+                    step(dataset_id, str(target))
+                except Exception:
+                    logger.exception("Post-version step failed for image set %s", dataset_id)
+            stamp = now()
+            with self._db() as connection:
+                repo.update_dataset(
+                    connection,
+                    dataset_id,
+                    col_count=table.num_columns,
+                    size_bytes=target.stat().st_size,
+                    imported_at=stamp,
+                )
+            data["applied"] = dict(data["draft"])
+            self._write_decisions(dataset_id, data)
+        excluded = sum(1 for value in table["excluded"].to_pylist() if value)
+        return {
+            "version": self._version(dataset_id),
+            "excluded": excluded,
+            "decided": len(data["applied"]),
+        }
+
+    def _reapply(self, dataset_id: str, target: Path) -> None:
+        """At a reimport, the saved decisions go back on the new table by `rel_path`; an image no
+        longer there is ignored."""
+        import pyarrow.parquet as pq
+
+        applied = self._read_decisions(dataset_id)["applied"]
+        if not applied or not target.is_file():
+            return
+        table = decided_table(pq.read_table(target), applied)
+        partial = target.with_name(target.name + ".decided")
+        pq.write_table(table, partial)
+        partial.replace(target)
+
+
+def _column_count(path: Path) -> int:
+    import pyarrow.parquet as pq
+
+    return len(pq.read_schema(path).names)
+
+
+__all__ = ["FORMAT", "ImageImportOptions", "ImageSetService", "decided_table"]

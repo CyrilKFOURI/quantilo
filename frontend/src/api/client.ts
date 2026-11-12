@@ -118,6 +118,41 @@ export type RegressionRolling = RegressionStability["rolling"][number];
 export type RegressionCusum = NonNullable<RegressionStability["cusum"]>;
 export type RegressionResampling = Complete<Schemas["ResamplingTable"]>;
 export type RegressionSelection = Complete<Schemas["SelectionTable"]>;
+// 074–076: the methods of Advanced › More, each listed by a rule and asked for on its own
+export type RegressionMethods = Complete<Schemas["MoreMethods"]>;
+export type RegressionMethodItem = RegressionMethods["methods"][number];
+export type RegressionMethodKind = RegressionMethodItem["kind"];
+export type RegressionCrossSection = Complete<Schemas["CrossSectionTable"]>;
+export type RegressionOutputs = Complete<Schemas["OutputsTable"]>;
+export type RegressionComponents = Complete<Schemas["ComponentsTable"]>;
+export type RegressionMeasurement = Complete<Schemas["MeasurementTable"]>;
+export type RegressionCurves = Complete<Schemas["CurvesTable"]>;
+export type RegressionCurveFit = RegressionCurves["fits"][number];
+export type RegressionCox = Complete<Schemas["CoxTable"]>;
+export type RegressionTobit = Complete<Schemas["TobitTable"]>;
+export type RegressionMixed = Complete<Schemas["MixedTable"]>;
+export type RegressionMethodResults = {
+  cross_section: RegressionCrossSection;
+  outputs: RegressionOutputs;
+  components: RegressionComponents;
+  measurement: RegressionMeasurement;
+  curves: RegressionCurves;
+  survival: RegressionCox;
+  tobit: RegressionTobit;
+  mixed: RegressionMixed;
+};
+/** What a method of More may name; absent fields follow the rules ("" turns a σ off). */
+export type RegressionMethodOptions = { outputs?: string[]; sigma?: string; sigma_x?: string; event?: string; slope?: string };
+const METHOD_PATHS: Record<RegressionMethodKind, string> = {
+  cross_section: "cross-section",
+  outputs: "outputs",
+  components: "components",
+  measurement: "measurement",
+  curves: "curves",
+  survival: "survival",
+  tobit: "tobit",
+  mixed: "mixed",
+};
 export type RegressionSection =
   | "standard-errors"
   | "influence"
@@ -943,6 +978,17 @@ export const api = {
     const query = regressionQuery(params, filters);
     query.set("quantile", String(quantile));
     return request<RegressionRobust>("GET", `/datasets/${id}/regression/robust?${query}`);
+  },
+  regressionMethods: (id: string, params: RegressionParams, filters?: Condition[]) =>
+    request<RegressionMethods>("GET", `/datasets/${id}/regression/methods?${regressionQuery(params, filters)}`),
+  regressionMethod: <K extends RegressionMethodKind>(id: string, kind: K, params: RegressionParams, options: RegressionMethodOptions, filters?: Condition[]) => {
+    const query = regressionQuery(params, filters);
+    if (options.outputs?.length) query.set("outputs", options.outputs.join(","));
+    for (const key of ["sigma", "sigma_x", "event", "slope"] as const) {
+      const value = options[key];
+      if (value !== undefined) query.set(key, value);
+    }
+    return request<RegressionMethodResults[K]>("GET", `/datasets/${id}/regression/${METHOD_PATHS[kind]}?${query}`);
   },
   regressionInstruments: (id: string, params: RegressionParams, endogenous: string[], instruments: string[], filters?: Condition[]) => {
     const query = regressionQuery(params, filters);

@@ -115,9 +115,9 @@ export function Sidebar({ collapsed, onToggle, modules, drawer = false, onNaviga
             // 065: the dataset's own modules (Clean) come right under Overview
             ...(index === 1
               ? datasetModules.map((module) => (
-                  <li key={module.id}>
+                  <DatasetModuleItem key={module.id} module={module} datasetId={datasetId}>
                     <DatasetModuleLink module={module} datasetId={datasetId} collapsed={collapsed} active={false} />
-                  </li>
+                  </DatasetModuleItem>
                 ))
               : []),
             <li key={labelKey}>
@@ -236,6 +236,26 @@ export function Sidebar({ collapsed, onToggle, modules, drawer = false, onNaviga
 }
 
 type DatasetModule = Extract<ModuleManifest, { scope: "dataset" }>;
+
+/** The sidebar row of a dataset page; none at all for a page that only exists for some datasets
+ *  (107: Vision, image sets only) when the open dataset is not one of them. */
+function DatasetModuleItem({
+  module,
+  datasetId,
+  children,
+}: {
+  module: DatasetModule;
+  datasetId: string | undefined;
+  children: React.ReactNode;
+}) {
+  const dataset = useDataset(module.onlyWhenMet ? datasetId : undefined);
+  if (module.onlyWhenMet) {
+    const format = dataset.data?.format;
+    const met = Boolean(datasetId) && (module.requires ?? []).every((requirement) => meets(requirement, format, []));
+    if (!met) return null;
+  }
+  return <li>{children}</li>;
+}
 
 /** A module page of the open dataset; greyed out without a dataset or the columns it needs. */
 function DatasetModuleLink({

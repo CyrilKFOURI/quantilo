@@ -76,12 +76,13 @@ from quantilo.regression.analyze import (
 )
 from quantilo.regression.families import FamilyRequest
 from quantilo.regression.iv import IvTable
+from quantilo.regression.methods import MethodKind, MoreMethods
 from quantilo.regression.panel import PanelTable
 from quantilo.regression.resampling import ResamplingTable
 from quantilo.regression.robust import QuantileProcess, RobustTable
 from quantilo.regression.rules import RegressionSuggestion, SeRequest
 from quantilo.regression.selection import SelectionTable
-from quantilo.regression.service import RegressionService
+from quantilo.regression.service import MethodOptions, MethodResult, RegressionService
 from quantilo.regression.service import Request as RegressionRequest
 from quantilo.regression.service import Section as RegressionSection
 from quantilo.regression.stability import StabilityTable
@@ -678,6 +679,66 @@ class Dataset:
             center=center,
         )
         return self._regression_service().partial(self._id, request, column, self.conditions)
+
+    def regression_methods(
+        self,
+        target: str | None = None,
+        columns: list[str] | None = None,
+        *,
+        weights: str | None = None,
+        cluster: str | None = None,
+        se: SeRequest = "auto",
+        terms: list[str] | None = None,
+    ) -> MoreMethods:
+        """The methods Advanced › More offers for this regression (074–076), each with the rule
+        that proposes it and its reason, and the columns a rule picked (uncertainty, event,
+        groups)."""
+        request = RegressionRequest(
+            target,
+            tuple(columns) if columns is not None else None,
+            weights,
+            cluster,
+            se,
+            terms=tuple(terms or ()),
+        )
+        return self._regression_service().methods(self._id, request, self.conditions)
+
+    def regression_method(
+        self,
+        method: MethodKind,
+        target: str | None = None,
+        columns: list[str] | None = None,
+        *,
+        outputs: list[str] | None = None,
+        sigma: str | None = None,
+        sigma_x: str | None = None,
+        event: str | None = None,
+        slope: str | None = None,
+        weights: str | None = None,
+        cluster: str | None = None,
+        se: SeRequest = "auto",
+        terms: list[str] | None = None,
+    ) -> MethodResult:
+        """One method of Advanced › More: cross_section (074: Fama–MacBeth with Newey–West, IC
+        and ICIR of each column), outputs (074: the same columns on several `outputs`, Wilks,
+        Pillai, GRS), components (074: regression on principal components), measurement (075:
+        fit by 1/σ² of `sigma`, χ², pulls; Deming, York with `sigma_x`, TLS), curves (075:
+        exponential, power, logistic, Michaelis–Menten, Gaussian peak), survival (076: Cox model
+        until `event`, Schoenfeld test), tobit (076: target held at a bound), mixed (076: random
+        intercept by `cluster` or the panel's entity, random `slope`). `sigma=""` turns the
+        uncertainty off; None follows the rules."""
+        request = RegressionRequest(
+            target,
+            tuple(columns) if columns is not None else None,
+            weights,
+            cluster,
+            se,
+            terms=tuple(terms or ()),
+        )
+        options = MethodOptions(tuple(outputs or ()), sigma, sigma_x, event, slope)
+        return self._regression_service().method(
+            self._id, method, request, options, self.conditions
+        )
 
     def regression_iv(
         self,

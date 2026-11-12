@@ -8,6 +8,8 @@
   file as a table of images, every reading announced by its rule (§ 3).
 - `quality`, `duplicates` (105): the R-VQ rules, near duplicates by pHash bands, train/test leaks
   and the groups of a grouped split (§ 4.2).
+- `deep` (optional extra `vision`, 114): frozen DINOv2 / ResNet vectors, linear probe and kNN;
+  never imported here, so this package needs no torch.
 
     images = dx.image_set("beans/")
 """

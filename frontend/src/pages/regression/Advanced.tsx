@@ -20,6 +20,7 @@ import { t, type MessageKey } from "../../lib/i18n";
 import { ErrorNote } from "../../ui/fields";
 import { Loading } from "../../ui/Loading";
 import { Instruments } from "./Instruments";
+import { MoreMethods } from "./MoreMethods";
 import { PanelSection } from "./PanelSection";
 import { QuantilesBlock, RobustSection } from "./RobustSection";
 import { Sentence } from "./Sentence";
@@ -122,6 +123,8 @@ export function Advanced(props: AdvancedProps) {
           "more",
           <div className="space-y-4">
             <MoreSection datasetId={datasetId} params={params} result={result} />
+            {/* 074–076: the methods a rule proposes for these data, each asked for when opened */}
+            <MoreMethods datasetId={datasetId} params={params} />
             {/* 072: the effects along the distribution, asked for only once More is open */}
             {LEAST_SQUARES.has(result.model) && <QuantilesBlock datasetId={datasetId} params={params} />}
             {/* 077: the lasso and double selection, asked for only once More is open */}

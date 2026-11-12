@@ -22,6 +22,7 @@ pip install -e packages/quantilo             # the core
 pip install -e "packages/quantilo[ml]"       # + XGBoost, LightGBM, Optuna
 pip install -e "packages/quantilo[deep]"     # + PyTorch: CTGAN, TVAE, TimeGAN
 pip install -e "packages/quantilo[plot]"     # + plotly: the app's charts
+pip install -e "packages/quantilo[vision]"   # + torchvision, timm: DINOv2 / ResNet image vectors
 ```
 
 On another computer, straight from GitHub (the repository is private: be signed in to GitHub, for example with `gh auth login`):
@@ -71,6 +72,20 @@ dx.image_set("beans/", ignore_rules={"R-VIS-LAY-01"})   # ignore folder labels
 ```
 
 Labels come from sub-folders (ImageFolder), splits from `train`/`test`/`val` folders, normal images and pixel masks from the MVTec AD layout, or from a labels CSV; each reading is a written rule with a code and a reason, and can be undone by its code. Images are decoded with Pillow, safely: the size is checked before decoding (100 megapixels at most), truncated files are errors, SVG is refused, and no EXIF or GPS is kept. A ZIP is checked against path traversal and zip bombs and read in memory, never extracted under its own names. Files are stored by content (`workspace/images/<id>/files/<sha>`), with WebP thumbnails; every measure is taken at 512 pixels so that images of any size compare (`quantilo.vision.measures`), and pHash, dHash and the HSV, HOG and LBP descriptors are plain numpy (`quantilo.vision.hashes`, `quantilo.vision.descriptors`).
+
+With the `vision` extra, a frozen pretrained network turns each image into a vector, and a linear probe and a cosine kNN classify them (`quantilo.vision.deep`):
+
+```python
+from quantilo.vision import deep
+deep.status().backbone("dinov2_s14").reason   # 'Download the weights first: DINOv2 ViT-S/14, 88 MB (Apache-2.0)...'
+deep.weights.download("dinov2_s14", confirm=True)   # once: pinned URL, SHA-256 checked, safetensors
+vectors = deep.embed_image_set(images)        # 768 numbers per image, GPU fp16 or CPU
+vectors.sentence  # '1,034 images embedded with DINOv2 ViT-S/14 (768 numbers each) on NVIDIA GeForce RTX 4050 Laptop GPU in 15 s.'
+result = deep.probe_image_set(images, vectors)
+result.sentence   # 'Linear probe on DINOv2 ViT-S/14: accuracy 0.953 [0.914; 0.984]; kNN 0.852 [...]; majority baseline 0.336.'
+```
+
+Nothing is downloaded without `confirm=True`, and nothing in `quantilo.vision.deep` imports torch until it is used: without the extra, every deep option says why it is greyed out.
 
 JSON, JSON Lines and XML documents become linked tables:
 

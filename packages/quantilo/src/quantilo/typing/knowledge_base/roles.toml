@@ -288,3 +288,16 @@ label = "List of choices"
 # answers of a multiple-choice question ("Python;SQL;Rust", R-TYP-09): set from the values only
 names = []
 type = "text"
+
+# --- 075: the uncertainty of a measurement (spec 075, R-REG-PHY-01) -----------------------------
+
+[[role]]
+id = "uncertainty"
+label = "Uncertainty"
+# the standard uncertainty σ of a measured value ("flux_err", "sigma_T", "u(mass)"): the regression
+# weights each row by 1/σ² and reads χ² (075). Never "error" alone: an error count is a quantity.
+names = ["uncertainty", "uncertainties", "incertitude", "incertitudes", "sigma", "err", "yerr",
+         "xerr", "error bar", "errorbar", "std error", "standard error", "measurement error",
+         "stderr", "std err", "erreur type", "erreur standard"]
+type = "numeric_continuous"
+min = 0

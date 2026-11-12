@@ -48,6 +48,15 @@ plot = ["plotly>=6"]
 # Sentence embeddings for free text (091): a static model (potion-multilingual-128M, MIT, about
 # 0.5 GB of weights, downloaded on confirmation), CPU only, no torch. Not in the browser version.
 embed = ["model2vec>=0.6"]
+# Deep vision (114): frozen DINOv2 / ResNet backbones, linear probe and kNN. Weights are not in the
+# packages: downloaded once on confirmation (sizes and SHA-256 in quantilo/vision/deep/weights.py).
+vision = [
+    "huggingface-hub>=1",
+    "safetensors>=0.5",
+    "timm>=1.0.20",
+    "torch>=2.14",
+    "torchvision>=0.29",
+]
 
 [dependency-groups]
 dev = [
@@ -60,6 +69,11 @@ dev = [
 # default wheels on macOS (Apple GPU through MPS). Same choice as the app.
 [tool.uv.sources]
 torch = [
+    { index = "pytorch-cu130", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
+]
+# torchvision is built against one torch: same index as torch, or its C++ operators break.
+torchvision = [
     { index = "pytorch-cu130", marker = "sys_platform == 'win32'" },
     { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
 ]
@@ -134,6 +148,8 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 # Advanced cleaning reasons speak in formulas and ranges (total = a × b + c, ÷100, 0–1) (097).
 "src/quantilo/cleaning/rules/advanced.py" = ["RUF001", "RUF002", "RUF003"]
 "tests/test_cleaning_advanced.py" = ["RUF001", "RUF002", "RUF003"]
+# Deep vision (114): ‖ (concatenation), ≈ (estimates), × (sizes) in docstrings and sentences.
+"src/quantilo/vision/deep/*" = ["RUF001", "RUF002", "RUF003"]
 
 [tool.pyright]
 pythonVersion = "3.12"

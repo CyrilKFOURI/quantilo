@@ -229,3 +229,55 @@ def test_stability_resampling_and_selection(client: TestClient, traps: str, tmp_
     assert pairs["scheme"] == "pairs" and pairs["permutation"]["term"] == "age"
     chosen = client.get(url(traps, "/selection"), params=plain).json()
     assert chosen["available"] and chosen["double"]["term"] == "age"
+
+
+def test_more_methods_cross_section_physics_and_health(client: TestClient, tmp_path) -> None:
+    """074, 075, 076: More lists the methods with their rules; each one is its own route."""
+    import numpy as np
+    import pandas as pd
+
+    rng = np.random.default_rng(2)
+    n = 300
+    t = np.linspace(0, 10, n)
+    err = rng.uniform(0.2, 1.0, n)
+    spend = np.maximum(0.0, 1 + 2 * t - 8 + rng.normal(0, 2, n))
+    path = tmp_path / "lab.csv"
+    pd.DataFrame(
+        {
+            "time": t,
+            "flux": 3 + 1.5 * t + rng.normal(0, 1, n) * err,
+            "flux_err": err,
+            "other": rng.normal(size=n),
+            "spend": spend,
+            "lab": [f"L{i % 12}" for i in range(n)],
+        }
+    ).to_csv(path, index=False)
+    dataset_id = import_path(client, path)
+    params = {"target": "flux", "columns": "time"}
+    listed = client.get(url(dataset_id, "/methods"), params=params)
+    assert listed.status_code == 200, listed.text
+    body = listed.json()
+    assert body["sigma"]["column"] == "flux_err"
+    kinds = {m["kind"]: m for m in body["methods"]}
+    assert kinds["measurement"]["proposed"] and "R-REG-PHY-01" in kinds["measurement"]["reason"]
+    assert not kinds["cross_section"]["available"]
+    measured = client.get(url(dataset_id, "/measurement"), params=params).json()
+    assert measured["uncertainty"]["sigma"] == "flux_err" and measured["errors"]["lines"]
+    none = client.get(url(dataset_id, "/measurement"), params={**params, "sigma": ""}).json()
+    assert none["uncertainty"] is None
+    curved = client.get(url(dataset_id, "/curves"), params=params).json()
+    assert curved["available"] and curved["fits"]
+    pca = client.get(url(dataset_id, "/components"), params={**params, "columns": "time,other"})
+    assert pca.status_code == 200 and pca.json()["available"]
+    many = client.get(url(dataset_id, "/outputs"), params={**params, "outputs": "other"}).json()
+    assert many["outputs"] == ["flux", "other"] and many["tests"]
+    held = {"target": "spend", "columns": "time"}
+    first = client.get(url(dataset_id), params=held).json()
+    assert any(c["key"] == "censored" and c["rule"] == "R-REG-06" for c in first["checks"])
+    tobit = client.get(url(dataset_id, "/tobit"), params=held).json()
+    assert tobit["available"] and tobit["lower"] == 0
+    grouped = client.get(url(dataset_id, "/mixed"), params={**params, "cluster": "lab"}).json()
+    assert grouped["available"] and grouped["groups"] == 12
+    cox = client.get(url(dataset_id, "/survival"), params=params).json()
+    assert not cox["available"]
+    assert client.get(url(dataset_id, "/cross-section"), params=params).json()["available"] is False

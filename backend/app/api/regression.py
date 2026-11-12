@@ -12,16 +12,21 @@ from quantilo.regression.analyze import (
     StandardErrorTable,
     TermsTable,
 )
+from quantilo.regression.crosssection import ComponentsTable, CrossSectionTable, OutputsTable
 from quantilo.regression.families import FamilyRequest
 from quantilo.regression.iv import IvTable
+from quantilo.regression.methods import MethodKind, MoreMethods
+from quantilo.regression.mixed import MixedTable
 from quantilo.regression.panel import PanelTable
+from quantilo.regression.physics import CurvesTable, MeasurementTable
 from quantilo.regression.resampling import ResamplingTable
 from quantilo.regression.robust import QuantileProcess, RobustTable
 from quantilo.regression.rules import RegressionSuggestion, SeRequest
 from quantilo.regression.selection import SelectionTable
-from quantilo.regression.service import RegressionService
+from quantilo.regression.service import MethodOptions, MethodResult, RegressionService
 from quantilo.regression.service import Request as RegressionRequest
 from quantilo.regression.stability import StabilityTable
+from quantilo.regression.survival import CoxTable, TobitTable
 from quantilo.regression.terms import Coding, PartialPlot
 
 from app.api.filters import Filters
@@ -254,3 +259,147 @@ def instrumental(
         tuple(name for name in instruments.split(",") if name),
         filters,
     )
+
+
+# --- Advanced > More: 074 (cross-section), 075 (physics), 076 (health) ---------------------------
+
+
+@router.get("/datasets/{dataset_id}/regression/methods")
+def methods(dataset_id: str, service: Service, filters: Filters, asked: Asked) -> MoreMethods:
+    """Advanced > More: the methods offered for these data, each with the rule that proposes it
+    and its reason, and the columns the rules picked (uncertainty, event, groups). Cheap: each
+    method is computed by its own route when its fold is opened."""
+    return service.methods(dataset_id, asked, filters)
+
+
+def _method(
+    service: RegressionService,
+    dataset_id: str,
+    kind: MethodKind,
+    asked: RegressionRequest,
+    filters: Filters,
+    options: MethodOptions | None = None,
+) -> MethodResult:
+    return service.method(dataset_id, kind, asked, options, filters)
+
+
+@router.get("/datasets/{dataset_id}/regression/cross-section")
+def cross_section(
+    dataset_id: str, service: Service, filters: Filters, asked: Asked
+) -> CrossSectionTable:
+    """Advanced > More > Fama-MacBeth and IC (074): one regression a period, the mean of the
+    coefficients with Newey-West errors, the IC and ICIR of each column."""
+    found = _method(service, dataset_id, "cross_section", asked, filters)
+    assert isinstance(found, CrossSectionTable)
+    return found
+
+
+@router.get("/datasets/{dataset_id}/regression/outputs")
+def outputs(
+    dataset_id: str,
+    service: Service,
+    filters: Filters,
+    asked: Asked,
+    outputs: Annotated[
+        str, Query(description="074: comma-separated other outcomes, numeric, at most 10.")
+    ] = "",
+) -> OutputsTable:
+    """Advanced > More > Several outcomes (074): the coefficient matrix, Wilks and Pillai, the GRS
+    test of the alphas for dated returns."""
+    options = MethodOptions(outputs=tuple(name for name in outputs.split(",") if name))
+    found = _method(service, dataset_id, "outputs", asked, filters, options)
+    assert isinstance(found, OutputsTable)
+    return found
+
+
+@router.get("/datasets/{dataset_id}/regression/components")
+def components(
+    dataset_id: str, service: Service, filters: Filters, asked: Asked
+) -> ComponentsTable:
+    """Advanced > More > Principal components (074): the numeric columns through their principal
+    components, the coefficients back in the units of the columns."""
+    found = _method(service, dataset_id, "components", asked, filters)
+    assert isinstance(found, ComponentsTable)
+    return found
+
+
+Sigma = Annotated[
+    str | None,
+    Query(
+        description="075: the uncertainty of the target (absent: role uncertainty; empty: none)."
+    ),
+]
+SigmaX = Annotated[
+    str | None,
+    Query(description="075: the uncertainty of x (absent: role uncertainty; empty: none)."),
+]
+
+
+@router.get("/datasets/{dataset_id}/regression/measurement")
+def measurement(
+    dataset_id: str,
+    service: Service,
+    filters: Filters,
+    asked: Asked,
+    sigma: Sigma = None,
+    sigma_x: SigmaX = None,
+) -> MeasurementTable:
+    """Advanced > More > Uncertainties and errors on x (075): the fit by 1/sigma^2, chi^2, pulls;
+    Deming, York and total least squares."""
+    options = MethodOptions(sigma=sigma, sigma_x=sigma_x)
+    found = _method(service, dataset_id, "measurement", asked, filters, options)
+    assert isinstance(found, MeasurementTable)
+    return found
+
+
+@router.get("/datasets/{dataset_id}/regression/curves")
+def curves(
+    dataset_id: str, service: Service, filters: Filters, asked: Asked, sigma: Sigma = None
+) -> CurvesTable:
+    """Advanced > More > Curve (075): exponential, power, logistic, Michaelis-Menten and Gaussian
+    peak, ranked by AIC with the straight line."""
+    found = _method(service, dataset_id, "curves", asked, filters, MethodOptions(sigma=sigma))
+    assert isinstance(found, CurvesTable)
+    return found
+
+
+@router.get("/datasets/{dataset_id}/regression/survival")
+def survival(
+    dataset_id: str,
+    service: Service,
+    filters: Filters,
+    asked: Asked,
+    event: Annotated[
+        str | None, Query(description="076: the yes/no event column (absent: R-SRV-01).")
+    ] = None,
+) -> CoxTable:
+    """Advanced > More > Survival (076): the Cox model of the target as a time to the event,
+    hazard ratios, the Schoenfeld test of proportional hazards."""
+    found = _method(service, dataset_id, "survival", asked, filters, MethodOptions(event=event))
+    assert isinstance(found, CoxTable)
+    return found
+
+
+@router.get("/datasets/{dataset_id}/regression/tobit")
+def tobit(dataset_id: str, service: Service, filters: Filters, asked: Asked) -> TobitTable:
+    """Advanced > More > Censored (076): the Tobit model of a target held at a bound."""
+    found = _method(service, dataset_id, "tobit", asked, filters)
+    assert isinstance(found, TobitTable)
+    return found
+
+
+@router.get("/datasets/{dataset_id}/regression/mixed")
+def mixed(
+    dataset_id: str,
+    service: Service,
+    filters: Filters,
+    asked: Asked,
+    slope: Annotated[
+        str | None, Query(description="076: a numeric term whose slope varies by group.")
+    ] = None,
+) -> MixedTable:
+    """Advanced > More > Mixed model (076): a random intercept by Grouped by (or the entity of the
+    panel), its share of the variance, the test against least squares."""
+    found = _method(service, dataset_id, "mixed", asked, filters, MethodOptions(slope=slope))
+    assert isinstance(found, MixedTable)
+    return found

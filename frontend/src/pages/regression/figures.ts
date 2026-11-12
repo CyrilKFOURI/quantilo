@@ -1,6 +1,6 @@
 import type { Data, Layout } from "plotly.js-dist-min";
 
-import type { Regression, RegressionCurve, RegressionCusum, RegressionPartial, RegressionQuantileCurve, RegressionRolling } from "../../api/client";
+import type { Regression, RegressionCurve, RegressionCurves, RegressionCusum, RegressionPartial, RegressionQuantileCurve, RegressionRolling } from "../../api/client";
 import { withAlpha } from "../../charts/figures";
 import type { ChartTokens } from "../../charts/theme";
 
@@ -270,4 +270,53 @@ export function rollingFigure(curve: RegressionRolling): (tokens: ChartTokens) =
     ],
     layout: { showlegend: false, xaxis: { type: "date", zeroline: false }, yaxis: axis("Effect") },
   });
+}
+
+/** 075: the points and the fitted shapes, the best first in the first palette colour; the
+ *  straight line dashed as the reference. */
+export function curvesFigure(table: RegressionCurves, shown: number, xLabel: string, yLabel: string): (tokens: ChartTokens) => Built {
+  return (tokens) => {
+    const fits = table.fits.filter((fit) => fit.xs.length > 0 && fit.error === null);
+    const drawn = fits.filter((fit) => fit.kind !== "line").slice(0, shown);
+    const line = fits.find((fit) => fit.kind === "line");
+    return {
+      data: [
+        {
+          type: "scatter",
+          mode: "markers",
+          x: table.data_x,
+          y: table.data_y,
+          marker: { color: withAlpha(tokens.ink3, 0.5), size: 5 },
+          name: "Rows",
+          hovertemplate: "%{x:,.4g}, %{y:,.4g}<extra></extra>",
+        } as Data,
+        ...(line
+          ? [
+              {
+                type: "scatter",
+                mode: "lines",
+                x: line.xs,
+                y: line.ys,
+                name: line.label,
+                line: { color: tokens.ink3, width: 1.5, dash: "dash" },
+                hoverinfo: "skip",
+              } as Data,
+            ]
+          : []),
+        ...drawn.map(
+          (fit, i) =>
+            ({
+              type: "scatter",
+              mode: "lines",
+              x: fit.xs,
+              y: fit.ys,
+              name: fit.label,
+              line: { color: tokens.palette[i % tokens.palette.length] ?? tokens.numeric, width: i === 0 ? 2.5 : 1.5 },
+              hovertemplate: `${fit.label}<br>%{x:,.4g}, %{y:,.4g}<extra></extra>`,
+            }) as Data,
+        ),
+      ],
+      layout: { showlegend: true, legend: { orientation: "h", y: -0.25 }, xaxis: axis(xLabel), yaxis: axis(yLabel) },
+    };
+  };
 }

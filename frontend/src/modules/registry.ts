@@ -9,6 +9,7 @@ import { mlModule } from "./ml/manifest";
 import { segmentsModule } from "./segments/manifest";
 import { syntheticModule } from "./synthetic/manifest";
 import { timeseriesModule } from "./timeseries/manifest";
+import { visionModule } from "./vision/manifest";
 import { LITE } from "../lite/flag";
 import { LockedPage } from "../lite/Locked";
 import { t } from "../lib/i18n";
@@ -25,6 +26,8 @@ const lockedInLite = (module: ModuleManifest): ModuleManifest =>
 export const modules: ModuleManifest[] = [
   // the Dataset section, under Overview (065); VITE_CLEAN_ENABLED=0 leaves it out
   ...(CLEAN_ENABLED ? [cleanModule] : []),
+  // 107: image sets only (hidden for a table); Gallery and Quality, the other tabs to come
+  visionModule,
   timeseriesModule,
   kpiModule,
   // in the browser version too (102): scikit-learn models; XGBoost, LightGBM, CatBoost and tuning stay

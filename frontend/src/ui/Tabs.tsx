@@ -1,6 +1,7 @@
 import { useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 
-export type TabItem<T extends string> = { value: T; label: string; badge?: string };
+/** `disabled` (107): shown but not yet usable, `hint` says what it will do (its title). */
+export type TabItem<T extends string> = { value: T; label: string; badge?: string; disabled?: boolean; hint?: string };
 
 type TabsProps<T extends string> = {
   label: string;
@@ -16,12 +17,13 @@ export function Tabs<T extends string>({ label, value, items, onChange, children
   const list = useRef<HTMLDivElement>(null);
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    const index = items.findIndex((item) => item.value === value);
-    const moves: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1, Home: -index, End: items.length - 1 - index };
+    const usable = items.filter((item) => !item.disabled);
+    const index = usable.findIndex((item) => item.value === value);
+    const moves: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1, Home: -index, End: usable.length - 1 - index };
     const move = moves[event.key];
     if (move === undefined) return;
     event.preventDefault();
-    const next = items[(index + move + items.length) % items.length];
+    const next = usable[(index + move + usable.length) % usable.length];
     if (!next) return;
     onChange(next.value);
     list.current?.querySelector<HTMLButtonElement>(`[data-value="${next.value}"]`)?.focus();
@@ -48,9 +50,15 @@ export function Tabs<T extends string>({ label, value, items, onChange, children
               aria-selected={selected}
               aria-controls={`${id}-panel`}
               tabIndex={selected ? 0 : -1}
-              onClick={() => onChange(item.value)}
-              className={`-mb-px inline-flex h-9 items-center gap-1.5 border-b-2 text-[13px] transition-colors ${
-                selected ? "border-accent font-medium text-ink-1" : "border-transparent text-ink-2 hover:text-ink-1"
+              aria-disabled={item.disabled || undefined}
+              title={item.hint}
+              onClick={() => !item.disabled && onChange(item.value)}
+              className={`-mb-px inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 text-[13px] whitespace-nowrap transition-colors ${
+                selected
+                  ? "border-accent font-medium text-ink-1"
+                  : item.disabled
+                    ? "cursor-default border-transparent text-ink-3"
+                    : "border-transparent text-ink-2 hover:text-ink-1"
               }`}
             >
               {item.label}
