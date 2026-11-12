@@ -1,6 +1,6 @@
 import type { Data } from "plotly.js-dist-min";
 
-import type { MlExplanation, MlRun } from "../../api/client";
+import type { MlAle, MlExplanation, MlRun } from "../../api/client";
 import type { Figure } from "../../charts/Plot";
 import { withAlpha } from "../../charts/figures";
 
@@ -363,6 +363,49 @@ export function dependenceFigure(found: Dependence): Figure {
         barmode: "group",
         xaxis: { ...title(found.column), type: number ? "linear" : "category" },
         yaxis: { ...title(found.output), domain: [0.3, 1] },
+        yaxis2: { domain: [0, 0.2], showticklabels: false, title: { text: "rows", font: { size: 10 } } },
+      },
+    };
+  };
+}
+
+/** Accumulated local effects (125): the centred effect at each edge of an interval (a number)
+ * or each category in order, the rows of each interval or category below. */
+export function aleFigure(found: MlAle): Figure {
+  return (tokens) => {
+    const number = found.kind === "number";
+    const curves = Object.entries(found.curves);
+    const edges = found.grid.map(Number);
+    const data: Data[] = curves.map(
+      ([name, values], index) =>
+        ({
+          type: "scatter",
+          mode: number ? "lines+markers" : "lines+markers",
+          line: { color: tokens.palette[index % 8], width: 2, shape: number ? "linear" : "hv" },
+          marker: { color: tokens.palette[index % 8], size: 4 },
+          name,
+          x: found.grid,
+          y: values,
+          hovertemplate: `${name}: %{y:+.4g}<extra>%{x}</extra>`,
+        }) as Data,
+    );
+    data.push({
+      type: "bar",
+      // a number: one bar per interval, at its middle; categories: one per category
+      x: number ? edges.slice(1).map((high, i) => ((edges[i] ?? high) + high) / 2) : found.grid,
+      width: number ? edges.slice(1).map((high, i) => high - (edges[i] ?? high)) : undefined,
+      y: found.counts,
+      yaxis: "y2",
+      marker: { color: tokens.line },
+      hovertemplate: "%{y} rows<extra></extra>",
+      showlegend: false,
+    } as Data);
+    return {
+      data,
+      layout: {
+        showlegend: curves.length > 1,
+        xaxis: { ...title(found.column), type: number ? "linear" : "category" },
+        yaxis: { ...title(`Effect on ${found.output.toLowerCase()}`), domain: [0.3, 1], zeroline: true, zerolinecolor: tokens.ink3 },
         yaxis2: { domain: [0, 0.2], showticklabels: false, title: { text: "rows", font: { size: 10 } } },
       },
     };

@@ -19,6 +19,9 @@ router.include_router(auto_router)  # the Auto (038), on the same prefix
 
 def setup(app: FastAPI) -> None:
     app.state.ml = MlService(app.state.columns, app.state.workspace)
+    versions = getattr(app.state, "versions", None)
+    if versions is not None:  # a warm start also looks at the cleaned versions (066)
+        app.state.ml.lineage = versions.original_of
     app.state.ml_predictions = PredictionService(app.state.ml, getattr(app.state, "versions", None))
     app.state.datasets.after_import.append(app.state.ml_predictions.after_import)
     app.state.ml_auto = AutoService(app.state.ml)

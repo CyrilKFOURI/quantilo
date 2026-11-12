@@ -36,6 +36,10 @@ class DatasetRecord:
     last_opened_at: str | None = None
     types_version: int = 0
     types_reviewed_at: str | None = None
+    # 085: the source this dataset is one table of (None: a standalone import)
+    source_id: str | None = None
+    source_locator: str | None = None
+    layout: str | None = None
 
 
 @dataclass

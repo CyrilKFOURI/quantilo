@@ -1,0 +1,86 @@
+# Kinds of datasets and their KPI packs (061, P17, R-ARC-01 and R-ARC-02).
+#
+# A kind fits when every group of `needs` is met by one column: `role:x` is a column given that
+# role, `word:x` a column whose name holds that whole word. `signals` are further clues, each met
+# once; at least `min_signals` are needed. The kind with the most clues wins (file order on a tie).
+# Its pack is the suggested KPIs made by `rules`, in that order, 5 at most and 3 at least.
+# Nothing is applied on its own: the app says "Looks like sales data · 5 KPIs" and the user
+# confirms before any KPI is saved.
+
+[[archetype]]
+id = "sales"
+label = "sales data"
+needs = [
+  ["role:amount", "role:unit_price"],
+  ["role:order_key", "role:quantity", "word:sales", "word:revenue", "word:invoice"],
+]
+signals = [
+  "role:customer_key", "role:cost", "role:unit_price", "role:quantity", "role:order_key",
+  "role:currency", "word:product", "word:discount", "word:profit", "word:invoice", "word:sales",
+  "word:revenue", "word:order", "word:sku", "word:store",
+]
+min_signals = 1
+rules = ["R-SUG-02", "R-SUG-31", "R-SUG-12", "R-SUG-11", "R-SUG-20", "R-SUG-21", "R-SUG-10",
+         "R-SUG-14", "R-SUG-13", "R-SUG-15", "R-SUG-03"]
+
+[[archetype]]
+id = "subscription"
+label = "subscription data"
+needs = [
+  ["role:customer_key", "word:subscriber", "word:subscription", "word:account"],
+  ["word:churn", "word:churned", "word:tenure", "word:subscription", "word:plan", "word:contract",
+   "word:mrr", "word:renewal", "word:exited", "word:cancelled"],
+]
+signals = [
+  "word:churn", "word:tenure", "word:contract", "word:plan", "word:monthly", "word:charges",
+  "word:mrr", "word:renewal", "word:payment", "word:billing", "word:paperless", "word:exited",
+]
+min_signals = 2
+rules = ["R-SUG-10", "R-SUG-06", "R-SUG-22", "R-SUG-15", "R-SUG-09", "R-SUG-02", "R-SUG-07",
+         "R-SUG-01"]
+
+[[archetype]]
+id = "support"
+label = "support data"
+needs = [
+  ["word:ticket", "word:tickets", "word:incident", "word:case", "word:issue", "word:sla",
+   "word:complaint"],
+]
+signals = [
+  "word:priority", "word:agent", "word:resolved", "word:resolution", "word:satisfaction",
+  "word:csat", "word:channel", "word:category", "word:response", "word:escalated", "role:status",
+  "word:opened", "word:closed",
+]
+min_signals = 1
+rules = ["R-SUG-01", "R-SUG-24", "R-SUG-22", "R-SUG-07", "R-SUG-06", "R-SUG-10", "R-SUG-28"]
+
+[[archetype]]
+id = "hr"
+label = "HR data"
+needs = [
+  ["word:employee", "word:employees", "word:staff", "word:attrition", "word:department",
+   "word:salary", "word:hire", "word:hired", "word:job", "word:jobrole", "word:headcount"],
+]
+signals = [
+  "word:salary", "word:department", "word:attrition", "word:hire", "word:hired", "word:job",
+  "word:jobrole", "word:performance", "word:overtime", "word:tenure", "word:years", "word:manager",
+  "word:termination", "word:employee", "role:age", "role:gender",
+]
+min_signals = 3
+rules = ["R-SUG-01", "R-SUG-09", "R-SUG-06", "R-SUG-22", "R-SUG-07", "R-SUG-28"]
+
+[[archetype]]
+id = "web"
+label = "web analytics data"
+needs = [
+  ["word:session", "word:sessions", "word:page", "word:pageviews", "word:visit", "word:visits",
+   "word:click", "word:clicks", "word:bounce", "word:impressions", "word:ctr", "word:pageview"],
+]
+signals = [
+  "word:device", "word:browser", "word:source", "word:medium", "word:campaign",
+  "word:conversion", "word:converted", "word:landing", "word:referrer", "word:user",
+  "word:duration", "word:bounce", "word:clicks", "word:impressions",
+]
+min_signals = 1
+rules = ["R-SUG-01", "R-SUG-04", "R-SUG-10", "R-SUG-06", "R-SUG-22", "R-SUG-07", "R-SUG-28",
+         "R-SUG-03"]

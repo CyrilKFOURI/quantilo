@@ -18,7 +18,7 @@ from statsmodels.stats.diagnostic import het_breuschpagan
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 from quantilo.ml import classes as binning
-from quantilo.ml import codes, encoding, error_analysis, evaluate, steps
+from quantilo.ml import codes, conformal, encoding, error_analysis, evaluate, steps
 from quantilo.ml import models as catalogue
 from quantilo.ml import panel as panels
 from quantilo.ml import preparation as prep
@@ -196,6 +196,7 @@ class Trained:
     held_out: error_analysis.HeldOut | None = field(default=None, repr=False)
     # cross-validation only: what the Auto's ensemble is chosen on (038); not kept
     fold_predictions: FoldPredictions | None = field(default=None, repr=False)
+    interval: conformal.ConformalResult | None = None  # a number's prediction interval (057)
 
 
 class TrainingError(ValueError):
@@ -818,6 +819,7 @@ def train(
     checkpoint()
 
     regression = classification = None
+    interval: conformal.ConformalResult | None = None
     coefficients: list[Coefficient] = []
     predictions: list[PredictionRow] = []
     rng = np.random.default_rng(SEED)
@@ -844,6 +846,18 @@ def train(
             for i in pick
         ]
         held_out = error_analysis.HeldOut(rows_eval.to_numpy(dtype=int), actual, predicted)
+        checkpoint()
+        interval = _interval(
+            setup,
+            pipeline,
+            x_train,
+            y_train,
+            actual,
+            predicted,
+            setup.periods.ranks[evaluated]
+            if setup.periods is not None and evaluated is not None
+            else None,
+        )
     else:
         assert probabilities is not None
         classification, predicted_labels = _classification_scores(
@@ -934,7 +948,60 @@ def train(
         out_of_fold_kept,
         held_out,
         fold_predictions,
+        interval,
     )
+
+
+def _interval(
+    setup: "_Setup",
+    pipeline: Pipeline,
+    x_train: pd.DataFrame,
+    y_train: pd.Series,
+    actual: np.ndarray,
+    predicted: np.ndarray,
+    ranks: np.ndarray | None,
+) -> conformal.ConformalResult | None:
+    """The prediction interval of a number (057), set on the held-out rows: split conformal ★,
+    or CQR when asked and possible (R-ML-CONF-04, 05)."""
+    validation = setup.validation
+    level = validation.interval_level
+    order = None
+    if ranks is not None:  # panel: out-of-fold rows put back in period order (R-ML-CONF-02)
+        order = np.argsort(ranks, kind="stable")
+        actual, predicted = actual[order], predicted[order]
+    chronological = order is not None or validation.method == "time_split"
+    fallback: str | None = None
+    if validation.interval_method == "cqr":
+        if validation.cross:
+            fallback = conformal.fallback_rule("cross")
+        else:
+            prepare = pipeline[:-1]
+            train_inputs = prepare.transform(x_train)
+            if train_inputs.shape[1] > conformal.MAX_CQR_INPUTS:
+                fallback = conformal.fallback_rule("inputs")
+            else:
+                lower, upper = _quiet(
+                    lambda: conformal.fit_bands(
+                        train_inputs, y_train.to_numpy(dtype=float), level, validation.seed
+                    )
+                )
+                found = conformal.cqr(
+                    lower,
+                    upper,
+                    prepare.transform(setup.x_test),
+                    actual,
+                    level,
+                    chronological,
+                    validation.seed,
+                )
+                if found is not None:
+                    result, bands = found
+                    setattr(pipeline, conformal.BANDS_ATTRIBUTE, bands)
+                    return result
+    result = conformal.split(actual, predicted, level, chronological, validation.seed)
+    if result is not None and fallback is not None:
+        result.rules.append(fallback)
+    return result
 
 
 def _panel(

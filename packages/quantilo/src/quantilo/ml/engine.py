@@ -1,6 +1,7 @@
 """Machine learning on a catalog's dataset: models, target candidates, preparation preview,
-training, tuning, explanations, panel data (035) and where a model is wrong (036). Synchronous:
-the app adds jobs and saved runs around it."""
+training, tuning, explanations (and, on demand, the interpretability of 125: ALE, surrogate,
+monotonic check, counterfactuals), panel data (035) and where a model is wrong (036).
+Synchronous: the app adds jobs and saved runs around it."""
 
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -16,16 +17,21 @@ from quantilo.catalog import Catalog
 from quantilo.errors import ExplorerError
 from quantilo.filters.model import Condition
 from quantilo.filters.scope import scoped_source, where_for
+from quantilo.ml import ale as effects
 from quantilo.ml import browser, evaluate
 from quantilo.ml import classes as binning
+from quantilo.ml import counterfactual as whatif
 from quantilo.ml import data as ml_data
 from quantilo.ml import error_analysis as mistakes
 from quantilo.ml import explain as explainer
 from quantilo.ml import models as catalogue
 from quantilo.ml import panel as panels
 from quantilo.ml import preparation as prep
+from quantilo.ml import surrogate as imitation
+from quantilo.ml import text as textual
 from quantilo.ml import train as trainer
 from quantilo.ml import tune as tuner
+from quantilo.ml import warm as warming
 from quantilo.ml.catalog import Context as ModelContext
 from quantilo.ml.catalog.spaces import Param
 from quantilo.ml.data import NUMERIC, Field
@@ -121,6 +127,41 @@ class TuneStart(tuner.TuneRequest):
     preparation: prep.Choices | None = None
 
 
+class CounterfactualRequest(BaseModel):
+    """What would change one row's prediction (125)."""
+
+    row: int = PydanticField(ge=0, description="The file row (as on the Predictions tab).")
+    editable: list[str] | None = PydanticField(
+        default=None,
+        max_length=500,
+        description="Columns the search may change (default: all but those locked, R-XAI-03).",
+    )
+    target_class: str | None = PydanticField(default=None, max_length=500)
+    target_value: float | None = None
+    max_changes: int = PydanticField(default=whatif.MAX_CHANGES, ge=1, le=whatif.MAX_CHANGES)
+
+
+@dataclass
+class Explained:
+    """The rows a run was scored on, as its explanations read them."""
+
+    x: pd.DataFrame
+    y: pd.Series
+    rows: np.ndarray  # file row of each
+    fields: list[Field]
+    positive: str | None
+
+
+def constraints(text: str | None) -> dict[str, int]:
+    """ "size:+1, age:-1" → {"size": 1, "age": -1} (the monotonic setting of 019, read back)."""
+    found: dict[str, int] = {}
+    for part in str(text or "").replace(";", ",").split(","):
+        column, _, sign = part.rpartition(":")
+        if column.strip() and sign.strip() in ("+1", "1", "-1", "+", "-"):
+            found[column.strip()] = -1 if sign.strip().startswith("-") else 1
+    return found
+
+
 class NeutralizeRequest(BaseModel):
     """Remove from a panel run's predictions the part these columns explain (035)."""
 
@@ -147,6 +188,8 @@ def period_of(validation: evaluate.Validation, fields: list[Field]) -> str | Non
 class MlEngine:
     def __init__(self, columns: Catalog) -> None:
         self.columns = columns
+        # the original of a cleaned version (065), when the app knows it: a warm start (066)
+        self.lineage: Callable[[str], str | None] | None = None
 
     # --- Catalogue and targets -----------------------------------------------------------------
 
@@ -507,6 +550,7 @@ class MlEngine:
         validation: evaluate.Validation,
         should_stop: Callable[[], bool],
         started: Callable[[tuner.TuneProgress], None] = lambda _progress: None,
+        candidates: list[warming.Candidate] | None = None,
     ) -> tuner.TuneProgress:
         """Search a model's best settings on the training rows; `started` receives the progress
         object, updated trial after trial."""
@@ -553,6 +597,17 @@ class MlEngine:
                 validation.period_threshold,
             )
             progress.criterion = validation.criterion
+        warm = None
+        if candidates is not None:  # a warm start (066)
+            meta = warming.meta_of(
+                {f.name: f.type for f in fields}, target.name, len(frame.data), setup.task
+            )
+            warm = warming.starts(request.model, meta, candidates, space)
+            if not warm:
+                progress.rules.append(
+                    "R-ML-WARM-03: no settings found yet for this model on this dataset, its "
+                    "versions or a similar one: the search starts from scratch."
+                )
         started(progress)
 
         def build(values: dict[str, Any], rows: int) -> Any:
@@ -579,8 +634,16 @@ class MlEngine:
             should_stop,
             build,
             search_panel,
+            warm,
         )
         return progress
+
+    def meta(self, dataset_id: str, target: str, task: str) -> warming.Meta:
+        """The meta-features a warm start compares datasets on (066), from the column types and
+        the row count, without reading the data."""
+        fields, (dataset, _views) = self._fields(dataset_id)
+        rows = int(getattr(dataset, "row_count", None) or 0)
+        return warming.meta_of({f.name: f.type for f in fields}, target, rows, task)
 
     def _explanation(
         self,
@@ -593,6 +656,22 @@ class MlEngine:
         """Explain a trained model on the rows it was scored on. `trained` is a saved run or a
         `TrainedModel`: target, task, primary, classes, classification, predictions, validation
         and evaluation_rows. With its held-out predictions, the worst ones get a waterfall too."""
+        found = self._explained(dataset_id, pipeline, trained, conditions)
+        return explainer.explain(
+            pipeline,
+            found.x,
+            found.y,
+            found.rows,
+            trained.task,
+            trained.primary,
+            [p.row for p in trained.predictions]
+            + (mistakes.worst_rows(held_out) if held_out is not None else []),
+            found.positive,
+        )
+
+    def _explained(
+        self, dataset_id: str, pipeline: Any, trained: Any, conditions: list[Condition]
+    ) -> Explained:
         fields, target, source = self._request(dataset_id, trained.target, None, conditions)
         connection = duckdb.connect()
         try:
@@ -619,17 +698,89 @@ class MlEngine:
         else:
             y = trainer.prepare_target(series, trained.task)
         positive = trained.classification.positive if trained.classification else None
-        return explainer.explain(
-            pipeline,
+        return Explained(
             cast(pd.DataFrame, data[inputs]),
             y,
             cast(pd.Series, data["__row"]).to_numpy(dtype=int),
-            trained.task,
-            trained.primary,
-            [p.row for p in trained.predictions]
-            + (mistakes.worst_rows(held_out) if held_out is not None else []),
+            fields,
             positive,
         )
+
+    # --- Interpretability on demand (125) --------------------------------------------------------
+
+    def _ale(
+        self,
+        dataset_id: str,
+        pipeline: Any,
+        trained: Any,
+        conditions: list[Condition],
+        column: str,
+        bins: int = effects.BINS,
+        rule: str | None = None,
+    ) -> effects.Ale:
+        """Accumulated local effects of one column; its monotonic check when it has one."""
+        found = self._explained(dataset_id, pipeline, trained, conditions)
+        orders = {d.column: list(d.order) for d in trained.preparation.decisions if d.order}
+        sign = constraints(trained.settings.get("monotonic")).get(column)
+        try:
+            return effects.ale(pipeline, found.x, trained.task, column, bins, orders, rule, sign)
+        except effects.AleError as error:
+            raise MlError(str(error), "no_ale") from None
+
+    def _monotonic(
+        self, dataset_id: str, pipeline: Any, trained: Any, conditions: list[Condition]
+    ) -> list[effects.Monotonic]:
+        """Each monotonic constraint of the run, checked row by row."""
+        wanted = constraints(trained.settings.get("monotonic"))
+        if not wanted:
+            return []
+        found = self._explained(dataset_id, pipeline, trained, conditions)
+        return [
+            effects.monotonic(pipeline, found.x, trained.task, column, sign)
+            for column, sign in wanted.items()
+            if column in found.x.columns
+        ]
+
+    def _surrogate(
+        self,
+        dataset_id: str,
+        pipeline: Any,
+        trained: Any,
+        conditions: list[Condition],
+        depth: int = imitation.DEPTH,
+    ) -> imitation.Surrogate:
+        found = self._explained(dataset_id, pipeline, trained, conditions)
+        texts = set(textual.steps_of(pipeline))
+        return imitation.surrogate(pipeline, found.x, trained.task, depth, texts)
+
+    def _counterfactual(
+        self,
+        dataset_id: str,
+        pipeline: Any,
+        trained: Any,
+        conditions: list[Condition],
+        request: CounterfactualRequest,
+    ) -> whatif.Counterfactual:
+        found = self._explained(dataset_id, pipeline, trained, conditions)
+        classification = trained.classification
+        try:
+            return whatif.counterfactual(
+                pipeline,
+                found.x,
+                found.rows,
+                trained.task,
+                request.row,
+                found.fields,
+                set(textual.steps_of(pipeline)),
+                request.editable,
+                request.target_class,
+                request.target_value,
+                request.max_changes,
+                classification.threshold if classification else None,
+                found.positive,
+            )
+        except whatif.CounterfactualError as error:
+            raise MlError(str(error), "no_counterfactual") from None
 
     def _neutralize(
         self,

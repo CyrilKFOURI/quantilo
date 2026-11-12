@@ -101,11 +101,13 @@ def build_table(
     measures: list[tuple[Measure, Column | None]],
     extras: dict[str, Column] | None = None,
     order_key: Column | None = None,
+    goal: Column | None = None,
 ) -> None:
     """Typed rows: t (timestamp), g1, g2 (labels, '(empty)' for a missing one), v1… (values),
     w1… (weights) and k1… (keys) of the measures that have one. `extras` gives the weight, key
     and end date columns by name. With `order_key`, `ok` is the order and `h` a fingerprint of
-    the whole source row, to find rows repeated exactly (054, R-SIG-06)."""
+    the whole source row, to find rows repeated exactly (054, R-SIG-06). With `goal`, `gv` is the
+    target column's value (061, R-GOAL-01)."""
     extras = extras or {}
     selected = []
     if time is not None:
@@ -122,6 +124,9 @@ def build_table(
         if measure.key and measure.key in extras:
             key = extras[measure.key]
             selected.append(f"{typed_sql(key.name, key.parser)} AS k{index}")
+    if goal is not None:
+        number = number_sql(goal)
+        selected.append(f"(CASE WHEN isfinite({number}) THEN {number} END) AS gv")
     if order_key is not None:
         selected.append(f"{typed_sql(order_key.name, order_key.parser)} AS ok")
         selected.append("hash(kpi_source_row) AS h")

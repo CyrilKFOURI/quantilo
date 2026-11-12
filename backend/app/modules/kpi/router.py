@@ -1,8 +1,9 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 from quantilo.filters.model import Condition, parse_filters
+from quantilo.kpi.cohort import CohortResult, FunnelResult
 from quantilo.kpi.compute import KpiResult
 from quantilo.kpi.definition import Definition
 from quantilo.kpi.service import Suggestions
@@ -46,6 +47,34 @@ def compute(
     dataset_id: str, definition: Definition, service: Service, filters: Filters
 ) -> KpiResult:
     return service.compute(dataset_id, definition, filters)
+
+
+class CohortRequest(BaseModel):
+    customer: str = Field(min_length=1)
+    date: str = Field(min_length=1)
+    grain: Literal["auto", "month", "week"] = "auto"
+
+
+class FunnelRequest(BaseModel):
+    column: str = Field(min_length=1)
+    stages: list[str] = Field(min_length=2, max_length=20)
+    key: str | None = None
+
+
+@router.post("/datasets/{dataset_id}/cohort")
+def cohort(
+    dataset_id: str, body: CohortRequest, service: Service, filters: Filters
+) -> CohortResult:
+    """060: retention by cohort and new vs returning customers, computed when opened."""
+    return service.cohort(dataset_id, body.customer, body.date, body.grain, filters)
+
+
+@router.post("/datasets/{dataset_id}/funnel")
+def funnel(
+    dataset_id: str, body: FunnelRequest, service: Service, filters: Filters
+) -> FunnelResult:
+    """060: the keys (or rows) that reached each stage of an ordered status."""
+    return service.funnel(dataset_id, body.column, body.stages, body.key, filters)
 
 
 @router.get("/datasets/{dataset_id}/definitions")

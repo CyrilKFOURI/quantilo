@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from quantilo import semantics
-from quantilo.kpi.definition import Definition, Group, Measure, Ratio, Time
+from quantilo.kpi.definition import Definition, Goal, Group, Measure, Ratio, Time
 from quantilo.kpi.rules import measure_label, ratio_label
 from quantilo.typing.knowledge_base import load, name_tokens
 from quantilo.typing.types import AnalysisType
@@ -125,6 +125,7 @@ WEIGHTS = {
 }
 SECOND_AMOUNT, COST = 84, 75
 WEIGHTS["R-SUG-28"] = 52  # 093: a measure without a role, averaged
+WEIGHTS["R-SUG-31"] = 83  # 061: an amount against its target column
 MEASURES = 2  # R-SUG-28: measures without a role suggested at most
 MIN_MEASURE_LEVELS = 20  # R-SUG-28: fewer distinct values look like levels or codes
 MEASURE_ROLES = frozenset(["amount", "cost", "quantity", "unit_price", "target", *LEVEL_ROLES])
@@ -377,6 +378,7 @@ class _Candidate:
     money: bool = False  # an amount: split by currency when there are several
     single: Column | None = None  # the numeric column of a one-measure KPI (redundancy check)
     more: list[str] = field(default_factory=list)  # reasons after the first one (053)
+    goal: Goal | None = None  # 061: read against a target (R-SUG-31)
 
 
 def _count(value: int) -> str:
@@ -528,6 +530,28 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
         reason = f"R-SUG-02 · {column.name} is a cost: costs add up over rows, so it is summed"
         found.append(
             _Candidate("R-SUG-02", "", [sums(column)], reason, [column], COST, None, True, column)
+        )
+    targets = [
+        c
+        for c in _numbers(columns, ("target",))
+        if c.summary is None or _distinct(c) >= MIN_MEASURE_LEVELS
+    ][:1]
+    for amount, target in zip(amounts[:1], targets, strict=False):
+        reason = (
+            f"R-SUG-31 · {target.name} is a target (its name says so) beside the amount "
+            f"{amount.name}: Σ {amount.name} read against Σ {target.name}, in % of target"
+        )
+        found.append(
+            _Candidate(
+                "R-SUG-31",
+                f"{amount.name} vs {target.name}",
+                [sums(amount)],
+                reason,
+                [amount, target],
+                WEIGHTS["R-SUG-31"],
+                money=True,
+                goal=Goal(column=target.name),
+            )
         )
     quantities = _numbers(columns, ("quantity",))[:1]
     for column in [c for c in _numbers(columns, ("amount", "unit_price")) if is_level(c)][:1]:
@@ -1031,7 +1055,11 @@ def suggest(columns: Sequence[Column], facts: Facts | None = None) -> list[Sugge
                 "currencies are never added together",
             ]
         definition = Definition(
-            measures=candidate.measures, ratio=candidate.ratio, time=time, groups=kpi_groups
+            measures=candidate.measures,
+            ratio=candidate.ratio,
+            time=time,
+            groups=kpi_groups,
+            goal=candidate.goal,
         )
         name = candidate.name or (
             ratio_label(candidate.ratio, candidate.measures)

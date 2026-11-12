@@ -36,6 +36,7 @@ def test_migrations_create_tables(tmp_path: Path) -> None:
         "0023_recipes",
         "0024_cleaning",
         "0025_projects",
+        "0026_sources",
         "0027_project_model",
     ]
     expected = {
@@ -69,6 +70,8 @@ def test_migrations_create_tables(tmp_path: Path) -> None:
         "dataset_relations",
         "project_models",
         "model_builds",
+        "sources",
+        "dataset_links",
     }
     assert expected <= tables
 
@@ -108,7 +111,11 @@ def test_projects_migration_is_additive_on_a_filled_0024_base(
     connection.commit()
 
     monkeypatch.undo()
-    assert db.apply_migrations(connection) == ["0025_projects", "0027_project_model"]
+    assert db.apply_migrations(connection) == [
+        "0025_projects",
+        "0026_sources",
+        "0027_project_model",
+    ]
     names = [row[0] for row in connection.execute("SELECT id FROM datasets ORDER BY id")]
     versions = connection.execute("SELECT count(*) FROM clean_versions").fetchone()[0]
     items = connection.execute("SELECT count(*) FROM project_items").fetchone()[0]
@@ -143,7 +150,7 @@ def test_model_migration_is_additive_on_a_filled_0025_base(
     connection.commit()
 
     monkeypatch.undo()
-    assert db.apply_migrations(connection) == ["0027_project_model"]
+    assert db.apply_migrations(connection) == ["0026_sources", "0027_project_model"]
     items = connection.execute("SELECT count(*) FROM project_items").fetchone()[0]
     counts = [
         connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
@@ -151,3 +158,38 @@ def test_model_migration_is_additive_on_a_filled_0025_base(
     ]
     connection.close()
     assert (items, counts) == (1, [0, 0, 0])
+
+
+def test_sources_migration_is_additive_on_a_base_that_already_has_0027(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """085: a base made with 0025 and 0027 (088 merged first) gets 0026 afterwards; every dataset
+    stays standalone (no source), its projects and relations untouched."""
+    before = tmp_path / "before"
+    before.mkdir()
+    for migration in sorted(db.MIGRATIONS_DIR.glob("*.sql")):
+        if migration.stem != "0026_sources":
+            shutil.copy(migration, before / migration.name)
+    monkeypatch.setattr(db, "MIGRATIONS_DIR", before)
+    connection = db.connect(tmp_path / "app.db")
+    db.apply_migrations(connection)
+    connection.execute(
+        "INSERT INTO datasets (id, name, source_path, source_kind, format, options, "
+        "fingerprint, storage_path, status, created_at) "
+        "VALUES ('d', 'd', '/x.csv', 'file', 'csv', '{}', 'f', 's', 'ready', '2026-01-01')"
+    )
+    connection.commit()
+
+    monkeypatch.undo()
+    assert db.apply_migrations(connection) == ["0026_sources"]
+    row = connection.execute("SELECT source_id, source_locator, layout FROM datasets").fetchone()
+    connection.execute(
+        "INSERT INTO sources (id, kind, name, source_path, fingerprint, size_bytes, created_at) "
+        "VALUES ('s', 'workbook', 'w', '/w.xlsx', 'f', 1, '')"
+    )
+    connection.execute("UPDATE datasets SET source_id = 's' WHERE id = 'd'")
+    connection.execute("DELETE FROM sources WHERE id = 's'")
+    left = connection.execute("SELECT count(*) FROM datasets").fetchone()[0]
+    connection.close()
+    assert tuple(row) == (None, None, None)
+    assert left == 0  # a source's tables go with it (CASCADE)

@@ -10,11 +10,14 @@ import { Dialog } from "../../ui/Dialog";
 import { Checkbox, ErrorNote, Select, TextInput } from "../../ui/fields";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { importanceBars, trialsFigure } from "./figures";
+import { paretoFigure } from "./tuneFigures";
 import { CriterionSelect, metricName, PANEL } from "./SettingsDrawer";
 
 type Budget = "60" | "300" | "900" | "trials";
 const SAMPLERS = ["tpe", "random", "grid", "cmaes", "nsga2"] as const;
 const PRUNERS = ["median", "halving", "hyperband", "none"] as const;
+/** R-ML-TUNE-01: these samplers optimise a single objective. */
+const SINGLE_OBJECTIVE = new Set<string>(["grid", "cmaes"]);
 
 /** The model's search space as the API serves it, with nothing fixed yet. */
 function initialSpace(model: MlModel): MlSearchParam[] {
@@ -51,6 +54,8 @@ export function TunePanel({
   const [expert, setExpert] = useState(false);
   const [sampler, setSampler] = useState<(typeof SAMPLERS)[number]>("tpe");
   const [pruner, setPruner] = useState<(typeof PRUNERS)[number]>("median");
+  const [warmStart, setWarmStart] = useState(false);
+  const [objectives, setObjectives] = useState<"score" | "score_time">("score");
   const [space, setSpace] = useState<MlSearchParam[]>(() => initialSpace(model));
   const [jobId, setJobId] = useState<string | null>(null);
   // on a panel, every trial is judged on the criterion over the test periods
@@ -79,6 +84,8 @@ export function TunePanel({
           sampler,
           pruner,
           space,
+          warm_start: expert && warmStart,
+          objectives: expert ? objectives : "score",
           settings: fixed,
           preparation: choices,
         },
@@ -134,7 +141,7 @@ export function TunePanel({
                 {t("ml.tune.sampler")}
                 <Select aria-label={t("ml.tune.sampler")} value={sampler} onChange={(e) => setSampler(e.target.value as typeof sampler)} className="h-7 text-xs">
                   {SAMPLERS.map((s) => (
-                    <option key={s} value={s}>
+                    <option key={s} value={s} disabled={objectives === "score_time" && SINGLE_OBJECTIVE.has(s)}>
                       {t(`ml.tune.sampler.${s}` as MessageKey)}
                     </option>
                   ))}
@@ -142,7 +149,13 @@ export function TunePanel({
               </label>
               <label className="flex items-center gap-2 text-xs text-ink-2">
                 {t("ml.tune.pruner")}
-                <Select aria-label={t("ml.tune.pruner")} value={pruner} onChange={(e) => setPruner(e.target.value as typeof pruner)} className="h-7 text-xs">
+                <Select
+                  aria-label={t("ml.tune.pruner")}
+                  value={objectives === "score_time" ? "none" : pruner}
+                  disabled={objectives === "score_time"}
+                  onChange={(e) => setPruner(e.target.value as typeof pruner)}
+                  className="h-7 text-xs"
+                >
                   {PRUNERS.map((p) => (
                     <option key={p} value={p}>
                       {t(`ml.tune.pruner.${p}` as MessageKey)}
@@ -150,6 +163,31 @@ export function TunePanel({
                   ))}
                 </Select>
               </label>
+              <details className="w-full text-xs" open={warmStart || objectives !== "score"}>
+                <summary className="cursor-pointer text-ink-2">{t("ml.tune.more")}</summary>
+                <div className="mt-2 space-y-2">
+                  <Checkbox className="text-xs text-ink-2" label={t("ml.tune.warmStart")} checked={warmStart} onChange={(e) => setWarmStart(e.target.checked)} />
+                  <p className="text-[11px] text-ink-3">{t("ml.tune.warmStartHint")}</p>
+                  <label className="flex items-center gap-2 text-xs text-ink-2">
+                    {t("ml.tune.objectives")}
+                    <Select
+                      aria-label={t("ml.tune.objectives")}
+                      value={objectives}
+                      onChange={(e) => {
+                        const next = e.target.value as typeof objectives;
+                        setObjectives(next);
+                        // R-ML-TUNE-01: two objectives need a sampler that handles them
+                        if (next === "score_time" && SINGLE_OBJECTIVE.has(sampler)) setSampler("nsga2");
+                      }}
+                      className="h-7 text-xs"
+                    >
+                      <option value="score">{t("ml.tune.objectives.score")}</option>
+                      <option value="score_time">{t("ml.tune.objectives.score_time")}</option>
+                    </Select>
+                  </label>
+                  {objectives === "score_time" && <p className="text-[11px] text-ink-3">{t("ml.tune.objectivesHint")}</p>}
+                </div>
+              </details>
             </div>
           )}
           <section className="space-y-1.5">
@@ -236,6 +274,22 @@ export function TunePanel({
                 <figure className="rounded-md border border-line bg-surface-1 p-2">
                   <Plot figure={trialsFigure(progress.trials, progress.greater_is_better, metricName(progress.metric))} height={240} label={t("ml.tune.chart")} />
                 </figure>
+              )}
+              {progress.objectives === "score_time" && progress.trials.some((trial) => trial.pareto === true) && (
+                <figure className="space-y-1 rounded-md border border-line bg-surface-1 p-2">
+                  <figcaption className="text-[13px] text-ink-1">{t("ml.tune.paretoSentence", { count: String(progress.trials.filter((trial) => trial.pareto).length) })}</figcaption>
+                  <Plot figure={paretoFigure(progress.trials, metricName(progress.metric))} height={240} label={t("ml.tune.pareto")} />
+                </figure>
+              )}
+              {((progress.warm ?? []).length > 0 || (progress.rules ?? []).length > 0) && (
+                <ul className="space-y-0.5 text-xs text-ink-2" aria-label={t("ml.tune.notes")}>
+                  {(progress.warm ?? []).map((reason, i) => (
+                    <li key={`warm-${i}`}>{t("ml.tune.warmTrial", { number: String(i), reason })}</li>
+                  ))}
+                  {(progress.rules ?? []).map((rule) => (
+                    <li key={rule}>{rule}</li>
+                  ))}
+                </ul>
               )}
             </>
           )}

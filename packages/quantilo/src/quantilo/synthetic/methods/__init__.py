@@ -7,6 +7,7 @@ from typing import Literal
 
 import numpy as np
 
+from quantilo.synthetic.deep.training import Training
 from quantilo.synthetic.encode import Coded, Learned
 from quantilo.synthetic.plan import Method
 
@@ -35,6 +36,7 @@ class Options:
     order: list[str] | None = None  # CART: column order (None = automatic)
     drop_copies: bool = True  # replace synthetic rows identical to a training row
     epochs: int | None = None  # deep methods: None = automatic
+    training: Training | None = None  # deep methods (066): None = as in the paper
     device: Literal["auto", "cpu", "gpu"] = "auto"  # deep methods
     allow_gpu: bool = True  # the app setting "Use the GPU when available" (decides "auto")
     progress: Callable[[float, str], None] | None = None  # deep methods: per epoch

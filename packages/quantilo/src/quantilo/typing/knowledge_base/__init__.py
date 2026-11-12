@@ -116,6 +116,8 @@ class KnowledgeBase:
     aggregate_prefixes: tuple[str, ...] = ()
     aggregate_words: frozenset[str] = frozenset()
     aggregate_group_words: frozenset[str] = frozenset()
+    # 060 (R-FUN-01): known funnels, each stage with its spellings, in order
+    funnels: tuple[tuple[tuple[str, ...], ...], ...] = ()
 
     def language(self, language_id: str | None) -> Language | None:
         return next((item for item in self.languages if item.id == language_id), None)
@@ -253,6 +255,10 @@ def load() -> KnowledgeBase:
         ),
         aggregate_group_words=frozenset(
             word.lower() for word in vocabulary.get("aggregates", {}).get("group_words", [])
+        ),
+        funnels=tuple(
+            tuple(tuple(word.lower() for word in stage) for stage in item["stages"])
+            for item in vocabulary.get("funnel", [])
         ),
     )
 

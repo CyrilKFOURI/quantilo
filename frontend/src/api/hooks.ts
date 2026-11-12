@@ -22,6 +22,8 @@ import {
   type ColumnChange,
   type Dataset,
   type ImportOptions,
+  type CohortRequest,
+  type FunnelRequest,
   type KpiDefinition,
   type ComputeSettings,
   type ServerSettings,
@@ -33,6 +35,7 @@ import {
   type MlValidation,
   type MlTuneRequest,
   type MlAutoRequest,
+  type MlCounterfactualRequest,
   type OutlierMethod,
   type DetectionSettings,
   type RegressionParams,
@@ -192,6 +195,48 @@ export function usePreview(path: string | null, options: SourceOptions) {
     retry: false,
     staleTime: Infinity,
     placeholderData: (previous) => previous,
+  });
+}
+
+/** 080b / 085: the left pane of the import screen (a sheet's cells, a document's lines). */
+export function useOriginal(path: string, sheet: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["original", path, sheet] as const,
+    queryFn: () => api.original(path, sheet),
+    enabled,
+    retry: false,
+    staleTime: Infinity,
+  });
+}
+
+/** 080b: the tables of several sheets, one preview each (asked sheet by sheet, never all at once). */
+export function useSheetPreviews(path: string, sheets: string[]) {
+  return useQueries({
+    queries: sheets.map((sheet) => {
+      const options: SourceOptions = { sheets: [sheet], folder_mode: "union" };
+      return {
+        queryKey: queryKeys.preview(path, options),
+        queryFn: () => api.preview(path, options),
+        retry: false,
+        staleTime: Infinity,
+      };
+    }),
+  });
+}
+
+export function useImportTables() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      path: string;
+      tables: { id: string; name: string | null }[];
+      options: ImportOptions;
+      projectId?: string | null;
+    }) => api.importTables(input.path, input.tables, input.options, input.projectId ?? null),
+    onSettled: (_data, _error, input) => {
+      void client.invalidateQueries({ queryKey: queryKeys.datasets });
+      if (input.projectId) void client.invalidateQueries({ queryKey: ["projects"] });
+    },
   });
 }
 
@@ -475,6 +520,31 @@ export function useKpiCompute(id: string, definition: KpiDefinition | null) {
     enabled: Boolean(definition),
     staleTime: 60_000,
     placeholderData: (previous) => previous,
+    retry: false,
+  });
+}
+
+/** 060: retention by cohort, fetched only once the user opens it (onion rule). */
+export function useKpiCohort(id: string, body: CohortRequest | null) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: ["datasets", id, "kpi", "cohort", body, filters],
+    queryFn: () => api.kpiCohort(id, body as CohortRequest, filters),
+    enabled: Boolean(body),
+    staleTime: 60_000,
+    placeholderData: (previous) => previous,
+    retry: false,
+  });
+}
+
+/** 060: the funnel of an ordered status, fetched only once opened. */
+export function useKpiFunnel(id: string, body: FunnelRequest | null) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: ["datasets", id, "kpi", "funnel", body, filters],
+    queryFn: () => api.kpiFunnel(id, body as FunnelRequest, filters),
+    enabled: Boolean(body),
+    staleTime: 60_000,
     retry: false,
   });
 }
@@ -799,6 +869,51 @@ export function useMlFairness(id: string, runId: string, column: string | null) 
     queryKey: ["datasets", id, "ml", "fairness", runId, column ?? ""],
     queryFn: () => api.mlFairness(id, runId, column ?? ""),
     enabled: Boolean(column),
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** Accumulated local effects of one column (125), asked for only when Advanced is open. */
+export function useMlAle(id: string, runId: string, column: string | null, bins: number) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "ale", runId, column ?? "", bins],
+    queryFn: () => api.mlAle(id, runId, column ?? "", bins),
+    enabled: Boolean(column),
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** The shallow tree that imitates the model, and its fidelity (125). */
+export function useMlSurrogate(id: string, runId: string, depth: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "surrogate", runId, depth],
+    queryFn: () => api.mlSurrogate(id, runId, depth),
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** The run's monotonic constraints, checked row by row (125). */
+export function useMlMonotonic(id: string, runId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "monotonic", runId],
+    queryFn: () => api.mlMonotonic(id, runId),
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** What would change one row's prediction (125): the previous answer stays while the next comes. */
+export function useMlCounterfactual(id: string, runId: string, request: MlCounterfactualRequest | null) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "counterfactual", runId, request],
+    queryFn: () => api.mlCounterfactual(id, runId, request as MlCounterfactualRequest),
+    enabled: request !== null,
+    placeholderData: keepPreviousData,
     staleTime: Infinity,
     retry: false,
   });

@@ -8,6 +8,8 @@ import { t, type MessageKey } from "../../lib/i18n";
 import { ErrorNote, Select } from "../../ui/fields";
 import { beeswarmFigure, dependenceFigure, permutationFigure, waterfallFigure } from "./figures";
 import { Loading } from "../../ui/Loading";
+import { WhatWouldChange } from "./Counterfactual";
+import { ExplainAdvanced } from "./ExplainAdvanced";
 
 type Explanation = NonNullable<MlExplanation>;
 type TreeNode = NonNullable<Explanation["tree"]>[number];
@@ -43,11 +45,19 @@ export function WithExplanation({ datasetId, run, children }: { datasetId: strin
 }
 
 export function ExplainTab({ datasetId, run }: { datasetId: string; run: MlRun }) {
-  return <WithExplanation datasetId={datasetId} run={run}>{(found) => <ExplainBody found={found} />}</WithExplanation>;
+  return <WithExplanation datasetId={datasetId} run={run}>{(found) => <ExplainBody found={found} datasetId={datasetId} run={run} />}</WithExplanation>;
 }
 
-function ExplainBody({ found }: { found: Explanation }) {
+/** The note under SHAP: on which scale two classes are explained. */
+function positiveNote(scale: string, positive: string): string {
+  return t(scale === "probability" ? "ml.explain.shapPositiveProbability" : "ml.explain.shapPositive", { positive });
+}
+
+function ExplainBody({ found, datasetId, run }: { found: Explanation; datasetId: string; run: MlRun }) {
   const [column, setColumn] = useState<string | null>(null);
+  // Advanced (125): folded; its parts are asked for only once it is open
+  const [advanced, setAdvanced] = useState(false);
+  const [aleColumn, setAleColumn] = useState<string | null>(null);
   const permutation = found.permutation;
   const shap = found.shap;
   const chosen = found.dependence.find((d) => d.column === column) ?? found.dependence[0];
@@ -83,7 +93,8 @@ function ExplainBody({ found }: { found: Explanation }) {
             <ul className="space-y-0.5 text-[13px] text-ink-2">
               {shap.features.flatMap((f) => (f.reading ? [<li key={f.column}>{f.reading}</li>] : [])).slice(0, 6)}
             </ul>
-            {shap.positive && <p className="text-xs text-ink-3">{t("ml.explain.shapPositive", { positive: shap.positive })}</p>}
+            {shap.positive && <p className="text-xs text-ink-3">{positiveNote(shap.scale, shap.positive)}</p>}
+            {shap.note && <p className="max-w-prose text-xs text-ink-3">{shap.note}</p>}
           </>
         ) : (
           <p className="max-w-prose text-[13px] text-ink-2">{found.shap_unavailable}</p>
@@ -104,6 +115,21 @@ function ExplainBody({ found }: { found: Explanation }) {
               ))}
             </Select>
           </label>
+          {chosen.extrapolates && (
+            <div role="note" className="max-w-prose space-y-1 rounded-md border border-warn/40 bg-warn/8 px-3 py-2 text-xs text-ink-1">
+              <p>{chosen.extrapolates}</p>
+              <button
+                type="button"
+                className="text-accent hover:underline"
+                onClick={() => {
+                  setAleColumn(chosen.column);
+                  setAdvanced(true);
+                }}
+              >
+                {t("ml.explain.readAle", { column: chosen.column })}
+              </button>
+            </div>
+          )}
           <Frame label={t("ml.explain.dependence")} height={320}>
             {(h) => <Plot figure={dependenceFigure(chosen)} height={h} label={t("ml.explain.dependence")} />}
           </Frame>
@@ -114,6 +140,10 @@ function ExplainBody({ found }: { found: Explanation }) {
           <TreeView nodes={found.tree} />
         </Section>
       )}
+      <details className="border-t border-line pt-3" open={advanced} onToggle={(event) => setAdvanced(event.currentTarget.open)}>
+        <summary className="cursor-pointer text-[13px] text-accent select-none hover:underline">{t("ml.explain.advanced")}</summary>
+        {advanced && <ExplainAdvanced datasetId={datasetId} run={run} found={found} column={aleColumn} onColumn={setAleColumn} />}
+      </details>
     </div>
   );
 }
@@ -226,7 +256,8 @@ export function RowExplanation({ datasetId, run, row }: { datasetId: string; run
             <Frame label={t("ml.explain.row", { row: String(row + 1) })} height={Math.max(240, 26 * (steps.length + 2) + 60)}>
               {(h) => <Plot figure={waterfallFigure(shap.base, steps, shap.scale)} height={h} label={t("ml.explain.row", { row: String(row + 1) })} />}
             </Frame>
-            {shap.positive && <p className="text-xs text-ink-3">{t("ml.explain.shapPositive", { positive: shap.positive })}</p>}
+            {shap.positive && <p className="text-xs text-ink-3">{positiveNote(shap.scale, shap.positive)}</p>}
+            <WhatWouldChange key={row} datasetId={datasetId} run={run} row={row} />
           </div>
         );
       }}

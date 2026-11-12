@@ -24,6 +24,7 @@ import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
 import { Checkbox, ErrorNote, Field, ProgressBar, Select } from "../../ui/fields";
 import { waterfallFigure } from "./figures";
+import { intervalExplain, intervalValue } from "./IntervalNote";
 import { distributionFigure } from "./predictFigures";
 import { Panel, ScoreBand } from "./ResultParts";
 import { Loading } from "../../ui/Loading";
@@ -377,8 +378,8 @@ function PredictionResult({ datasetId, run, predictionId }: { datasetId: string;
             ? [
                 {
                   label: t("ml.predict.interval", { level: (summary.interval.level * 100).toFixed(0) }),
-                  value: `± ${formatNumber(summary.interval.half_width)}`,
-                  explain: t("ml.predict.intervalHint", { errors: summary.interval.errors.toLocaleString("en-US") }),
+                  value: intervalValue(summary.interval),
+                  explain: intervalExplain(summary.interval),
                 },
               ]
             : []),

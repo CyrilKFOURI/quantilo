@@ -6,6 +6,7 @@ import numpy as np
 
 from quantilo.synthetic.deep import auto_epochs, transformer
 from quantilo.synthetic.deep.device import pick, with_fallback
+from quantilo.synthetic.deep.training import describe
 from quantilo.synthetic.encode import Coded, Learned
 from quantilo.synthetic.methods import Cancelled, Fitted, Options, StopCheck
 
@@ -40,9 +41,9 @@ def generate(
     def fit(device: torch.device) -> np.ndarray:
         if method == "ctgan":
             sampler = Sampler(data, fitted_transform, np.random.default_rng(options.seed))
-            model: CTGAN | TVAE = CTGAN(spans, sampler, device, options.seed)
+            model: CTGAN | TVAE = CTGAN(spans, sampler, device, options.seed, options.training)
         else:
-            model = TVAE(spans, data, device, options.seed)
+            model = TVAE(spans, data, device, options.seed, options.training)
         model.fit(epochs, report, should_stop)
         if should_stop():
             raise Cancelled
@@ -51,7 +52,7 @@ def generate(
     if should_stop():
         raise Cancelled
     sampled, used = with_fallback(fit, chosen)
-    notes = [n for n in (chosen.note, used.note) if n]
+    notes = [n for n in (chosen.note, used.note, describe(options.training)) if n]
     if used.device.type != "cpu":
         notes.append("Trained on the GPU: the same seed may give slightly different data.")
     fitted = Fitted(method, notes=list(dict.fromkeys(notes)), device=used.label, epochs=epochs)

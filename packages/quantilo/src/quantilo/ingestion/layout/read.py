@@ -11,7 +11,6 @@ K3, K3c, K4); derived columns (K1) are left out of a long format.
 import warnings
 from pathlib import Path
 
-import openpyxl
 import pyarrow as pa
 
 from quantilo.ingestion.layout.cells import clean_text, is_blank
@@ -21,6 +20,7 @@ from quantilo.ingestion.layout.header import unique_names
 from quantilo.ingestion.layout.hierarchy import ancestors, clean_label, has_parents
 from quantilo.ingestion.layout.model import DetectedTable, Transform
 from quantilo.ingestion.layout.types import convert
+from quantilo.ingestion.workbook import load_workbook
 
 Row = tuple[int, list[object], str | None]
 
@@ -48,7 +48,7 @@ def source_rows(
         return result
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        workbook = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        workbook = load_workbook(path, read_only=True, data_only=True)
     try:
         sheet = workbook[table.sheet]
         result = []

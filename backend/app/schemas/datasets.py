@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from quantilo.ingestion.options import ImportOptions, SourceOptions
@@ -93,3 +93,56 @@ class SampleOut(BaseModel):
 class HeadOut(BaseModel):
     columns: list[str]
     rows: list[list[str | None]]
+
+
+# --- Sources (085): one file imported as several tables ------------------------------------
+
+
+class TableRequest(BaseModel):
+    id: str = Field(min_length=1)  # a table id of the preview (`Preview.tables[].id`), or a range
+    name: str | None = Field(default=None, max_length=200)
+
+
+class SourceImportRequest(BaseModel):
+    path: str
+    tables: list[TableRequest] = Field(min_length=1, max_length=100)
+    name: str | None = None  # the source's name; each table gets "<name> - <table>"
+    options: ImportOptions = Field(default_factory=lambda: ImportOptions())
+    project_id: str | None = None  # 087, R-PRJ-05: every table goes in this project
+
+
+class SourceOut(BaseModel):
+    id: str
+    kind: Literal["workbook", "csv", "json", "jsonl", "xml", "image"]
+    name: str
+    source_path: str
+    size_bytes: int
+    created_at: str
+    dataset_ids: list[str]
+
+
+class SourceImportResponse(BaseModel):
+    source: SourceOut
+    imports: list[ImportResponse]
+
+
+class LinkOut(BaseModel):
+    parent_id: str
+    child_id: str
+    parent_key: str
+    child_key: str
+    rule: str
+
+
+class OriginOut(BaseModel):
+    """Where a dataset comes from: standalone (`source` null) or one table of a source."""
+
+    source: SourceOut | None
+    locator: str | None
+    layout: dict[str, Any] | None  # the table's detection: rules, confidence, summary
+    links: list[LinkOut]
+
+
+class OriginalRequest(BaseModel):
+    path: str
+    sheet: str | None = None

@@ -1,7 +1,14 @@
 """Search the best settings of a model within a budget (021), with Optuna. Every trial is judged by
 3-fold cross-validation on the training rows only: the test rows are never seen here. On a panel
 (035), the 3 folds walk forward by period and a trial is judged on the panel criterion (mean of
-the periods, mean / std, or worst period)."""
+the periods, mean / std, or worst period).
+
+Very advanced (066), in Advanced > More: a warm start from settings already found (`warm.py`), and
+two objectives, the score and the seconds a trial takes, whose Pareto front is shown (NSGA-II).
+- R-ML-TUNE-01: with two objectives no trial is pruned (Optuna cannot compare a trial halfway
+  through on two objectives), and CMA-ES or a grid are refused (single objective only).
+- R-ML-TUNE-02: the best trial of a two-objective search is the best score of the front; the
+  other points of the front trade score for speed."""
 
 from __future__ import annotations
 
@@ -29,6 +36,8 @@ from quantilo.ml.target import Task
 if TYPE_CHECKING:  # Optuna is the `ml` extra: imported when a search starts
     import optuna
 
+    from quantilo.ml.warm import Start
+
 FOLDS = 3
 GRID_POINTS = 4
 IMPORTANCE_TRIALS = 20
@@ -36,6 +45,8 @@ SEED = 42
 
 Sampler = Literal["tpe", "random", "grid", "cmaes", "nsga2"]
 Pruner = Literal["median", "halving", "hyperband", "none"]
+Objectives = Literal["score", "score_time"]
+SINGLE_OBJECTIVE = ("grid", "cmaes")  # R-ML-TUNE-01
 
 
 class SearchParam(BaseModel):
@@ -58,6 +69,9 @@ class TuneRequest(BaseModel):
     pruner: Pruner = "median"
     space: list[SearchParam] | None = None  # None: the catalogue's
     settings: dict[str, Any] = Field(default_factory=dict)  # other settings, held fixed
+    # very advanced (066): start from settings already found; optimise the score and the time
+    warm_start: bool = False
+    objectives: Objectives = "score"
 
 
 @dataclass
@@ -67,6 +81,8 @@ class Trial:
     state: str  # complete, pruned, failed
     params: dict[str, Any]
     seconds: float
+    warm: str | None = None  # a warm start (066): where these settings come from
+    pareto: bool = False  # two objectives: on the front (no other trial is better and faster)
 
 
 @dataclass
@@ -81,6 +97,9 @@ class TuneProgress:
     stopped: bool = False
     seconds: float = 0.0
     criterion: str | None = None  # panel: how the periods' scores are summed up
+    objectives: Objectives = "score"
+    warm: list[str] = field(default_factory=list)  # why each warm start was chosen
+    rules: list[str] = field(default_factory=list)  # the rules applied (066)
 
 
 @dataclass
@@ -228,6 +247,7 @@ def tune(
     should_stop: Callable[[], bool],
     build: Callable[[dict[str, Any], int], Any],
     panel: PanelSearch | None = None,
+    warm: list[Start] | None = None,
 ) -> TuneProgress:
     """Optimise `request.space` on 3-fold cross-validation of the training rows `x`, `y`.
     `build(values, rows)` returns the full pipeline for a set of settings; `progress` is updated
@@ -237,6 +257,14 @@ def tune(
     if not [p for p in space if p.fixed is None]:
         raise TuneError(f"{spec.label} has nothing worth tuning.")
     check_space(spec, context, space)
+    two = request.objectives == "score_time"
+    if two and request.sampler in SINGLE_OBJECTIVE:
+        raise TuneError("R-ML-TUNE-01: score and time together need NSGA-II, TPE or random search.")
+    progress.objectives = request.objectives
+    if two:
+        progress.rules.append(
+            "R-ML-TUNE-01: two objectives (score and seconds per trial): no trial is pruned."
+        )
     scorer = _scorer(metric, task) if panel is None else None
     sign = 1.0 if metric not in evaluate.LOWER_IS_BETTER else -1.0
     if panel is not None:
@@ -293,7 +321,7 @@ def tune(
                 else:
                     rate = cast(Callable[..., float], scorer)
                     scores.append(float(rate(model, x.iloc[held_at], y.iloc[held_at])))
-            if trial is not None:
+            if trial is not None and not two:
                 trial.report(float(np.mean(scores)), step)
                 if trial.should_prune():
                     raise optuna.TrialPruned()
@@ -306,29 +334,48 @@ def tune(
     default = sign * cross_validate(resolved({}), None)
     progress.default_value = default if math.isfinite(default) else None
 
-    def objective(trial: optuna.Trial) -> float:
+    def objective(trial: optuna.Trial) -> float | tuple[float, float]:
         params = {p.key: _suggest(trial, p) for p in space}
         try:
             values = resolved(params)
         except catalog.SettingsError as error:
             raise optuna.TrialPruned(str(error)) from None
-        return cross_validate(values, trial)
+        begun = time.monotonic()
+        found = cross_validate(values, trial)
+        return (found, time.monotonic() - begun) if two else found
+
+    reasons: dict[int, str] = {}
 
     def record(study: optuna.Study, frozen: optuna.trial.FrozenTrial) -> None:
-        value = (
-            None if frozen.value is None or not math.isfinite(frozen.value) else sign * frozen.value
-        )
+        raw = frozen.values[0] if frozen.values else None
+        value = None if raw is None or not math.isfinite(raw) else sign * raw
         state = frozen.state.name.lower()
         seconds = (
             (frozen.datetime_complete - frozen.datetime_start).total_seconds()
             if frozen.datetime_complete and frozen.datetime_start
             else 0.0
         )
-        progress.trials.append(Trial(frozen.number, value, state, dict(frozen.params), seconds))
+        progress.trials.append(
+            Trial(
+                frozen.number,
+                value,
+                state,
+                dict(frozen.params),
+                seconds,
+                reasons.get(frozen.number),
+            )
+        )
         complete = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
         if complete:
-            best = study.best_trial
-            progress.best_value = sign * float(best.value or 0.0)
+            if two:  # R-ML-TUNE-02: the best score of the front
+                front = study.best_trials
+                on_front = {t.number for t in front}
+                for t in progress.trials:
+                    t.pareto = t.number in on_front
+                best = max(front, key=lambda t: t.values[0])
+            else:
+                best = study.best_trial
+            progress.best_value = sign * float(best.values[0] if best.values else 0.0)
             progress.best_params = {
                 **{p.key: p.fixed for p in space if p.fixed is not None},
                 **best.params,
@@ -340,10 +387,17 @@ def tune(
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     study = optuna.create_study(
-        direction="maximize",
+        directions=["maximize", "minimize"] if two else ["maximize"],
         sampler=_sampler(request.sampler, space),
-        pruner=_pruner(request.pruner),
+        pruner=_pruner("none" if two else request.pruner),
     )
+    if warm and request.sampler == "grid":
+        progress.rules.append("R-ML-WARM-04: the grid walks its own points: no warm start.")
+    elif warm:
+        for number, start in enumerate(warm):
+            study.enqueue_trial(start.params, skip_if_exists=True)
+            reasons[number] = start.reason
+            progress.warm.append(start.reason)
     study.optimize(
         objective,
         n_trials=request.trials,
@@ -354,9 +408,10 @@ def tune(
     complete = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
     if len(complete) >= IMPORTANCE_TRIALS:
         try:
-            progress.importances = {
-                k: float(v) for k, v in optuna.importance.get_param_importances(study).items()
-            }
+            found = optuna.importance.get_param_importances(
+                study, target=(lambda t: t.values[0]) if two else None
+            )
+            progress.importances = {k: float(v) for k, v in found.items()}
         except (RuntimeError, ValueError):
             progress.importances = {}
     progress.seconds = time.monotonic() - started

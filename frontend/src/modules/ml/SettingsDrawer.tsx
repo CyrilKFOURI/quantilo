@@ -34,6 +34,8 @@ export const DEFAULT_VALIDATION: MlValidation = {
   sample_periods: null,
   criterion: "mean",
   period_threshold: null,
+  interval_level: 0.9,
+  interval_method: "split",
 };
 
 export const PANEL = "panel_walk_forward";
@@ -418,10 +420,42 @@ function ValidationTab({
           <CriterionSelect validation={validation} onValidation={onValidation} />
         </Row>
       )}
+      {task === "regression" && <IntervalFields validation={validation} set={set} />}
       <Row label={t("ml.validation.seed")}>
         <NumberBox label={t("ml.validation.seed")} value={validation.seed} min={0} max={2 ** 31 - 1} onChange={(v) => set({ seed: Math.round(v) })} />
       </Row>
     </div>
+  );
+}
+
+/** A number's prediction interval (057): its level in Advanced; split conformal or CQR in
+ *  Advanced › More (CQR fits two more models, only with test rows). */
+function IntervalFields({ validation, set }: { validation: MlValidation; set: (patch: Partial<MlValidation>) => void }) {
+  const testRows = validation.method === "split" || validation.method === "time_split";
+  return (
+    <>
+      <Row label={t("ml.validation.interval")} hint={t("ml.validation.intervalHint")}>
+        <NumberBox label={t("ml.validation.interval")} value={Math.round(validation.interval_level * 100)} min={50} max={99} onChange={(v) => set({ interval_level: v / 100 })} />
+      </Row>
+      <details className="text-xs" open={validation.interval_method !== "split"}>
+        <summary className="cursor-pointer text-ink-2">{t("ml.validation.more")}</summary>
+        <div className="mt-2">
+          <Row label={t("ml.validation.intervalMethod")} hint={t(testRows ? "ml.validation.intervalMethodHint" : "ml.validation.intervalMethodCross")}>
+            <Select
+              aria-label={t("ml.validation.intervalMethod")}
+              value={validation.interval_method}
+              onChange={(e) => set({ interval_method: e.target.value as MlValidation["interval_method"] })}
+              className="h-7 max-w-44 text-xs"
+            >
+              <option value="split">{t("ml.validation.intervalMethod.split")}</option>
+              <option value="cqr" disabled={!testRows}>
+                {t("ml.validation.intervalMethod.cqr")}
+              </option>
+            </Select>
+          </Row>
+        </div>
+      </details>
+    </>
   );
 }
 

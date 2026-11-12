@@ -5,7 +5,6 @@ from pathlib import Path
 
 import duckdb
 import numpy as np
-import openpyxl
 import pyarrow as pa
 
 from quantilo.ingestion.csv_sniff import readable_path, sniff_dialect
@@ -13,6 +12,7 @@ from quantilo.ingestion.errors import IngestionError
 from quantilo.ingestion.options import CsvOptions, SourceOptions
 from quantilo.ingestion.sources import SourceFile
 from quantilo.ingestion.sql import ident, lit
+from quantilo.ingestion.workbook import load_workbook
 
 FULL_SNIFF_MAX_BYTES = 100 * 1024 * 1024
 NPY_BLOCK_ROWS = 100_000
@@ -30,7 +30,7 @@ def _column(values: list[object]) -> pa.Array:
 def read_sheet(path: Path, sheet: str, header_row: int | None = None) -> pa.Table:
     """A sheet as a table: the first non-empty row names the columns, or row `header_row` (1-based)
     with the rows above it skipped (title, notes: feature 080); fully empty rows are skipped."""
-    workbook = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    workbook = load_workbook(path, read_only=True, data_only=True)
     try:
         rows = [
             row
@@ -127,7 +127,7 @@ def read_npy(
 
 
 def excel_sheets(path: Path) -> list[str]:
-    workbook = openpyxl.load_workbook(path, read_only=True)
+    workbook = load_workbook(path, read_only=True)
     try:
         return list(workbook.sheetnames)
     finally:
@@ -170,7 +170,41 @@ class SourceReader:
             f"encoding={lit(encoding)}, sample_size={sample_size})"
         )
 
+    def register(self, prefix: str, table: pa.Table) -> str:
+        self._views += 1
+        view = f"{prefix}_{self._views}"
+        self.connection.register(view, table)
+        return f"SELECT * FROM {view}"
+
+    def table_sql(self, file: SourceFile, table_id: str) -> str:
+        """080b: one detected table of a sheet, read with its plan (or a range typed by hand)."""
+        from quantilo.ingestion.layout import find_table
+        from quantilo.ingestion.layout.read import read_table
+
+        try:
+            table = find_table(file.path, table_id)
+        except (KeyError, ValueError) as error:
+            raise IngestionError(str(error).strip("'\"")) from error
+        data = read_table(file.path, table, reshape=bool(self.options.reshape))
+        self.excel_rows[file.path] = data.num_rows
+        return self.register("excel_table", data)
+
+    def document_sql(self, file: SourceFile) -> str:
+        """085: one linked table of a JSON, JSON Lines or XML document (083)."""
+        from quantilo.ingestion.documents import main_table, read_document
+
+        layout = read_document(file.path, self.options.records_path, bool(self.options.one_table))
+        name = self.options.table or main_table(layout)
+        try:
+            data = layout.arrow(name)
+        except KeyError as error:
+            raise IngestionError(f"No table {name!r} in {file.path.name}.") from error
+        self.excel_rows[file.path] = data.num_rows
+        return self.register("document_table", data)
+
     def excel_sql(self, file: SourceFile, sheets: list[str] | None) -> str:
+        if self.options.table:
+            return self.table_sql(file, self.options.table)
         names = sheets or excel_sheets(file.path)[:1]
         parts = []
         self.excel_rows[file.path] = 0
@@ -189,6 +223,8 @@ class SourceReader:
             return self.csv_sql(file)
         if file.format == "parquet":
             return f"SELECT * FROM read_parquet({lit(str(file.path))})"
+        if file.format in ("json", "jsonl", "xml"):
+            return self.document_sql(file)
         if file.format == "npy":
             self._views += 1
             view = f"npy_array_{self._views}"

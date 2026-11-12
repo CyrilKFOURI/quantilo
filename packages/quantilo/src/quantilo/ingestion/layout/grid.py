@@ -14,11 +14,11 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import openpyxl
 from openpyxl.utils.cell import column_index_from_string as column_index
 from openpyxl.utils.cell import coordinate_from_string, range_boundaries
 
 from quantilo.ingestion.layout.cells import is_blank
+from quantilo.ingestion.workbook import load_workbook
 
 Merge = tuple[int, int, int, int]  # 0-based inclusive (top, left, bottom, right)
 
@@ -216,7 +216,7 @@ def load_grids(
     xml = read_sheet_xml(path, limits)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")  # openpyxl warns about extensions it drops
-        workbook = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        workbook = load_workbook(path, read_only=True, data_only=True)
     grids: list[Grid] = []
     cells = 0
     try:
@@ -290,7 +290,7 @@ def stream_body_end(path: Path, sheet: str, start_row: int, max_col: int) -> int
     """B1: past the analysed window, the body runs to the first empty row (1-based, inclusive)."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        workbook = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        workbook = load_workbook(path, read_only=True, data_only=True)
     try:
         last = start_row - 1
         for offset, row in enumerate(

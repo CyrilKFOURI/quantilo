@@ -9,6 +9,8 @@ import { t } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
 import { ErrorNote } from "../../ui/fields";
 import { Popover } from "../../ui/Popover";
+import { Analyses } from "./Analyses";
+import { ArchetypeBanner } from "./ArchetypeBanner";
 import { Builder } from "./Builder";
 import { Customize } from "./Customize";
 import {
@@ -234,6 +236,21 @@ export function KpiPage() {
             />
           )}
 
+          {/* 061: the kind of dataset and its pack, saved only once the user confirms */}
+          {suggestions.data?.archetype && (
+            <ArchetypeBanner
+              archetype={suggestions.data.archetype}
+              kpis={suggestions.data.kpis}
+              saving={actions.create.isPending}
+              onSave={async (picked) => {
+                for (const kpi of picked) await actions.create.mutateAsync(kpi);
+              }}
+            />
+          )}
+
+          {/* 060: cohorts and funnel the rules found, computed only once opened */}
+          {suggestions.data && <Analyses datasetId={datasetId} analyses={suggestions.data.analyses ?? []} />}
+
           {suggestions.data && (suggestions.data.notes ?? []).length > 0 && (
             <ReadingNotes datasetId={datasetId} notes={suggestions.data.notes ?? []} label={t("kpi.notes")} />
           )}
@@ -280,6 +297,7 @@ export function KpiPage() {
                   onToggle={() => setPanel(!panel)}
                   onView={applyView}
                   onData={setDraft}
+                  targets={(columns.data ?? []).filter((c) => c.role === "target" && (c.type === "numeric_continuous" || c.type === "numeric_discrete")).map((c) => c.name)}
                 />
               )}
               <div className={`min-w-0 space-y-6 ${compute.isFetching ? "opacity-60 transition-opacity" : ""}`} aria-busy={compute.isFetching}>

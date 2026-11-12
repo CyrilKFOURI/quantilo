@@ -6,6 +6,11 @@ export type Health = Schemas["HealthOut"];
 export type Dataset = Schemas["DatasetOut"];
 export type Job = Schemas["JobOut"];
 export type Preview = Schemas["Preview"];
+/** 080b / 085: one table of a workbook or a document, and the source they make. */
+export type TableChoice = Schemas["TableChoice"];
+export type Original = Schemas["Original"];
+export type SourceImportResponse = Schemas["SourceImportResponse"];
+export type Origin = Schemas["OriginOut"];
 export type SourceOptions = Schemas["SourceOptions"];
 export type ImportOptions = Schemas["ImportOptions"];
 export type CsvOptions = Schemas["CsvOptions"];
@@ -206,6 +211,18 @@ export type MlCatalogue = Complete<Schemas["Catalogue"]>;
 export type MlValidation = Complete<Schemas["Validation"]>;
 export type MlExplanationState = Complete<Schemas["ExplanationState"]>;
 export type MlExplanation = MlExplanationState["explanation"];
+/** Interpretability on demand, under Explain › Advanced (125). */
+export type MlAle = Complete<Schemas["Ale"]>;
+export type MlMonotonic = Complete<Schemas["Monotonic"]>;
+export type MlSurrogate = Complete<Schemas["Surrogate"]>;
+export type MlCounterfactual = Complete<Schemas["Counterfactual"]>;
+export type MlCounterfactualRequest = {
+  row: number;
+  editable: string[] | null;
+  target_class: string | null;
+  target_value: number | null;
+  max_changes: number;
+};
 export type MlCompareJob = Complete<Schemas["CompareJob"]>;
 export type MlTuneJob = Complete<Schemas["TuneJob"]>;
 export type MlAutoJob = Complete<Schemas["AutoJob"]>;
@@ -223,6 +240,9 @@ export type MlTuneRequest = {
   space: MlSearchParam[] | null;
   settings: Record<string, unknown>;
   preparation?: MlChoicesInput | null;
+  /** very advanced (066): start from settings already found; optimise the score and the time */
+  warm_start?: boolean;
+  objectives?: "score" | "score_time";
 };
 /** Metrics where lower is better (as the server's evaluate.LOWER_IS_BETTER). */
 export const LOWER_IS_BETTER = new Set(["mae", "rmse", "mape", "median_ae", "max_error", "log_loss", "brier"]);
@@ -282,6 +302,12 @@ export type KpiDefinition = Omit<
 };
 export type KpiResult = Complete<Schemas["KpiResult"]>;
 export type KpiSuggestions = Complete<Schemas["Suggestions"]>;
+export type KpiAnalysis = Complete<Schemas["Analysis"]>;
+export type KpiArchetype = Complete<Schemas["Archetype"]>;
+export type CohortResult = Complete<Schemas["CohortResult"]>;
+export type FunnelResult = Complete<Schemas["FunnelResult"]>;
+export type CohortRequest = { customer: string; date: string; grain: "auto" | "month" | "week" };
+export type FunnelRequest = { column: string; stages: string[]; key: string | null };
 export type SavedKpi = Complete<Schemas["SavedKpi"]>;
 export type KpiDecision = KpiResult["resolved"]["layout"];
 export type KpiMeasure = KpiResult["measures"][number];
@@ -367,6 +393,8 @@ export type SyntheticPair = Complete<Schemas["PairDetail"]>;
 export type SyntheticUtility = Complete<Schemas["Utility"]>;
 export type SyntheticDisclosure = Complete<Schemas["Disclosure"]>;
 export type SyntheticOrigin = Complete<Schemas["Origin"]>;
+/** How the deep generators' networks are trained (066, Advanced › More); null: the paper's. */
+export type SyntheticTraining = Complete<Schemas["Training"]>;
 /** What the user changed from the plan; everything else stays automatic. */
 export type SyntheticRequest = {
   method?: SyntheticMethod;
@@ -378,6 +406,7 @@ export type SyntheticRequest = {
   bounds?: Record<string, { minimum?: number | null; maximum?: number | null }>;
   epochs?: number | null;
   device?: "auto" | "cpu" | "gpu";
+  training?: SyntheticTraining | null;
   sequence?: {
     time?: string | null;
     entity?: string | null;
@@ -785,6 +814,13 @@ export const api = {
   mlRun: (id: string, runId: string) => request<MlRun>("GET", `/modules/ml/datasets/${id}/runs/${runId}`),
   mlExplanation: (id: string, runId: string) =>
     request<MlExplanationState>("GET", `/modules/ml/datasets/${id}/runs/${runId}/explanation`),
+  mlAle: (id: string, runId: string, column: string, bins: number) =>
+    request<MlAle>("GET", `/modules/ml/datasets/${id}/runs/${runId}/explain/ale?${new URLSearchParams({ column, bins: String(bins) })}`),
+  mlSurrogate: (id: string, runId: string, depth: number) =>
+    request<MlSurrogate>("GET", `/modules/ml/datasets/${id}/runs/${runId}/explain/surrogate?${new URLSearchParams({ depth: String(depth) })}`),
+  mlMonotonic: (id: string, runId: string) => request<MlMonotonic[]>("GET", `/modules/ml/datasets/${id}/runs/${runId}/explain/monotonic`),
+  mlCounterfactual: (id: string, runId: string, body: MlCounterfactualRequest) =>
+    request<MlCounterfactual>("POST", `/modules/ml/datasets/${id}/runs/${runId}/explain/counterfactual`, body),
   mlErrors: (id: string, runId: string, measure: string | null) =>
     request<MlErrors>("GET", `/modules/ml/datasets/${id}/runs/${runId}/errors${measure ? `?${new URLSearchParams({ measure })}` : ""}`),
   mlErrorsCompared: (id: string, runId: string, otherId: string) =>
@@ -922,6 +958,10 @@ export const api = {
       `/modules/kpi/datasets/${id}/compute?${new URLSearchParams(filtersParam(filters))}`,
       definition,
     ),
+  kpiCohort: (id: string, body: CohortRequest, filters?: Condition[]) =>
+    request<CohortResult>("POST", `/modules/kpi/datasets/${id}/cohort?${new URLSearchParams(filtersParam(filters))}`, body),
+  kpiFunnel: (id: string, body: FunnelRequest, filters?: Condition[]) =>
+    request<FunnelResult>("POST", `/modules/kpi/datasets/${id}/funnel?${new URLSearchParams(filtersParam(filters))}`, body),
   kpis: (id: string) => request<SavedKpi[]>("GET", `/modules/kpi/datasets/${id}/definitions`),
   createKpi: (id: string, name: string, definition: KpiDefinition) =>
     request<SavedKpi>("POST", `/modules/kpi/datasets/${id}/definitions`, { name, definition }),
@@ -1007,6 +1047,23 @@ export const api = {
 
   preview: (path: string, options: SourceOptions) =>
     request<Preview>("POST", "/sources/preview", { path, options }),
+  /** 080b / 085: a sheet's cells or a document's first lines (the left pane of the import). */
+  original: (path: string, sheet: string | null) =>
+    request<Original>("POST", "/sources/original", { path, sheet }),
+  /** 080b / 085: the chosen tables of one file, imported as one source (a dataset each). */
+  importTables: (
+    path: string,
+    tables: { id: string; name: string | null }[],
+    options: ImportOptions,
+    projectId: string | null = null,
+  ) =>
+    request<SourceImportResponse>("POST", "/sources/import", {
+      path,
+      tables,
+      options,
+      ...(projectId ? { project_id: projectId } : {}),
+    }),
+  origin: (datasetId: string) => request<Origin>("GET", `/datasets/${datasetId}/origin`),
   browse: (path: string | null) =>
     request<Listing>(
       "GET",

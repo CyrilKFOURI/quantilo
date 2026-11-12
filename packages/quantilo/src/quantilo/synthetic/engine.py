@@ -17,6 +17,7 @@ from quantilo.ml.data import Field as TypedField
 from quantilo.ml.data import _expression
 from quantilo.synthetic import deep, encode, plan
 from quantilo.synthetic import sequences as seq
+from quantilo.synthetic.deep.training import Training
 from quantilo.synthetic.generate import Spec, group_like, synthesize
 from quantilo.synthetic.methods import Cancelled, Options, SequenceSettings
 from quantilo.synthetic.plan import Method, Plan, PlanColumn, Treatment
@@ -61,6 +62,8 @@ class RunRequest(BaseModel):
     epochs: int | None = Field(default=None, ge=10, le=1_000)  # deep methods: None = automatic
     device: Literal["auto", "cpu", "gpu"] = "auto"  # deep methods; "auto" follows the setting
     sequence: SequenceRequest | None = None  # TimeGAN
+    # deep methods, Advanced > More (066): optimizer, schedule, clipping, EMA; None = the paper's
+    training: Training | None = None
 
 
 @dataclass
@@ -356,6 +359,7 @@ class SyntheticEngine:
             smooth=request.smooth,
             drop_copies=request.drop_copies,
             epochs=request.epochs,
+            training=request.training,
             device=request.device,
             allow_gpu=allowed,
             progress=progress,

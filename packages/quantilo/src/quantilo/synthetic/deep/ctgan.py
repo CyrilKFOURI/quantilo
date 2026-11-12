@@ -15,6 +15,7 @@ from torch.nn import functional
 
 from quantilo.synthetic.deep import batch_size
 from quantilo.synthetic.deep.sampler import Sampler, TensorSampler
+from quantilo.synthetic.deep.training import Paper, Stepper, Training, ema_for
 from quantilo.synthetic.deep.transformer import Span
 
 NOISE = 128
@@ -135,9 +136,15 @@ def gradient_penalty(critic: Critic, real: torch.Tensor, fake: torch.Tensor) -> 
 
 class CTGAN:
     def __init__(
-        self, spans: list[Span], sampler: Sampler, device: torch.device, seed: int
+        self,
+        spans: list[Span],
+        sampler: Sampler,
+        device: torch.device,
+        seed: int,
+        training: Training | None = None,
     ) -> None:
         self.spans = spans
+        self.training = training
         self.sampler = sampler
         self.device = device
         self.width = sum(s.size for s in spans)
@@ -151,15 +158,14 @@ class CTGAN:
         return max(PAC, min(batch_size(self.device.type != "cpu"), rows) // PAC * PAC)
 
     def fit(self, epochs: int, progress: Progress, should_stop: StopCheck) -> None:
-        g_opt = torch.optim.Adam(
-            self.generator.parameters(), lr=2e-4, betas=(0.5, 0.9), weight_decay=1e-6
-        )
-        c_opt = torch.optim.Adam(
-            self.critic.parameters(), lr=2e-4, betas=(0.5, 0.9), weight_decay=1e-6
-        )
         draw = self.draw
         batch = self._batch(draw.rows)
         steps = max(1, draw.rows // batch)
+        paper = Paper(2e-4, betas=(0.5, 0.9), weight_decay=1e-6)
+        total = epochs * steps
+        g_opt = Stepper(list(self.generator.parameters()), self.training, paper, total)
+        c_opt = Stepper(list(self.critic.parameters()), self.training, paper, total)
+        ema = ema_for(self.generator, self.training)
         device = self.device
         for epoch in range(epochs):
             if should_stop():
@@ -181,7 +187,7 @@ class CTGAN:
                     fake_in = torch.cat([fake, c1], dim=1)
                 penalty = gradient_penalty(self.critic, real_in, fake_in.detach())
                 c_loss = -(self.critic(real_in).mean() - self.critic(fake_in.detach()).mean())
-                c_opt.zero_grad(set_to_none=True)
+                c_opt.zero_grad()
                 (c_loss + penalty).backward()
                 c_opt.step()
                 # generator
@@ -197,10 +203,14 @@ class CTGAN:
                     g_loss = -self.critic(fake_in).mean() + self.layout.condition_loss(
                         raw, c1, mask
                     )
-                g_opt.zero_grad(set_to_none=True)
+                g_opt.zero_grad()
                 g_loss.backward()
                 g_opt.step()
+                if ema is not None:
+                    ema.update(self.generator)
             progress(epoch + 1, float(g_loss.detach().cpu()), float(c_loss.detach().cpu()))
+        if ema is not None:  # generate with the averaged weights
+            ema.copy_to(self.generator)
 
     @torch.no_grad()
     def sample(self, rows: int) -> np.ndarray:

@@ -2,9 +2,14 @@
 # pyright: reportAttributeAccessIssue=false, reportArgumentType=false, reportCallIssue=false
 # (fitted scikit-learn objects and pandas groupbys: the stubs cannot follow them)
 """Why a model predicts what it predicts (020): permutation importance, SHAP values (exact closed
-form for linear models, native TreeSHAP for XGBoost / LightGBM), partial dependence, the decision
-tree itself, the strongly linked inputs whose importance is shared, and the words of a free text
-that move the predictions (052). No `shap` package."""
+form for linear models, native TreeSHAP for XGBoost / LightGBM, TreeSHAP in numpy for the trees
+of scikit-learn, 125), partial dependence, the decision tree itself, the strongly linked inputs
+whose importance is shared, and the words of a free text that move the predictions (052). No
+`shap` package.
+
+R-XAI-01 (125): a column of the partial dependence that is strongly linked to another (a pair
+above 0.8) gets a sentence: the curve averages over combinations that never occur, read the
+accumulated local effects (`ale.py`, under Advanced) instead."""
 
 import math
 import warnings
@@ -19,7 +24,7 @@ from sklearn.metrics import cohen_kappa_score, make_scorer
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.pipeline import Pipeline
 
-from quantilo.ml import evaluate
+from quantilo.ml import evaluate, treeshap
 from quantilo.ml import preparation as prep
 from quantilo.ml import text as textual
 from quantilo.ml.target import Task
@@ -109,6 +114,7 @@ class Shap:
     columns: list[str]  # every column, for the waterfall of one row
     matrix: list[list[float]]  # rows × columns
     labels: list[list[str]]  # the value shown next to each contribution
+    note: str | None = None  # R-XAI-02: fewer rows explained, and why
 
 
 @dataclass
@@ -119,6 +125,8 @@ class Dependence:
     curves: dict[str, list[float]]  # one curve per output (prediction, or class)
     counts: list[int]  # rows near each grid point / in each category
     output: str  # what the curve shows
+    linked: str | None = None  # R-XAI-01: the column it is strongly linked to
+    extrapolates: str | None = None  # R-XAI-01: the sentence that says so
 
 
 @dataclass
@@ -355,21 +363,32 @@ def shap_values(
 ) -> tuple[Shap | None, str | None]:
     """SHAP values of the evaluation rows, summed per dataset column."""
     model = pipeline.named_steps["model"]
-    picked = _sample(len(x), SHAP_ROWS, [int(i) for i in np.flatnonzero(np.isin(rows, shown))])
+    keep = [int(i) for i in np.flatnonzero(np.isin(rows, shown))]
+    trees = treeshap.ensemble(model, task)
+    limit, note, built = SHAP_ROWS, None, None
+    if trees is not None:
+        limit, note, built, refused = _tree_rows(trees, int(getattr(model, "n_features_in_", 1)))
+        if refused:
+            return None, refused
+    picked = _sample(len(x), limit, keep)
     xs = x.iloc[picked]
     z = np.asarray(_quiet(lambda: pipeline[:-1].transform(xs)), dtype=float)
     linear = _raw_linear(model, z, task)
     found = linear or _raw_boosting(model, z)
     method = "Exact (linear model)" if linear else "TreeSHAP (native)"
+    if found is None and trees is not None:
+        phi_trees, base_trees = treeshap.shap(trees, z, built)
+        found = phi_trees, base_trees, trees.scale
+        method = "TreeSHAP (scikit-learn trees, exact)"
     # the log-odds of a binary model are those of its second class
     classes = [str(c) for c in getattr(pipeline, "classes_", [])]
     positive = classes[1] if task == "binary" and len(classes) == 2 else positive
     if found is None:
         name = model.__class__.__name__
         why = (
-            "SHAP values are computed exactly for linear models (and XGBoost / LightGBM): "
-            f"not available for {name}. Permutation importance and partial dependence apply to "
-            "every model."
+            "SHAP values are computed exactly for linear models and trees (scikit-learn's, "
+            f"XGBoost, LightGBM): not available for {name}. Permutation importance and partial "
+            "dependence apply to every model."
         )
         if task == "multiclass":
             why = "SHAP values are shown for numbers and two classes; with several classes, use "
@@ -428,9 +447,39 @@ def shap_values(
             columns,
             [[float(v) for v in row] for row in grouped],
             labels,
+            note,
         ),
         None,
     )
+
+
+def _tree_rows(
+    trees: treeshap.Ensemble, inputs: int
+) -> tuple[int, str | None, treeshap.Paths | None, str | None]:
+    """R-XAI-02: how many rows TreeSHAP explains within its budget (the shown rows first), the
+    sentence when fewer than usual, the paths, or the reason it cannot."""
+    budget = treeshap.budget()
+    leaves = sum(int((t.left == -1).sum()) for t in trees.trees)
+    depth = max((t.depth for t in trees.trees), default=0)
+    refused = (
+        f"R-XAI-02: exact SHAP values for this {trees.label} ({leaves:,} leaves, up to {depth} "
+        "splits deep) would take too long here. Limit Tree depth (e.g. 8) or raise Min. rows "
+        "per leaf to get them; permutation importance and partial dependence apply to every "
+        "model."
+    )
+    if treeshap.rough_cost(trees, inputs) * treeshap.MIN_ROWS > 4 * budget:
+        return 0, None, None, refused
+    built = treeshap.paths(trees)
+    fits = int(budget // max(treeshap.cost(built, inputs), 1.0))
+    if fits < treeshap.MIN_ROWS:
+        return 0, None, None, refused
+    if fits >= SHAP_ROWS:
+        return SHAP_ROWS, None, built, None
+    note = (
+        f"R-XAI-02: {fits:,} rows explained instead of {SHAP_ROWS:,} ({trees.label} of "
+        f"{leaves:,} leaves): the work grows with every leaf, the shown rows come first."
+    )
+    return fits, note, built, None
 
 
 # --- Partial dependence --------------------------------------------------------------------------
@@ -793,6 +842,21 @@ def _own_step(pipeline: Pipeline, column: str) -> Any:
     return None
 
 
+def _extrapolation(curve: Dependence, linked: list[Pair]) -> None:
+    """R-XAI-01: the partial dependence of a column strongly linked to another extrapolates."""
+    pair = next((p for p in linked if curve.column in (p.first, p.second)), None)
+    if pair is None:
+        return
+    other = pair.second if pair.first == curve.column else pair.first
+    curve.linked = other
+    curve.extrapolates = (
+        f"R-XAI-01: {curve.column} and {other} are strongly linked ({pair.measure} = "
+        f"{pair.strength:.2f}): this curve gives {curve.column} values that never occur with "
+        f"the {other} of the same rows, so it extrapolates. Read the accumulated local effects "
+        "(ALE, under Advanced): they only compare neighbouring real rows."
+    )
+
+
 def explain(
     pipeline: Pipeline,
     x: pd.DataFrame,
@@ -809,6 +873,10 @@ def explain(
     strongest = [i.column for i in found_permutation.items if i.mean > 0 and i.column not in texts][
         :DEPENDENCE_FEATURES
     ]
+    linked = pairs(x, texts)
+    curves = dependence(pipeline, x, task, strongest)
+    for curve in curves:
+        _extrapolation(curve, linked)
     notes = []
     if found_permutation.sampled:
         notes.append(
@@ -818,9 +886,9 @@ def explain(
         found_permutation,
         shap,
         unavailable,
-        dependence(pipeline, x, task, strongest),
+        curves,
         tree(pipeline),
-        pairs(x, texts),
+        linked,
         notes,
         words(pipeline, x, task, positive),
     )

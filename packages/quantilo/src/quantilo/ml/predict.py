@@ -33,6 +33,7 @@ from pydantic import Field as PydanticField
 from quantilo.compare.analyze import label_sql, number_label_sql
 from quantilo.filters.model import Condition
 from quantilo.ml import classes as binning
+from quantilo.ml import conformal as intervals
 from quantilo.ml import data as ml_data
 from quantilo.ml import evaluate
 from quantilo.ml import explain as explainer
@@ -116,11 +117,15 @@ class ExpectedColumn(BaseModel):
 
 
 class Interval(BaseModel):
-    """A number's prediction interval from the validation errors (split conformal)."""
+    """A number's prediction interval from the validation errors (split conformal, or CQR: the
+    quantile band kept on the pipeline, widened by `half_width`) (037, 057)."""
 
     level: float
     half_width: float
     errors: int
+    method: Literal["split", "cqr"] = "split"
+    coverage: float | None = None  # share of checked held-out rows inside their interval
+    check_rows: int = 0
 
 
 class ValidationSummary(BaseModel):
@@ -349,7 +354,18 @@ def build_card(
             summary.predicted_quantiles = [
                 float(v) for v in np.quantile(predicted, np.linspace(0, 1, QUANTILES))
             ]
-        interval = conformal(np.asarray(trained.regression.actual, dtype=float), predicted)
+        found = getattr(trained, "interval", None)
+        if found is not None:
+            interval = Interval(
+                level=found.level,
+                half_width=found.half_width,
+                errors=found.rows,
+                method=found.method if hasattr(pipeline, intervals.BANDS_ATTRIBUTE) else "split",
+                coverage=found.coverage,
+                check_rows=found.check_rows,
+            )
+        else:  # a run saved before 057: from the sample of validation predictions
+            interval = conformal(np.asarray(trained.regression.actual, dtype=float), predicted)
     elif classification is not None:
         totals = np.asarray(classification.confusion, dtype=float).sum(axis=0)
         if totals.sum() > 0:
@@ -841,7 +857,10 @@ def predict_frame(pipeline: Any, card: ModelCard, data: pd.DataFrame) -> pd.Data
     if card.task == "regression":
         predicted = np.asarray(pipeline.predict(x), dtype=float)
         out["predicted"] = predicted
-        if card.interval is not None:
+        bands = getattr(pipeline, intervals.BANDS_ATTRIBUTE, None)
+        if card.interval is not None and card.interval.method == "cqr" and bands is not None:
+            out["low"], out["high"] = bands.interval(pipeline[:-1].transform(x))
+        elif card.interval is not None:
             out["low"] = predicted - card.interval.half_width
             out["high"] = predicted + card.interval.half_width
     else:

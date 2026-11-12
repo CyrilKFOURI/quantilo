@@ -1,5 +1,6 @@
 """Dataset lifecycle: preview a source, import it in the background, list, rename, delete."""
 
+import json
 import logging
 import shutil
 import sqlite3
@@ -16,9 +17,23 @@ from quantilo.ingestion.browse import Listing, list_directory
 from quantilo.ingestion.errors import IngestionError
 from quantilo.ingestion.importer import ImportCancelled, import_to_parquet
 from quantilo.ingestion.options import ImportOptions, SourceOptions
+from quantilo.ingestion.original import Original, sheet_cells, text_head
 from quantilo.ingestion.paths import is_within, to_local_path
-from quantilo.ingestion.preview import ColumnInfo, Preview, preview_source
-from quantilo.ingestion.sources import SourceFile, fingerprint, list_source_files
+from quantilo.ingestion.preview import (
+    ColumnInfo,
+    Preview,
+    TableChoice,
+    detection_of,
+    document_choices,
+    preview_source,
+    sheet_choices,
+)
+from quantilo.ingestion.sources import (
+    DOCUMENT_FORMATS,
+    SourceFile,
+    fingerprint,
+    list_source_files,
+)
 from quantilo.ingestion.sql import lit
 
 from app.config import Settings
@@ -27,9 +42,18 @@ from app.core.errors import AppError
 from app.core.jobs import JobRunner
 from app.core.storage import Workspace
 from app.services.datasets import repository as repo
+from app.services.datasets import sources as source_repo
 from app.services.datasets.repository import DatasetRecord, JobRecord, now
+from app.services.datasets.sources import LinkRecord, SourceRecord
 
 SourceState = Literal["ok", "changed", "missing"]
+# 085: what a source of several tables is, by the format of its file
+SOURCE_KINDS: dict[str, source_repo.SourceKind] = {
+    "excel": "workbook",
+    "json": "json",
+    "jsonl": "jsonl",
+    "xml": "xml",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +101,142 @@ class DatasetService:
     def preview(self, raw_path: str, options: SourceOptions) -> Preview:
         return preview_source(self.resolve(raw_path), options)
 
+    def original(self, raw_path: str, sheet: str | None) -> Original:
+        """The left pane of the import screen: a sheet's cells, or a document's first lines."""
+        path = self.resolve(raw_path)
+        if not path.is_file():
+            raise IngestionError("Only a file has an original to show.")
+        detected = detection_of(path)
+        if detected.format == "excel":
+            if not sheet:
+                raise AppError("Choose a sheet.", code="sheet_required", status_code=422)
+            return sheet_cells(path, sheet)
+        if detected.kind in ("table", "document"):
+            return text_head(path)
+        raise IngestionError(f"{path.name}: {detected.reason}")
+
+    # --- Sources (085): one file, several tables ---------------------------------------------
+
+    def import_tables(
+        self,
+        raw_path: str,
+        tables: list[tuple[str, str | None]],
+        options: ImportOptions,
+        name: str | None = None,
+    ) -> tuple[SourceRecord, list[tuple[DatasetRecord, JobRecord | None]]]:
+        """Import the chosen tables of one file (table id, dataset name) as one source: a
+        workbook's tables (080b) or a document's linked tables (085), each a dataset."""
+        if not tables:
+            raise AppError("Choose at least one table.", code="no_table", status_code=422)
+        path = self.resolve(raw_path)
+        if not path.is_file():
+            raise IngestionError("A source of several tables is a single file.")
+        files = list_source_files(path)
+        source_file = files[0]
+        kind = SOURCE_KINDS.get(source_file.format)
+        if kind is None:
+            raise AppError(
+                "Only a workbook or a JSON, JSON Lines or XML document gives several tables.",
+                code="not_multi_table",
+                status_code=422,
+            )
+        choices = self._choices(path, source_file.format, options)
+        detected = detection_of(path)
+        source = SourceRecord(
+            id=uuid.uuid4().hex[:12],
+            kind=kind,
+            name=(name or "").strip() or path.stem,
+            source_path=str(path),
+            fingerprint=fingerprint(files, {}),
+            size_bytes=source_file.size,
+            created_at=now(),
+            meta=json.dumps({"detected": detected.__dict__, "sheets": None}),
+            plan=json.dumps(
+                {
+                    "tables": [table_id for table_id, _ in tables],
+                    "options": options.model_dump(mode="json", exclude={"table"}),
+                }
+            ),
+        )
+        with self._db() as connection:
+            source_repo.insert_source(connection, source)
+        started: list[tuple[DatasetRecord, JobRecord | None]] = []
+        by_table: dict[str, str] = {}
+        for table_id, table_name in tables:
+            choice = choices.get(table_id)
+            locator = choice.location if choice else table_id
+            layout = json.dumps(choice, default=lambda o: o.__dict__) if choice else None
+            table_options = options.model_copy(update={"table": table_id})
+            fallback = f"{source.name} - {choice.name.split(' - ', 1)[-1]}" if choice else None
+            record, job = self.start_import(
+                raw_path,
+                table_name or fallback or f"{source.name} - {table_id}",
+                table_options,
+                source=(source.id, locator, layout),
+            )
+            by_table[table_id] = record.id
+            started.append((record, job))
+        if source_file.format in DOCUMENT_FORMATS:
+            _, links = document_choices(path, options)
+            records = [
+                LinkRecord(
+                    by_table[link.parent],
+                    by_table[link.child],
+                    link.parent_key,
+                    link.child_key,
+                    link.rule,
+                )
+                for link in links
+                if link.parent in by_table and link.child in by_table
+            ]
+            with self._db() as connection:
+                source_repo.insert_links(connection, records)
+        return source, started
+
+    @staticmethod
+    def _choices(path: Path, file_format: str, options: SourceOptions) -> dict[str, TableChoice]:
+        if file_format == "excel":
+            return {choice.id: choice for choice in sheet_choices(path)}
+        return {choice.id: choice for choice in document_choices(path, options)[0]}
+
+    def get_source(self, source_id: str) -> SourceRecord:
+        with self._db() as connection:
+            record = source_repo.get_source(connection, source_id)
+        if record is None:
+            raise NotFoundError("Source")
+        return record
+
+    def list_sources(self) -> list[tuple[SourceRecord, list[str]]]:
+        with self._db() as connection:
+            return [
+                (record, source_repo.source_datasets(connection, record.id))
+                for record in source_repo.list_sources(connection)
+            ]
+
+    def source_datasets(self, source_id: str) -> list[str]:
+        with self._db() as connection:
+            return source_repo.source_datasets(connection, source_id)
+
+    def delete_source(self, source_id: str) -> None:
+        """Its tables go with it; their cleaned versions stay as ordinary datasets (0024)."""
+        self.get_source(source_id)
+        for dataset_id in self.source_datasets(source_id):
+            self.delete(dataset_id)
+        with self._db() as connection:
+            source_repo.delete_source(connection, source_id)
+
+    def origin(
+        self, dataset_id: str
+    ) -> tuple[SourceRecord | None, list[str], DatasetRecord, list[LinkRecord]]:
+        record = self.get(dataset_id)
+        if record.source_id is None:
+            return None, [], record, []
+        with self._db() as connection:
+            source = source_repo.get_source(connection, record.source_id)
+            siblings = source_repo.source_datasets(connection, record.source_id)
+            links = source_repo.links_of(connection, dataset_id)
+        return source, siblings, record, links
+
     def samples(self) -> list[SourceFile]:
         directory = self.settings.samples_dir
         if not directory.is_dir():
@@ -89,14 +249,19 @@ class DatasetService:
     # --- Import ----------------------------------------------------------------------------
 
     def start_import(
-        self, raw_path: str, name: str | None, options: ImportOptions
+        self,
+        raw_path: str,
+        name: str | None,
+        options: ImportOptions,
+        source: tuple[str, str, str | None] | None = None,
     ) -> tuple[DatasetRecord, JobRecord | None]:
+        """`source` = (source id, locator, layout JSON) for one table of a source (085)."""
         path = self.resolve(raw_path)
         files = list_source_files(path, options.files)
         source_fingerprint = fingerprint(files, options.model_dump(mode="json"))
         with self._db() as connection:
             existing = repo.find_ready_by_fingerprint(connection, source_fingerprint)
-            if existing and Path(existing.storage_path).is_file():
+            if source is None and existing and Path(existing.storage_path).is_file():
                 repo.update_dataset(connection, existing.id, last_opened_at=now())
                 return self.get(existing.id), None
 
@@ -114,6 +279,9 @@ class DatasetService:
                 status="importing",
                 created_at=now(),
                 sample_pct=options.sample_pct,
+                source_id=source[0] if source else None,
+                source_locator=source[1] if source else None,
+                layout=source[2] if source else None,
             )
             repo.insert_dataset(connection, record)
             repo.replace_files(connection, dataset_id, files)
@@ -294,6 +462,8 @@ class DatasetService:
             self._stops.setdefault(dataset_id, threading.Event()).set()
         with self._db() as connection:
             repo.delete_dataset(connection, dataset_id)
+            if record.source_id:
+                source_repo.delete_if_empty(connection, record.source_id)
             still_used = repo.count_datasets_with_source(connection, record.source_path) > 0
         shutil.rmtree(self.workspace.dataset_dir(dataset_id), ignore_errors=True)
         source = Path(record.source_path)

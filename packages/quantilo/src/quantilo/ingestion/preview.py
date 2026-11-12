@@ -10,7 +10,13 @@ from quantilo.ingestion.errors import readable_errors
 from quantilo.ingestion.normalize import normalized_sql, note_lines
 from quantilo.ingestion.options import CsvOptions, Format, SourceOptions
 from quantilo.ingestion.reader import SourceReader, excel_sheets, load_npy
-from quantilo.ingestion.sources import TEXT_EXTENSIONS, SourceFile, list_source_files
+from quantilo.ingestion.sniff import sniff_path
+from quantilo.ingestion.sources import (
+    DOCUMENT_FORMATS,
+    TEXT_EXTENSIONS,
+    SourceFile,
+    list_source_files,
+)
 from quantilo.ingestion.sql import lit
 
 PREVIEW_ROWS = 20
@@ -31,9 +37,75 @@ class FileInfo:
 
 
 @dataclass
+class Detection:
+    """What the first bytes say about the file (082): its kind, its format, the rule and why."""
+
+    kind: Literal["table", "document", "image", "unsupported"]
+    format: str
+    label: str
+    rule: str
+    reason: str
+    mismatch: bool = False  # R-DET-01: the name says something else (the content won)
+    name_format: str | None = None
+
+
+@dataclass
+class RuleNote:
+    rule: str
+    weight: float
+    message: str
+
+
+@dataclass
+class TableArea:
+    """Where a detected table sits in its sheet (1-based, inclusive), to draw it on the original."""
+
+    top: int
+    left: int
+    bottom: int
+    right: int
+    header_rows: list[int]
+    first_data_row: int
+    dropped_rows: list[int] = field(default_factory=list)  # totals, notes, templates set aside
+
+
+@dataclass
+class TableChoice:
+    """One table the source gives (080b: a table of a sheet; 085: a linked table of a document)."""
+
+    id: str  # what to pass back in `SourceOptions.table`
+    name: str  # the dataset name proposed
+    location: str  # "Sheet1!A4:L14", "$.orders[*].items[*]"
+    rows: int
+    columns: int
+    level: Literal["high", "review", "low"]
+    confidence: float
+    summary: str  # the sentence above the result
+    selected: bool  # ticked at first (high confidence, not metadata)
+    kind: str = "table"
+    sheet: str | None = None
+    parent: str | None = None  # a document's child table: the table it belongs to
+    area: TableArea | None = None
+    reasons: list[RuleNote] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    proposals: list[str] = field(default_factory=list)  # K rules, applied only with `reshape`
+
+
+@dataclass
+class TableLink:
+    """`parent.parent_key` = `child.child_key` between two tables of a document (R-KEY-03)."""
+
+    parent: str
+    child: str
+    parent_key: str
+    child_key: str
+    rule: str
+
+
+@dataclass
 class Preview:
     kind: Literal["file", "folder"]
-    format: Format | Literal["mixed"]
+    format: Format | Literal["mixed", "other"]
     files: list[FileInfo]
     columns: list[ColumnInfo]
     rows: list[list[str | None]]
@@ -45,6 +117,12 @@ class Preview:
     warnings: list[str] = field(default_factory=list)
     # Excel sheet -> header row read (080, J1): pass it back in the import options
     header_row: dict[str, int] | None = None
+    detected: Detection | None = None  # 082: a single file, told by its first bytes
+    # 080b / 085: the tables the source gives (None: a plain file, a folder); `table` is the one
+    # shown, `links` the keys between a document's tables
+    tables: list[TableChoice] | None = None
+    table: str | None = None
+    links: list[TableLink] = field(default_factory=list)
 
 
 def detected_header_rows(path: Path, sheets: list[str]) -> tuple[dict[str, int], list[str]]:
@@ -79,7 +157,7 @@ def reading_notes(reader: SourceReader, files: list[SourceFile]) -> list[str]:
     notes: list[str] = []
     for file in files:
         prefix = f"{file.path.name}: " if len(files) > 1 else ""
-        if file.path.suffix.lower() in TEXT_EXTENSIONS:
+        if file.format == "csv" and file.path.suffix.lower() in TEXT_EXTENSIONS:
             delimiter = reader.csv_options_for(file).delimiter
             shown = {" ": "spaces", "\t": "tabs"}.get(delimiter, repr(delimiter))
             notes.append(
@@ -97,7 +175,7 @@ def estimate_rows(reader: SourceReader, file: SourceFile) -> int:
             f"SELECT SUM(num_rows) FROM parquet_file_metadata({lit(str(file.path))})"
         ).fetchone()
         return int(row[0]) if row and row[0] is not None else 0
-    if file.format == "excel":
+    if file.format == "excel" or file.format in DOCUMENT_FORMATS:
         return reader.excel_rows.get(file.path, 0)
     if file.format == "npy":
         return int(load_npy(file.path).shape[0])
@@ -110,17 +188,172 @@ def estimate_rows(reader: SourceReader, file: SourceFile) -> int:
     return int(file.size / len(sample) * lines)
 
 
+def detection_of(path: Path) -> Detection:
+    found = sniff_path(path)
+    return Detection(
+        kind=found.kind,
+        format=found.format,
+        label=found.label,
+        rule=found.rule,
+        reason=found.reason,
+        mismatch=found.mismatch,
+        name_format=found.name_format,
+    )
+
+
+def sheet_choices(path: Path, sheets: list[str] | None = None) -> list[TableChoice]:
+    """080b: every table of the sheets read (all when None), with its place, its rules and its
+    confidence. The import screen asks sheet by sheet: nothing slow runs at its opening."""
+    from quantilo.ingestion.layout import detect_layout
+
+    try:
+        layout = detect_layout(path, sheets)
+    except Exception:  # W4: the detection never blocks the preview
+        return []
+    choices: list[TableChoice] = []
+    stem = path.stem
+    for sheet in layout.sheets:
+        for index, table in enumerate(sheet.tables):
+            body = table.bottom - table.first_data_row + 1 if table.first_data_row else 0
+            title = table.title or (sheet.name if len(sheet.tables) == 1 else None)
+            name = f"{stem} - {title}" if title else f"{stem} - {sheet.name} {index + 1}"
+            dropped = sorted({row for rows in table.dropped_rows.values() for row in rows})
+            choices.append(
+                TableChoice(
+                    id=table.id,
+                    name=name[:200],
+                    location=f"{sheet.name}!{table.range}",
+                    rows=max(body, 0),
+                    columns=len(table.columns) or table.right - table.left + 1,
+                    level=table.level,
+                    confidence=round(table.confidence, 3),
+                    summary=table.summary(),
+                    selected=table.level == "high",
+                    kind=table.kind,
+                    sheet=sheet.name,
+                    area=TableArea(
+                        top=table.top,
+                        left=table.left,
+                        bottom=table.bottom,
+                        right=table.right,
+                        header_rows=list(table.header_rows),
+                        first_data_row=table.first_data_row,
+                        dropped_rows=dropped,
+                    ),
+                    reasons=[RuleNote(r.rule, r.weight, r.message) for r in table.reasons],
+                    warnings=list(table.warnings),
+                    proposals=[t.message for t in table.transforms if not t.default],
+                )
+            )
+    return choices
+
+
+def first_sheet_with_a_table(path: Path, look: int = 5) -> tuple[list[str], list[str]]:
+    """R-ING-07 (080b): the first sheet that holds a table, among the first five; with the empty
+    sheets skipped before it (a cover sheet left blank)."""
+    from quantilo.ingestion.layout import detect_layout
+
+    names = excel_sheets(path)
+    for index, name in enumerate(names[:look]):
+        try:
+            sheet = detect_layout(path, [name]).sheets
+        except Exception:  # W4
+            return names[:1], []
+        if sheet and sheet[0].tables:
+            return [name], names[:index]
+    return names[:1], []
+
+
+def document_choices(
+    path: Path, options: SourceOptions
+) -> tuple[list[TableChoice], list[TableLink]]:
+    """085: the linked tables of a JSON, JSON Lines or XML document (083), each with its rule."""
+    from quantilo.ingestion.documents import read_document
+
+    layout = read_document(path, options.records_path, bool(options.one_table))
+    stem = path.stem
+    choices = []
+    for index, table in enumerate(layout.tables):
+        reasons = [RuleNote(table.rule, 0.0, table.reason)]
+        if table.natural_key:
+            reasons.append(RuleNote("R-KEY-02", 0.0, f"'{table.natural_key}' identifies each row."))
+        if index == 0:
+            reasons = [RuleNote(r.rule, r.weight, r.message) for r in layout.reasons] + reasons
+        names = ", ".join(column.name for column in table.columns[:6])
+        more = f" and {len(table.columns) - 6} more" if len(table.columns) > 6 else ""
+        choices.append(
+            TableChoice(
+                id=table.name,
+                name=f"{stem} - {table.name}" if table.name != stem else stem,
+                location=table.locator,
+                rows=table.rows,
+                columns=len(table.columns),
+                level=layout.level,
+                confidence=round(layout.confidence, 3),
+                summary=f"{table.rows:,} rows, {len(table.columns)} columns: {names}{more}.",
+                selected=table.selected and table.kind != "meta",
+                kind=table.kind,
+                parent=table.parent,
+                reasons=reasons,
+                warnings=list(table.warnings),
+            )
+        )
+    links = [
+        TableLink(r.parent, r.child, r.parent_key, r.child_key, r.rule) for r in layout.relations
+    ]
+    return choices, links
+
+
 def preview_source(path: Path, options: SourceOptions) -> Preview:
     with readable_errors():
+        detected = detection_of(path) if path.is_file() else None
+        if detected is not None and detected.kind == "image":
+            # 082: an image is not a table; the import screen shows its own step for it.
+            # Anything else not read is refused by name below (R-DET-03, `sources.refusal`).
+            return Preview(
+                kind="file",
+                format="other",
+                files=[],
+                columns=[],
+                rows=[],
+                row_estimate=None,
+                suggested_name=path.stem,
+                detected=detected,
+            )
         all_files = list_source_files(path)
         files = list_source_files(path, options.files) if options.files else all_files
         header_rows: dict[str, int] = {}
-        notes: list[str] = []
-        if len(files) == 1 and files[0].format == "excel" and options.header_row is None:
-            read = options.sheets or excel_sheets(files[0].path)[:1]
-            header_rows, notes = detected_header_rows(files[0].path, read)
-            if header_rows:
-                options = options.model_copy(update={"header_row": header_rows})
+        notes: list[str] = [file.note for file in files if file.note]
+        tables: list[TableChoice] | None = None
+        links: list[TableLink] = []
+        shown = options.table
+        single = files[0] if len(files) == 1 else None
+        if single is not None and single.format == "excel":
+            read = options.sheets
+            if read is None and options.table is None:
+                read, empty = first_sheet_with_a_table(single.path)
+                if empty:
+                    options = options.model_copy(update={"sheets": read})
+                    notes.append(
+                        f"{', '.join(repr(name) for name in empty)} "
+                        f"{'is' if len(empty) == 1 else 'are'} empty: '{read[0]}' is shown "
+                        "first (R-ING-07)."
+                    )
+            elif read is None and options.table is not None:
+                read = [options.table.rpartition("!")[0]]
+            tables = sheet_choices(single.path, read)
+            if options.header_row is None and options.table is None:
+                header_rows, header_notes = detected_header_rows(single.path, read)
+                notes += header_notes
+                if header_rows:
+                    options = options.model_copy(update={"header_row": header_rows})
+        if single is not None and single.format in DOCUMENT_FORMATS:
+            from quantilo.ingestion.documents import main_table, read_document
+
+            tables, links = document_choices(single.path, options)
+            if shown is None:
+                document = read_document(single.path, options.records_path, bool(options.one_table))
+                shown = main_table(document)
         connection = duckdb.connect()
         try:
             reader = SourceReader(connection, options)
@@ -131,7 +364,7 @@ def preview_source(path: Path, options: SourceOptions) -> Preview:
                 f"SELECT COLUMNS(*)::VARCHAR FROM ({sql}) LIMIT {PREVIEW_ROWS}"
             ).fetchall()
             first = files[0]
-            source_format: Format | Literal["mixed"] = (
+            source_format: Format | Literal["mixed", "other"] = (
                 first.format if len({file.format for file in files}) == 1 else "mixed"
             )
             return Preview(
@@ -147,6 +380,10 @@ def preview_source(path: Path, options: SourceOptions) -> Preview:
                 suggested_name=path.stem if path.is_file() else path.name,
                 warnings=[*notes, *reading_notes(reader, files), *note_lines(changed)],
                 header_row=options.header_row,
+                detected=detected,
+                tables=tables,
+                table=shown,
+                links=links,
             )
         finally:
             connection.close()

@@ -73,6 +73,9 @@ class Validation(BaseModel):
     sample_periods: int | None = Field(default=None, ge=1, le=100)  # train on 1 period in N
     criterion: Literal["mean", "sharpe", "worst"] = "mean"  # the score over the periods
     period_threshold: float | None = None  # a "good" period scores above it (None: by metric)
+    # a number's prediction interval (057): its coverage, and split conformal or CQR
+    interval_level: float = Field(default=0.9, ge=0.5, le=0.99)
+    interval_method: Literal["split", "cqr"] = "split"
 
     @model_validator(mode="after")
     def _browser_rows(self) -> "Validation":

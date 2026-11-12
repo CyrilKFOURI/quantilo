@@ -10,6 +10,8 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from openpyxl.utils.cell import range_boundaries
+
 from quantilo.ingestion.layout.blocks import (
     GLUE_GAP,
     GLUE_PROFILE,
@@ -946,3 +948,60 @@ def detect_layout(
     while len(_CACHE) > _CACHE_SIZE:
         _CACHE.popitem(last=False)
     return layout
+
+
+def detect_range(
+    path: str | Path, sheet: str, cell_range: str, limits: Limits = LIMITS
+) -> DetectedTable:
+    """080b: the table the user marked by hand ("A4:L14"): the same rules, on that range only.
+
+    Cells outside the range are left out before the detection; the biggest table found in it is
+    kept and its bounds widened to the range, so nothing the user marked is dropped silently."""
+    try:
+        min_col, min_row, max_col, max_row = range_boundaries(cell_range.replace("$", ""))
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{cell_range!r} is not a range such as A4:L14.") from error
+    if None in (min_col, min_row, max_col, max_row):
+        raise ValueError(f"{cell_range!r} is not a range such as A4:L14.")
+    assert min_col and min_row and max_col and max_row
+    grids, _ = load_grids(Path(path), [sheet], limits)
+    if not grids:
+        raise ValueError(f"No sheet {sheet!r}.")
+    grid = grids[0]
+    grid.values = [
+        [
+            value if min_row - 1 <= r <= max_row - 1 and min_col - 1 <= c <= max_col - 1 else None
+            for c, value in enumerate(row)
+        ]
+        for r, row in enumerate(grid.values)
+    ]
+    grid.uncached = {
+        (r, c)
+        for r, c in grid.uncached
+        if min_row - 1 <= r <= max_row - 1 and min_col - 1 <= c <= max_col - 1
+    }
+    found = detect_sheet(grid).tables
+    if not found:
+        raise ValueError(f"No table found in {sheet}!{cell_range}: the range is empty.")
+    table = max(found, key=lambda t: (t.bottom - t.top + 1) * (t.right - t.left + 1))
+    if max_row > grid.n_rows:  # past the analysed window (B1): the user's bottom is kept
+        table.bottom = max_row
+        table.truncated = True
+    table.reasons.insert(
+        0,
+        RuleHit("U1", 0.0, f"Range {cell_range.upper()} marked by hand: the rules ran on it only."),
+    )
+    table.id = f"{sheet}!{cell_range.upper().replace('$', '')}"
+    return table
+
+
+def find_table(path: str | Path, table_id: str) -> DetectedTable:
+    """A table by its id ("Sheet!A4:L14"): a detected one, or else a range marked by hand (U1)."""
+    sheet, _, cell_range = table_id.rpartition("!")
+    layout = detect_layout(path, [sheet] if sheet else None)
+    for table in layout.tables:
+        if table.id == table_id:
+            return table
+    if not sheet or not cell_range:
+        raise ValueError(f"No table {table_id!r} in {Path(path).name}.")
+    return detect_range(path, sheet, cell_range.split("#")[0])

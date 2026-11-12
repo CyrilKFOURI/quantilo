@@ -2,19 +2,25 @@
 
 import json
 from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 import duckdb
 
 from quantilo.catalog import Catalog
+from quantilo.errors import ExplorerError
 from quantilo.filters.model import Condition, filters_key
 from quantilo.filters.scope import scoped_source, where_for
+from quantilo.kpi import cohort as kpi_cohort
+from quantilo.kpi.archetypes import Archetype, classify
+from quantilo.kpi.cohort import Analysis, CohortGrain, CohortResult, FunnelResult
 from quantilo.kpi.compute import KpiResult, compute
 from quantilo.kpi.definition import Definition
 from quantilo.kpi.probe import measure
 from quantilo.kpi.suggest import (
     Hierarchy,
+    choose_date,
     hierarchies,
     notes,
     probe_keys,
@@ -61,6 +67,10 @@ class Suggestions:
     # 093: columns the rules read differently from their role (R-SUG-25 to 27), with the reason;
     # fix1: rows that sum up other rows (R-SUG-30)
     notes: list[str] = field(default_factory=list)
+    # 060: retention by cohort and funnel the columns allow (R-COH-01, R-FUN-01), computed on demand
+    analyses: list[Analysis] = field(default_factory=list)
+    # 061: the kind of dataset and its pack of KPIs (R-ARC-01, 02), always confirmed by the user
+    archetype: Archetype | None = None
 
 
 class KpiEngine:
@@ -68,10 +78,12 @@ class KpiEngine:
         self.columns = columns
         self._cache: OrderedDict[tuple[Any, ...], KpiResult] = OrderedDict()
         self._suggested: OrderedDict[tuple[Any, ...], Suggestions] = OrderedDict()
+        self._analyses: OrderedDict[tuple[Any, ...], Any] = OrderedDict()
 
     def clear(self) -> None:
         self._cache.clear()
         self._suggested.clear()
+        self._analyses.clear()
 
     def _views(self, dataset_id: str) -> list[Any]:
         return [v for v in self.columns.columns(dataset_id) if not v.excluded]
@@ -106,16 +118,93 @@ class KpiEngine:
         finally:
             connection.close()
         found = suggest(views, facts)
+        date, _ = choose_date(views)
         result = Suggestions(
             [SuggestedKpi(s.rule, s.name, s.definition, s.score, s.reasons) for s in found],
             split_candidates(views, facts),
             hierarchies(views, facts),
             [*notes(views), *aggregate_notes(summed_up)],
+            kpi_cohort.propose(views, date),
+            classify(views, found),
         )
         self._suggested[key] = result
         if len(self._suggested) > CACHE_SIZE:
             self._suggested.popitem(last=False)
         return result
+
+    # --- Cohorts and funnels (060), computed only when opened -----------------------------------
+
+    def _known(self, views: list[Any], name: str | None, what: str) -> Any:
+        found = next((v for v in views if v.name == name), None)
+        if found is None:
+            raise ExplorerError(
+                f"Column {name} no longer exists ({what}).", code="unknown_column", status_code=422
+            )
+        return found
+
+    def _cached(self, key: tuple[Any, ...], run: Callable[[], Any]) -> Any:
+        if key in self._analyses:
+            self._analyses.move_to_end(key)
+            return self._analyses[key]
+        value = run()
+        self._analyses[key] = value
+        if len(self._analyses) > CACHE_SIZE:
+            self._analyses.popitem(last=False)
+        return value
+
+    @staticmethod
+    def _parsers(views: list[Any]) -> tuple[Any, ...]:
+        return tuple((v.name, v.type, v.parser.model_dump_json()) for v in views)
+
+    def cohort(
+        self,
+        dataset_id: str,
+        customer: str,
+        date: str,
+        grain: CohortGrain | Literal["auto"],
+        conditions: list[Condition],
+    ) -> CohortResult:
+        dataset = self.columns.ready(dataset_id)
+        views = self._views(dataset_id)
+        key_column = self._known(views, customer, "customer")
+        date_column = self._known(views, date, "date")
+
+        def run() -> CohortResult:
+            connection = duckdb.connect()
+            try:
+                source = scoped_source(dataset.storage_path, where_for(views, conditions))
+                return kpi_cohort.retention(connection, source, key_column, date_column, grain)
+            finally:
+                connection.close()
+
+        key = ("cohort", dataset_id, dataset.imported_at, customer, date, grain)
+        return self._cached((*key, filters_key(conditions), self._parsers(views)), run)
+
+    def funnel(
+        self,
+        dataset_id: str,
+        column: str,
+        stages: list[str],
+        key: str | None,
+        conditions: list[Condition],
+    ) -> FunnelResult:
+        dataset = self.columns.ready(dataset_id)
+        views = self._views(dataset_id)
+        status = self._known(views, column, "status")
+        counted = self._known(views, key, "key") if key else None
+
+        def run() -> FunnelResult:
+            connection = duckdb.connect()
+            try:
+                source = scoped_source(
+                    dataset.storage_path, where_for(views, conditions), numbered=True
+                )
+                return kpi_cohort.funnel(connection, source, status, stages, counted)
+            finally:
+                connection.close()
+
+        cache_key = ("funnel", dataset_id, dataset.imported_at, column, tuple(stages), key)
+        return self._cached((*cache_key, filters_key(conditions), self._parsers(views)), run)
 
     # --- Compute ---------------------------------------------------------------------------------
 

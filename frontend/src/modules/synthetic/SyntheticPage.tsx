@@ -31,6 +31,7 @@ import { Report } from "./Report";
 import { RunCompare } from "./RunCompare";
 import { SequenceSettings, type SequenceDraft } from "./SequencesTab";
 import type { SyntheticSearch, Tab } from "./search";
+import { NetworkTraining } from "./NetworkTraining";
 import { Loading } from "../../ui/Loading";
 
 const small = "h-7 text-xs";
@@ -353,6 +354,7 @@ export function SyntheticPage() {
     if (deep) {
       body.epochs = timegan ? null : (draft.epochs ?? null);
       body.device = device;
+      body.training = draft.training ?? null;
     }
     if (timegan) body.sequence = draft.sequence ?? {};
     generate.mutate(body, {
@@ -449,6 +451,7 @@ export function SyntheticPage() {
                         </Group>
                       </>
                     )}
+                    <NetworkTraining training={draft.training ?? null} onChange={(training) => setDraft({ ...draft, training })} />
                     <button
                       type="button"
                       onClick={() => p.gpu && setDraft({ ...draft, device: onGpu ? "cpu" : "auto" })}

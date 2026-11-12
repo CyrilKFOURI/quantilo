@@ -60,6 +60,7 @@ from quantilo.ingestion.normalize import copy_metadata, normalized_sql
 from quantilo.ingestion.options import CsvOptions, ImportOptions
 from quantilo.ingestion.sources import fingerprint, list_source_files
 from quantilo.ingestion.sql import lit
+from quantilo.kpi.cohort import CohortResult, FunnelResult
 from quantilo.kpi.compute import KpiResult
 from quantilo.kpi.definition import Definition
 from quantilo.kpi.service import KpiEngine, Suggestions
@@ -768,6 +769,20 @@ class Dataset:
             else Definition.model_validate(definition)
         )
         return self._state.service(KpiEngine).compute(self._id, chosen, self.conditions)
+
+    def kpi_cohort(
+        self, customer: str, date: str, grain: Literal["auto", "month", "week"] = "auto"
+    ) -> CohortResult:
+        """Retention by cohort (060): customers grouped by the period of their first row, the
+        share seen again in each later period, and new vs returning customers per period."""
+        engine = self._state.service(KpiEngine)
+        return engine.cohort(self._id, customer, date, grain, self.conditions)
+
+    def kpi_funnel(self, column: str, stages: list[str], key: str | None = None) -> FunnelResult:
+        """The funnel of an ordered status (060): the distinct `key` values (or rows) that reached
+        each stage, a later stage counting as having passed the earlier ones."""
+        engine = self._state.service(KpiEngine)
+        return engine.funnel(self._id, column, stages, key, self.conditions)
 
     def experiment_candidates(self) -> ExperimentCandidates:
         """The columns that can describe an experiment: variants (2 to 5 values) with the control

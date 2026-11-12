@@ -143,6 +143,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sources/original": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Source Original
+         * @description 080b / 085: the left pane of the import screen (a sheet's cells, a document's lines).
+         */
+        post: operations["source_original_api_v1_sources_original_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Tables
+         * @description 080b / 085: the chosen tables of one file, imported as one source (one dataset each).
+         */
+        post: operations["import_tables_api_v1_sources_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Sources */
+        get: operations["list_sources_api_v1_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Source */
+        get: operations["get_source_api_v1_sources__source_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Source */
+        delete: operations["delete_source_api_v1_sources__source_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/origin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Dataset Origin */
+        get: operations["dataset_origin_api_v1_datasets__dataset_id__origin_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/browse": {
         parameters: {
             query?: never;
@@ -2274,6 +2366,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/explain/ale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Run Ale
+         * @description Accumulated local effects of one column (numbers, ordered categories), with the check of
+         *     its monotonic constraint when it has one.
+         */
+        get: operations["run_ale_api_v1_modules_ml_datasets__dataset_id__runs__run_id__explain_ale_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/explain/surrogate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Run Surrogate
+         * @description A shallow tree trained on the model's predictions, with its fidelity (R-XAI-04).
+         */
+        get: operations["run_surrogate_api_v1_modules_ml_datasets__dataset_id__runs__run_id__explain_surrogate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/explain/monotonic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Run Monotonic
+         * @description Each monotonic constraint of the run, checked row by row (empty: none was set).
+         */
+        get: operations["run_monotonic_api_v1_modules_ml_datasets__dataset_id__runs__run_id__explain_monotonic_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/explain/counterfactual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Counterfactual
+         * @description What would change one row's prediction: at most three changes on the columns allowed to
+         *     change (R-XAI-03 locks identifiers, dates, text and personal attributes by default), and
+         *     the closest real row with that outcome.
+         */
+        post: operations["run_counterfactual_api_v1_modules_ml_datasets__dataset_id__runs__run_id__explain_counterfactual_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/card": {
         parameters: {
             query?: never;
@@ -2864,6 +3039,46 @@ export interface paths {
         put?: never;
         /** Compute */
         post: operations["compute_api_v1_modules_kpi_datasets__dataset_id__compute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/kpi/datasets/{dataset_id}/cohort": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cohort
+         * @description 060: retention by cohort and new vs returning customers, computed when opened.
+         */
+        post: operations["cohort_api_v1_modules_kpi_datasets__dataset_id__cohort_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/kpi/datasets/{dataset_id}/funnel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Funnel
+         * @description 060: the keys (or rows) that reached each stage of an ordered status.
+         */
+        post: operations["funnel_api_v1_modules_kpi_datasets__dataset_id__funnel_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4114,6 +4329,32 @@ export interface components {
             /** Name */
             name?: string | null;
         };
+        /** Ale */
+        Ale: {
+            /** Column */
+            column: string;
+            /** Kind */
+            kind: string;
+            /** Grid */
+            grid: (string | number)[];
+            /** Curves */
+            curves: {
+                [key: string]: number[];
+            };
+            /** Counts */
+            counts: number[];
+            /** Output */
+            output: string;
+            /** Rows */
+            rows: number;
+            /** Order */
+            order: string | null;
+            /** Sentence */
+            sentence: string;
+            /** Rule */
+            rule?: string | null;
+            monotonic?: components["schemas"]["Monotonic"] | null;
+        };
         /** Alert */
         Alert: {
             /** Kind */
@@ -4138,6 +4379,33 @@ export interface components {
             low: number | null;
             /** High */
             high: number | null;
+        };
+        /**
+         * Analysis
+         * @description A cohort or funnel the data allows, with the rule and its reason (060).
+         */
+        Analysis: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cohort" | "funnel";
+            /** Rule */
+            rule: string;
+            /** Name */
+            name: string;
+            /** Reason */
+            reason: string;
+            /** Customer */
+            customer?: string | null;
+            /** Date */
+            date?: string | null;
+            /** Column */
+            column?: string | null;
+            /** Stages */
+            stages?: string[];
+            /** Key */
+            key?: string | null;
         };
         /** AnomalyRow */
         AnomalyRow: {
@@ -4199,6 +4467,19 @@ export interface components {
             aic: number | null;
             /** Bic */
             bic: number | null;
+        };
+        /** Archetype */
+        Archetype: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Message */
+            message: string;
+            /** Kpis */
+            kpis: string[];
+            /** Reasons */
+            reasons?: string[];
         };
         /**
          * AssembleDate
@@ -4863,6 +5144,17 @@ export interface components {
              * @default 0
              */
             transitions: number;
+        };
+        /** Change */
+        Change: {
+            /** Column */
+            column: string;
+            /** Before */
+            before: string;
+            /** After */
+            after: string;
+            /** Output */
+            output: number;
         };
         /** ChangeCase */
         ChangeCase: {
@@ -5535,6 +5827,58 @@ export interface components {
             /** Change */
             change: number | null;
         };
+        /** Cohort */
+        Cohort: {
+            /** Start */
+            start: string;
+            /** Label */
+            label: string;
+            /** Size */
+            size: number;
+            /** Retained */
+            retained: (number | null)[];
+        };
+        /** CohortRequest */
+        CohortRequest: {
+            /** Customer */
+            customer: string;
+            /** Date */
+            date: string;
+            /**
+             * Grain
+             * @default auto
+             * @enum {string}
+             */
+            grain: "auto" | "month" | "week";
+        };
+        /** CohortResult */
+        CohortResult: {
+            /** Customer */
+            customer: string;
+            /** Date */
+            date: string;
+            /**
+             * Grain
+             * @enum {string}
+             */
+            grain: "month" | "week";
+            /** Grain Reason */
+            grain_reason: string;
+            /** Cohorts */
+            cohorts: components["schemas"]["Cohort"][];
+            /** Periods */
+            periods: components["schemas"]["PeriodCount"][];
+            /** Customers */
+            customers: number;
+            /** Returning Share */
+            returning_share: number;
+            /** Reason */
+            reason: string;
+            /** Summary */
+            summary: string;
+            /** Warnings */
+            warnings?: string[];
+        };
         /** ColumnAutocorrelation */
         ColumnAutocorrelation: {
             /** Column */
@@ -5913,6 +6257,17 @@ export interface components {
             models: string[];
             preparation?: components["schemas"]["Choices"] | null;
         };
+        /** Compared */
+        Compared: {
+            /** Column */
+            column: string;
+            /** Row */
+            row: string;
+            /** Changed */
+            changed: string;
+            /** Nearest */
+            nearest: string | null;
+        };
         /** Comparison */
         Comparison: {
             /**
@@ -6023,6 +6378,40 @@ export interface components {
             /** Order By */
             order_by?: string | null;
         };
+        /**
+         * ConformalResult
+         * @description A number's prediction interval and how well it held on rows it never saw.
+         */
+        ConformalResult: {
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "split" | "cqr";
+            /** Level */
+            level: number;
+            /** Half Width */
+            half_width: number;
+            /** Rows */
+            rows: number;
+            /** Calibration Rows */
+            calibration_rows: number;
+            /** Check Rows */
+            check_rows: number;
+            /** Coverage */
+            coverage: number | null;
+            /** Mean Width */
+            mean_width: number | null;
+            /**
+             * Order
+             * @enum {string}
+             */
+            order: "random" | "time";
+            /** Tolerance */
+            tolerance: number;
+            /** Rules */
+            rules?: string[];
+        };
         /** Contingency */
         Contingency: {
             /** Rows */
@@ -6083,6 +6472,70 @@ export interface components {
             synthetic: number;
             /** Synthetic Share */
             synthetic_share: number;
+        };
+        /** Counterfactual */
+        Counterfactual: {
+            /** Row */
+            row: number;
+            /** Goal */
+            goal: string;
+            /** Output */
+            output: string;
+            /** Before */
+            before: number;
+            /** After */
+            after: number;
+            /** Reached */
+            reached: boolean;
+            /** Changes */
+            changes: components["schemas"]["Change"][];
+            /** Sentence */
+            sentence: string;
+            /** Columns */
+            columns: components["schemas"]["Editable"][];
+            /** Table */
+            table: components["schemas"]["Compared"][];
+            /** Nearest Row */
+            nearest_row: number | null;
+            /** Distance */
+            distance: number | null;
+            /** Typical */
+            typical: number | null;
+            /** Plausible */
+            plausible: boolean | null;
+            /** Plausibility */
+            plausibility: string;
+            /** Target Class */
+            target_class?: string | null;
+            /** Target Value */
+            target_value?: number | null;
+            /** Classes */
+            classes?: string[];
+        };
+        /**
+         * CounterfactualRequest
+         * @description What would change one row's prediction (125).
+         */
+        CounterfactualRequest: {
+            /**
+             * Row
+             * @description The file row (as on the Predictions tab).
+             */
+            row: number;
+            /**
+             * Editable
+             * @description Columns the search may change (default: all but those locked, R-XAI-03).
+             */
+            editable?: string[] | null;
+            /** Target Class */
+            target_class?: string | null;
+            /** Target Value */
+            target_value?: number | null;
+            /**
+             * Max Changes
+             * @default 3
+             */
+            max_changes: number;
         };
         /** Counts */
         Counts: {
@@ -6423,6 +6876,7 @@ export interface components {
              */
             group_order: "value" | "alpha";
             view?: components["schemas"]["View"];
+            goal?: components["schemas"]["Goal"] | null;
         };
         /** Definition */
         "Definition-Output": {
@@ -6450,6 +6904,7 @@ export interface components {
              */
             group_order: "value" | "alpha";
             view?: components["schemas"]["View"];
+            goal?: components["schemas"]["Goal"] | null;
         };
         /**
          * DemandPattern
@@ -6492,6 +6947,10 @@ export interface components {
             counts: number[];
             /** Output */
             output: string;
+            /** Linked */
+            linked?: string | null;
+            /** Extrapolates */
+            extrapolates?: string | null;
         };
         /**
          * DerivedSpec
@@ -6566,20 +7025,6 @@ export interface components {
             kurtosis: number | null;
             /** Sum */
             sum: number | null;
-        };
-        /** Detection */
-        Detection: {
-            /** Score */
-            score: number;
-            /** Detectors */
-            detectors?: components["schemas"]["Detector"][];
-            /** Giveaways */
-            giveaways?: components["schemas"]["Giveaway"][];
-            /**
-             * Rows
-             * @default 0
-             */
-            rows: number;
         };
         /**
          * DetectionSettings
@@ -7021,6 +7466,15 @@ export interface components {
             /** Remove */
             remove?: string[];
         };
+        /** Editable */
+        Editable: {
+            /** Column */
+            column: string;
+            /** Editable */
+            editable: boolean;
+            /** Locked */
+            locked: string | null;
+        };
         /** Effect */
         Effect: {
             /** Name */
@@ -7092,7 +7546,7 @@ export interface components {
              */
             kind: "dir" | "file";
             /** Format */
-            format?: ("csv" | "parquet" | "excel" | "npy") | null;
+            format?: ("csv" | "parquet" | "excel" | "npy" | "json" | "jsonl" | "xml") | null;
             /** Size */
             size?: number | null;
         };
@@ -7871,7 +8325,7 @@ export interface components {
              * Format
              * @enum {string}
              */
-            format: "csv" | "parquet" | "excel" | "npy";
+            format: "csv" | "parquet" | "excel" | "npy" | "json" | "jsonl" | "xml";
             /** Size */
             size: number;
         };
@@ -8158,6 +8612,34 @@ export interface components {
              */
             suffix: string;
         };
+        /** FunnelRequest */
+        FunnelRequest: {
+            /** Column */
+            column: string;
+            /** Stages */
+            stages: string[];
+            /** Key */
+            key?: string | null;
+        };
+        /** FunnelResult */
+        FunnelResult: {
+            /** Column */
+            column: string;
+            /** Key */
+            key: string | null;
+            /** Stages */
+            stages: components["schemas"]["Stage"][];
+            /** Outside */
+            outside: number;
+            /** Outside Labels */
+            outside_labels: string[];
+            /** Reason */
+            reason: string;
+            /** Summary */
+            summary: string;
+            /** Warnings */
+            warnings?: string[];
+        };
         /** Giveaway */
         Giveaway: {
             /** Column */
@@ -8175,6 +8657,38 @@ export interface components {
             wins: number;
             /** Series */
             series: number;
+        };
+        /**
+         * Goal
+         * @description 061, P11: the target a measure is read against, a column (Σ over the same rows) or a
+         *     typed value (per period over time, for the whole range otherwise).
+         */
+        Goal: {
+            /**
+             * Measure
+             * @default m1
+             */
+            measure: string;
+            /** Column */
+            column?: string | null;
+            /** Value */
+            value?: number | null;
+        };
+        /**
+         * GoalOut
+         * @description 061, P11: the tile's value against its target, said in words (never by colour alone).
+         */
+        GoalOut: {
+            /** Target */
+            target: number | null;
+            /** Attained */
+            attained: number | null;
+            /** Gap */
+            gap: number | null;
+            /** Source */
+            source: string;
+            /** Reason */
+            reason: string;
         };
         /** GpuStatus */
         GpuStatus: {
@@ -8561,6 +9075,14 @@ export interface components {
             header_row?: {
                 [key: string]: number;
             } | null;
+            /** Table */
+            table?: string | null;
+            /** Reshape */
+            reshape?: boolean | null;
+            /** Records Path */
+            records_path?: string | null;
+            /** One Table */
+            one_table?: boolean | null;
             /** Columns */
             columns?: string[] | null;
             /**
@@ -8666,7 +9188,8 @@ export interface components {
         };
         /**
          * Interval
-         * @description A number's prediction interval from the validation errors (split conformal).
+         * @description A number's prediction interval from the validation errors (split conformal, or CQR: the
+         *     quantile band kept on the pipeline, widened by `half_width`) (037, 057).
          */
         Interval: {
             /** Level */
@@ -8675,6 +9198,19 @@ export interface components {
             half_width: number;
             /** Errors */
             errors: number;
+            /**
+             * Method
+             * @default split
+             * @enum {string}
+             */
+            method: "split" | "cqr";
+            /** Coverage */
+            coverage?: number | null;
+            /**
+             * Check Rows
+             * @default 0
+             */
+            check_rows: number;
         };
         /** IvCoefficient */
         IvCoefficient: {
@@ -9048,6 +9584,19 @@ export interface components {
              * @default true
              */
             certain: boolean;
+        };
+        /** LinkOut */
+        LinkOut: {
+            /** Parent Id */
+            parent_id: string;
+            /** Child Id */
+            child_id: string;
+            /** Parent Key */
+            parent_key: string;
+            /** Child Key */
+            child_key: string;
+            /** Rule */
+            rule: string;
         };
         /** LinkPair */
         LinkPair: {
@@ -9695,6 +10244,21 @@ export interface components {
             /** Std */
             std: number | null;
         };
+        /** Monotonic */
+        Monotonic: {
+            /** Column */
+            column: string;
+            /** Sign */
+            sign: number;
+            /** Rows */
+            rows: number;
+            /** Violations */
+            violations: number;
+            /** Largest */
+            largest: number;
+            /** Sentence */
+            sentence: string;
+        };
         /** MoreChecks */
         MoreChecks: {
             white: components["schemas"]["DiagnosticTest"] | null;
@@ -9973,6 +10537,49 @@ export interface components {
             source_name: string;
             /** Run Id */
             run_id: string;
+        };
+        /**
+         * OriginOut
+         * @description Where a dataset comes from: standalone (`source` null) or one table of a source.
+         */
+        OriginOut: {
+            source: components["schemas"]["SourceOut"] | null;
+            /** Locator */
+            locator: string | null;
+            /** Layout */
+            layout: {
+                [key: string]: unknown;
+            } | null;
+            /** Links */
+            links: components["schemas"]["LinkOut"][];
+        };
+        /** Original */
+        Original: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "sheet" | "text";
+            /** Sheet */
+            sheet?: string | null;
+            /** Cells */
+            cells?: (string | null)[][];
+            /** Merges */
+            merges?: number[][];
+            /** Text */
+            text?: string | null;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /** OriginalRequest */
+        OriginalRequest: {
+            /** Path */
+            path: string;
+            /** Sheet */
+            sheet?: string | null;
         };
         /** Others */
         Others: {
@@ -10489,6 +11096,19 @@ export interface components {
             from?: string | null;
             /** To */
             to?: string | null;
+        };
+        /** PeriodCount */
+        PeriodCount: {
+            /** Start */
+            start: string;
+            /** Label */
+            label: string;
+            /** New */
+            new: number;
+            /** Returning */
+            returning: number;
+            /** Partial */
+            partial: boolean;
         };
         /** PeriodOut */
         PeriodOut: {
@@ -11059,7 +11679,7 @@ export interface components {
              */
             kind: "file" | "folder";
             /** Format */
-            format: ("csv" | "parquet" | "excel" | "npy") | "mixed";
+            format: ("csv" | "parquet" | "excel" | "npy" | "json" | "jsonl" | "xml") | ("mixed" | "other");
             /** Files */
             files: components["schemas"]["FileInfo"][];
             /** Columns */
@@ -11087,6 +11707,13 @@ export interface components {
             header_row?: {
                 [key: string]: number;
             } | null;
+            detected?: components["schemas"]["quantilo__ingestion__preview__Detection"] | null;
+            /** Tables */
+            tables?: components["schemas"]["TableChoice"][] | null;
+            /** Table */
+            table?: string | null;
+            /** Links */
+            links?: components["schemas"]["TableLink"][];
         };
         /** PreviewOut */
         PreviewOut: {
@@ -12129,7 +12756,7 @@ export interface components {
             header: components["schemas"]["Header"];
             diagnostic: components["schemas"]["Diagnostic"];
             quality: components["schemas"]["Quality"];
-            detection: components["schemas"]["Detection"];
+            detection: components["schemas"]["quantilo__synthetic__detection__Detection"];
             privacy: components["schemas"]["Privacy"];
             /** Columns */
             columns: components["schemas"]["ColumnLine"][];
@@ -12509,6 +13136,15 @@ export interface components {
             /** Offset */
             offset: number;
         };
+        /** RuleNote */
+        RuleNote: {
+            /** Rule */
+            rule: string;
+            /** Weight */
+            weight: number;
+            /** Message */
+            message: string;
+        };
         /** RuleView */
         RuleView: {
             /** When */
@@ -12581,6 +13217,7 @@ export interface components {
             learning_curve?: components["schemas"]["LearningCurve"] | null;
             panel?: components["schemas"]["PanelResult"] | null;
             auto?: components["schemas"]["AutoProgress"] | null;
+            interval?: components["schemas"]["ConformalResult"] | null;
         };
         /** RunColumn */
         RunColumn: {
@@ -12671,6 +13308,7 @@ export interface components {
              */
             device: "auto" | "cpu" | "gpu";
             sequence?: components["schemas"]["SequenceRequest"] | null;
+            training?: components["schemas"]["Training"] | null;
         };
         /** RunSummary */
         RunSummary: {
@@ -14026,6 +14664,8 @@ export interface components {
             matrix: number[][];
             /** Labels */
             labels: string[][];
+            /** Note */
+            note?: string | null;
         };
         /** ShapFeature */
         ShapFeature: {
@@ -14235,6 +14875,24 @@ export interface components {
             /** Examples */
             examples: components["schemas"]["ErrorPrediction"][];
         };
+        /** SourceImportRequest */
+        SourceImportRequest: {
+            /** Path */
+            path: string;
+            /** Tables */
+            tables: components["schemas"]["TableRequest"][];
+            /** Name */
+            name?: string | null;
+            options?: components["schemas"]["ImportOptions"];
+            /** Project Id */
+            project_id?: string | null;
+        };
+        /** SourceImportResponse */
+        SourceImportResponse: {
+            source: components["schemas"]["SourceOut"];
+            /** Imports */
+            imports: components["schemas"]["ImportResponse"][];
+        };
         /**
          * SourceOptions
          * @description How to read a source. `None` fields mean "detect" or "everything".
@@ -14255,6 +14913,34 @@ export interface components {
             header_row?: {
                 [key: string]: number;
             } | null;
+            /** Table */
+            table?: string | null;
+            /** Reshape */
+            reshape?: boolean | null;
+            /** Records Path */
+            records_path?: string | null;
+            /** One Table */
+            one_table?: boolean | null;
+        };
+        /** SourceOut */
+        SourceOut: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "workbook" | "csv" | "json" | "jsonl" | "xml" | "image";
+            /** Name */
+            name: string;
+            /** Source Path */
+            source_path: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Created At */
+            created_at: string;
+            /** Dataset Ids */
+            dataset_ids: string[];
         };
         /** SplitOut */
         SplitOut: {
@@ -14266,6 +14952,17 @@ export interface components {
             others: number;
             /** Ordinal */
             ordinal: boolean;
+        };
+        /** Stage */
+        Stage: {
+            /** Label */
+            label: string;
+            /** Reached */
+            reached: number;
+            /** Of First */
+            of_first: number | null;
+            /** Conversion */
+            conversion: number | null;
         };
         /** StandardErrorTable */
         StandardErrorTable: {
@@ -14515,6 +15212,49 @@ export interface components {
             hierarchies: components["schemas"]["Hierarchy"][];
             /** Notes */
             notes?: string[];
+            /** Analyses */
+            analyses?: components["schemas"]["Analysis"][];
+            archetype?: components["schemas"]["Archetype"] | null;
+        };
+        /** Surrogate */
+        Surrogate: {
+            /** Depth */
+            depth: number;
+            /** Measure */
+            measure: string;
+            /** Fidelity */
+            fidelity: number;
+            /** Rows */
+            rows: number;
+            /** Checked */
+            checked: number;
+            /** Leaves */
+            leaves: number;
+            /** Nodes */
+            nodes: components["schemas"]["SurrogateNode"][];
+            /** Sentence */
+            sentence: string;
+            /** Warning */
+            warning: string | null;
+        };
+        /** SurrogateNode */
+        SurrogateNode: {
+            /** Id */
+            id: number;
+            /** Depth */
+            depth: number;
+            /** Value */
+            value: string;
+            /** Samples */
+            samples: number;
+            /** Left */
+            left: number | null;
+            /** Right */
+            right: number | null;
+            /** Left Rule */
+            left_rule: string | null;
+            /** Right Rule */
+            right_rule: string | null;
         };
         /** Survival */
         Survival: {
@@ -14782,6 +15522,92 @@ export interface components {
              * @default
              */
             sentence: string;
+        };
+        /**
+         * TableArea
+         * @description Where a detected table sits in its sheet (1-based, inclusive), to draw it on the original.
+         */
+        TableArea: {
+            /** Top */
+            top: number;
+            /** Left */
+            left: number;
+            /** Bottom */
+            bottom: number;
+            /** Right */
+            right: number;
+            /** Header Rows */
+            header_rows: number[];
+            /** First Data Row */
+            first_data_row: number;
+            /** Dropped Rows */
+            dropped_rows?: number[];
+        };
+        /**
+         * TableChoice
+         * @description One table the source gives (080b: a table of a sheet; 085: a linked table of a document).
+         */
+        TableChoice: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Location */
+            location: string;
+            /** Rows */
+            rows: number;
+            /** Columns */
+            columns: number;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "high" | "review" | "low";
+            /** Confidence */
+            confidence: number;
+            /** Summary */
+            summary: string;
+            /** Selected */
+            selected: boolean;
+            /**
+             * Kind
+             * @default table
+             */
+            kind: string;
+            /** Sheet */
+            sheet?: string | null;
+            /** Parent */
+            parent?: string | null;
+            area?: components["schemas"]["TableArea"] | null;
+            /** Reasons */
+            reasons?: components["schemas"]["RuleNote"][];
+            /** Warnings */
+            warnings?: string[];
+            /** Proposals */
+            proposals?: string[];
+        };
+        /**
+         * TableLink
+         * @description `parent.parent_key` = `child.child_key` between two tables of a document (R-KEY-03).
+         */
+        TableLink: {
+            /** Parent */
+            parent: string;
+            /** Child */
+            child: string;
+            /** Parent Key */
+            parent_key: string;
+            /** Child Key */
+            child_key: string;
+            /** Rule */
+            rule: string;
+        };
+        /** TableRequest */
+        TableRequest: {
+            /** Id */
+            id: string;
+            /** Name */
+            name?: string | null;
         };
         /** TableView */
         TableView: {
@@ -15186,6 +16012,7 @@ export interface components {
             spark_index: number | null;
             top?: components["schemas"]["TopGroup"] | null;
             to_date?: components["schemas"]["ToDate"] | null;
+            goal?: components["schemas"]["GoalOut"] | null;
         };
         /** Time */
         Time: {
@@ -15365,6 +16192,37 @@ export interface components {
              */
             kept: boolean;
         };
+        /**
+         * Training
+         * @description The very advanced training settings of the deep generators (CTGAN, TVAE, TimeGAN).
+         */
+        Training: {
+            /**
+             * Optimizer
+             * @default adamw
+             * @enum {string}
+             */
+            optimizer: "adamw" | "adam" | "sgd_nesterov" | "radam";
+            /** Learning Rate */
+            learning_rate?: number | null;
+            /** Weight Decay */
+            weight_decay?: number | null;
+            /**
+             * Schedule
+             * @default constant
+             * @enum {string}
+             */
+            schedule: "constant" | "cosine" | "one_cycle";
+            /**
+             * Warmup
+             * @default 0
+             */
+            warmup: number;
+            /** Clip Norm */
+            clip_norm?: number | null;
+            /** Ema */
+            ema?: number | null;
+        };
         /** TrainingJob */
         TrainingJob: {
             /** Id */
@@ -15502,6 +16360,13 @@ export interface components {
             };
             /** Seconds */
             seconds: number;
+            /** Warm */
+            warm?: string | null;
+            /**
+             * Pareto
+             * @default false
+             */
+            pareto: boolean;
         };
         /** TuneJob */
         TuneJob: {
@@ -15554,6 +16419,16 @@ export interface components {
             seconds: number;
             /** Criterion */
             criterion?: string | null;
+            /**
+             * Objectives
+             * @default score
+             * @enum {string}
+             */
+            objectives: "score" | "score_time";
+            /** Warm */
+            warm?: string[];
+            /** Rules */
+            rules?: string[];
         };
         /** TuneStart */
         TuneStart: {
@@ -15584,6 +16459,17 @@ export interface components {
             settings?: {
                 [key: string]: unknown;
             };
+            /**
+             * Warm Start
+             * @default false
+             */
+            warm_start: boolean;
+            /**
+             * Objectives
+             * @default score
+             * @enum {string}
+             */
+            objectives: "score" | "score_time";
             preparation?: components["schemas"]["Choices"] | null;
         };
         /** TypeChange */
@@ -15874,6 +16760,17 @@ export interface components {
             criterion: "mean" | "sharpe" | "worst";
             /** Period Threshold */
             period_threshold?: number | null;
+            /**
+             * Interval Level
+             * @default 0.9
+             */
+            interval_level: number;
+            /**
+             * Interval Method
+             * @default split
+             * @enum {string}
+             */
+            interval_method: "split" | "cqr";
         };
         /** ValidationError */
         ValidationError: {
@@ -16175,6 +17072,32 @@ export interface components {
              */
             evidence: "strong" | "moderate" | "weak" | "none";
         };
+        /**
+         * Detection
+         * @description What the first bytes say about the file (082): its kind, its format, the rule and why.
+         */
+        quantilo__ingestion__preview__Detection: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "table" | "document" | "image" | "unsupported";
+            /** Format */
+            format: string;
+            /** Label */
+            label: string;
+            /** Rule */
+            rule: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Mismatch
+             * @default false
+             */
+            mismatch: boolean;
+            /** Name Format */
+            name_format?: string | null;
+        };
         /** Group */
         quantilo__kpi__definition__Group: {
             /** Column */
@@ -16310,6 +17233,20 @@ export interface components {
             y: number[];
             /** Thresholds */
             thresholds?: number[];
+        };
+        /** Detection */
+        quantilo__synthetic__detection__Detection: {
+            /** Score */
+            score: number;
+            /** Detectors */
+            detectors?: components["schemas"]["Detector"][];
+            /** Giveaways */
+            giveaways?: components["schemas"]["Giveaway"][];
+            /**
+             * Rows
+             * @default 0
+             */
+            rows: number;
         };
         /** Curve */
         quantilo__timeseries__smoothing__Curve: {
@@ -16739,6 +17676,183 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Preview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    source_original_api_v1_sources_original_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OriginalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Original"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_tables_api_v1_sources_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceImportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sources_api_v1_sources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceOut"][];
+                };
+            };
+        };
+    };
+    get_source_api_v1_sources__source_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_source_api_v1_sources__source_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dataset_origin_api_v1_datasets__dataset_id__origin_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OriginOut"];
                 };
             };
             /** @description Validation Error */
@@ -21281,6 +22395,143 @@ export interface operations {
             };
         };
     };
+    run_ale_api_v1_modules_ml_datasets__dataset_id__runs__run_id__explain_ale_get: {
+        parameters: {
+            query: {
+                column: string;
+                bins?: number;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ale"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_surrogate_api_v1_modules_ml_datasets__dataset_id__runs__run_id__explain_surrogate_get: {
+        parameters: {
+            query?: {
+                depth?: number;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Surrogate"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_monotonic_api_v1_modules_ml_datasets__dataset_id__runs__run_id__explain_monotonic_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Monotonic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_counterfactual_api_v1_modules_ml_datasets__dataset_id__runs__run_id__explain_counterfactual_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CounterfactualRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Counterfactual"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     card_api_v1_modules_ml_datasets__dataset_id__runs__run_id__card_get: {
         parameters: {
             query?: never;
@@ -22532,6 +23783,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KpiResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cohort_api_v1_modules_kpi_datasets__dataset_id__cohort_post: {
+        parameters: {
+            query?: {
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CohortRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    funnel_api_v1_modules_kpi_datasets__dataset_id__funnel_post: {
+        parameters: {
+            query?: {
+                filters?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FunnelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FunnelResult"];
                 };
             };
             /** @description Validation Error */

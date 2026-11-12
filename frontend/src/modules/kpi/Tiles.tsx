@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
+import { ArrowDownRight, ArrowRight, ArrowUpRight, Target } from "lucide-react";
 
 import type { KpiResult } from "../../api/client";
 import { t } from "../../lib/i18n";
@@ -100,6 +100,18 @@ export function Tiles({
                       {t("kpi.tile.projected", { value: formatValue(tile.to_date.projected, measure.format, custom, "compact") })}
                     </span>
                   )}
+                </p>
+              )}
+              {tile.goal && (
+                // 061, P11: in words and with an icon, never by colour alone
+                <p className="flex w-full items-center gap-1 text-[11px] text-ink-2" title={tile.goal.reason}>
+                  <Target size={12} strokeWidth={1.75} aria-hidden />
+                  <span className="tabular-nums text-ink-1">
+                    {tile.goal.attained === null ? "—" : t("kpi.tile.goal", { share: formatShare(tile.goal.attained) })}
+                  </span>
+                  <span className="text-ink-3">
+                    {t("kpi.tile.goalOf", { target: formatValue(tile.goal.target, measure.format, custom, "compact") || "—" })}
+                  </span>
                 </p>
               )}
               {tile.top && (

@@ -377,11 +377,14 @@ class MachineLearning:
         preparation: Preparation = None,
         pruner: tuner.Pruner = "median",
         space: list[tuner.SearchParam | dict[str, Any]] | None = None,
+        objectives: tuner.Objectives = "score",
     ) -> tuner.TuneProgress:
         """Search the model's best settings with Optuna on the training rows (best value, best
         settings, every trial, importance of each setting). `settings` stay fixed; `space`
         replaces the searched settings, e.g. `[{"key": "max_depth", "kind": "int", "low": 2,
-        "high": 12}]` (the catalogue's space by default: `default_space(model)`)."""
+        "high": 12}]` (the catalogue's space by default: `default_space(model)`).
+        `objectives="score_time"` (066, with NSGA-II): the score and the seconds per trial; the
+        trials on the Pareto front are marked `pareto`."""
         try:
             searched = (
                 None
@@ -396,6 +399,7 @@ class MachineLearning:
                 trials=trials,
                 sampler=sampler,
                 pruner=pruner,
+                objectives=objectives,
                 space=searched,
                 settings=settings or {},
                 preparation=_choices(preparation),

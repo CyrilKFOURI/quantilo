@@ -14,7 +14,7 @@ from quantilo.ml.preparation import Choices
 from quantilo.ml.target import Task
 from quantilo.ml.train import Estimate, PreparationPreview
 
-from app.modules.ml import errors
+from app.modules.ml import errors, interpret
 from app.modules.ml.service import (
     CompareJob,
     CompareRequest,
@@ -305,3 +305,4 @@ def predictions(dataset_id: str, run_id: str, service: Service) -> Response:
 
 
 router.include_router(errors.router)  # where a model is wrong (036)
+router.include_router(interpret.router)  # interpretability on demand (125)

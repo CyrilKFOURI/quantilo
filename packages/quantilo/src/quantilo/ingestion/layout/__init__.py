@@ -9,7 +9,7 @@ layout.read(layout.tables[0])                 # a pyarrow Table, clean-ups appli
 layout.read(layout.tables[0], reshape=True)   # with the proposed long format
 """
 
-from quantilo.ingestion.layout.detect import detect_layout
+from quantilo.ingestion.layout.detect import detect_layout, detect_range, find_table
 from quantilo.ingestion.layout.model import (
     ColumnPlan,
     DetectedTable,
@@ -27,4 +27,6 @@ __all__ = [
     "SheetLayout",
     "Transform",
     "detect_layout",
+    "detect_range",
+    "find_table",
 ]

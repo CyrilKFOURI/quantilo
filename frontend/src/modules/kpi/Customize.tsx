@@ -87,6 +87,57 @@ function Switch3({
   );
 }
 
+/** 061, P11: the tile read against a target column or a typed value; a data change (Calculate). */
+function GoalCell({
+  draft,
+  measure,
+  start,
+  targets,
+  onData,
+}: {
+  draft: KpiDefinition;
+  measure: string;
+  start: number | null;
+  targets: string[];
+  onData: (next: KpiDefinition) => void;
+}) {
+  const goal = draft.goal ?? null;
+  const choice = goal?.column ? `column:${goal.column}` : goal ? "value" : "none";
+  const why = targets[0] ? t("kpi.goal.detected", { column: targets[0] }) : t("kpi.goal.why");
+  const pick = (value: string) => {
+    if (value === "none") onData({ ...draft, goal: null });
+    else if (value === "value") onData({ ...draft, goal: { measure, value: goal?.value ?? Math.round(start ?? 0) } });
+    else onData({ ...draft, goal: { measure, column: value.slice("column:".length) } });
+  };
+  return (
+    <Cell wide label={t("kpi.goal")} why={why} changed={goal !== null} onReset={() => onData({ ...draft, goal: null })}>
+      <div className="flex min-w-0 gap-1.5">
+        <Select aria-label={t("kpi.goal")} value={choice} onChange={(e) => pick(e.target.value)} className={field}>
+          <option value="none">{t("kpi.goal.none")}</option>
+          {targets.map((column) => (
+            <option key={column} value={`column:${column}`}>
+              {t("kpi.goal.column", { column })}
+            </option>
+          ))}
+          <option value="value">{t("kpi.goal.value")}</option>
+        </Select>
+        {choice === "value" && (
+          <TextInput
+            type="number"
+            aria-label={t("kpi.goal.valueLabel")}
+            value={goal?.value ?? ""}
+            onChange={(e) => {
+              const value = Number(e.target.value);
+              if (e.target.value !== "" && Number.isFinite(value)) onData({ ...draft, goal: { measure, value } });
+            }}
+            className={field}
+          />
+        )}
+      </div>
+    </Cell>
+  );
+}
+
 /** The KPI's display settings (045): one block above the tiles, chart and table, opened from its
  *  own header line; the settings sit three per row (six on a laptop) so they take little room. */
 export function Customize({
@@ -97,6 +148,7 @@ export function Customize({
   onToggle,
   onView,
   onData,
+  targets = [],
 }: {
   definition: KpiDefinition; // applied: display changes are drawn at once
   result: KpiResult;
@@ -105,6 +157,8 @@ export function Customize({
   onToggle: () => void;
   onView: (next: KpiDefinition) => void;
   onData: (next: KpiDefinition) => void;
+  /** 061: numeric columns given the target role (budget, quota, objective). */
+  targets?: string[];
 }) {
   const id = useId();
   const view = viewOf(definition);
@@ -209,6 +263,9 @@ export function Customize({
                 })}
               </Select>
             </Cell>
+            {main && (
+              <GoalCell draft={draft} measure={main.id} start={result.tiles[0]?.value ?? null} targets={targets} onData={onData} />
+            )}
             {bars && (
               <Cell
                 label={t("kpi.line")}

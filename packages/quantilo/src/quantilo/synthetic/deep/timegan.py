@@ -13,6 +13,8 @@ import torch
 from torch import nn
 from torch.nn import functional
 
+from quantilo.synthetic.deep.training import Paper, Stepper, Training, ema_for
+
 BATCH = 128
 GAMMA = 1.0
 LEARNING_RATE = 1e-3
@@ -42,8 +44,16 @@ def hidden_size(width: int) -> int:
 
 
 class TimeGAN:
-    def __init__(self, width: int, device: torch.device, seed: int, layers: int = 3) -> None:
+    def __init__(
+        self,
+        width: int,
+        device: torch.device,
+        seed: int,
+        layers: int = 3,
+        training: Training | None = None,
+    ) -> None:
         torch.manual_seed(seed)
+        self.training = training
         self.width = width
         self.device = device
         hidden = hidden_size(width)
@@ -68,13 +78,19 @@ class TimeGAN:
         data = torch.from_numpy(windows).to(self.device)
         length = data.shape[1]
         every = max(1, steps // 50)
-        autoencoder = torch.optim.Adam(
-            [*self.embedder.parameters(), *self.recovery.parameters()], lr=LEARNING_RATE
+        paper, settings = Paper(LEARNING_RATE), self.training
+        # phases 1 and 2 run `steps` steps each; phase 3 twice the generator's and embedder's
+        autoencoder = Stepper(
+            [*self.embedder.parameters(), *self.recovery.parameters()], settings, paper, 3 * steps
         )
-        supervised = torch.optim.Adam(
-            [*self.generator.parameters(), *self.supervisor.parameters()], lr=LEARNING_RATE
+        supervised = Stepper(
+            [*self.generator.parameters(), *self.supervisor.parameters()],
+            settings,
+            paper,
+            3 * steps,
         )
-        critic = torch.optim.Adam(self.discriminator.parameters(), lr=LEARNING_RATE)
+        critic = Stepper(list(self.discriminator.parameters()), settings, paper, steps)
+        ema = ema_for(self.generator, settings)
 
         # 1. autoencoder
         for step in range(steps):
@@ -82,7 +98,7 @@ class TimeGAN:
                 return False
             x = self._batch(data)
             loss = 10 * torch.sqrt(functional.mse_loss(self.recovery(self.embedder(x)), x))
-            autoencoder.zero_grad(set_to_none=True)
+            autoencoder.zero_grad()
             loss.backward()
             autoencoder.step()
             if (step + 1) % every == 0 or step + 1 == steps:
@@ -94,7 +110,7 @@ class TimeGAN:
                 return False
             h = self.embedder(self._batch(data)).detach()
             loss = functional.mse_loss(self.supervisor(h)[:, :-1], h[:, 1:])
-            supervised.zero_grad(set_to_none=True)
+            supervised.zero_grad()
             loss.backward()
             supervised.step()
             if (step + 1) % every == 0 or step + 1 == steps:
@@ -124,15 +140,17 @@ class TimeGAN:
                     + 100 * torch.sqrt(supervised_loss)
                     + 100 * moments
                 )
-                supervised.zero_grad(set_to_none=True)
+                supervised.zero_grad()
                 g_loss.backward()
                 supervised.step()
+                if ema is not None:
+                    ema.update(self.generator)
 
                 h = self.embedder(x)
                 rebuilt = functional.mse_loss(self.recovery(h), x)
                 dynamics = functional.mse_loss(self.supervisor(h)[:, :-1], h[:, 1:])
                 e_loss = 10 * torch.sqrt(rebuilt) + 0.1 * dynamics
-                autoencoder.zero_grad(set_to_none=True)
+                autoencoder.zero_grad()
                 e_loss.backward()
                 autoencoder.step()
 
@@ -148,11 +166,13 @@ class TimeGAN:
                 + GAMMA * bce(y_fake_e, zeros(y_fake_e))
             )
             if d_loss.item() > DISCRIMINATOR_THRESHOLD:
-                critic.zero_grad(set_to_none=True)
+                critic.zero_grad()
                 d_loss.backward()
                 critic.step()
             if (step + 1) % every == 0 or step + 1 == steps:
                 progress("Joint training", step + 1, steps)
+        if ema is not None:  # generate with the averaged weights
+            ema.copy_to(self.generator)
         return True
 
     @torch.no_grad()

@@ -14,6 +14,7 @@ from torch import nn
 from torch.nn import functional
 
 from quantilo.synthetic.deep import BATCH
+from quantilo.synthetic.deep.training import Paper, Stepper, Training, ema_for
 from quantilo.synthetic.deep.transformer import Span
 
 HIDDEN = 128
@@ -76,9 +77,15 @@ def reconstruction(
 
 class TVAE:
     def __init__(
-        self, spans: list[Span], data: np.ndarray, device: torch.device, seed: int
+        self,
+        spans: list[Span],
+        data: np.ndarray,
+        device: torch.device,
+        seed: int,
+        training: Training | None = None,
     ) -> None:
         self.spans = spans
+        self.training = training
         self.data = data
         self.device = device
         width = sum(s.size for s in spans)
@@ -89,10 +96,14 @@ class TVAE:
 
     def fit(self, epochs: int, progress: Progress, should_stop: StopCheck) -> None:
         parameters = list(self.encoder.parameters()) + list(self.decoder.parameters())
-        optimiser = torch.optim.Adam(parameters, lr=1e-3, weight_decay=1e-5)
         data = torch.from_numpy(self.data).to(self.device)
         rows = len(data)
         batch = min(BATCH, rows)
+        steps = len(range(0, rows - batch + 1, batch))
+        optimiser = Stepper(
+            parameters, self.training, Paper(1e-3, weight_decay=1e-5), epochs * steps
+        )
+        ema = ema_for(self.decoder, self.training)
         for epoch in range(epochs):
             if should_stop():
                 return
@@ -108,11 +119,15 @@ class TVAE:
                     -0.5 * torch.sum(1 + log_variance - mean**2 - log_variance.exp()) / batch
                 )
                 loss = LOSS_FACTOR * rebuilt + divergence
-                optimiser.zero_grad(set_to_none=True)
+                optimiser.zero_grad()
                 loss.backward()
                 optimiser.step()
                 self.decoder.sigma.data.clamp_(0.01, 1.0)
+                if ema is not None:
+                    ema.update(self.decoder)
             progress(epoch + 1, float(loss.detach().cpu()), float(rebuilt.detach().cpu()))
+        if ema is not None:  # generate with the averaged weights
+            ema.copy_to(self.decoder)
 
     @torch.no_grad()
     def sample(self, rows: int) -> np.ndarray:

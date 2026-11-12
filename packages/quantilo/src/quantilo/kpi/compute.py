@@ -115,6 +115,17 @@ class TopGroup:
 
 
 @dataclass
+class GoalOut:
+    """061, P11: the tile's value against its target, said in words (never by colour alone)."""
+
+    target: float | None
+    attained: float | None  # actual ÷ target
+    gap: float | None  # actual - target
+    source: str  # "column" or "value"
+    reason: str
+
+
+@dataclass
 class Tile:
     measure: str
     label: str
@@ -128,6 +139,7 @@ class Tile:
     spark_index: int | None
     top: TopGroup | None = None
     to_date: kpi_to_date.ToDate | None = None  # the started period at an equal date (054)
+    goal: GoalOut | None = None  # actual vs target (061)
 
 
 @dataclass
@@ -273,6 +285,12 @@ def _check(definition: Definition, by_name: dict[str, Column]) -> None:
             raise KpiError(
                 f"“% true” needs a yes/no column: {column.name} is not.", "wrong_type", where
             )
+    if definition.goal is not None and definition.goal.column is not None:
+        column = known(definition.goal.column, "goal.column")
+        if column.type not in NUMBERS:
+            raise KpiError(
+                f"A target is a number: {column.name} is not.", "wrong_type", "goal.column"
+            )
     if definition.time is not None:
         column = known(definition.time.column, "time.column")
         if column.type != "datetime":
@@ -415,6 +433,7 @@ def compute(
         [(m, by_name[m.column] if m.column else None) for m in measures],
         {name: by_name[name] for m in measures for name in m.columns()},
         order_key,
+        by_name[definition.goal.column] if definition.goal and definition.goal.column else None,
     )
 
     window = _window(connection, definition, warnings) if definition.time else None
@@ -625,6 +644,11 @@ def compute(
         if repeated:
             found.append(repeated)
     to_dates = _to_dates(connection, context, aggregates, window) if window and timed_axis else {}
+    tiles = [_tile(m, series, periods, splits, to_dates.get(m.id)) for m in measure_outs]
+    if definition.goal is not None:
+        for tile in tiles:
+            if tile.measure == definition.goal.measure:
+                tile.goal = _goal(connection, definition, tile, window, where_display, periods)
     return KpiResult(
         name=name[:1].upper() + name[1:],
         rows=int(rows),
@@ -632,7 +656,7 @@ def compute(
         splits=splits,
         measures=measure_outs,
         series=series,
-        tiles=[_tile(m, series, periods, splits, to_dates.get(m.id)) for m in measure_outs],
+        tiles=tiles,
         resolved=Resolved(
             window.decision if window else None, layout, shading, timed_axis, why, trend
         ),
@@ -779,6 +803,46 @@ def _tile(
         top,
         to_date,
     )
+
+
+def _goal(
+    connection: duckdb.DuckDBPyConnection,
+    definition: Definition,
+    tile: Tile,
+    window: "_Window | None",
+    where_display: str,
+    periods: list[PeriodOut],
+) -> GoalOut:
+    """R-GOAL-01 (a target column, over the tile's rows) and R-GOAL-02 (a typed target)."""
+    goal = definition.goal
+    assert goal is not None
+    where, span = where_display, "the displayed range"
+    if window and tile.period is not None:
+        index = max(i for i, p in enumerate(periods) if not p.partial)
+        start = window.display[index]
+        end = next_start(start, window.grain)
+        where = f"{where_display} AND t >= {q.timestamp(start)} AND t < {q.timestamp(end)}"
+        span = tile.period
+    if goal.column is not None:
+        additive = definition.additive(goal.measure)
+        aggregate = "sum" if additive else "avg"
+        (found,) = q.one(connection, f"SELECT {aggregate}(gv) FROM {q.TABLE} WHERE {where}")
+        target = None if found is None else float(found)
+        how = "Σ" if additive else "the mean of"
+        reason = f"R-GOAL-01 · Target: {how} {goal.column} over the same rows ({span})"
+        if not additive:
+            reason += f": {tile.label} does not add up, so its target is averaged"
+        source = "column"
+    else:
+        target = goal.value
+        grain = window.grain if window else "period"
+        per = f"for {span}" if tile.period is None else f"per {grain}"
+        reason = f"R-GOAL-02 · Target typed: {target:,.4g} {per} ({span} shown)"
+        source = "value"
+    actual = tile.value
+    attained = actual / target if actual is not None and target else None
+    gap = actual - target if actual is not None and target is not None else None
+    return GoalOut(target, attained, gap, source, reason)
 
 
 # --- Signals (054) ---------------------------------------------------------------------------

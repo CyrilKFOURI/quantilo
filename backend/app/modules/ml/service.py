@@ -22,7 +22,7 @@ import numpy as np
 from pydantic import TypeAdapter
 from quantilo.filters.model import Condition
 from quantilo.ml import auto as automl
-from quantilo.ml import browser, evaluate
+from quantilo.ml import browser, conformal, evaluate
 from quantilo.ml import classes as binning
 from quantilo.ml import error_analysis as mistakes
 from quantilo.ml import explain as explainer
@@ -31,6 +31,7 @@ from quantilo.ml import panel as panels
 from quantilo.ml import preparation as prep
 from quantilo.ml import train as trainer
 from quantilo.ml import tune as tuner
+from quantilo.ml import warm as warming
 from quantilo.ml.data import NUMERIC, Field
 from quantilo.ml.engine import (
     CompareRequest,
@@ -80,6 +81,7 @@ class Run:
     learning_curve: trainer.LearningCurve | None = None
     panel: panels.PanelResult | None = None  # walk-forward by period (035)
     auto: automl.AutoProgress | None = None  # found by the Auto (038): its journal and leaderboard
+    interval: conformal.ConformalResult | None = None  # a number's prediction interval (057)
 
 
 @dataclass
@@ -517,6 +519,60 @@ class MlService(MlEngine):
 
     # --- Tuning --------------------------------------------------------------------------------
 
+    def _warm_candidates(self, dataset_id: str, model: str) -> list[warming.Candidate]:
+        """Settings already found for `model`: saved runs and finished searches, on this dataset,
+        its cleaned versions (065) or any other dataset, with their meta-features (066)."""
+        with self._db() as connection:
+            runs = connection.execute(
+                "SELECT dataset_id, target, settings, metric, score FROM ml_runs"
+                " WHERE model = ? AND score IS NOT NULL ORDER BY created_at DESC LIMIT 200",
+                (model,),
+            ).fetchall()
+            searches = connection.execute(
+                "SELECT dataset_id, target, best_params, metric, best_value FROM ml_tunings"
+                " WHERE model = ? AND best_value IS NOT NULL ORDER BY created_at DESC LIMIT 200",
+                (model,),
+            ).fetchall()
+        lineage = self.lineage or (lambda _id: None)
+        family = {dataset_id, lineage(dataset_id)} - {None}
+        metas: dict[tuple[str, str, str], warming.Meta | None] = {}
+        found: list[warming.Candidate] = []
+        for rows in (runs, searches):
+            for r in rows:
+                other, target, metric = r[0], r[1], r[3]
+                task = "regression" if metric in evaluate.REGRESSION_METRICS else "binary"
+                key = (other, target, task)
+                if key not in metas:
+                    try:
+                        metas[key] = self.meta(other, target, task)
+                    except Exception:  # a dataset removed or not ready: not a candidate
+                        metas[key] = None
+                meta = metas[key]
+                if meta is None:
+                    continue
+                if other == dataset_id:
+                    source: warming.Source = "this dataset"
+                elif other in family or lineage(other) in family:
+                    source = "a cleaned version"
+                else:
+                    source = "a similar dataset"
+                try:
+                    name = self.columns.ready(other).name
+                except Exception:
+                    name = ""
+                found.append(
+                    warming.Candidate(
+                        model,
+                        json.loads(r[2]),
+                        r[4],
+                        metric not in evaluate.LOWER_IS_BETTER,
+                        meta,
+                        source,
+                        name,
+                    )
+                )
+        return found
+
     def tune(
         self,
         dataset_id: str,
@@ -541,6 +597,7 @@ class MlService(MlEngine):
             self._tunings[job.id] = job
             while len(self._tunings) > KEPT_JOBS:
                 self._tunings.popitem(last=False)
+        candidates = self._warm_candidates(dataset_id, spec.key) if request.warm_start else None
         self._tuner.submit(
             self._tune,
             job,
@@ -552,6 +609,7 @@ class MlService(MlEngine):
             conditions,
             classes,
             validation or evaluate.Validation(),
+            candidates,
         )
         return job
 
@@ -566,6 +624,7 @@ class MlService(MlEngine):
         conditions: list[Condition],
         classes: binning.Classes | None,
         validation: evaluate.Validation,
+        candidates: list[warming.Candidate] | None = None,
     ) -> None:
         try:
 
@@ -582,6 +641,7 @@ class MlService(MlEngine):
                 validation,
                 lambda: job.id in self._stops,
                 started,
+                candidates=candidates,
             )
             job.status = "stopped" if progress.stopped else "done"
             self._save_tuning(dataset_id, target.name, job, request)

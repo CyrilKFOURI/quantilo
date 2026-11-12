@@ -12,6 +12,8 @@ import { Checkbox, ErrorNote, Field, ProgressBar, Select, TextInput } from "../.
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { ReadingNotes } from "../readings/ReadingNotes";
 import { PreviewTable } from "./PreviewTable";
+import { IMPORT_STEPS } from "./steps";
+import { importStepFor } from "./stepTypes";
 
 const DELIMITERS = [
   { value: ",", label: "Comma  ," },
@@ -42,6 +44,8 @@ export function ImportDialog({ path, onClose, onImported, project = null }: Impo
   const [jobId, setJobId] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [intoProject, setIntoProject] = useState(true);
+  // 080b: "simple" keeps whole sheets, "tables" opens the tables of a workbook on demand
+  const [mode, setMode] = useState<"auto" | "simple" | "tables">("auto");
 
   const sourceOptions: SourceOptions = { csv, sheets, files, folder_mode: folderMode };
   const preview = usePreview(path, sourceOptions);
@@ -106,6 +110,21 @@ export function ImportDialog({ path, onClose, onImported, project = null }: Impo
       else next.add(column);
       return next;
     });
+
+  // 082: the step that fits what the first bytes said (tables of a workbook or a document, …)
+  const Step = data ? IMPORT_STEPS[importStepFor(data, mode)] : undefined;
+  if (data && Step) {
+    return (
+      <Step
+        path={path}
+        preview={data}
+        onClose={onClose}
+        onImported={onImported}
+        project={project}
+        onSimple={() => setMode("simple")}
+      />
+    );
+  }
 
   return (
     <Dialog
@@ -177,6 +196,14 @@ export function ImportDialog({ path, onClose, onImported, project = null }: Impo
 
             {(csv ?? data?.csv) && (
               <CsvSettings value={(csv ?? data?.csv) as CsvOptions} onChange={setCsv} />
+            )}
+
+            {data?.format === "excel" && (data.tables?.length ?? 0) > 0 && (
+              <div className="flex h-(--control-h) items-center self-end">
+                <Button variant="ghost" onClick={() => setMode("tables")}>
+                  {t("preview.tables.choose")}
+                </Button>
+              </div>
             )}
 
             {data?.sheets && data.sheets.length > 1 && (

@@ -80,17 +80,65 @@ def test_permutation_importance_and_partial_dependence() -> None:
 
 
 def test_models_without_shap_say_why_and_trees_show_themselves() -> None:
-    _, forest, _ = run_and_explain("random_forest", settings={"n_estimators": 30})
-    assert (
-        forest.shap is None
-        and forest.shap_unavailable
-        and "RandomForest" in forest.shap_unavailable
-    )
-    assert forest.permutation is not None and forest.dependence
+    _, knn, _ = run_and_explain("knn")
+    assert knn.shap is None and knn.shap_unavailable and "KNeighbors" in knn.shap_unavailable
+    assert knn.permutation is not None and knn.dependence
 
     _, tree, _ = run_and_explain("decision_tree")
     assert tree.tree is not None and tree.tree[0].feature is not None
     assert max(node.depth for node in tree.tree) <= explainer.TREE_DEPTH
+
+
+@pytest.mark.parametrize(
+    ("model", "task", "settings"),
+    [
+        ("random_forest", "regression", {"n_estimators": 30, "max_depth": 8}),
+        ("hist_gradient_boosting", "regression", {"max_iter": 40}),
+        ("random_forest", "binary", {"n_estimators": 20, "max_depth": 6}),
+        ("decision_tree", "binary", None),
+    ],
+)
+def test_scikit_learn_trees_get_exact_shap_values_in_the_first_plane(model, task, settings) -> None:
+    """125: TreeSHAP in numpy, summed per dataset column, adds up to the raw prediction."""
+    result, found, x = run_and_explain(model, task, settings)
+    shap = found.shap
+    assert shap is not None and shap.method == "TreeSHAP (scikit-learn trees, exact)"
+    positions = [int(np.flatnonzero(FRAME["__row"].to_numpy() == r)[0]) for r in shap.rows]
+    if task == "regression":
+        raw = result.pipeline.predict(x.iloc[positions])
+    elif "gradient" in model:
+        raw = result.pipeline.decision_function(x.iloc[positions])
+    else:
+        assert shap.scale == "probability" and shap.positive == str(result.pipeline.classes_[1])
+        raw = result.pipeline.predict_proba(x.iloc[positions])[:, 1]
+    assert np.allclose(shap.base + np.array(shap.matrix).sum(axis=1), raw, atol=1e-6)
+    assert set(p.row for p in result.predictions) <= set(shap.rows)
+
+
+def test_a_forest_too_large_says_how_to_get_shap_values(monkeypatch) -> None:
+    monkeypatch.setattr(explainer.treeshap, "BUDGET", 1_000.0)
+    _, found, _ = run_and_explain("random_forest", settings={"n_estimators": 20})
+    assert found.shap is None and found.shap_unavailable
+    assert found.shap_unavailable.startswith("R-XAI-02") and "Tree depth" in found.shap_unavailable
+
+
+def test_fewer_rows_within_the_budget_keep_the_shown_ones(monkeypatch) -> None:
+    result, full, _ = run_and_explain(
+        "random_forest", settings={"n_estimators": 10, "max_depth": 4}
+    )
+    assert full.shap is not None and full.shap.note is None
+    paths = explainer.treeshap.paths(
+        explainer.treeshap.ensemble(result.pipeline.named_steps["model"], "regression")  # type: ignore[arg-type]
+    )
+    per_row = explainer.treeshap.cost(paths, result.pipeline.named_steps["model"].n_features_in_)
+    monkeypatch.setattr(explainer.treeshap, "BUDGET", per_row * 300)
+    result, found, _ = run_and_explain(
+        "random_forest", settings={"n_estimators": 10, "max_depth": 4}
+    )
+    assert found.shap is not None and len(found.shap.rows) == 300
+    assert found.shap.note and found.shap.note.startswith("R-XAI-02")
+    shown = [p.row for p in result.predictions]
+    assert set(found.shap.rows) <= set(shown)  # every explained row is a shown one
 
 
 def test_strongly_linked_inputs_are_flagged() -> None:
@@ -105,6 +153,12 @@ def test_strongly_linked_inputs_are_flagged() -> None:
     assert any(
         {p.first, p.second} == {"size", "size_twin"} and p.measure == "|r|" for p in found.pairs
     )
+    # R-XAI-01: the partial dependence of a linked column says it extrapolates
+    size = next(d for d in found.dependence if d.column in ("size", "size_twin"))
+    assert size.linked in ("size", "size_twin") and size.extrapolates
+    assert size.extrapolates.startswith("R-XAI-01") and "ALE" in size.extrapolates
+    alone = next((d for d in found.dependence if d.column == "skewed"), None)
+    assert alone is None or alone.extrapolates is None
 
 
 @pytest.mark.parametrize("library", ["xgboost", "lightgbm"])

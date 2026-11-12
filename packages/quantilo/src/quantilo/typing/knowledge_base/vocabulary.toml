@@ -209,3 +209,31 @@ other = ["open", "opened", "pending", "new", "in progress", "escalated", "ouvert
 [[outcome]]
 share = ["approved", "accepted", "accepté", "approuvé"]
 other = ["rejected", "declined", "refused", "denied", "refusé", "rejeté"]
+
+# Funnels (060, P6, R-FUN-01): a categorical column holding at least 3 stages of one list, in this
+# order, is a funnel. A row at a later stage has passed the earlier ones. Each stage lists its
+# spellings, compared lowercased with "_" and "-" read as spaces. Values outside the list (lost,
+# cancelled) are left out of the funnel and said.
+[[funnel]]
+stages = [["lead", "leads", "new lead"], ["qualified", "mql", "sql", "qualified lead"], ["proposal", "quote", "quoted", "proposal sent"], ["negotiation", "negotiating"], ["won", "closed won", "win"]]
+
+[[funnel]]
+stages = [["prospect", "prospects"], ["lead", "leads"], ["opportunity", "opportunities"], ["customer", "customers", "client"]]
+
+[[funnel]]
+stages = [["awareness"], ["interest"], ["consideration"], ["intent"], ["evaluation"], ["purchase"]]
+
+[[funnel]]
+stages = [["visit", "visited", "visitor", "session"], ["signup", "sign up", "signed up", "registered", "registration"], ["trial", "trialing", "activated"], ["paid", "subscribed", "subscriber", "converted"]]
+
+[[funnel]]
+stages = [["view", "viewed", "page view", "pageview", "product view"], ["cart", "add to cart", "added to cart", "addtocart"], ["checkout", "begin checkout", "checkout started"], ["purchase", "purchased", "transaction", "order"]]
+
+[[funnel]]
+stages = [["created", "placed", "pending"], ["paid", "confirmed", "processing"], ["shipped", "dispatched", "in transit"], ["delivered", "completed"]]
+
+[[funnel]]
+stages = [["applied", "application", "applicant"], ["screened", "screening", "phone screen"], ["interview", "interviewed", "interviewing"], ["offer", "offered", "offer sent"], ["hired", "accepted", "joined"]]
+
+[[funnel]]
+stages = [["new", "open", "opened"], ["assigned", "triaged"], ["in progress", "working"], ["resolved", "solved"], ["closed"]]

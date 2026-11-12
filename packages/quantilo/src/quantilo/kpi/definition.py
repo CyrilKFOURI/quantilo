@@ -182,6 +182,21 @@ class View(Strict):
     show_as: ShowAs = "value"
 
 
+class Goal(Strict):
+    """061, P11: the target a measure is read against, a column (Σ over the same rows) or a
+    typed value (per period over time, for the whole range otherwise)."""
+
+    measure: str = "m1"
+    column: str | None = None
+    value: float | None = None
+
+    @model_validator(mode="after")
+    def _one(self) -> "Goal":
+        if (self.column is None) == (self.value is None):
+            raise ValueError("A target is a column or a value, one of the two.")
+        return self
+
+
 class Definition(Strict):
     measures: list[Measure] = Field(min_length=1, max_length=MAX_MEASURES)
     ratio: Ratio | None = None
@@ -191,6 +206,7 @@ class Definition(Strict):
     other: Literal["show", "hide"] = "show"
     group_order: Literal["value", "alpha"] = "value"
     view: View = Field(default_factory=View)
+    goal: Goal | None = None  # 061: actual vs target, on the tile
 
     @model_validator(mode="after")
     def _consistent(self) -> "Definition":
@@ -203,6 +219,10 @@ class Definition(Strict):
                     raise ValueError(f"The ratio uses an unknown measure: {side}.")
             if self.ratio.numerator == self.ratio.denominator:
                 raise ValueError("A ratio needs two different measures.")
+        if self.goal is not None:
+            allowed = [*ids, *([RATIO_ID] if self.ratio else [])]
+            if self.goal.measure not in allowed:
+                raise ValueError(f"The target reads an unknown measure: {self.goal.measure}.")
         columns = [g.column for g in self.groups]
         if len(set(columns)) != len(columns):
             raise ValueError("Split by two different columns.")

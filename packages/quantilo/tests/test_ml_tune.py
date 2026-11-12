@@ -37,7 +37,9 @@ def test_bad_spaces_are_refused() -> None:
         )
 
 
-def search(model: str, request: dict[str, Any], stop_after: int | None = None):
+def search(
+    model: str, request: dict[str, Any], stop_after: int | None = None, warm: list | None = None
+):
     setup = _setup(FRAME, FEATURES, PRICE, "regression", model, None, None, None)
     progress = tuner.TuneProgress("r2", True)
 
@@ -58,6 +60,8 @@ def search(model: str, request: dict[str, Any], stop_after: int | None = None):
         progress,
         (lambda: stop_after is not None and len(progress.trials) >= stop_after),
         build,
+        None,
+        warm,
     )
     return found, setup
 
@@ -136,3 +140,47 @@ def test_boosting_libraries_can_be_tuned_on_a_class_with_roc_auc(model: str) -> 
     )
     # the wrapper says it is a classifier: the scorer takes one column of probabilities
     assert found.default_value is not None and found.best_value is not None
+
+
+# --- 066: very advanced search ---------------------------------------------------------------
+
+
+def test_two_objectives_give_a_pareto_front_of_score_and_time() -> None:
+    found, _ = search(
+        "random_forest",
+        {"trials": 8, "budget_seconds": None, "sampler": "nsga2", "objectives": "score_time"},
+    )
+    assert found.objectives == "score_time"
+    complete = [t for t in found.trials if t.state == "complete" and t.value is not None]
+    front = [t for t in complete if t.pareto]
+    assert front  # the front is never empty
+    # R-ML-TUNE-02: the best value is the best score of the front, also the best overall
+    assert found.best_value == max(t.value or 0.0 for t in front)
+    assert found.best_value == max(t.value or 0.0 for t in complete)
+    assert any(r.startswith("R-ML-TUNE-01") for r in found.rules)
+
+
+def test_two_objectives_refuse_a_single_objective_sampler() -> None:
+    with pytest.raises(tuner.TuneError, match="R-ML-TUNE-01"):
+        search("random_forest", {"trials": 2, "sampler": "cmaes", "objectives": "score_time"})
+
+
+def test_a_warm_start_runs_first_and_says_where_it_comes_from() -> None:
+    from quantilo.ml import warm
+
+    start = warm.Start({"alpha": 0.5}, "Best settings found on this dataset.")
+    space = [tuner.SearchParam(key="alpha", kind="float", low=1e-4, high=100, log=True)]
+    found, _ = search(
+        "linear_regression",
+        {
+            "trials": 3,
+            "budget_seconds": None,
+            "space": space,
+            "settings": {"regularization": "ridge"},
+        },
+        warm=[start],
+    )
+    first = found.trials[0]
+    assert first.params == {"alpha": 0.5} and first.warm == start.reason
+    assert found.warm == [start.reason]
+    assert all(t.warm is None for t in found.trials[1:])

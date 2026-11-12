@@ -440,6 +440,232 @@
         }
       }
     },
+    "/api/v1/sources/original": {
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Source Original",
+        "description": "080b / 085: the left pane of the import screen (a sheet's cells, a document's lines).",
+        "operationId": "source_original_api_v1_sources_original_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OriginalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Original"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources/import": {
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Import Tables",
+        "description": "080b / 085: the chosen tables of one file, imported as one source (one dataset each).",
+        "operationId": "import_tables_api_v1_sources_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceImportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "List Sources",
+        "operationId": "list_sources_api_v1_sources_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Sources Api V1 Sources Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources/{source_id}": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Get Source",
+        "operationId": "get_source_api_v1_sources__source_id__get",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Delete Source",
+        "operationId": "delete_source_api_v1_sources__source_id__delete",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/origin": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Dataset Origin",
+        "operationId": "dataset_origin_api_v1_datasets__dataset_id__origin_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OriginOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/browse": {
       "get": {
         "tags": [
@@ -14112,6 +14338,263 @@
         }
       }
     },
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/explain/ale": {
+      "get": {
+        "tags": [
+          "module:ml"
+        ],
+        "summary": "Run Ale",
+        "description": "Accumulated local effects of one column (numbers, ordered categories), with the check of\nits monotonic constraint when it has one.",
+        "operationId": "run_ale_api_v1_modules_ml_datasets__dataset_id__runs__run_id__explain_ale_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "column",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "title": "Column"
+            }
+          },
+          {
+            "name": "bins",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 2,
+              "default": 20,
+              "title": "Bins"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ale"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/explain/surrogate": {
+      "get": {
+        "tags": [
+          "module:ml"
+        ],
+        "summary": "Run Surrogate",
+        "description": "A shallow tree trained on the model's predictions, with its fidelity (R-XAI-04).",
+        "operationId": "run_surrogate_api_v1_modules_ml_datasets__dataset_id__runs__run_id__explain_surrogate_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5,
+              "minimum": 1,
+              "default": 3,
+              "title": "Depth"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Surrogate"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/explain/monotonic": {
+      "get": {
+        "tags": [
+          "module:ml"
+        ],
+        "summary": "Run Monotonic",
+        "description": "Each monotonic constraint of the run, checked row by row (empty: none was set).",
+        "operationId": "run_monotonic_api_v1_modules_ml_datasets__dataset_id__runs__run_id__explain_monotonic_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Monotonic"
+                  },
+                  "title": "Response Run Monotonic Api V1 Modules Ml Datasets  Dataset Id  Runs  Run Id  Explain Monotonic Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/explain/counterfactual": {
+      "post": {
+        "tags": [
+          "module:ml"
+        ],
+        "summary": "Run Counterfactual",
+        "description": "What would change one row's prediction: at most three changes on the columns allowed to\nchange (R-XAI-03 locks identifiers, dates, text and personal attributes by default), and\nthe closest real row with that outcome.",
+        "operationId": "run_counterfactual_api_v1_modules_ml_datasets__dataset_id__runs__run_id__explain_counterfactual_post",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CounterfactualRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Counterfactual"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/modules/ml/datasets/{dataset_id}/runs/{run_id}/card": {
       "get": {
         "tags": [
@@ -16262,6 +16745,146 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/KpiResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/modules/kpi/datasets/{dataset_id}/cohort": {
+      "post": {
+        "tags": [
+          "module:kpi"
+        ],
+        "summary": "Cohort",
+        "description": "060: retention by cohort and new vs returning customers, computed when opened.",
+        "operationId": "cohort_api_v1_modules_kpi_datasets__dataset_id__cohort_post",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filters"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CohortRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/modules/kpi/datasets/{dataset_id}/funnel": {
+      "post": {
+        "tags": [
+          "module:kpi"
+        ],
+        "summary": "Funnel",
+        "description": "060: the keys (or rows) that reached each stage of an ordered status.",
+        "operationId": "funnel_api_v1_modules_kpi_datasets__dataset_id__funnel_post",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filters"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FunnelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FunnelResult"
                 }
               }
             }
@@ -20322,6 +20945,106 @@
         ],
         "title": "AggregateIn"
       },
+      "Ale": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "grid": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Grid"
+          },
+          "curves": {
+            "additionalProperties": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Curves"
+          },
+          "counts": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Counts"
+          },
+          "output": {
+            "type": "string",
+            "title": "Output"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          },
+          "monotonic": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Monotonic"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "kind",
+          "grid",
+          "curves",
+          "counts",
+          "output",
+          "rows",
+          "order",
+          "sentence"
+        ],
+        "title": "Ale"
+      },
       "Alert": {
         "properties": {
           "kind": {
@@ -20404,6 +21127,90 @@
           "high"
         ],
         "title": "AlternativeEffect"
+      },
+      "Analysis": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "cohort",
+              "funnel"
+            ],
+            "title": "Kind"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "customer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column"
+          },
+          "stages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Stages"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "rule",
+          "name",
+          "reason"
+        ],
+        "title": "Analysis",
+        "description": "A cohort or funnel the data allows, with the rule and its reason (060)."
       },
       "AnomalyRow": {
         "properties": {
@@ -20615,6 +21422,44 @@
           "bic"
         ],
         "title": "ArOrder"
+      },
+      "Archetype": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "kpis": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Kpis"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "message",
+          "kpis"
+        ],
+        "title": "Archetype"
       },
       "AssembleDate": {
         "properties": {
@@ -22501,6 +23346,34 @@
           "stationary_note"
         ],
         "title": "Chain"
+      },
+      "Change": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "before": {
+            "type": "string",
+            "title": "Before"
+          },
+          "after": {
+            "type": "string",
+            "title": "After"
+          },
+          "output": {
+            "type": "number",
+            "title": "Output"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "before",
+          "after",
+          "output"
+        ],
+        "title": "Change"
       },
       "ChangeCase": {
         "properties": {
@@ -24726,6 +25599,149 @@
         ],
         "title": "CoefficientShift"
       },
+      "Cohort": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "retained": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Retained"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "label",
+          "size",
+          "retained"
+        ],
+        "title": "Cohort"
+      },
+      "CohortRequest": {
+        "properties": {
+          "customer": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Customer"
+          },
+          "date": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Date"
+          },
+          "grain": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "month",
+              "week"
+            ],
+            "title": "Grain",
+            "default": "auto"
+          }
+        },
+        "type": "object",
+        "required": [
+          "customer",
+          "date"
+        ],
+        "title": "CohortRequest"
+      },
+      "CohortResult": {
+        "properties": {
+          "customer": {
+            "type": "string",
+            "title": "Customer"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "grain": {
+            "type": "string",
+            "enum": [
+              "month",
+              "week"
+            ],
+            "title": "Grain"
+          },
+          "grain_reason": {
+            "type": "string",
+            "title": "Grain Reason"
+          },
+          "cohorts": {
+            "items": {
+              "$ref": "#/components/schemas/Cohort"
+            },
+            "type": "array",
+            "title": "Cohorts"
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/PeriodCount"
+            },
+            "type": "array",
+            "title": "Periods"
+          },
+          "customers": {
+            "type": "integer",
+            "title": "Customers"
+          },
+          "returning_share": {
+            "type": "number",
+            "title": "Returning Share"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "customer",
+          "date",
+          "grain",
+          "grain_reason",
+          "cohorts",
+          "periods",
+          "customers",
+          "returning_share",
+          "reason",
+          "summary"
+        ],
+        "title": "CohortResult"
+      },
       "ColumnAutocorrelation": {
         "properties": {
           "column": {
@@ -26052,6 +27068,41 @@
         ],
         "title": "CompareRequest"
       },
+      "Compared": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "row": {
+            "type": "string",
+            "title": "Row"
+          },
+          "changed": {
+            "type": "string",
+            "title": "Changed"
+          },
+          "nearest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "row",
+          "changed",
+          "nearest"
+        ],
+        "title": "Compared"
+      },
       "Comparison": {
         "properties": {
           "kind": {
@@ -26517,6 +27568,94 @@
         ],
         "title": "Condition"
       },
+      "ConformalResult": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "split",
+              "cqr"
+            ],
+            "title": "Method"
+          },
+          "level": {
+            "type": "number",
+            "title": "Level"
+          },
+          "half_width": {
+            "type": "number",
+            "title": "Half Width"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "calibration_rows": {
+            "type": "integer",
+            "title": "Calibration Rows"
+          },
+          "check_rows": {
+            "type": "integer",
+            "title": "Check Rows"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage"
+          },
+          "mean_width": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Width"
+          },
+          "order": {
+            "type": "string",
+            "enum": [
+              "random",
+              "time"
+            ],
+            "title": "Order"
+          },
+          "tolerance": {
+            "type": "number",
+            "title": "Tolerance"
+          },
+          "rules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rules"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "level",
+          "half_width",
+          "rows",
+          "calibration_rows",
+          "check_rows",
+          "coverage",
+          "mean_width",
+          "order",
+          "tolerance"
+        ],
+        "title": "ConformalResult",
+        "description": "A number's prediction interval and how well it held on rows it never saw."
+      },
       "Contingency": {
         "properties": {
           "rows": {
@@ -26718,6 +27857,217 @@
           "synthetic_share"
         ],
         "title": "Count"
+      },
+      "Counterfactual": {
+        "properties": {
+          "row": {
+            "type": "integer",
+            "title": "Row"
+          },
+          "goal": {
+            "type": "string",
+            "title": "Goal"
+          },
+          "output": {
+            "type": "string",
+            "title": "Output"
+          },
+          "before": {
+            "type": "number",
+            "title": "Before"
+          },
+          "after": {
+            "type": "number",
+            "title": "After"
+          },
+          "reached": {
+            "type": "boolean",
+            "title": "Reached"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/Change"
+            },
+            "type": "array",
+            "title": "Changes"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/Editable"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "table": {
+            "items": {
+              "$ref": "#/components/schemas/Compared"
+            },
+            "type": "array",
+            "title": "Table"
+          },
+          "nearest_row": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest Row"
+          },
+          "distance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance"
+          },
+          "typical": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typical"
+          },
+          "plausible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plausible"
+          },
+          "plausibility": {
+            "type": "string",
+            "title": "Plausibility"
+          },
+          "target_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Class"
+          },
+          "target_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Value"
+          },
+          "classes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Classes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "row",
+          "goal",
+          "output",
+          "before",
+          "after",
+          "reached",
+          "changes",
+          "sentence",
+          "columns",
+          "table",
+          "nearest_row",
+          "distance",
+          "typical",
+          "plausible",
+          "plausibility"
+        ],
+        "title": "Counterfactual"
+      },
+      "CounterfactualRequest": {
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Row",
+            "description": "The file row (as on the Predictions tab)."
+          },
+          "editable": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Editable",
+            "description": "Columns the search may change (default: all but those locked, R-XAI-03)."
+          },
+          "target_class": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Class"
+          },
+          "target_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Value"
+          },
+          "max_changes": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Max Changes",
+            "default": 3
+          }
+        },
+        "type": "object",
+        "required": [
+          "row"
+        ],
+        "title": "CounterfactualRequest",
+        "description": "What would change one row's prediction (125)."
       },
       "Counts": {
         "properties": {
@@ -27689,6 +29039,16 @@
           },
           "view": {
             "$ref": "#/components/schemas/View"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Goal"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -27764,6 +29124,16 @@
           },
           "view": {
             "$ref": "#/components/schemas/View"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Goal"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -27886,6 +29256,28 @@
           "output": {
             "type": "string",
             "title": "Output"
+          },
+          "linked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked"
+          },
+          "extrapolates": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extrapolates"
           }
         },
         "type": "object",
@@ -28212,38 +29604,6 @@
           "sum"
         ],
         "title": "Describe"
-      },
-      "Detection": {
-        "properties": {
-          "score": {
-            "type": "number",
-            "title": "Score"
-          },
-          "detectors": {
-            "items": {
-              "$ref": "#/components/schemas/Detector"
-            },
-            "type": "array",
-            "title": "Detectors"
-          },
-          "giveaways": {
-            "items": {
-              "$ref": "#/components/schemas/Giveaway"
-            },
-            "type": "array",
-            "title": "Giveaways"
-          },
-          "rows": {
-            "type": "integer",
-            "title": "Rows",
-            "default": 0
-          }
-        },
-        "type": "object",
-        "required": [
-          "score"
-        ],
-        "title": "Detection"
       },
       "DetectionSettings": {
         "properties": {
@@ -29448,6 +30808,36 @@
         "type": "object",
         "title": "EditRecipe"
       },
+      "Editable": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "editable": {
+            "type": "boolean",
+            "title": "Editable"
+          },
+          "locked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "editable",
+          "locked"
+        ],
+        "title": "Editable"
+      },
       "Effect": {
         "properties": {
           "name": {
@@ -29690,7 +31080,10 @@
                   "csv",
                   "parquet",
                   "excel",
-                  "npy"
+                  "npy",
+                  "json",
+                  "jsonl",
+                  "xml"
                 ]
               },
               {
@@ -32364,7 +33757,10 @@
               "csv",
               "parquet",
               "excel",
-              "npy"
+              "npy",
+              "json",
+              "jsonl",
+              "xml"
             ],
             "title": "Format"
           },
@@ -33100,6 +34496,104 @@
         "type": "object",
         "title": "Format"
       },
+      "FunnelRequest": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Column"
+          },
+          "stages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 2,
+            "title": "Stages"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "stages"
+        ],
+        "title": "FunnelRequest"
+      },
+      "FunnelResult": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/Stage"
+            },
+            "type": "array",
+            "title": "Stages"
+          },
+          "outside": {
+            "type": "integer",
+            "title": "Outside"
+          },
+          "outside_labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Outside Labels"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "key",
+          "stages",
+          "outside",
+          "outside_labels",
+          "reason",
+          "summary"
+        ],
+        "title": "FunnelResult"
+      },
       "Giveaway": {
         "properties": {
           "column": {
@@ -33145,6 +34639,96 @@
           "series"
         ],
         "title": "GlobalSummary"
+      },
+      "Goal": {
+        "properties": {
+          "measure": {
+            "type": "string",
+            "title": "Measure",
+            "default": "m1"
+          },
+          "column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Goal",
+        "description": "061, P11: the target a measure is read against, a column (\u03a3 over the same rows) or a\ntyped value (per period over time, for the whole range otherwise)."
+      },
+      "GoalOut": {
+        "properties": {
+          "target": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "attained": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attained"
+          },
+          "gap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target",
+          "attained",
+          "gap",
+          "source",
+          "reason"
+        ],
+        "title": "GoalOut",
+        "description": "061, P11: the tile's value against its target, said in words (never by colour alone)."
       },
       "GpuStatus": {
         "properties": {
@@ -34348,6 +35932,50 @@
             ],
             "title": "Header Row"
           },
+          "table": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table"
+          },
+          "reshape": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reshape"
+          },
+          "records_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Records Path"
+          },
+          "one_table": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "One Table"
+          },
           "columns": {
             "anyOf": [
               {
@@ -34679,6 +36307,31 @@
           "errors": {
             "type": "integer",
             "title": "Errors"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "split",
+              "cqr"
+            ],
+            "title": "Method",
+            "default": "split"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage"
+          },
+          "check_rows": {
+            "type": "integer",
+            "title": "Check Rows",
+            "default": 0
           }
         },
         "type": "object",
@@ -34688,7 +36341,7 @@
           "errors"
         ],
         "title": "Interval",
-        "description": "A number's prediction interval from the validation errors (split conformal)."
+        "description": "A number's prediction interval from the validation errors (split conformal, or CQR: the\nquantile band kept on the pipeline, widened by `half_width`) (037, 057)."
       },
       "IvCoefficient": {
         "properties": {
@@ -35893,6 +37546,39 @@
           "status"
         ],
         "title": "LevelShift"
+      },
+      "LinkOut": {
+        "properties": {
+          "parent_id": {
+            "type": "string",
+            "title": "Parent Id"
+          },
+          "child_id": {
+            "type": "string",
+            "title": "Child Id"
+          },
+          "parent_key": {
+            "type": "string",
+            "title": "Parent Key"
+          },
+          "child_key": {
+            "type": "string",
+            "title": "Child Key"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          }
+        },
+        "type": "object",
+        "required": [
+          "parent_id",
+          "child_id",
+          "parent_key",
+          "child_key",
+          "rule"
+        ],
+        "title": "LinkOut"
       },
       "LinkPair": {
         "properties": {
@@ -37986,6 +39672,44 @@
         ],
         "title": "Moments"
       },
+      "Monotonic": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "sign": {
+            "type": "integer",
+            "title": "Sign"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "violations": {
+            "type": "integer",
+            "title": "Violations"
+          },
+          "largest": {
+            "type": "number",
+            "title": "Largest"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "sign",
+          "rows",
+          "violations",
+          "largest",
+          "sentence"
+        ],
+        "title": "Monotonic"
+      },
       "MoreChecks": {
         "properties": {
           "white": {
@@ -38716,6 +40440,154 @@
         ],
         "title": "Origin",
         "description": "A dataset created from a synthetic run."
+      },
+      "OriginOut": {
+        "properties": {
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locator"
+          },
+          "layout": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layout"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/LinkOut"
+            },
+            "type": "array",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "locator",
+          "layout",
+          "links"
+        ],
+        "title": "OriginOut",
+        "description": "Where a dataset comes from: standalone (`source` null) or one table of a source."
+      },
+      "Original": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "sheet",
+              "text"
+            ],
+            "title": "Kind"
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet"
+          },
+          "cells": {
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Cells"
+          },
+          "merges": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Merges"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "Original"
+      },
+      "OriginalRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "OriginalRequest"
       },
       "Others": {
         "properties": {
@@ -40168,6 +42040,39 @@
         "additionalProperties": false,
         "type": "object",
         "title": "Period"
+      },
+      "PeriodCount": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "new": {
+            "type": "integer",
+            "title": "New"
+          },
+          "returning": {
+            "type": "integer",
+            "title": "Returning"
+          },
+          "partial": {
+            "type": "boolean",
+            "title": "Partial"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "label",
+          "new",
+          "returning",
+          "partial"
+        ],
+        "title": "PeriodCount"
       },
       "PeriodOut": {
         "properties": {
@@ -41956,12 +43861,18 @@
                   "csv",
                   "parquet",
                   "excel",
-                  "npy"
+                  "npy",
+                  "json",
+                  "jsonl",
+                  "xml"
                 ]
               },
               {
                 "type": "string",
-                "const": "mixed"
+                "enum": [
+                  "mixed",
+                  "other"
+                ]
               }
             ],
             "title": "Format"
@@ -42062,6 +43973,48 @@
               }
             ],
             "title": "Header Row"
+          },
+          "detected": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/quantilo__ingestion__preview__Detection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tables": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TableChoice"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tables"
+          },
+          "table": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/TableLink"
+            },
+            "type": "array",
+            "title": "Links"
           }
         },
         "type": "object",
@@ -45449,7 +47402,7 @@
             "$ref": "#/components/schemas/Quality"
           },
           "detection": {
-            "$ref": "#/components/schemas/Detection"
+            "$ref": "#/components/schemas/quantilo__synthetic__detection__Detection"
           },
           "privacy": {
             "$ref": "#/components/schemas/Privacy"
@@ -46664,6 +48617,29 @@
         ],
         "title": "RowsPage"
       },
+      "RuleNote": {
+        "properties": {
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule",
+          "weight",
+          "message"
+        ],
+        "title": "RuleNote"
+      },
       "RuleView": {
         "properties": {
           "when": {
@@ -46880,6 +48856,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/AutoProgress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "interval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConformalResult"
               },
               {
                 "type": "null"
@@ -47126,6 +49112,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/SequenceRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "training": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Training"
               },
               {
                 "type": "null"
@@ -51620,6 +53616,17 @@
             },
             "type": "array",
             "title": "Labels"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
           }
         },
         "type": "object",
@@ -52324,6 +54331,74 @@
         "title": "Slice",
         "description": "A subgroup where the model is notably worse than on average."
       },
+      "SourceImportRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "tables": {
+            "items": {
+              "$ref": "#/components/schemas/TableRequest"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Tables"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ImportOptions"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "tables"
+        ],
+        "title": "SourceImportRequest"
+      },
+      "SourceImportResponse": {
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/SourceOut"
+          },
+          "imports": {
+            "items": {
+              "$ref": "#/components/schemas/ImportResponse"
+            },
+            "type": "array",
+            "title": "Imports"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "imports"
+        ],
+        "title": "SourceImportResponse"
+      },
       "SourceOptions": {
         "properties": {
           "csv": {
@@ -52386,11 +54461,109 @@
               }
             ],
             "title": "Header Row"
+          },
+          "table": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table"
+          },
+          "reshape": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reshape"
+          },
+          "records_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Records Path"
+          },
+          "one_table": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "One Table"
           }
         },
         "type": "object",
         "title": "SourceOptions",
         "description": "How to read a source. `None` fields mean \"detect\" or \"everything\"."
+      },
+      "SourceOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "workbook",
+              "csv",
+              "json",
+              "jsonl",
+              "xml",
+              "image"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "source_path": {
+            "type": "string",
+            "title": "Source Path"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "dataset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dataset Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "source_path",
+          "size_bytes",
+          "created_at",
+          "dataset_ids"
+        ],
+        "title": "SourceOut"
       },
       "SplitOut": {
         "properties": {
@@ -52422,6 +54595,48 @@
           "ordinal"
         ],
         "title": "SplitOut"
+      },
+      "Stage": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "reached": {
+            "type": "integer",
+            "title": "Reached"
+          },
+          "of_first": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Of First"
+          },
+          "conversion": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "reached",
+          "of_first",
+          "conversion"
+        ],
+        "title": "Stage"
       },
       "StandardErrorTable": {
         "properties": {
@@ -53177,6 +55392,23 @@
             },
             "type": "array",
             "title": "Notes"
+          },
+          "analyses": {
+            "items": {
+              "$ref": "#/components/schemas/Analysis"
+            },
+            "type": "array",
+            "title": "Analyses"
+          },
+          "archetype": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Archetype"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -53186,6 +55418,145 @@
           "hierarchies"
         ],
         "title": "Suggestions"
+      },
+      "Surrogate": {
+        "properties": {
+          "depth": {
+            "type": "integer",
+            "title": "Depth"
+          },
+          "measure": {
+            "type": "string",
+            "title": "Measure"
+          },
+          "fidelity": {
+            "type": "number",
+            "title": "Fidelity"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "checked": {
+            "type": "integer",
+            "title": "Checked"
+          },
+          "leaves": {
+            "type": "integer",
+            "title": "Leaves"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/SurrogateNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning"
+          }
+        },
+        "type": "object",
+        "required": [
+          "depth",
+          "measure",
+          "fidelity",
+          "rows",
+          "checked",
+          "leaves",
+          "nodes",
+          "sentence",
+          "warning"
+        ],
+        "title": "Surrogate"
+      },
+      "SurrogateNode": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "depth": {
+            "type": "integer",
+            "title": "Depth"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "samples": {
+            "type": "integer",
+            "title": "Samples"
+          },
+          "left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Left"
+          },
+          "right": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Right"
+          },
+          "left_rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Left Rule"
+          },
+          "right_rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Right Rule"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "depth",
+          "value",
+          "samples",
+          "left",
+          "right",
+          "left_rule",
+          "right_rule"
+        ],
+        "title": "SurrogateNode"
       },
       "Survival": {
         "properties": {
@@ -54039,6 +56410,232 @@
           "reason"
         ],
         "title": "TErrors"
+      },
+      "TableArea": {
+        "properties": {
+          "top": {
+            "type": "integer",
+            "title": "Top"
+          },
+          "left": {
+            "type": "integer",
+            "title": "Left"
+          },
+          "bottom": {
+            "type": "integer",
+            "title": "Bottom"
+          },
+          "right": {
+            "type": "integer",
+            "title": "Right"
+          },
+          "header_rows": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Header Rows"
+          },
+          "first_data_row": {
+            "type": "integer",
+            "title": "First Data Row"
+          },
+          "dropped_rows": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Dropped Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "top",
+          "left",
+          "bottom",
+          "right",
+          "header_rows",
+          "first_data_row"
+        ],
+        "title": "TableArea",
+        "description": "Where a detected table sits in its sheet (1-based, inclusive), to draw it on the original."
+      },
+      "TableChoice": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "location": {
+            "type": "string",
+            "title": "Location"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "columns": {
+            "type": "integer",
+            "title": "Columns"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "high",
+              "review",
+              "low"
+            ],
+            "title": "Level"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "selected": {
+            "type": "boolean",
+            "title": "Selected"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "table"
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "area": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TableArea"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/RuleNote"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "proposals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Proposals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "location",
+          "rows",
+          "columns",
+          "level",
+          "confidence",
+          "summary",
+          "selected"
+        ],
+        "title": "TableChoice",
+        "description": "One table the source gives (080b: a table of a sheet; 085: a linked table of a document)."
+      },
+      "TableLink": {
+        "properties": {
+          "parent": {
+            "type": "string",
+            "title": "Parent"
+          },
+          "child": {
+            "type": "string",
+            "title": "Child"
+          },
+          "parent_key": {
+            "type": "string",
+            "title": "Parent Key"
+          },
+          "child_key": {
+            "type": "string",
+            "title": "Child Key"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          }
+        },
+        "type": "object",
+        "required": [
+          "parent",
+          "child",
+          "parent_key",
+          "child_key",
+          "rule"
+        ],
+        "title": "TableLink",
+        "description": "`parent.parent_key` = `child.child_key` between two tables of a document (R-KEY-03)."
+      },
+      "TableRequest": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "TableRequest"
       },
       "TableView": {
         "properties": {
@@ -55387,6 +57984,16 @@
                 "type": "null"
               }
             ]
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoalOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -55869,6 +58476,93 @@
         ],
         "title": "Topics"
       },
+      "Training": {
+        "properties": {
+          "optimizer": {
+            "type": "string",
+            "enum": [
+              "adamw",
+              "adam",
+              "sgd_nesterov",
+              "radam"
+            ],
+            "title": "Optimizer",
+            "default": "adamw"
+          },
+          "learning_rate": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Learning Rate"
+          },
+          "weight_decay": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Decay"
+          },
+          "schedule": {
+            "type": "string",
+            "enum": [
+              "constant",
+              "cosine",
+              "one_cycle"
+            ],
+            "title": "Schedule",
+            "default": "constant"
+          },
+          "warmup": {
+            "type": "number",
+            "maximum": 0.5,
+            "minimum": 0.0,
+            "title": "Warmup",
+            "default": 0.0
+          },
+          "clip_norm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clip Norm"
+          },
+          "ema": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 0.9999,
+                "minimum": 0.9
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema"
+          }
+        },
+        "type": "object",
+        "title": "Training",
+        "description": "The very advanced training settings of the deep generators (CTGAN, TVAE, TimeGAN)."
+      },
       "TrainingJob": {
         "properties": {
           "id": {
@@ -56300,6 +58994,22 @@
           "seconds": {
             "type": "number",
             "title": "Seconds"
+          },
+          "warm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warm"
+          },
+          "pareto": {
+            "type": "boolean",
+            "title": "Pareto",
+            "default": false
           }
         },
         "type": "object",
@@ -56445,6 +59155,29 @@
               }
             ],
             "title": "Criterion"
+          },
+          "objectives": {
+            "type": "string",
+            "enum": [
+              "score",
+              "score_time"
+            ],
+            "title": "Objectives",
+            "default": "score"
+          },
+          "warm": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warm"
+          },
+          "rules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rules"
           }
         },
         "type": "object",
@@ -56529,6 +59262,20 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Settings"
+          },
+          "warm_start": {
+            "type": "boolean",
+            "title": "Warm Start",
+            "default": false
+          },
+          "objectives": {
+            "type": "string",
+            "enum": [
+              "score",
+              "score_time"
+            ],
+            "title": "Objectives",
+            "default": "score"
           },
           "preparation": {
             "anyOf": [
@@ -57305,6 +60052,22 @@
               }
             ],
             "title": "Period Threshold"
+          },
+          "interval_level": {
+            "type": "number",
+            "maximum": 0.99,
+            "minimum": 0.5,
+            "title": "Interval Level",
+            "default": 0.9
+          },
+          "interval_method": {
+            "type": "string",
+            "enum": [
+              "split",
+              "cqr"
+            ],
+            "title": "Interval Method",
+            "default": "split"
           }
         },
         "type": "object",
@@ -58328,6 +61091,62 @@
         ],
         "title": "Pair"
       },
+      "quantilo__ingestion__preview__Detection": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "table",
+              "document",
+              "image",
+              "unsupported"
+            ],
+            "title": "Kind"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "mismatch": {
+            "type": "boolean",
+            "title": "Mismatch",
+            "default": false
+          },
+          "name_format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Format"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "format",
+          "label",
+          "rule",
+          "reason"
+        ],
+        "title": "Detection",
+        "description": "What the first bytes say about the file (082): its kind, its format, the rule and why."
+      },
       "quantilo__kpi__definition__Group": {
         "properties": {
           "column": {
@@ -58698,6 +61517,38 @@
           "y"
         ],
         "title": "Curve"
+      },
+      "quantilo__synthetic__detection__Detection": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "detectors": {
+            "items": {
+              "$ref": "#/components/schemas/Detector"
+            },
+            "type": "array",
+            "title": "Detectors"
+          },
+          "giveaways": {
+            "items": {
+              "$ref": "#/components/schemas/Giveaway"
+            },
+            "type": "array",
+            "title": "Giveaways"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "score"
+        ],
+        "title": "Detection"
       },
       "quantilo__timeseries__smoothing__Curve": {
         "properties": {

@@ -11,6 +11,7 @@ import { ErrorsTab } from "./Errors";
 import { ExplainTab, RowExplanation } from "./Explain";
 import { periodVerdict, PeriodsTab } from "./PanelResults";
 import { Panel, ScoreBand } from "./ResultParts";
+import { IntervalNote } from "./IntervalNote";
 import {
   coefficientsFigure,
   confusionFigure,
@@ -182,6 +183,7 @@ function RegressionPerformance({ run }: { run: MlRun }) {
         </Panel>
         <LearningCurvePanel run={run} />
       </div>
+      <IntervalNote interval={run.interval} />
       {r.heteroscedasticity_p !== null && (
         <p className={`text-[13px] ${r.heteroscedasticity_p < 0.05 ? "text-warn" : "text-ink-2"}`}>
           {t(r.heteroscedasticity_p < 0.05 ? "ml.heteroscedastic" : "ml.homoscedastic", { p: pLabel(r.heteroscedasticity_p) })}

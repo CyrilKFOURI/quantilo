@@ -48,6 +48,9 @@ def test_train_a_regression_and_read_it_back(client: TestClient, traps: str) -> 
     assert run["train_rows"] + run["test_rows"] <= 600
     assert any(d["rules"] == ["R-SEL-01"] for d in run["preparation"]["decisions"])
     assert run["coefficients"] and run["predictions"]
+    interval = run["interval"]  # 057: split conformal, coverage checked on held-out rows
+    assert interval["method"] == "split" and interval["level"] == 0.9
+    assert interval["rows"] == run["test_rows"] and interval["coverage"] is not None
 
     listed = client.get(f"{BASE}/datasets/{traps}/runs", params={"target": "income"}).json()
     assert listed[0]["id"] == job["run_id"] and listed[0]["metric"] == "r2"
@@ -324,3 +327,37 @@ def test_the_desktop_app_holds_nothing_back(client: TestClient) -> None:
     found = client.get(f"{BASE}/catalog", params={"task": "regression"}).json()
     assert found["browser"] is None
     assert not any(m["desktop_only"] for m in found["models"])
+
+
+def test_a_warm_start_begins_with_the_settings_already_found(
+    client: TestClient, traps: str
+) -> None:
+    """066: a saved run's settings are the first trial, with the reason."""
+    job = client.post(
+        f"{BASE}/datasets/{traps}/runs",
+        params={
+            "target": "income",
+            "model": "linear_regression",
+            "settings": json.dumps({"regularization": "ridge", "alpha": 3.0}),
+        },
+    ).json()
+    assert wait(client, job)["status"] == "done"
+    started = client.post(
+        f"{BASE}/datasets/{traps}/tune",
+        params={"target": "income"},
+        json={
+            "model": "linear_regression",
+            "trials": 3,
+            "budget_seconds": None,
+            "warm_start": True,
+            "space": [{"key": "alpha", "kind": "float", "low": 0.0001, "high": 100, "log": True}],
+            "settings": {"regularization": "ridge"},
+        },
+    )
+    assert started.status_code == 202, started.text
+    done = _until(client, f"{BASE}/tune-jobs/{started.json()['id']}", ("done", "stopped", "failed"))
+    assert done["status"] == "done", done
+    first = done["progress"]["trials"][0]
+    assert first["params"] == {"alpha": 3.0}
+    assert (first["warm"] or "").startswith("Best settings found on this dataset")
+    assert done["progress"]["warm"] == [first["warm"]]

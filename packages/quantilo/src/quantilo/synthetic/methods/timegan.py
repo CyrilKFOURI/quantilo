@@ -8,6 +8,7 @@ import pandas as pd
 from quantilo.synthetic import sequences as seq
 from quantilo.synthetic.deep import TIMEGAN_CPU_STEPS, TIMEGAN_GPU_STEPS
 from quantilo.synthetic.deep.device import pick, with_fallback
+from quantilo.synthetic.deep.training import describe
 from quantilo.synthetic.encode import Coded, Learned, encode
 from quantilo.synthetic.methods import Cancelled, Fitted, Options, StopCheck
 
@@ -57,7 +58,7 @@ def generate(
             options.progress(done, f"{phase} · step {step:,} / {total:,}")
 
     def fit(device: torch.device) -> np.ndarray:
-        model = TimeGAN(layout.width, device, options.seed)
+        model = TimeGAN(layout.width, device, options.seed, training=options.training)
         if not model.fit(windows.data, steps, report, should_stop):
             raise Cancelled
         return model.sample(plan.sequences, length)
@@ -88,7 +89,7 @@ def generate(
     else:
         starts = rng.choice(starts_pool, plan.sequences)
     times = (starts[:, None] + np.arange(length)[None, :] * step).reshape(-1)
-    notes = [n for n in (chosen.note, used.note) if n]
+    notes = [n for n in (chosen.note, used.note, describe(options.training)) if n]
     if used.device.type == "cpu" and plan.steps is None:
         notes.append("Trained on the CPU: a short training, the dynamics may be rough.")
     notes.append(
