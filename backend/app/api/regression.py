@@ -15,10 +15,13 @@ from quantilo.regression.analyze import (
 from quantilo.regression.families import FamilyRequest
 from quantilo.regression.iv import IvTable
 from quantilo.regression.panel import PanelTable
+from quantilo.regression.resampling import ResamplingTable
 from quantilo.regression.robust import QuantileProcess, RobustTable
 from quantilo.regression.rules import RegressionSuggestion, SeRequest
+from quantilo.regression.selection import SelectionTable
 from quantilo.regression.service import RegressionService
 from quantilo.regression.service import Request as RegressionRequest
+from quantilo.regression.stability import StabilityTable
 from quantilo.regression.terms import Coding, PartialPlot
 
 from app.api.filters import Filters
@@ -197,6 +200,35 @@ def quantiles(dataset_id: str, service: Service, filters: Filters, asked: Asked)
     coefficients at τ = 0.1…0.9, the test of 0.1 against 0.9, Student-t errors."""
     found = service.section(dataset_id, "quantiles", asked, filters)
     assert isinstance(found, QuantileProcess)
+    return found
+
+
+@router.get("/datasets/{dataset_id}/regression/stability")
+def stability(dataset_id: str, service: Service, filters: Filters, asked: Asked) -> StabilityTable:
+    """Advanced > Stability over time (073): CUSUM and CUSUM of squares of the recursive
+    residuals, a Chow test at the strongest date, rolling coefficients, the factor reading."""
+    found = service.section(dataset_id, "stability", asked, filters)
+    assert isinstance(found, StabilityTable)
+    return found
+
+
+@router.get("/datasets/{dataset_id}/regression/resampling")
+def resampling(
+    dataset_id: str, service: Service, filters: Filters, asked: Asked
+) -> ResamplingTable:
+    """Advanced > Resampling (077): bootstrap of rows, clusters or blocks, wild cluster
+    bootstrap with few clusters, Freedman-Lane permutation of one coefficient."""
+    found = service.section(dataset_id, "resampling", asked, filters)
+    assert isinstance(found, ResamplingTable)
+    return found
+
+
+@router.get("/datasets/{dataset_id}/regression/selection")
+def selection(dataset_id: str, service: Service, filters: Filters, asked: Asked) -> SelectionTable:
+    """Advanced > More > Selection (077, computed only when opened): plug-in lasso, post-lasso,
+    double selection of the focus column, stability selection."""
+    found = service.section(dataset_id, "selection", asked, filters)
+    assert isinstance(found, SelectionTable)
     return found
 
 

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Query, Request, Response
 from quantilo.ingestion.browse import Listing
+from quantilo.ingestion.image_sets import IMAGE_SUFFIXES, image_source
 from quantilo.ingestion.original import Original
 from quantilo.ingestion.preview import Preview
 from quantilo.ingestion.sniff import sniff_path
@@ -128,7 +129,9 @@ async def upload(
     request: Request, service: Datasets, filename: str = Query(min_length=1)
 ) -> UploadOut:
     """Receive a file as the raw request body (no multipart), stored in the workspace."""
-    if detect_format(Path(filename)) is None:
+    suffix = Path(filename).suffix.lower()
+    # 106: an image or a ZIP of images is uploaded too (its content is checked at the import)
+    if detect_format(Path(filename)) is None and suffix not in (*IMAGE_SUFFIXES, ".zip"):
         raise AppError(f"Unsupported file type: {filename}", code="unsupported", status_code=415)
     limit = service.settings.max_upload_mb * 1024 * 1024
     target = service.new_upload_path(filename)
@@ -149,8 +152,9 @@ async def upload(
         target.unlink(missing_ok=True)
         raise AppError("The file is empty.", code="empty", status_code=422)
     found = sniff_path(target)
-    if found.kind == "unsupported" and found.format != "xls":
-        # 082, R-DET-03: named by its first bytes, never kept (a legacy .xls is explained later)
+    if found.kind == "unsupported" and found.format != "xls" and image_source(target) is None:
+        # 082, R-DET-03: named by its first bytes, never kept (a legacy .xls is explained later;
+        # a ZIP of images is an image set, R-VIS-SRC-02)
         target.unlink(missing_ok=True)
         raise AppError(f"{filename}: {found.reason}", code="unsupported", status_code=415)
     return UploadOut(path=str(target), size=size)

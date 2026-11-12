@@ -98,6 +98,9 @@ const SECTIONS: Record<string, RegressionSection> = {
   more: "more",
   panel: "panel",
   robust: "robust",
+  stability: "stability", // 073: R-REG-15
+  resampling: "resampling", // 077
+  selection: "more", // 077: R-REG-16, Selection lives in More
 };
 
 const splitColumns = (value: string | undefined) =>

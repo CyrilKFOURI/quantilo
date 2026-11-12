@@ -34,6 +34,7 @@ from sklearn.preprocessing import (
 )
 
 from quantilo.ml import codes
+from quantilo.ml import embed as embedding
 from quantilo.ml import encoding as enc
 from quantilo.ml import text as textual
 from quantilo.ml.data import CATEGORICAL, NUMERIC
@@ -1327,7 +1328,12 @@ def _options(
         options["transform"] = [Option("date_parts"), Option("date_cycles")]
         options["scaling"] = [Option(v) for v in ("none", "standard", "minmax")]
     elif decision.type == "text":
-        options["encoding"] = [Option("words"), Option("chars")]
+        # 091: sentence embeddings, greyed with the reason when the `embed` extra is missing
+        options["encoding"] = [
+            Option("words"),
+            Option("chars"),
+            Option("embeddings", embedding.status().reason),
+        ]
         options["scaling"] = [Option(v) for v in ("none", "standard", "minmax")]
     elif decision.type in CATEGORICAL:
         options["impute"] = [
@@ -1378,6 +1384,12 @@ def _set(decision: Decision, key: str, value: str) -> None:
             decision.indicator = False
     elif key == "encoding":
         decision.encoding = value
+        if value == "embeddings":
+            decision.apply(
+                "R-FUS-01",
+                f"Sentence embeddings ({embedding.MODEL}), reduced to {embedding.DIMENSIONS} "
+                "numbers by a PCA; kept only if they beat TF-IDF in cross-validation (R-FUS-02).",
+            )
         if value not in ("ordinal", "frequency") and decision.type != "text":
             decision.scaling = None
 
@@ -1687,7 +1699,12 @@ def build(
             ]
         elif d.type == "text":
             analyzer = cast(textual.Analyzer, "chars" if d.encoding == "chars" else "words")
-            steps = [("text", textual.TextFeatures(analyzer)), ("scale", _scaler(d.scaling))]
+            text_step: Any = (
+                embedding.EmbeddingFeatures()
+                if d.encoding == "embeddings"
+                else textual.TextFeatures(analyzer)
+            )
+            steps = [("text", text_step), ("scale", _scaler(d.scaling))]
         else:
             steps = _category_steps(d, preparation, rows, task, drop_first)
         transformers.append((f"c{len(transformers)}", Pipeline(steps), columns))

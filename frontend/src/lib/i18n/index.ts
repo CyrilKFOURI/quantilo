@@ -5,8 +5,10 @@ import recipes from "./recipes.json";
 import clean from "./clean.json";
 // Model of a project (088): its texts in their own file too.
 import model from "./model.json";
+// Pinned rows (099): shared by Data, Unusual rows and Clean.
+import pins from "./pins.json";
 
-const all = { ...en, ...recipes, ...clean, ...model };
+const all = { ...en, ...recipes, ...clean, ...model, ...pins };
 
 export type MessageKey = keyof typeof all;
 

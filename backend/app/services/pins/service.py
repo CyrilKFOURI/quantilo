@@ -1,0 +1,222 @@
+"""Pinned rows (099, docs/features/099-lignes-epinglees/spec.md): rows a user pinned with a label
+and a colour, kept in SQLite under the row's key (R-PIN-01), found again after a re-import
+(R-PIN-02), and compared with the other rows on request (R-PIN-05)."""
+
+import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import UTC, datetime
+
+from pydantic import BaseModel, Field, field_validator
+from quantilo.segments.engine import SegmentsEngine
+from quantilo.segments.pinned import PinnedComparison
+
+from app.core import db
+from app.core.errors import AppError
+from app.core.storage import Workspace
+from app.services.columns.service import ColumnService
+
+MAX_PINS = 5_000  # R-PIN-04: a `label_rows` step carries as many
+MAX_ROWS = 500  # rows pinned or unpinned at a time
+COLORS = 8  # slots of the theme's categorical palette (R-PIN-03)
+
+
+class PinError(AppError):
+    def __init__(self, message: str, code: str = "pins", status_code: int = 422) -> None:
+        super().__init__(message, code=code, status_code=status_code)
+
+
+def _label(value: str) -> str:
+    text = value.strip()
+    if not text:
+        raise ValueError("A label needs at least one character.")
+    return text
+
+
+class PinRequest(BaseModel):
+    rows: list[int] = Field(min_length=1, max_length=MAX_ROWS)  # row numbers in the file, from 0
+    label: str = Field(min_length=1, max_length=60)
+    color: int = Field(ge=1, le=COLORS)
+
+    _strip = field_validator("label")(_label)
+
+
+class UnpinRequest(BaseModel):
+    keys: list[str] = Field(min_length=1, max_length=MAX_PINS)
+
+
+class LabelChange(BaseModel):
+    label: str = Field(min_length=1, max_length=60)
+    to: str | None = Field(default=None, min_length=1, max_length=60)  # a new name
+    color: int | None = Field(default=None, ge=1, le=COLORS)
+
+    @field_validator("to")
+    @classmethod
+    def _to(cls, value: str | None) -> str | None:
+        return None if value is None else _label(value)
+
+
+@dataclass
+class Pin:
+    key: str
+    row: int  # in the file, from 0 (the Data page shows row + 1)
+    label: str
+    color: int
+    created_at: str
+    found: bool  # False: the row is no longer in the dataset (R-PIN-02)
+
+
+@dataclass
+class PinLabel:
+    label: str
+    color: int
+    rows: int  # pins with this label, found or not
+
+
+@dataclass
+class PinnedRows:
+    pins: list[Pin]  # by row number, the rows not found last
+    labels: list[PinLabel]  # in the order they were first used
+    missing: int  # pins whose row was not found
+    limit: int = MAX_PINS
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+class PinService:
+    def __init__(self, workspace: Workspace, columns: ColumnService) -> None:
+        self.workspace = workspace
+        self.columns = columns
+        self.engine = SegmentsEngine(columns)
+
+    @contextmanager
+    def _db(self) -> Iterator[sqlite3.Connection]:
+        connection = db.connect(self.workspace.db_path)
+        try:
+            yield connection
+        finally:
+            connection.close()
+
+    def _stored(self, dataset_id: str) -> list[sqlite3.Row]:
+        with self._db() as connection:
+            return connection.execute(
+                "SELECT row_key, row_number, label, color, created_at FROM pinned_rows "
+                "WHERE dataset_id = ? ORDER BY created_at, row_number",
+                (dataset_id,),
+            ).fetchall()
+
+    def pins(self, dataset_id: str) -> PinnedRows:
+        """Every pin, each row checked against its key and found again when it moved."""
+        self.columns.datasets.get(dataset_id)
+        stored = self._stored(dataset_id)
+        if not stored:
+            return PinnedRows([], [], 0)
+        current = self.engine.keys(dataset_id, [int(r["row_number"]) for r in stored])
+        moved = [r["row_key"] for r in stored if current.get(int(r["row_number"])) != r["row_key"]]
+        found = self.engine.find_keys(dataset_id, moved) if moved else {}
+        if found:
+            with self._db() as connection, connection:
+                connection.executemany(
+                    "UPDATE pinned_rows SET row_number = ? WHERE dataset_id = ? AND row_key = ?",
+                    [(row, dataset_id, key) for key, row in found.items()],
+                )
+        lost = set(moved) - set(found)
+        pins = [
+            Pin(
+                r["row_key"],
+                found.get(r["row_key"], int(r["row_number"])),
+                r["label"],
+                int(r["color"]),
+                r["created_at"],
+                r["row_key"] not in lost,
+            )
+            for r in stored
+        ]
+        labels: dict[str, PinLabel] = {}
+        for pin in pins:
+            item = labels.setdefault(pin.label, PinLabel(pin.label, pin.color, 0))
+            item.rows += 1
+        pins.sort(key=lambda p: (not p.found, p.row))
+        return PinnedRows(pins, list(labels.values()), len(lost))
+
+    def pin(self, dataset_id: str, request: PinRequest) -> PinnedRows:
+        """Pin rows with a label; a row already pinned takes the new label; every row of the
+        label takes its colour (R-PIN-03)."""
+        self.columns.datasets.get(dataset_id)
+        rows = sorted(set(request.rows))
+        keys = self.engine.keys(dataset_id, rows)
+        absent = [r for r in rows if r not in keys]
+        if absent:
+            raise PinError(f"Row {absent[0] + 1} is not in this dataset.", "unknown_row")
+        stored = {r["row_key"] for r in self._stored(dataset_id)}
+        new = {keys[r] for r in rows} - stored
+        if len(stored) + len(new) > MAX_PINS:
+            raise PinError(
+                f"At most {MAX_PINS:,} pinned rows per dataset ({len(stored):,} already).",
+                "too_many_pins",
+            )
+        moment = _now()
+        with self._db() as connection, connection:
+            connection.executemany(
+                "INSERT INTO pinned_rows (dataset_id, row_key, row_number, label, color, "
+                "created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (dataset_id, row_key) DO UPDATE "
+                "SET row_number = excluded.row_number, label = excluded.label, "
+                "color = excluded.color",
+                [(dataset_id, keys[r], r, request.label, request.color, moment) for r in rows],
+            )
+            connection.execute(
+                "UPDATE pinned_rows SET color = ? WHERE dataset_id = ? AND label = ?",
+                (request.color, dataset_id, request.label),
+            )
+        return self.pins(dataset_id)
+
+    def unpin(self, dataset_id: str, request: UnpinRequest) -> PinnedRows:
+        self.columns.datasets.get(dataset_id)
+        with self._db() as connection, connection:
+            connection.executemany(
+                "DELETE FROM pinned_rows WHERE dataset_id = ? AND row_key = ?",
+                [(dataset_id, key) for key in request.keys],
+            )
+        return self.pins(dataset_id)
+
+    def change_label(self, dataset_id: str, change: LabelChange) -> PinnedRows:
+        """Rename a label (into another one: its rows take that label's colour) or recolour it."""
+        self.columns.datasets.get(dataset_id)
+        label = change.label.strip()
+        with self._db() as connection, connection:
+            exists = connection.execute(
+                "SELECT 1 FROM pinned_rows WHERE dataset_id = ? AND label = ? LIMIT 1",
+                (dataset_id, label),
+            ).fetchone()
+            if not exists:
+                raise PinError(f"No pinned row is labelled “{label}”.", "unknown_label", 404)
+            color = change.color
+            if change.to is not None and change.to != label:
+                if color is None:
+                    target = connection.execute(
+                        "SELECT color FROM pinned_rows WHERE dataset_id = ? AND label = ? LIMIT 1",
+                        (dataset_id, change.to),
+                    ).fetchone()
+                    color = int(target["color"]) if target else None
+                connection.execute(
+                    "UPDATE pinned_rows SET label = ? WHERE dataset_id = ? AND label = ?",
+                    (change.to, dataset_id, label),
+                )
+                label = change.to
+            if color is not None:
+                connection.execute(
+                    "UPDATE pinned_rows SET color = ? WHERE dataset_id = ? AND label = ?",
+                    (color, dataset_id, label),
+                )
+        return self.pins(dataset_id)
+
+    def compare(self, dataset_id: str, label: str | None = None) -> PinnedComparison:
+        """R-PIN-05: asked for. The pinned rows found (all, or one label) against the others."""
+        found = self.pins(dataset_id)
+        if label is not None and all(p.label != label for p in found.pins):
+            raise PinError(f"No pinned row is labelled “{label}”.", "unknown_label", 404)
+        rows = [p.row for p in found.pins if p.found and (label is None or p.label == label)]
+        return self.engine.compare_rows(dataset_id, rows, label)

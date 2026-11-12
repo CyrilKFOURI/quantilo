@@ -43,6 +43,7 @@ from quantilo.vision.decode import (
     DecodedImage,
     try_decode,
 )
+from quantilo.vision.descriptors import classic_descriptor
 from quantilo.vision.hashes import dhash, phash, pixel_sha
 from quantilo.vision.layout import (
     CHECK,
@@ -54,11 +55,16 @@ from quantilo.vision.layout import (
     read_layout,
 )
 from quantilo.vision.measures import MEASURE_SIDE, measure, working_copy
+from quantilo.vision.quality import QualityReport, QualityThresholds, assess
 from quantilo.vision.store import ImageStore, check_dataset_id, image_id, sha256
 from quantilo.vision.zipsafe import Member, check_zip, is_zip, read_member
 
 if TYPE_CHECKING:
+    import numpy as np
+
     from quantilo.dataset import Dataset
+
+Progress = Callable[[float, str], None]
 
 MAX_IMAGES = 50_000  # R-VIS-ING-01
 MAX_DEPTH = 6  # R-VIS-ING-05
@@ -126,6 +132,7 @@ SCHEMA = pa.schema(
         ("decode_error", pa.string()),
         ("issues", pa.list_(pa.string())),
         ("excluded", pa.bool_()),
+        ("duplicate_group", pa.int64()),  # 105: copies share a group (grouped splits)
     ]
 )
 COLUMNS = tuple(SCHEMA.names)
@@ -189,6 +196,7 @@ class ImageSet:
     rules: list[RuleNote] = field(default_factory=list)
     skipped: list[Skipped] = field(default_factory=list)
     conflicts: list[LabelConflict] = field(default_factory=list)
+    quality: QualityReport | None = None  # 105: the R-VQ rules, run at the import
 
     @property
     def root(self) -> Path:
@@ -802,6 +810,7 @@ class _Build:
     thumbnails: bool
     decode_notes: Counter[str] = field(default_factory=Counter)
     skipped: list[Skipped] = field(default_factory=list)
+    descriptors: list[np.ndarray | None] | None = None  # 105, R-VQ-15: projected, one per row
 
 
 def _row(c: _Candidate, entry: FileLayout, b: _Build, mask: _Candidate | None) -> dict[str, Any]:
@@ -852,12 +861,16 @@ def _row(c: _Candidate, entry: FileLayout, b: _Build, mask: _Candidate | None) -
         )
         if b.thumbnails:
             row["thumb_path"] = b.store.put_thumbnail(digest, decoded.image)
+        if b.descriptors is not None:
+            b.descriptors.append(_projected(copy))
     else:
         info = inspect_image(data, name=name)
         row.update(_file_fields(info, data, info.display_width, info.display_height))
         row.update(
             decode_ok=False, decode_error=result.reason, issues=[FAILURE_CODE], excluded=True
         )
+        if b.descriptors is not None:
+            b.descriptors.append(None)
     if mask is not None:
         decoded_mask = try_decode(mask.read(), name=PurePosixPath(mask.rel_path).name)
         if isinstance(decoded_mask, DecodedImage):
@@ -865,6 +878,26 @@ def _row(c: _Candidate, entry: FileLayout, b: _Build, mask: _Candidate | None) -
         else:
             b.skipped.append(Skipped(mask.rel_path, "R-VIS-LAY-04", decoded_mask.reason))
     return row
+
+
+DESCRIPTOR_DIMS = 64  # R-VQ-15: the 2,072 classic values, projected (Johnson-Lindenstrauss)
+_PROJECTION: list[np.ndarray] = []
+
+
+def _projected(copy: Any) -> np.ndarray:
+    """The classic descriptor (103) with each part (HSV, HOG, LBP) scaled to unit length, then a
+    fixed Gaussian projection to 64 values: distances are kept within a few percent, and 50,000
+    images take 13 MB instead of 400."""
+    import numpy as np
+
+    d = classic_descriptor(copy)
+    parts = [p / max(float(np.linalg.norm(p)), 1e-12) for p in (d.hsv, d.hog, d.lbp)]
+    vector = np.concatenate(parts).astype(np.float32)
+    if not _PROJECTION:
+        rng = np.random.default_rng(105)
+        matrix = rng.standard_normal((len(vector), DESCRIPTOR_DIMS)) / DESCRIPTOR_DIMS**0.5
+        _PROJECTION.append(matrix.astype(np.float32))
+    return vector @ _PROJECTION[0]
 
 
 def _decode_rules(notes: Counter[str]) -> list[RuleNote]:
@@ -877,17 +910,25 @@ def _decode_rules(notes: Counter[str]) -> list[RuleNote]:
     return rules
 
 
-def _build(
+@dataclass
+class _Plan:
+    entries: list[FileLayout]
+    rules: list[RuleNote]
+    skipped: list[Skipped]
+    conflicts: list[LabelConflict]
+    matched: _Labels | None
+    layout: Layout
+
+
+def _plan(
     kind: SourceKind,
     collected: _Collected,
-    store: ImageStore,
     *,
     labels: Path | None,
     label_column: str | None,
     ignore: Collection[str],
-    side: int,
-    thumbnails: bool,
-) -> ImageSet:
+) -> _Plan:
+    """What the import will read, before any pixel is decoded: layout rules and labels file."""
     rules = list(collected.rules)
     skipped = list(collected.skipped)
     by_path = {c.rel_path: c for c in collected.candidates}
@@ -947,14 +988,45 @@ def _build(
             if note is not None:
                 rules.append(note)
             entries = [replace(e, is_normal=normal[e.rel_path]) for e in entries]
+    return _Plan(entries, rules, skipped, conflicts, matched, layout)
 
-    b = _Build(store, side, thumbnails)
-    rows = [
-        _row(by_path[e.rel_path], e, b, by_path.get(e.mask) if e.mask else None) for e in entries
-    ]
+
+def _build(
+    kind: SourceKind,
+    collected: _Collected,
+    store: ImageStore,
+    *,
+    labels: Path | None,
+    label_column: str | None,
+    ignore: Collection[str],
+    side: int,
+    thumbnails: bool,
+    quality: bool = True,
+    thresholds: QualityThresholds | None = None,
+    progress: Progress | None = None,
+) -> ImageSet:
+    plan = _plan(kind, collected, labels=labels, label_column=label_column, ignore=ignore)
+    entries, rules, skipped = plan.entries, plan.rules, plan.skipped
+    conflicts, matched = plan.conflicts, plan.matched
+    by_path = {c.rel_path: c for c in collected.candidates}
+    b = _Build(store, side, thumbnails, descriptors=[] if quality else None)
+    rows = []
+    total = max(1, len(entries))
+    for i, e in enumerate(entries):
+        rows.append(_row(by_path[e.rel_path], e, b, by_path.get(e.mask) if e.mask else None))
+        if progress is not None and (i % 25 == 0 or i + 1 == len(entries)):
+            progress(0.9 * (i + 1) / total, f"Reading images: {i + 1:,} of {len(entries):,}")
     skipped.extend(b.skipped)
     rules.extend(_decode_rules(b.decode_notes))
     table = pa.Table.from_pylist(rows, schema=SCHEMA)
+    report: QualityReport | None = None
+    if quality:
+        if progress is not None:
+            progress(0.92, "Checking quality (R-VQ rules)")
+        report = assess(
+            table, thresholds=thresholds, ignore=ignore, descriptors=_matrix(b.descriptors)
+        )
+        table = report.apply(table)
     extra = []
     if matched is not None and matched.meta is not None:
         extra.append(matched.meta)
@@ -976,7 +1048,44 @@ def _build(
         rules=rules,
         skipped=skipped,
         conflicts=conflicts,
+        quality=report,
     )
+
+
+def _matrix(vectors: list[np.ndarray | None] | None) -> np.ndarray | None:
+    import numpy as np
+
+    if not vectors:
+        return None
+    width = next((len(v) for v in vectors if v is not None), DESCRIPTOR_DIMS)
+    out = np.full((len(vectors), width), np.nan, dtype=np.float32)
+    for i, v in enumerate(vectors):
+        if v is not None:
+            out[i] = v
+    return out
+
+
+def _collect(
+    path: Path, max_images: int, label_column: str | None
+) -> tuple[SourceKind, _Collected]:
+    if path.is_dir():
+        return "folder", _collect_folder(path, max_images)
+    if is_zip(path):
+        return "zip", _collect_zip(path, max_images)
+    if path.suffix.lower() == ".parquet" or _head(path, 4) == b"PAR1":
+        return "parquet", _collect_parquet(path, max_images, label_column)
+    head = _head(path, 8192)
+    fmt = sniff_image(head[:64])
+    if fmt is None:
+        info = inspect_image(head, name=path.name)
+        raise IngestionError(info.reason or f"{path.name!r} is not an image.")
+    size = path.stat().st_size
+    if size > MAX_FILE_BYTES:
+        raise IngestionError(
+            f"{size / 2**20:,.0f} MiB, over the {MAX_FILE_BYTES // 2**20} MiB limit for one "
+            "image (R-VIS-ING-03)."
+        )
+    return "image", _Collected(candidates=[_Candidate(path.name, size, fmt, path.read_bytes)])
 
 
 def _head(path: Path, n: int) -> bytes:
@@ -1001,14 +1110,21 @@ def image_set(
     thumbnails: bool = True,
     measure_side: int = MEASURE_SIDE,
     max_images: int = MAX_IMAGES,
+    quality: bool = True,
+    quality_thresholds: QualityThresholds | None = None,
+    table_path: str | os.PathLike[str] | None = None,
+    progress: Progress | None = None,
 ) -> ImageSet:
     """Import an image set (see the module) from a folder, a ZIP, a Parquet file with an image
     column (Hugging Face `datasets`) or a single image.
 
     `labels` is a CSV or Parquet file whose key column names the images (R-VIS-LAB-01);
     `label_column` picks its label column. `ignore_rules` undoes reading rules by code (for example
-    `{"R-VIS-LAY-01"}`: ignore folder labels). Files go to `workspace/images/<dataset_id>/`, the
-    table to `workspace/datasets/<dataset_id>.parquet`."""
+    `{"R-VIS-LAY-01"}`: ignore folder labels) and quality rules (`{"R-VQ-08"}`). Files go to
+    `workspace/images/<dataset_id>/`, the table to `workspace/datasets/<dataset_id>.parquet` (or
+    `table_path`). `quality` runs the R-VQ rules (105) with `quality_thresholds`;
+    `progress(fraction, message)` is called while images are read (an exception raised in it
+    stops the import)."""
     path = Path(source)
     if not path.exists():
         from quantilo.errors import NotFoundError
@@ -1017,6 +1133,7 @@ def image_set(
     store = ImageStore(
         Path(workspace) if workspace is not None else _default_workspace(),
         check_dataset_id(dataset_id) if dataset_id else f"img-{uuid.uuid4().hex[:12]}",
+        Path(table_path) if table_path is not None else None,
     )
     ignore = frozenset(ignore_rules)
     label_path = Path(labels) if labels is not None else None
@@ -1024,27 +1141,7 @@ def image_set(
         from quantilo.errors import NotFoundError
 
         raise NotFoundError(f"File {label_path.name!r}")
-    kind: SourceKind
-    if path.is_dir():
-        kind, collected = "folder", _collect_folder(path, max_images)
-    elif is_zip(path):
-        kind, collected = "zip", _collect_zip(path, max_images)
-    elif path.suffix.lower() == ".parquet" or _head(path, 4) == b"PAR1":
-        kind, collected = "parquet", _collect_parquet(path, max_images, label_column)
-    else:
-        head = _head(path, 8192)
-        fmt = sniff_image(head[:64])
-        if fmt is None:
-            info = inspect_image(head, name=path.name)
-            raise IngestionError(info.reason or f"{path.name!r} is not an image.")
-        size = path.stat().st_size
-        if size > MAX_FILE_BYTES:
-            raise IngestionError(
-                f"{size / 2**20:,.0f} MiB, over the {MAX_FILE_BYTES // 2**20} MiB limit for one "
-                "image (R-VIS-ING-03)."
-            )
-        kind = "image"
-        collected = _Collected(candidates=[_Candidate(path.name, size, fmt, path.read_bytes)])
+    kind, collected = _collect(path, max_images, label_column)
     try:
         return _build(
             kind,
@@ -1055,10 +1152,100 @@ def image_set(
             ignore=ignore,
             side=measure_side,
             thumbnails=thumbnails,
+            quality=quality,
+            thresholds=quality_thresholds,
+            progress=progress,
         )
     finally:
         for resource in collected.resources:
             resource.close()
+
+
+@dataclass
+class ImageSetPreview:
+    """What an import would read (106's preview step), without decoding a single pixel: the files
+    found, how labels, splits, normal images and masks would be read (each by its rule), and what
+    is left out."""
+
+    source_kind: SourceKind
+    n_images: int
+    formats: dict[str, int]
+    bytes: int
+    labels: dict[str, int]
+    splits: dict[str, int]
+    normal: int | None  # images read as normal (R-VIS-LAY-03); None when the rule did not fire
+    masks: int
+    rules: list[RuleNote]
+    skipped: list[Skipped]
+    conflicts: list[LabelConflict]
+    sample: list[str]  # the first relative paths, in import order
+    label_file: str | None  # the name of the labels file read (given, or found at the root)
+
+    @property
+    def sentence(self) -> str:
+        noun = "image" if self.n_images == 1 else "images"
+        formats = ", ".join(f"{k} {v:,}" for k, v in self.formats.items())
+        text = f"{self.n_images:,} {noun} found ({formats})"
+        details = []
+        if self.labels:
+            details.append(f"{len(self.labels)} labels")
+        if self.splits:
+            details.append("splits " + ", ".join(f"{k} {v:,}" for k, v in self.splits.items()))
+        if self.masks:
+            details.append(f"{self.masks:,} masks")
+        return text + (": " + "; ".join(details) if details else "") + "."
+
+
+def preview_image_set(
+    source: str | os.PathLike[str],
+    *,
+    labels: str | os.PathLike[str] | None = None,
+    label_column: str | None = None,
+    ignore_rules: Collection[str] = (),
+    max_images: int = MAX_IMAGES,
+    sample: int = 12,
+) -> ImageSetPreview:
+    """The preview of `image_set(source, ...)`: same rules, nothing decoded, nothing written."""
+    path = Path(source)
+    if not path.exists():
+        from quantilo.errors import NotFoundError
+
+        raise NotFoundError(f"File {path.name!r}")
+    label_path = Path(labels) if labels is not None else None
+    if label_path is not None and not label_path.is_file():
+        from quantilo.errors import NotFoundError
+
+        raise NotFoundError(f"File {label_path.name!r}")
+    kind, collected = _collect(path, max_images, label_column)
+    try:
+        plan = _plan(
+            kind, collected, labels=label_path, label_column=label_column,
+            ignore=frozenset(ignore_rules),
+        )  # fmt: skip
+    finally:
+        for resource in collected.resources:
+            resource.close()
+    by_path = {c.rel_path: c for c in collected.candidates}
+    formats = Counter(by_path[e.rel_path].fmt for e in plan.entries)
+    normal = [e.is_normal for e in plan.entries if e.is_normal is not None]
+    label_file = None
+    if plan.matched is not None:
+        label_file = label_path.name if label_path is not None else collected.label_files[0].name
+    return ImageSetPreview(
+        source_kind=kind,
+        n_images=len(plan.entries),
+        formats=dict(formats.most_common()),
+        bytes=sum(by_path[e.rel_path].size for e in plan.entries),
+        labels=_counts([e.label for e in plan.entries]),
+        splits=_counts([e.split for e in plan.entries]),
+        normal=sum(normal) if normal else None,
+        masks=sum(1 for e in plan.entries if e.mask),
+        rules=plan.rules,
+        skipped=plan.skipped,
+        conflicts=plan.conflicts,
+        sample=[e.rel_path for e in plan.entries[:sample]],
+        label_file=label_file,
+    )
 
 
 __all__ = [
@@ -1068,7 +1255,9 @@ __all__ = [
     "MAX_IMAGES",
     "SCHEMA",
     "ImageSet",
+    "ImageSetPreview",
     "LabelConflict",
     "Skipped",
     "image_set",
+    "preview_image_set",
 ]

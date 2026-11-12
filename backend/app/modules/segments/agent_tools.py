@@ -10,6 +10,7 @@ from quantilo.segments.engine import SegmentRequest
 from app.core.errors import AppError
 from app.core.tools import AppLink, Tool, ToolContext, ToolError, ToolOutput, compact, wait_for
 from app.modules.segments.service import SegmentJob, SegmentsService, UnusualStart
+from app.services.pins.service import PinService
 
 TIMEOUT = 600.0
 LISTED = 10  # unusual rows the model reads
@@ -197,6 +198,56 @@ class FindUnusualRows(Tool[UnusualInput]):
         )
 
 
+class PinnedInput(BaseModel):
+    label: str | None = Field(
+        None, max_length=60, description="One label of pinned rows; empty: every pinned row."
+    )
+
+
+class ComparePinnedRows(Tool[PinnedInput]):
+    """099: read-only; pinning stays the user's gesture."""
+
+    name: ClassVar[str] = "compare_pinned_rows"
+    kind = "compute"
+    description: ClassVar[str] = (
+        "What distinguishes the rows the user pinned (Data page, unusual rows, Clean; each with a "
+        "label) from every other row: the columns where they differ most, in the columns' units, "
+        "with a Holm-corrected test and simple rules from 5 pinned rows on. Filters do not "
+        "apply. Use it when the user asks what their pinned or labelled rows have in common."
+    )
+    Input: ClassVar[type[BaseModel]] = PinnedInput
+
+    def __init__(self, pins: PinService) -> None:
+        self.pins = pins
+
+    def label(self, args: PinnedInput) -> str:
+        return "Comparing the pinned rows with the others"
+
+    def run(self, ctx: ToolContext, args: PinnedInput) -> ToolOutput:
+        try:
+            found = self.pins.compare(ctx.dataset_id, args.label)
+        except AppError as error:
+            raise ToolError(error.message) from error
+        content = {
+            "label": found.label,
+            "pinned_rows": found.pinned,
+            "other_rows": found.others,
+            "reading": found.reading,
+            "warnings": found.warnings,
+            "differences": [
+                {"text": t.text, "rule": t.rule, "p_holm": t.p_value, "could_be_chance": t.chance}
+                for t in found.traits
+            ],
+            "rules": found.rules.text if found.rules else None,
+        }
+        return ToolOutput(found.reading, compact(content), AppLink("data", {}, "Open in Data"))
+
+
 def agent_tools(app: FastAPI) -> list[Tool[Any]]:
     service: SegmentsService = app.state.segments
-    return [FindSegments(service), SaveSegments(service), FindUnusualRows(service)]
+    return [
+        FindSegments(service),
+        SaveSegments(service),
+        FindUnusualRows(service),
+        ComparePinnedRows(app.state.pins),  # 099
+    ]

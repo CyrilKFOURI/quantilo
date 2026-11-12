@@ -926,6 +926,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/datasets/{dataset_id}/regression/stability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stability
+         * @description Advanced > Stability over time (073): CUSUM and CUSUM of squares of the recursive
+         *     residuals, a Chow test at the strongest date, rolling coefficients, the factor reading.
+         */
+        get: operations["stability_api_v1_datasets__dataset_id__regression_stability_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/regression/resampling": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resampling
+         * @description Advanced > Resampling (077): bootstrap of rows, clusters or blocks, wild cluster
+         *     bootstrap with few clusters, Freedman-Lane permutation of one coefficient.
+         */
+        get: operations["resampling_api_v1_datasets__dataset_id__regression_resampling_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/regression/selection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Selection
+         * @description Advanced > More > Selection (077, computed only when opened): plug-in lasso, post-lasso,
+         *     double selection of the focus column, stability selection.
+         */
+        get: operations["selection_api_v1_datasets__dataset_id__regression_selection_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/datasets/{dataset_id}/regression/instruments": {
         parameters: {
             query?: never;
@@ -1539,6 +1602,281 @@ export interface paths {
          * @description Keep these topics on the column (R-TOP-06): its Topic column becomes a derived column.
          */
         post: operations["keep_topics_api_v1_datasets__dataset_id__text_topics_keep_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/join/suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suggest Join
+         * @description The keys the rules propose between this dataset and `other_id` (R-JN-01 to 03).
+         */
+        post: operations["suggest_join_api_v1_datasets__dataset_id__join_suggest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/join/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Join
+         * @description Counts on every row and the first rows of the result; nothing is written.
+         */
+        post: operations["preview_join_api_v1_datasets__dataset_id__join_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Join
+         * @description Write the joined dataset (after the user confirmed the preview) and import it.
+         */
+        post: operations["create_join_api_v1_datasets__dataset_id__join_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/images/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Image Set
+         * @description What the import would read, without decoding a pixel (rules R-VIS-* with their reasons).
+         */
+        post: operations["preview_image_set_api_v1_images_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/images/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Image Set */
+        post: operations["import_image_set_api_v1_images_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/images/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Quality Rules
+         * @description The R-VQ catalogue (105): title, reason, effect and default thresholds of each rule.
+         */
+        get: operations["quality_rules_api_v1_images_rules_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/images/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Image Set Report */
+        get: operations["image_set_report_api_v1_datasets__dataset_id__images_report_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/images/{image_id}/thumb": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Image Thumbnail
+         * @description The WebP thumbnail (long side 256 px, no EXIF).
+         */
+        get: operations["image_thumbnail_api_v1_datasets__dataset_id__images__image_id__thumb_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/images/{image_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Image File
+         * @description The original bytes, typed by their signature.
+         */
+        get: operations["image_file_api_v1_datasets__dataset_id__images__image_id__file_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/images/{image_id}/mask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Image Mask
+         * @description The pixel mask of a defect (R-VIS-LAY-04), a grey PNG.
+         */
+        get: operations["image_mask_api_v1_datasets__dataset_id__images__image_id__mask_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/pins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pins
+         * @description Every pin; a row that moved after a re-import is found again by its key (R-PIN-02).
+         */
+        get: operations["pins_api_v1_datasets__dataset_id__pins_get"];
+        /**
+         * Pin
+         * @description Pin rows (numbers in the file, from 0) with a label; the label's rows take its colour.
+         */
+        put: operations["pin_api_v1_datasets__dataset_id__pins_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/pins/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unpin */
+        post: operations["unpin_api_v1_datasets__dataset_id__pins_remove_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/pins/labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change Label
+         * @description Rename a label, or give it another colour.
+         */
+        patch: operations["change_label_api_v1_datasets__dataset_id__pins_labels_patch"];
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/pins/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compare
+         * @description What distinguishes the pinned rows (all, or one label) from every other row.
+         */
+        get: operations["compare_api_v1_datasets__dataset_id__pins_compare_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2692,6 +3030,46 @@ export interface paths {
          * @description Stop the Auto at its next checkpoint; the best model found so far is saved as a run.
          */
         delete: operations["stop_api_v1_modules_ml_auto_jobs__job_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/text-embeddings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Text Embeddings
+         * @description Installed? Downloaded? Otherwise the reason the option is greyed.
+         */
+        get: operations["text_embeddings_api_v1_modules_ml_text_embeddings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/ml/text-embeddings/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Download Text Embeddings
+         * @description Fetch the model's weights once, after the user confirmed (size shown).
+         */
+        post: operations["download_text_embeddings_api_v1_modules_ml_text_embeddings_download_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5475,6 +5853,25 @@ export interface components {
             /** Selection */
             selection?: components["schemas"]["SelectionChoice"][];
         };
+        /** ChowTest */
+        ChowTest: {
+            /** At */
+            at: string;
+            /** Index */
+            index: number;
+            /** F */
+            f: number | null;
+            /** P Value */
+            p_value: number | null;
+            /** Before */
+            before: number[];
+            /** After */
+            after: number[];
+            /** Searched */
+            searched: boolean;
+            /** Sentence */
+            sentence: string;
+        };
         /**
          * ClassCurves
          * @description One class against all the others (multiclass): its ROC, precision-recall and calibration.
@@ -5566,7 +5963,7 @@ export interface components {
             /** Dataset Id */
             dataset_id: string;
             /** Steps */
-            steps: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
+            steps: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["LabelRows"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
             /** Automatic */
             automatic: boolean;
             /** Updated At */
@@ -5653,7 +6050,7 @@ export interface components {
         /** CleanPreviewRequest */
         CleanPreviewRequest: {
             /** Steps */
-            steps?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
+            steps?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["LabelRows"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
             /** Step Id */
             step_id?: string | null;
         };
@@ -5756,7 +6153,7 @@ export interface components {
             /** Examples */
             examples?: components["schemas"]["Example"][];
             /** Step */
-            step?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"]) | null;
+            step?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["LabelRows"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"]) | null;
         };
         /** CleanSuggestions */
         CleanSuggestions: {
@@ -5788,7 +6185,7 @@ export interface components {
             /** Out Of Date */
             out_of_date: boolean;
             /** Steps */
-            steps?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
+            steps?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["LabelRows"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
             report?: components["schemas"]["CleanReport"] | null;
             /** Source Id */
             source_id?: string | null;
@@ -5809,6 +6206,8 @@ export interface components {
             high?: number | null;
             /** P Value */
             p_value?: number | null;
+            /** Q Value */
+            q_value?: number | null;
             /** Vif */
             vif?: number | null;
             /** Per Unit */
@@ -6674,6 +7073,21 @@ export interface components {
             /** Absolute */
             absolute: number | null;
         };
+        /** CusumPath */
+        CusumPath: {
+            /** Dates */
+            dates: string[];
+            /** Values */
+            values: number[];
+            /** Lower */
+            lower: number[];
+            /** Upper */
+            upper: number[];
+            /** Crossed */
+            crossed: boolean;
+            /** First */
+            first: string | null;
+        };
         /** DatasetOut */
         DatasetOut: {
             /** Id */
@@ -7165,6 +7579,29 @@ export interface components {
             bins: components["schemas"]["Bin"][];
             fit: components["schemas"]["Fit"];
         };
+        /** DoubleSelection */
+        DoubleSelection: {
+            /** Term */
+            term: string;
+            /** Estimate */
+            estimate: number;
+            /** Low */
+            low: number | null;
+            /** High */
+            high: number | null;
+            /** P Value */
+            p_value: number | null;
+            /** Controls */
+            controls: string[];
+            /** Ols */
+            ols: number;
+            /** Ols Low */
+            ols_low: number | null;
+            /** Ols High */
+            ols_high: number | null;
+            /** Sentence */
+            sentence: string;
+        };
         /** DriftColumn */
         DriftColumn: {
             /** Column */
@@ -7497,6 +7934,32 @@ export interface components {
             /** Scale */
             scale: string;
         };
+        /** EmbeddingsStatus */
+        EmbeddingsStatus: {
+            /** Available */
+            available: boolean;
+            /** Installed */
+            installed: boolean;
+            /** Downloaded */
+            downloaded: boolean;
+            /** Reason */
+            reason: string | null;
+            /** Model */
+            model: string;
+            /** Size */
+            size: string;
+            /** License */
+            license: string;
+            /** Install */
+            install: string;
+            /**
+             * Download
+             * @enum {string}
+             */
+            download: "idle" | "running" | "failed";
+            /** Error */
+            error: string | null;
+        };
         /** EnsembleResult */
         EnsembleResult: {
             /**
@@ -7546,7 +8009,7 @@ export interface components {
              */
             kind: "dir" | "file";
             /** Format */
-            format?: ("csv" | "parquet" | "excel" | "npy" | "json" | "jsonl" | "xml") | null;
+            format?: ("csv" | "parquet" | "excel" | "npy" | "log" | "json" | "jsonl" | "xml") | null;
             /** Size */
             size?: number | null;
         };
@@ -8068,7 +8531,7 @@ export interface components {
         };
         /** Explanation */
         Explanation: {
-            permutation: components["schemas"]["Permutation"] | null;
+            permutation: components["schemas"]["quantilo__ml__explain__Permutation"] | null;
             shap: components["schemas"]["Shap"] | null;
             /** Shap Unavailable */
             shap_unavailable: string | null;
@@ -8100,6 +8563,36 @@ export interface components {
             column: string;
             /** Mean */
             mean: number;
+        };
+        /** FactorReading */
+        FactorReading: {
+            /** Periods */
+            periods: number;
+            /** Period */
+            period: string;
+            /** Alpha */
+            alpha: number;
+            /** Alpha Low */
+            alpha_low: number | null;
+            /** Alpha High */
+            alpha_high: number | null;
+            /** Alpha Year */
+            alpha_year: number;
+            /** Alpha Year Low */
+            alpha_year_low: number | null;
+            /** Alpha Year High */
+            alpha_year_high: number | null;
+            /** Alpha P */
+            alpha_p: number | null;
+            /** Betas */
+            betas: [
+                string,
+                number
+            ][];
+            /** R2 */
+            r2: number;
+            /** Sentence */
+            sentence: string;
         };
         /** Factors */
         Factors: {
@@ -8325,7 +8818,7 @@ export interface components {
              * Format
              * @enum {string}
              */
-            format: "csv" | "parquet" | "excel" | "npy" | "json" | "jsonl" | "xml";
+            format: "csv" | "parquet" | "excel" | "npy" | "log" | "json" | "jsonl" | "xml";
             /** Size */
             size: number;
         };
@@ -9058,6 +9551,116 @@ export interface components {
             /** Patterns */
             patterns?: components["schemas"]["Bar"][];
         };
+        /** ImageImportRequest */
+        ImageImportRequest: {
+            /** Path */
+            path: string;
+            /** Name */
+            name?: string | null;
+            options?: components["schemas"]["ImageSetOptions"];
+            /** Project Id */
+            project_id?: string | null;
+        };
+        /** ImagePreviewOut */
+        ImagePreviewOut: {
+            /**
+             * Source Kind
+             * @enum {string}
+             */
+            source_kind: "image" | "folder" | "zip" | "parquet";
+            /** Suggested Name */
+            suggested_name: string;
+            /** Sentence */
+            sentence: string;
+            /** N Images */
+            n_images: number;
+            /** Bytes */
+            bytes: number;
+            /** Formats */
+            formats: {
+                [key: string]: number;
+            };
+            /** Labels */
+            labels: {
+                [key: string]: number;
+            };
+            /** Splits */
+            splits: {
+                [key: string]: number;
+            };
+            /** Normal */
+            normal: number | null;
+            /** Masks */
+            masks: number;
+            /** Rules */
+            rules: components["schemas"]["RuleNoteOut"][];
+            /** Skipped */
+            skipped: components["schemas"]["SkippedOut"][];
+            /** Skipped Count */
+            skipped_count: number;
+            /** Conflicts */
+            conflicts: number;
+            /** Sample */
+            sample: string[];
+            /** Label File */
+            label_file: string | null;
+        };
+        /** ImagePreviewRequest */
+        ImagePreviewRequest: {
+            /** Path */
+            path: string;
+            options?: components["schemas"]["ImageSetOptions"];
+        };
+        /** ImageReportOut */
+        ImageReportOut: {
+            /** Sentence */
+            sentence: string;
+            /**
+             * Source Kind
+             * @enum {string}
+             */
+            source_kind: "image" | "folder" | "zip" | "parquet";
+            /** N Images */
+            n_images: number;
+            /** N Decoded */
+            n_decoded: number;
+            /** Labels */
+            labels: {
+                [key: string]: number;
+            };
+            /** Splits */
+            splits: {
+                [key: string]: number;
+            };
+            /** Rules */
+            rules: components["schemas"]["RuleNoteOut"][];
+            /** Skipped */
+            skipped: components["schemas"]["SkippedOut"][];
+            /** Skipped Count */
+            skipped_count: number;
+            /** Conflicts */
+            conflicts: components["schemas"]["LabelConflictOut"][];
+            /** Conflicts Count */
+            conflicts_count: number;
+            quality: components["schemas"]["QualityOut"] | null;
+        };
+        /**
+         * ImageSetOptions
+         * @description What the import reads: a labels file, its label column, the rules undone by code
+         *     (`R-VIS-LAY-01` = ignore folder labels, `R-VQ-08`...), quality thresholds (105).
+         */
+        ImageSetOptions: {
+            /** Labels */
+            labels?: string | null;
+            /** Label Column */
+            label_column?: string | null;
+            /** Ignore Rules */
+            ignore_rules?: string[];
+            /** Thresholds */
+            thresholds?: {
+                [key: string]: number;
+            };
+        };
         /** ImportOptions */
         ImportOptions: {
             csv?: components["schemas"]["CsvOptions"] | null;
@@ -9313,6 +9916,102 @@ export interface components {
             /** Finished At */
             finished_at: string | null;
         };
+        /** JoinColumnOut */
+        JoinColumnOut: {
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
+            /** Default Pick */
+            default_pick: boolean;
+        };
+        /** JoinIn */
+        JoinIn: {
+            /** Other Id */
+            other_id: string;
+            /** Left Columns */
+            left_columns: string[];
+            /** Right Columns */
+            right_columns: string[];
+            /** Mode */
+            mode?: ("lookup" | "expand" | "summarise") | null;
+            /** Join Type */
+            join_type?: ("left" | "inner" | "right" | "full") | null;
+            /** Columns */
+            columns?: string[] | null;
+            /** Measures */
+            measures?: components["schemas"]["MeasureIn"][] | null;
+            /** Name */
+            name?: string | null;
+        };
+        /** JoinKeyOut */
+        JoinKeyOut: {
+            /** Left Columns */
+            left_columns: string[];
+            /** Right Columns */
+            right_columns: string[];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "lookup" | "expand" | "summarise";
+            /** Cardinality */
+            cardinality: string;
+            /** Confidence */
+            confidence: string;
+            /** Matched Share */
+            matched_share: number;
+            /** Reasons */
+            reasons: components["schemas"]["ReasonOut"][];
+        };
+        /** JoinPreviewOut */
+        JoinPreviewOut: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "lookup" | "expand" | "summarise";
+            /**
+             * Join Type
+             * @enum {string}
+             */
+            join_type: "left" | "inner" | "right" | "full";
+            /** Rows Before */
+            rows_before: number;
+            /** Rows After */
+            rows_after: number;
+            /** Columns */
+            columns: string[];
+            /** Added */
+            added: string[];
+            /** Rows */
+            rows: (string | null)[][];
+            check: components["schemas"]["CheckOut"];
+            /** Modes */
+            modes: components["schemas"]["ModeOut"][];
+            /** Reasons */
+            reasons: components["schemas"]["ReasonOut"][];
+            /** Warnings */
+            warnings: components["schemas"]["ReasonOut"][];
+            /** Refused */
+            refused: components["schemas"]["ReasonOut"][];
+            /** Suggested Name */
+            suggested_name: string;
+        };
+        /** JoinSuggestIn */
+        JoinSuggestIn: {
+            /** Other Id */
+            other_id: string;
+        };
+        /** JoinSuggestOut */
+        JoinSuggestOut: {
+            /** Keys */
+            keys: components["schemas"]["JoinKeyOut"][];
+            /** Other Columns */
+            other_columns: components["schemas"]["JoinColumnOut"][];
+            /** Same Project */
+            same_project: boolean;
+        };
         JsonValue: unknown;
         /** KeepTopics */
         KeepTopics: {
@@ -9429,6 +10128,62 @@ export interface components {
             definition: components["schemas"]["Definition-Output"];
             /** Filter */
             filter?: string | null;
+        };
+        /** LabelChange */
+        LabelChange: {
+            /** Label */
+            label: string;
+            /** To */
+            to?: string | null;
+            /** Color */
+            color?: number | null;
+        };
+        /** LabelConflictOut */
+        LabelConflictOut: {
+            /** Rel Path */
+            rel_path: string;
+            /** Folder Label */
+            folder_label: string;
+            /** File Label */
+            file_label: string;
+        };
+        /**
+         * LabelRows
+         * @description 099 (R-PIN-15): a new text column with the label of each pinned row, the rows given by their
+         *     number in the file (from 0); the other rows are empty, or `other` when given. The numbers are
+         *     those of the current import: after a re-import that reorders the rows, make the step again.
+         */
+        LabelRows: {
+            /** Id */
+            id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "auto" | "suggested" | "manual";
+            /** Rule */
+            rule?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "label_rows";
+            /** To */
+            to: string;
+            /** Labels */
+            labels: {
+                [key: string]: string;
+            };
+            /** Other */
+            other?: string | null;
         };
         /** Law */
         Law: {
@@ -9989,6 +10744,16 @@ export interface components {
             conditions?: components["schemas"]["Condition"][];
             /** Inputs */
             inputs?: string[];
+        };
+        /** ModeOut */
+        ModeOut: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "lookup" | "expand" | "summarise";
+            /** Reason */
+            reason: string | null;
         };
         /**
          * ModelCard
@@ -11164,17 +11929,6 @@ export interface components {
             /** Lower Is Better */
             lower_is_better: boolean;
         };
-        /** Permutation */
-        Permutation: {
-            /** Metric */
-            metric: string;
-            /** Rows */
-            rows: number;
-            /** Sampled */
-            sampled: boolean;
-            /** Items */
-            items: components["schemas"]["PermutationItem"][];
-        };
         /** PermutationItem */
         PermutationItem: {
             /** Column */
@@ -11183,6 +11937,101 @@ export interface components {
             mean: number;
             /** Std */
             std: number;
+        };
+        /** Pin */
+        Pin: {
+            /** Key */
+            key: string;
+            /** Row */
+            row: number;
+            /** Label */
+            label: string;
+            /** Color */
+            color: number;
+            /** Created At */
+            created_at: string;
+            /** Found */
+            found: boolean;
+        };
+        /** PinLabel */
+        PinLabel: {
+            /** Label */
+            label: string;
+            /** Color */
+            color: number;
+            /** Rows */
+            rows: number;
+        };
+        /** PinRequest */
+        PinRequest: {
+            /** Rows */
+            rows: number[];
+            /** Label */
+            label: string;
+            /** Color */
+            color: number;
+        };
+        /** PinnedComparison */
+        PinnedComparison: {
+            /** Label */
+            label: string | null;
+            /** Pinned */
+            pinned: number;
+            /** Others */
+            others: number;
+            /** Compared */
+            compared: number;
+            /** Sampled */
+            sampled: boolean;
+            /** Columns */
+            columns: string[];
+            /** Traits */
+            traits: components["schemas"]["PinnedTrait"][];
+            rules: components["schemas"]["SegmentRules"] | null;
+            /** Reading */
+            reading: string;
+            /** Warnings */
+            warnings?: string[];
+        };
+        /** PinnedRows */
+        PinnedRows: {
+            /** Pins */
+            pins: components["schemas"]["Pin"][];
+            /** Labels */
+            labels: components["schemas"]["PinLabel"][];
+            /** Missing */
+            missing: number;
+            /**
+             * Limit
+             * @default 5000
+             */
+            limit: number;
+        };
+        /** PinnedTrait */
+        PinnedTrait: {
+            /** Column */
+            column: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "number" | "category" | "missing";
+            /** Rule */
+            rule: string;
+            /** Text */
+            text: string;
+            /** Effect */
+            effect: number;
+            /** Pinned */
+            pinned: number;
+            /** Others */
+            others: number;
+            /** Value */
+            value: string | null;
+            /** P Value */
+            p_value: number | null;
+            /** Chance */
+            chance: boolean;
         };
         /** Plan */
         Plan: {
@@ -11679,7 +12528,7 @@ export interface components {
              */
             kind: "file" | "folder";
             /** Format */
-            format: ("csv" | "parquet" | "excel" | "npy" | "json" | "jsonl" | "xml") | ("mixed" | "other");
+            format: ("csv" | "parquet" | "excel" | "npy" | "log" | "json" | "jsonl" | "xml") | ("mixed" | "other");
             /** Files */
             files: components["schemas"]["FileInfo"][];
             /** Columns */
@@ -11858,6 +12707,103 @@ export interface components {
             outliers_after: number | null;
             /** Notable */
             notable: boolean;
+        };
+        /**
+         * QualityFindingOut
+         * @description A quality rule that fired (R-VQ, 105), with its thresholds and the rows concerned.
+         */
+        QualityFindingOut: {
+            /** Code */
+            code: string;
+            /** Title */
+            title: string;
+            /** Message */
+            message: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Effect
+             * @enum {string}
+             */
+            effect: "excluded" | "flagged" | "dataset";
+            /** Count */
+            count: number;
+            /** Rows */
+            rows: number[];
+            /** Parameters */
+            parameters: {
+                [key: string]: number;
+            };
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            };
+        };
+        /** QualityGroupOut */
+        QualityGroupOut: {
+            /** Group */
+            group: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "exact" | "near";
+            /** Rows */
+            rows: number[];
+            /** Keep */
+            keep: number | null;
+        };
+        /** QualityLeakOut */
+        QualityLeakOut: {
+            /** Group */
+            group: number;
+            /** Train */
+            train: number[];
+            /** Eval */
+            eval: number[];
+        };
+        /** QualityOut */
+        QualityOut: {
+            /** Sentence */
+            sentence: string;
+            /** Findings */
+            findings: components["schemas"]["QualityFindingOut"][];
+            /** Groups */
+            groups: components["schemas"]["QualityGroupOut"][];
+            /** Leaks */
+            leaks: components["schemas"]["QualityLeakOut"][];
+            /** Thresholds */
+            thresholds: {
+                [key: string]: number;
+            };
+            /** Notes */
+            notes: string[];
+            /** Recommended Metric */
+            recommended_metric: string;
+            /** Class Weight */
+            class_weight: string | null;
+            /** Excluded */
+            excluded: number;
+            /** Flagged */
+            flagged: number;
+        };
+        /** QualityRuleOut */
+        QualityRuleOut: {
+            /** Code */
+            code: string;
+            /** Title */
+            title: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Effect
+             * @enum {string}
+             */
+            effect: "excluded" | "flagged" | "dataset";
+            /** Parameters */
+            parameters: {
+                [key: string]: number;
+            };
         };
         /** QuantileCurve */
         QuantileCurve: {
@@ -12519,6 +13465,8 @@ export interface components {
             }[];
             /** Heteroscedasticity P */
             heteroscedasticity_p?: number | null;
+            /** Inference */
+            inference?: string | null;
         };
         /** RegressionSuggestion */
         RegressionSuggestion: {
@@ -12790,6 +13738,89 @@ export interface components {
             /** File Name */
             file_name?: string | null;
         };
+        /** ResampledTerm */
+        ResampledTerm: {
+            /** Term */
+            term: string;
+            /** Estimate */
+            estimate: number;
+            /** Low */
+            low: number | null;
+            /** High */
+            high: number | null;
+            /** P Value */
+            p_value: number | null;
+            /** Boot Se */
+            boot_se: number | null;
+            /** Boot Low */
+            boot_low: number | null;
+            /** Boot High */
+            boot_high: number | null;
+            /** Wild P */
+            wild_p?: number | null;
+        };
+        /** ResamplingTable */
+        ResamplingTable: {
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string;
+            /**
+             * Scheme
+             * @default pairs
+             * @enum {string}
+             */
+            scheme: "pairs" | "cluster" | "block";
+            /**
+             * Scheme Reason
+             * @default
+             */
+            scheme_reason: string;
+            /**
+             * Draws
+             * @default 999
+             */
+            draws: number;
+            /**
+             * Rows
+             * @default 0
+             */
+            rows: number;
+            /**
+             * Resampled
+             * @default 0
+             */
+            resampled: number;
+            /** Terms */
+            terms?: components["schemas"]["ResampledTerm"][];
+            /**
+             * Wild
+             * @default false
+             */
+            wild: boolean;
+            /**
+             * Wild Reason
+             * @default
+             */
+            wild_reason: string;
+            /** Weights */
+            weights?: string | null;
+            /** Clusters */
+            clusters?: number | null;
+            permutation?: components["schemas"]["quantilo__regression__resampling__Permutation"] | null;
+            /**
+             * Permutation Reason
+             * @default
+             */
+            permutation_reason: string;
+            /**
+             * Sentence
+             * @default
+             */
+            sentence: string;
+            /** Notes */
+            notes?: string[];
+        };
         /** ResidualLaw */
         ResidualLaw: {
             /** Name */
@@ -12979,6 +14010,30 @@ export interface components {
             /** Label */
             label: string;
         };
+        /** RollingCurve */
+        RollingCurve: {
+            /** Term */
+            term: string;
+            /** Dates */
+            dates: string[];
+            /** Estimates */
+            estimates: (number | null)[];
+            /** Low */
+            low: (number | null)[];
+            /** High */
+            high: (number | null)[];
+            /** Full */
+            full: number;
+            /** Smallest */
+            smallest: number | null;
+            /** Largest */
+            largest: number | null;
+            /**
+             * Sentence
+             * @default
+             */
+            sentence: string;
+        };
         /** RowChanges */
         RowChanges: {
             /** Key */
@@ -13144,6 +14199,20 @@ export interface components {
             weight: number;
             /** Message */
             message: string;
+        };
+        /**
+         * RuleNoteOut
+         * @description A reading rule that fired: the sentence shown, why it exists, how many files.
+         */
+        RuleNoteOut: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+            /** Reason */
+            reason: string;
+            /** Count */
+            count?: number | null;
         };
         /** RuleView */
         RuleView: {
@@ -13481,7 +14550,7 @@ export interface components {
         /** SaveRequest */
         SaveRequest: {
             /** Steps */
-            steps: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
+            steps: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["LabelRows"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
         };
         /** SavedAnalysis */
         SavedAnalysis: {
@@ -14093,6 +15162,28 @@ export interface components {
             warnings?: string[];
             tsne?: components["schemas"]["SegmentMap"] | null;
         };
+        /** SelectedTerm */
+        SelectedTerm: {
+            /** Term */
+            term: string;
+            /** Lasso */
+            lasso: number;
+            /** Kept */
+            kept: boolean;
+            /** Post */
+            post: number | null;
+            /** Post Low */
+            post_low: number | null;
+            /** Post High */
+            post_high: number | null;
+            /** Share */
+            share: number | null;
+            /**
+             * Stable
+             * @default false
+             */
+            stable: boolean;
+        };
         /** SelectionChoice */
         SelectionChoice: {
             /**
@@ -14113,6 +15204,58 @@ export interface components {
             kept: number;
             /** Of */
             of: number;
+        };
+        /** SelectionTable */
+        SelectionTable: {
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string;
+            /**
+             * Rows
+             * @default 0
+             */
+            rows: number;
+            /**
+             * Sampled
+             * @default false
+             */
+            sampled: boolean;
+            /**
+             * Penalty
+             * @default 0
+             */
+            penalty: number;
+            /**
+             * Penalty Reason
+             * @default
+             */
+            penalty_reason: string;
+            /** Terms */
+            terms?: components["schemas"]["SelectedTerm"][];
+            /**
+             * Kept
+             * @default 0
+             */
+            kept: number;
+            /**
+             * Stable
+             * @default 0
+             */
+            stable: number;
+            double?: components["schemas"]["DoubleSelection"] | null;
+            /**
+             * Double Reason
+             * @default
+             */
+            double_reason: string;
+            /**
+             * Sentence
+             * @default
+             */
+            sentence: string;
+            /** Notes */
+            notes?: string[];
         };
         /** SequencePlan */
         SequencePlan: {
@@ -14840,6 +15983,15 @@ export interface components {
             /** P Value */
             p_value: number | null;
         };
+        /** SkippedOut */
+        SkippedOut: {
+            /** Rel Path */
+            rel_path: string;
+            /** Code */
+            code: string;
+            /** Reason */
+            reason: string;
+        };
         /**
          * Slice
          * @description A subgroup where the model is notably worse than on average.
@@ -14952,6 +16104,55 @@ export interface components {
             others: number;
             /** Ordinal */
             ordinal: boolean;
+        };
+        /** StabilityTable */
+        StabilityTable: {
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string;
+            /** Date */
+            date?: string | null;
+            /**
+             * Rows
+             * @default 0
+             */
+            rows: number;
+            cusum?: components["schemas"]["CusumPath"] | null;
+            cusum_squares?: components["schemas"]["CusumPath"] | null;
+            /** Cusum P */
+            cusum_p?: number | null;
+            chow?: components["schemas"]["ChowTest"] | null;
+            /**
+             * Window
+             * @default 0
+             */
+            window: number;
+            /**
+             * Window Reason
+             * @default
+             */
+            window_reason: string;
+            /** Rolling */
+            rolling?: components["schemas"]["RollingCurve"][];
+            /**
+             * Rolled
+             * @default 0
+             */
+            rolled: number;
+            factor?: components["schemas"]["FactorReading"] | null;
+            /**
+             * Stable
+             * @default true
+             */
+            stable: boolean;
+            /**
+             * Sentence
+             * @default
+             */
+            sentence: string;
+            /** Notes */
+            notes?: string[];
         };
         /** Stage */
         Stage: {
@@ -15074,7 +16275,7 @@ export interface components {
              */
             schema: 1;
             /** Steps */
-            steps?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
+            steps?: (components["schemas"]["RenameColumn"] | components["schemas"]["DropColumns"] | components["schemas"]["DuplicateColumn"] | components["schemas"]["AssembleDate"] | components["schemas"]["LabelRows"] | components["schemas"]["ChangeType"] | components["schemas"]["NormalizeSpaces"] | components["schemas"]["RemoveInvisible"] | components["schemas"]["ChangeCase"] | components["schemas"]["ReplaceValues"] | components["schemas"]["MapValues"] | components["schemas"]["Fill"] | components["schemas"]["FillEmpty"] | components["schemas"]["NullValues"] | components["schemas"]["NullOutside"] | components["schemas"]["PadZeros"] | components["schemas"]["FilterRows"] | components["schemas"]["DropDuplicates"] | components["schemas"]["DropEmptyRows"] | components["schemas"]["DropHeaderRows"])[];
         };
         /** StorageInfo */
         StorageInfo: {
@@ -16481,6 +17682,11 @@ export interface components {
             /** After */
             after: string;
         };
+        /** UnpinRequest */
+        UnpinRequest: {
+            /** Keys */
+            keys: string[];
+        };
         /**
          * UnusualCurve
          * @description Scores sorted from the most unusual row down: every listed rank, then a sampled tail.
@@ -17163,6 +18369,17 @@ export interface components {
             /** Measure */
             measure: string;
         };
+        /** Permutation */
+        quantilo__ml__explain__Permutation: {
+            /** Metric */
+            metric: string;
+            /** Rows */
+            rows: number;
+            /** Sampled */
+            sampled: boolean;
+            /** Items */
+            items: components["schemas"]["PermutationItem"][];
+        };
         /** Decision */
         quantilo__ml__preparation__Decision: {
             /** Column */
@@ -17233,6 +18450,21 @@ export interface components {
             y: number[];
             /** Thresholds */
             thresholds?: number[];
+        };
+        /** Permutation */
+        quantilo__regression__resampling__Permutation: {
+            /** Term */
+            term: string;
+            /** Statistic */
+            statistic: number;
+            /** P Value */
+            p_value: number;
+            /** Draws */
+            draws: number;
+            /** Reason */
+            reason: string;
+            /** Sentence */
+            sentence: string;
         };
         /** Detection */
         quantilo__synthetic__detection__Detection: {
@@ -19362,6 +20594,171 @@ export interface operations {
             };
         };
     };
+    stability_api_v1_datasets__dataset_id__regression_stability_get: {
+        parameters: {
+            query?: {
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+                /** @description Column to explain (default: R-REG-20). */
+                target?: string | null;
+                /** @description Comma-separated explanatory columns (absent: R-REG-21; empty: none). */
+                columns?: string | null;
+                /** @description Weight column (absent: a column of role weight; empty: none). */
+                weights?: string | null;
+                /** @description Grouped by: errors clustered on it. */
+                cluster?: string | null;
+                se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+                /** @description The column the conclusion speaks of. */
+                focus?: string | null;
+                /** @description Model family (default: chosen from the target, 069). */
+                family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
+                /** @description Exposure of a count, its log the offset (absent: role exposure). */
+                exposure?: string | null;
+                /** @description 070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level. */
+                terms?: string;
+                /** @description 070: numbers centred at their mean (R-REG-TERM-05). */
+                center?: boolean;
+                /** @description 070: categories against a reference level, or their average. */
+                coding?: "reference" | "deviation";
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StabilityTable"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resampling_api_v1_datasets__dataset_id__regression_resampling_get: {
+        parameters: {
+            query?: {
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+                /** @description Column to explain (default: R-REG-20). */
+                target?: string | null;
+                /** @description Comma-separated explanatory columns (absent: R-REG-21; empty: none). */
+                columns?: string | null;
+                /** @description Weight column (absent: a column of role weight; empty: none). */
+                weights?: string | null;
+                /** @description Grouped by: errors clustered on it. */
+                cluster?: string | null;
+                se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+                /** @description The column the conclusion speaks of. */
+                focus?: string | null;
+                /** @description Model family (default: chosen from the target, 069). */
+                family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
+                /** @description Exposure of a count, its log the offset (absent: role exposure). */
+                exposure?: string | null;
+                /** @description 070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level. */
+                terms?: string;
+                /** @description 070: numbers centred at their mean (R-REG-TERM-05). */
+                center?: boolean;
+                /** @description 070: categories against a reference level, or their average. */
+                coding?: "reference" | "deviation";
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResamplingTable"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    selection_api_v1_datasets__dataset_id__regression_selection_get: {
+        parameters: {
+            query?: {
+                /** @description JSON list of conditions, combined with AND. */
+                filters?: string | null;
+                /** @description Column to explain (default: R-REG-20). */
+                target?: string | null;
+                /** @description Comma-separated explanatory columns (absent: R-REG-21; empty: none). */
+                columns?: string | null;
+                /** @description Weight column (absent: a column of role weight; empty: none). */
+                weights?: string | null;
+                /** @description Grouped by: errors clustered on it. */
+                cluster?: string | null;
+                se?: "auto" | "classic" | "hc0" | "hc1" | "hc2" | "hc3" | "hac" | "cluster" | "cluster2" | "dk";
+                /** @description The column the conclusion speaks of. */
+                focus?: string | null;
+                /** @description Model family (default: chosen from the target, 069). */
+                family?: "auto" | "ols" | "logit" | "probit" | "poisson" | "negbin" | "gamma" | "log_ols" | "boxcox" | "fractional" | "mnlogit";
+                /** @description Exposure of a count, its log the offset (absent: role exposure). */
+                exposure?: string | null;
+                /** @description 070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level. */
+                terms?: string;
+                /** @description 070: numbers centred at their mean (R-REG-TERM-05). */
+                center?: boolean;
+                /** @description 070: categories against a reference level, or their average. */
+                coding?: "reference" | "deviation";
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SelectionTable"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     instrumental_api_v1_datasets__dataset_id__regression_instruments_get: {
         parameters: {
             query?: {
@@ -20612,6 +22009,487 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Topics"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suggest_join_api_v1_datasets__dataset_id__join_suggest_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JoinSuggestIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JoinSuggestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_join_api_v1_datasets__dataset_id__join_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JoinIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JoinPreviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_join_api_v1_datasets__dataset_id__join_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JoinIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_image_set_api_v1_images_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImagePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImagePreviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_image_set_api_v1_images_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImageImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quality_rules_api_v1_images_rules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityRuleOut"][];
+                };
+            };
+        };
+    };
+    image_set_report_api_v1_datasets__dataset_id__images_report_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageReportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    image_thumbnail_api_v1_datasets__dataset_id__images__image_id__thumb_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    image_file_api_v1_datasets__dataset_id__images__image_id__file_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    image_mask_api_v1_datasets__dataset_id__images__image_id__mask_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pins_api_v1_datasets__dataset_id__pins_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PinnedRows"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pin_api_v1_datasets__dataset_id__pins_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PinRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PinnedRows"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unpin_api_v1_datasets__dataset_id__pins_remove_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnpinRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PinnedRows"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_label_api_v1_datasets__dataset_id__pins_labels_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LabelChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PinnedRows"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compare_api_v1_datasets__dataset_id__pins_compare_get: {
+        parameters: {
+            query?: {
+                label?: string | null;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PinnedComparison"];
                 };
             };
             /** @description Validation Error */
@@ -23026,6 +24904,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    text_embeddings_api_v1_modules_ml_text_embeddings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmbeddingsStatus"];
+                };
+            };
+        };
+    };
+    download_text_embeddings_api_v1_modules_ml_text_embeddings_download_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmbeddingsStatus"];
                 };
             };
         };

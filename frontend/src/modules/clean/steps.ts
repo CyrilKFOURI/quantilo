@@ -83,7 +83,23 @@ export function newStep(op: Op, id: string, column: string): Step {
       return { ...common, op };
     case "drop_header_rows":
       return { ...common, op };
+    case "label_rows":
+      return { ...common, op, to: PIN_COLUMN, labels: {}, other: null };
   }
+}
+
+/** 099 (R-PIN-15): the column of the pinned rows' labels. */
+export const PIN_COLUMN = "pin_label";
+
+/** The draft with the labels of the pinned rows as a column: the `label_rows` step already there
+ *  takes the current labels, else a new one is added at the end (after the other steps, so the
+ *  column is not touched by them). */
+export function withPinnedLabels(steps: Step[], labels: Record<string, string>, columns: string[]): Step[] {
+  const existing = steps.find((step) => step.op === "label_rows");
+  if (existing) return replaceStep(steps, { ...existing, labels } as Step);
+  let to = PIN_COLUMN;
+  for (let n = 2; columns.includes(to); n += 1) to = `${PIN_COLUMN}_${n}`;
+  return [...steps, { ...base(nextId(steps)), op: "label_rows", to, labels, other: null }];
 }
 
 export function isSingle(op: Op) {

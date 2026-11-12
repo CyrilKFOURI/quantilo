@@ -81,6 +81,19 @@ class AssembleDate(StepBase):
     to: Name
 
 
+class LabelRows(StepBase):
+    """099 (R-PIN-15): a new text column with the label of each pinned row, the rows given by their
+    number in the file (from 0); the other rows are empty, or `other` when given. The numbers are
+    those of the current import: after a re-import that reorders the rows, make the step again."""
+
+    op: Literal["label_rows"] = "label_rows"
+    to: Name
+    labels: dict[int, Annotated[str, Field(min_length=1, max_length=60)]] = Field(
+        min_length=1, max_length=MAX_MAP
+    )
+    other: Value | None = None
+
+
 TargetType = Literal["text", "number", "integer", "date", "datetime", "boolean"]
 
 
@@ -243,6 +256,7 @@ Step = Annotated[
     | DropColumns
     | DuplicateColumn
     | AssembleDate
+    | LabelRows
     | ChangeType
     | NormalizeSpaces
     | RemoveInvisible
@@ -265,6 +279,7 @@ OPS = (
     "drop_columns",
     "duplicate_column",
     "assemble_date",
+    "label_rows",
     "change_type",
     "normalize_spaces",
     "remove_invisible",
@@ -300,6 +315,7 @@ OP_IMPACT: dict[str, Impact] = {
     "drop_columns": "columns",
     "duplicate_column": "columns",
     "assemble_date": "columns",
+    "label_rows": "columns",
     "change_type": "types",
     "normalize_spaces": "format",
     "remove_invisible": "format",

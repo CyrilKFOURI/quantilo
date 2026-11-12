@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
 import { api, type MlRun } from "../../api/client";
@@ -106,7 +107,7 @@ export function Results({ run, datasetId }: { run: MlRun; datasetId: string }) {
           </div>
         ))}
       {tab === "periods" && <PeriodsTab run={run} datasetId={datasetId} />}
-      {tab === "features" && <Features run={run} />}
+      {tab === "features" && <Features run={run} datasetId={datasetId} />}
       {tab === "explain" && <ExplainTab run={run} datasetId={datasetId} />}
       {tab === "errors" && <ErrorsTab run={run} datasetId={datasetId} />}
       {tab === "predictions" && <Predictions run={run} datasetId={datasetId} />}
@@ -416,15 +417,23 @@ function Importances({ run }: { run: MlRun }) {
   );
 }
 
-function Features({ run }: { run: MlRun }) {
+function Features({ run, datasetId }: { run: MlRun; datasetId: string }) {
   const coefficients = run.coefficients;
   if (!coefficients.length && run.importances.length) return <Importances run={run} />;
   if (!coefficients.length) return <p className="text-ink-2">{t("ml.noCoefficients")}</p>;
   const withStats = coefficients.some((c) => c.p_value !== null);
   const odds = coefficients.some((c) => c.odds_ratio !== null);
+  const adjusted = coefficients.some((c) => (c.q_value ?? null) !== null);
   return (
     <div className="space-y-3">
       <p className="text-[13px] text-ink-2">{t(run.regression ? "ml.coefficientsHint" : "ml.coefficientsLogisticHint")}</p>
+      {/* 079: the coefficients come from the Regression engine; Inference opens it on the same columns */}
+      {run.regression && (
+        <p className="text-xs text-ink-3">
+          {run.regression.inference && <>{run.regression.inference} </>}
+          <InferenceLink run={run} datasetId={datasetId} />
+        </p>
+      )}
       <div className="grid gap-5 @4xl:grid-cols-2">
       <Panel title={t("ml.topCoefficients")}>
         <Plot figure={coefficientsFigure(coefficients)} height={Math.max(220, 24 * Math.min(15, coefficients.length) + 60)} label={t("ml.topCoefficients")} />
@@ -439,6 +448,7 @@ function Features({ run }: { run: MlRun }) {
                 <>
                   <th className="px-3 py-1.5 text-right font-normal">{t("ml.ci")}</th>
                   <th className="px-3 py-1.5 text-right font-normal">p</th>
+                  {adjusted && <th className="px-3 py-1.5 text-right font-normal">{t("ml.adjustedP")}</th>}
                   <th className="px-3 py-1.5 text-right font-normal" title={t("ml.vifHint")}>VIF</th>
                 </>
               )}
@@ -458,6 +468,11 @@ function Features({ run }: { run: MlRun }) {
                     <td className={`px-3 py-1.5 text-right ${c.p_value !== null && c.p_value < 0.05 ? "text-ink-1" : "text-ink-3"}`}>
                       {c.p_value === null ? "—" : pLabel(c.p_value)}
                     </td>
+                    {adjusted && (
+                      <td className={`px-3 py-1.5 text-right ${(c.q_value ?? 1) < 0.05 ? "text-ink-1" : "text-ink-3"}`}>
+                        {c.q_value == null ? "—" : pLabel(c.q_value)}
+                      </td>
+                    )}
                     <td className={`px-3 py-1.5 text-right ${c.vif !== null && c.vif > 10 ? "text-warn" : "text-ink-2"}`}>
                       {formatNumber(c.vif)}
                     </td>
@@ -471,6 +486,22 @@ function Features({ run }: { run: MlRun }) {
       </div>
       </div>
     </div>
+  );
+}
+
+/** 079: the same target and columns in Relationships › Regression, on every row. */
+function InferenceLink({ run, datasetId }: { run: MlRun; datasetId: string }) {
+  const columns = run.preparation.decisions.filter((d) => d.use && d.column !== run.target).map((d) => d.column);
+  return (
+    <Link
+      to={"/d/$datasetId/regression" as never}
+      params={{ datasetId } as never}
+      search={{ target: run.target, columns: columns.join(",") } as never}
+      title={t("ml.inferenceHint")}
+      className="text-accent hover:underline"
+    >
+      {t("ml.inference")}
+    </Link>
   );
 }
 

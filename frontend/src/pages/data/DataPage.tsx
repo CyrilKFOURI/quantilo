@@ -8,9 +8,14 @@ import { useColumnSummaries, useColumns, useDataset, useRowBlocks } from "../../
 import { DataTable, type TableColumn } from "../../features/data/DataTable";
 import { ExportMenu } from "../../features/data/ExportMenu";
 import { useTableLayout } from "../../features/data/useTableLayout";
+import { JoinButton } from "../../features/joins/JoinDialog";
 import { ConditionEditor } from "../../features/filters/ConditionEditor";
 import { NoRows } from "../../features/filters/NoRows";
 import { useFilters } from "../../features/filters/useFilters";
+import { usePins } from "../../features/pins/api";
+import { PinPanel } from "../../features/pins/PinPanel";
+import { pinsByRow } from "../../features/pins/rows";
+import { Folded } from "../../features/text/Folded";
 import { formatCount } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { Dialog } from "../../ui/Dialog";
@@ -47,6 +52,19 @@ export function DataPage() {
   const layout = useTableLayout(datasetId);
   const [draft, setDraft] = useState<{ term: string; for: string | undefined }>({ term: search.q ?? "", for: search.q });
   const [filtering, setFiltering] = useState<Column | null>(null);
+  // 099: pins are read (cheap: none, nothing to check) to mark their rows; selecting rows to pin
+  // happens only while Advanced · Pinned rows is open.
+  const pins = usePins(datasetId, ready);
+  const marks = useMemo(() => pinsByRow(pins.data?.pins), [pins.data]);
+  const [pinning, setPinning] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<number>>(new Set());
+  const toggleRow = (row: number) =>
+    setSelected((previous) => {
+      const next = new Set(previous);
+      if (next.has(row)) next.delete(row);
+      else next.add(row);
+      return next;
+    });
 
   const view: RowsView = useMemo(
     () => ({ mode: search.mode ?? "first", search: search.q ?? "", sort: search.sort ?? null, desc: Boolean(search.desc) }),
@@ -120,7 +138,8 @@ export function DataPage() {
               ? t("data.sampled", { rows: formatCount(total) })
               : t("data.rows", { rows: formatCount(total) }))}
         </span>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {ready && <JoinButton datasetId={datasetId} name={dataset.data?.name ?? ""} />}
           <ExportMenu
             datasetId={datasetId}
             view={view}
@@ -131,6 +150,16 @@ export function DataPage() {
           />
         </div>
       </div>
+
+      {ready && (
+        <Folded
+          title={t("pins.advanced")}
+          hint={pins.data?.pins.length ? t("pins.advancedCount", { count: formatCount(pins.data.pins.length) }) : t("pins.advancedHint")}
+          onOpenChange={setPinning}
+        >
+          <PinPanel datasetId={datasetId} selected={[...selected]} onClearSelection={() => setSelected(new Set())} hint={t("pins.dataHint")} />
+        </Folded>
+      )}
 
       {first?.isError && <ErrorNote>{first.error.message}</ErrorNote>}
       {!first?.data ? (
@@ -151,6 +180,9 @@ export function DataPage() {
             onFilter={setFiltering}
             onHide={layout.hide}
             onPin={layout.togglePin}
+            marks={marks}
+            selected={pinning ? selected : undefined}
+            onToggleRow={pinning ? toggleRow : undefined}
           />
         </div>
       )}

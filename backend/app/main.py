@@ -1,5 +1,6 @@
 """FastAPI application: API under /api/v1, built frontend served in production."""
 
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -23,8 +24,11 @@ from app.api import (
     datasets,
     filters,
     health,
+    images,
     jobs,
+    joins,
     model,
+    pins,
     profiling,
     projects,
     regression,
@@ -45,7 +49,10 @@ from app.modules.registry import mount_modules
 from app.services.columns.service import ColumnService
 from app.services.datasets.service import DatasetService
 from app.services.filters.saved import SavedFilterService
+from app.services.image_sets import ImageSetService
+from app.services.joins import JoinService
 from app.services.model.service import ModelService
+from app.services.pins.service import PinService
 from app.services.projects.service import ProjectService
 from app.services.report.service import ReportService
 from app.services.settings.service import SettingsService
@@ -79,9 +86,16 @@ def create_app(settings: Settings | None = None, job_runner: JobRunner | None = 
     app.state.datasets = dataset_service
     app.state.columns = column_service
     app.state.projects = ProjectService(workspace, dataset_service)
+    app.state.image_sets = ImageSetService(workspace, dataset_service)  # 106
     # 088: types of the analysis datasets, right after the detection (before 031's snapshot)
     app.state.model = ModelService(workspace, dataset_service, column_service, app.state.projects)
     dataset_service.after_import.append(app.state.model.after_import)
+    # 089: join the open dataset with another one (same import path as the analysis datasets)
+    app.state.joins = JoinService(
+        dataset_service, column_service, app.state.projects, app.state.model
+    )
+    # 091: sentence embeddings are cached in the workspace (R-EMB-03)
+    os.environ["QUANTILO_EMBEDDINGS_CACHE"] = str(workspace.cache_dir / "embeddings")
     app.state.profiling = ProfilingService(column_service)
     app.state.variable = VariableService(column_service)
     app.state.saved_filters = SavedFilterService(workspace, column_service)
@@ -90,6 +104,7 @@ def create_app(settings: Settings | None = None, job_runner: JobRunner | None = 
     app.state.text = TextService(column_service)  # 059
     app.state.regression = RegressionService(column_service, app.state.correlations)
     app.state.rows = RowService(column_service)
+    app.state.pins = PinService(workspace, column_service)  # 099
     app.state.reports = ReportService(
         column_service,
         app.state.profiling,
@@ -127,7 +142,20 @@ def create_app(settings: Settings | None = None, job_runner: JobRunner | None = 
 
     api = APIRouter(prefix=API_PREFIX)
     routers = (health, datasets, sources, jobs, columns, profiling, variable, filters, compare)
-    others = (correlations, regression, rows, report, changes, settings_api, projects, model, text)
+    others = (
+        correlations,
+        regression,
+        rows,
+        report,
+        changes,
+        settings_api,
+        projects,
+        model,
+        text,
+        joins,
+        images,
+        pins,
+    )
     for module in (*routers, *others):
         api.include_router(module.router)
     app.include_router(api)

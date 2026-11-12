@@ -26,6 +26,7 @@ import {
   type Step,
   type Suggestion,
 } from "./api";
+import { PinnedColumn } from "./PinnedColumn";
 import type { CleanSearch, CleanTab } from "./search";
 import { historyOf, push, redo, undo, withSuggestion, withoutSuggestion, type History } from "./steps";
 import { StepsEditor } from "./StepsEditor";
@@ -173,14 +174,18 @@ function Editor({ datasetId, name }: { datasetId: string; name: string }) {
             <SuggestionsList suggestions={found} steps={steps} onToggle={toggle} onTickMany={tickMany} />
           ))}
         {tab === "steps" && (
-          <StepsEditor
-            datasetId={datasetId}
-            steps={steps}
-            problems={problems}
-            suggestions={found}
-            columns={(columns.data ?? []).map((column) => column.name)}
-            onChange={update}
-          />
+          <div className="space-y-4">
+            <StepsEditor
+              datasetId={datasetId}
+              steps={steps}
+              problems={problems}
+              suggestions={found}
+              columns={(columns.data ?? []).map((column) => column.name)}
+              onChange={update}
+            />
+            {/* 099: the labels of pinned rows as a column, under Advanced */}
+            <PinnedColumn datasetId={datasetId} steps={steps} columns={(columns.data ?? []).map((column) => column.name)} onChange={update} />
+          </div>
         )}
         {tab === "versions" && <Versions family={family.data} originalName={originalName} />}
       </Tabs>

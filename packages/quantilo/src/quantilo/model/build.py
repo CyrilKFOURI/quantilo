@@ -487,16 +487,10 @@ def default_measures(child: TableInput, keys: set[str]) -> list[Measure]:
     return out
 
 
-def aggregate(
-    connection: duckdb.DuckDBPyConnection,
-    child: TableInput,
-    link: Link,
-    parent: TableInput,
-    measures: list[Measure],
-    target: Path | None = None,
-) -> tuple[int, list[OutputColumn]]:
-    """The parent's rows with `<child>_count` and one column per measure (R-BLD-06). Writes
-    `target` when given; returns the row count and the added columns."""
+def aggregate_sql(
+    child: TableInput, link: Link, parent: TableInput, measures: list[Measure]
+) -> tuple[str, list[OutputColumn]]:
+    """The SELECT of `aggregate` (in the parent's row order) and the columns it adds."""
     kinds = link_kinds(child, link.child_columns, parent, link.parent_columns)
     if isinstance(kinds, Reason):
         raise ModelError(f"{kinds.text} ({kinds.code}).", code="incompatible")
@@ -530,6 +524,20 @@ def aggregate(
         f"LEFT JOIN (SELECT {', '.join(inner)} FROM {source(child)} GROUP BY 1) AS a "
         "ON p.__k = a.__k ORDER BY p.file_row_number"
     )
+    return sql, added
+
+
+def aggregate(
+    connection: duckdb.DuckDBPyConnection,
+    child: TableInput,
+    link: Link,
+    parent: TableInput,
+    measures: list[Measure],
+    target: Path | None = None,
+) -> tuple[int, list[OutputColumn]]:
+    """The parent's rows with `<child>_count` and one column per measure (R-BLD-06). Writes
+    `target` when given; returns the row count and the added columns."""
+    sql, added = aggregate_sql(child, link, parent, measures)
     found = check(connection, child, link.child_columns, parent, link.parent_columns)
     if found.duplicate_keys:
         raise ModelError(

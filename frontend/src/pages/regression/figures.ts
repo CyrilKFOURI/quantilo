@@ -1,6 +1,6 @@
 import type { Data, Layout } from "plotly.js-dist-min";
 
-import type { Regression, RegressionCurve, RegressionPartial, RegressionQuantileCurve } from "../../api/client";
+import type { Regression, RegressionCurve, RegressionCusum, RegressionPartial, RegressionQuantileCurve, RegressionRolling } from "../../api/client";
 import { withAlpha } from "../../charts/figures";
 import type { ChartTokens } from "../../charts/theme";
 
@@ -214,5 +214,60 @@ export function quantileFigure(curve: RegressionQuantileCurve): (tokens: ChartTo
       } as Data,
     ],
     layout: { showlegend: false, xaxis: { ...axis("Quantile τ"), range: [0.05, 0.95] }, yaxis: axis("Effect") },
+  });
+}
+
+/** 073: a CUSUM path inside its 5 % band; leaving the band says the coefficients drift. */
+export function cusumFigure(path: RegressionCusum, label: string): (tokens: ChartTokens) => Built {
+  return (tokens) => ({
+    data: [
+      { type: "scatter", mode: "lines", x: path.dates, y: path.upper, line: { color: tokens.ink3, width: 1, dash: "dash" }, hoverinfo: "skip" } as Data,
+      { type: "scatter", mode: "lines", x: path.dates, y: path.lower, line: { color: tokens.ink3, width: 1, dash: "dash" }, hoverinfo: "skip" } as Data,
+      {
+        type: "scatter",
+        mode: "lines",
+        x: path.dates,
+        y: path.values,
+        line: { color: tokens.numeric, width: 2 },
+        hovertemplate: "%{x}<br>%{y:,.3g}<extra></extra>",
+      } as Data,
+    ],
+    layout: { showlegend: false, xaxis: { type: "date", zeroline: false }, yaxis: axis(label) },
+  });
+}
+
+/** 073: one coefficient over rolling windows, its 95 % band, and the whole-series value. */
+export function rollingFigure(curve: RegressionRolling): (tokens: ChartTokens) => Built {
+  return (tokens) => ({
+    data: [
+      { type: "scatter", mode: "lines", x: curve.dates, y: curve.high, line: { width: 0, color: tokens.numeric }, hoverinfo: "skip" } as Data,
+      {
+        type: "scatter",
+        mode: "lines",
+        x: curve.dates,
+        y: curve.low,
+        fill: "tonexty",
+        fillcolor: withAlpha(tokens.numeric, 0.15),
+        line: { width: 0, color: tokens.numeric },
+        hoverinfo: "skip",
+      } as Data,
+      {
+        type: "scatter",
+        mode: "lines",
+        x: curve.dates,
+        y: curve.estimates,
+        line: { color: tokens.numeric, width: 2 },
+        hovertemplate: "%{x}<br>%{y:,.4g}<extra></extra>",
+      } as Data,
+      {
+        type: "scatter",
+        mode: "lines",
+        x: [curve.dates[0], curve.dates[curve.dates.length - 1]],
+        y: [curve.full, curve.full],
+        line: { color: tokens.ink3, width: 1.5, dash: "dash" },
+        hovertemplate: "whole series %{y:,.4g}<extra></extra>",
+      } as Data,
+    ],
+    layout: { showlegend: false, xaxis: { type: "date", zeroline: false }, yaxis: axis("Effect") },
   });
 }

@@ -4,6 +4,10 @@ import { Database, Download } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { formatNumber } from "../../charts/figures";
+import { usePins } from "../../features/pins/api";
+import { PinPanel } from "../../features/pins/PinPanel";
+import { colorVar, pinsByRow } from "../../features/pins/rows";
+import { Folded } from "../../features/text/Folded";
 import { Plot } from "../../charts/Plot";
 import { formatCount } from "../../lib/format";
 import { t, type MessageKey } from "../../lib/i18n";
@@ -161,6 +165,12 @@ function UnusualResults({ datasetId, run }: { datasetId: string; run: UnusualRun
   const [threshold, setThreshold] = useState(result.threshold.value);
   const [open, setOpen] = useState<UnusualRow | null>(null);
   const actions = useUnusualActions(datasetId, run.id);
+  // 099: pinned rows keep their colour here; pinning is under Advanced, below the table
+  const pins = usePins(datasetId);
+  const marks = pinsByRow(pins.data?.pins);
+  const [pinning, setPinning] = useState(false);
+  const [selected, setSelected] = useState<number[]>([]);
+  const select = (row: number) => setSelected((previous) => (previous.includes(row) ? previous.filter((item) => item !== row) : [...previous, row]));
   // the proposed threshold may keep more rows than are listed: its count comes from every row
   const kept = threshold === result.threshold.value ? result.threshold.rows : rowsAbove(result, threshold);
   const shown = listed.filter((row) => row.score >= threshold);
@@ -244,8 +254,14 @@ function UnusualResults({ datasetId, run }: { datasetId: string; run: UnusualRun
         marks={run.marks}
         onOpen={setOpen}
         onMark={(row, mark) => actions.mark.mutate({ key: row.key, mark })}
+        pins={marks}
+        selected={pinning ? selected : null}
+        onSelect={select}
       />
       {actions.mark.isError && <ErrorNote>{actions.mark.error.message}</ErrorNote>}
+      <Folded title={t("pins.advanced")} hint={marks.size ? t("pins.advancedCount", { count: formatCount(marks.size) }) : t("pins.advancedHint")} onOpenChange={setPinning}>
+        <PinPanel datasetId={datasetId} selected={selected} onClearSelection={() => setSelected([])} hint={t("pins.unusualHint")} />
+      </Folded>
       {open && <RowCard datasetId={datasetId} runId={run.id} row={open} onClose={() => setOpen(null)} />}
     </div>
   );
@@ -257,12 +273,19 @@ function RowsTable({
   marks,
   onOpen,
   onMark,
+  pins,
+  selected,
+  onSelect,
 }: {
   rows: UnusualRow[];
   columns: string[];
   marks: Record<string, Mark>;
   onOpen: (row: UnusualRow) => void;
   onMark: (row: UnusualRow, mark: Mark | null) => void;
+  /** 099: pinned rows (row number in the file) and, while pinning, the rows ticked. */
+  pins: ReadonlyMap<number, { label: string; color: number }>;
+  selected: number[] | null;
+  onSelect: (row: number) => void;
 }) {
   if (rows.length === 0) return <p className="text-[13px] text-ink-3">{t("unusual.noRows")}</p>;
   return (
@@ -271,6 +294,11 @@ function RowsTable({
         <caption className="sr-only">{t("unusual.table")}</caption>
         <thead className="sticky top-0 bg-surface-0">
           <tr className="border-b border-line text-xs text-ink-3">
+            {selected && (
+              <th className="py-1.5 pr-2 text-left font-normal">
+                <span className="sr-only">{t("pins.form")}</span>
+              </th>
+            )}
             <th className="py-1.5 pr-3 text-right font-normal">#</th>
             <th className="py-1.5 pr-3 text-right font-normal">{t("unusual.score")}</th>
             <th className="py-1.5 pr-3 text-left font-normal">{t("unusual.mark")}</th>
@@ -285,9 +313,25 @@ function RowsTable({
         <tbody>
           {rows.map((row) => {
             const mark = marks[row.key] ?? null;
+            const pin = pins.get(row.row);
             return (
               <tr key={row.row} className={`border-b border-line align-top last:border-0 ${mark === "expected" ? "text-ink-3" : ""}`}>
-                <td className="py-1.5 pr-3 text-right tabular-nums">{row.rank}</td>
+                {selected && (
+                  <td className="py-1.5 pr-2">
+                    <input
+                      type="checkbox"
+                      className="size-3.5 accent-(--accent)"
+                      checked={selected.includes(row.row)}
+                      onChange={() => onSelect(row.row)}
+                      aria-label={t("pins.selectRow", { row: formatCount(row.row + 1) })}
+                    />
+                  </td>
+                )}
+                <td className="relative py-1.5 pr-3 text-right tabular-nums" title={pin ? t("pins.marked", { label: pin.label }) : undefined}>
+                  {pin && <span aria-hidden className="absolute inset-y-1 left-0 w-1 rounded-r-sm" style={{ background: colorVar(pin.color) }} />}
+                  {row.rank}
+                  {pin && <span className="sr-only">{t("pins.marked", { label: pin.label })}</span>}
+                </td>
                 <td className="py-1.5 pr-3 text-right tabular-nums">{formatNumber(row.score)}</td>
                 <td className="py-1.5 pr-3 whitespace-nowrap">
                   {(["expected", "error"] as const).map((m) => (

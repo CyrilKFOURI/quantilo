@@ -14,6 +14,7 @@ const OP_IMPACT: Record<Step["op"], Impact> = {
   drop_columns: "columns",
   duplicate_column: "columns",
   assemble_date: "columns",
+  label_rows: "columns",
   change_type: "types",
   normalize_spaces: "format",
   remove_invisible: "format",

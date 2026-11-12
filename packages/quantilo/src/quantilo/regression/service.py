@@ -21,7 +21,10 @@ from quantilo.ingestion.sql import ident
 from quantilo.regression import analyze as an
 from quantilo.regression import iv as ivs
 from quantilo.regression import panel as panels
+from quantilo.regression import resampling as rs
 from quantilo.regression import robust as rb
+from quantilo.regression import selection as sl
+from quantilo.regression import stability as st
 from quantilo.regression import terms as tm
 from quantilo.regression.design import DesignError, LeftOutTerm, Variable, codes
 from quantilo.regression.families import EXPOSURE_ROLE, MAX_CLASSES, FamilyRequest
@@ -55,7 +58,18 @@ REFUSED = {
 }
 WEIGHT_ROLE = "weight"
 YES = ("true", "1", "yes", "oui", "y")
-Section = Literal["standard_errors", "influence", "terms", "more", "panel", "families", "quantiles"]
+Section = Literal[
+    "standard_errors",
+    "influence",
+    "terms",
+    "more",
+    "panel",
+    "families",
+    "quantiles",
+    "stability",
+    "resampling",
+    "selection",
+]
 
 
 class RegressionError(ExplorerError):
@@ -127,6 +141,9 @@ class RegressionService:
         | PanelTable
         | an.FamilyAlternatives
         | rb.QuantileProcess
+        | st.StabilityTable
+        | rs.ResamplingTable
+        | sl.SelectionTable
     ):
         conditions = conditions or []
         key = (*self._key(dataset_id, request, conditions), name)
@@ -142,6 +159,9 @@ class RegressionService:
             "families": an.family_alternatives,
             "panel": panels.section,  # 071
             "quantiles": rb.process,  # 072: Advanced › More
+            "stability": st.section,  # 073
+            "resampling": rs.section,  # 077
+            "selection": sl.section,  # 077: Advanced › More
         }
         if name not in builders:
             raise RegressionError(f"Unknown section {name!r}.", "unknown_section")
@@ -302,6 +322,10 @@ class RegressionService:
         proposed = panels.proposal(fitted)  # 071: R-REG-14
         if proposed is not None:
             fitted.result.checks.append(proposed)
+        for rule in (st.proposal, sl.proposal):  # 073: R-REG-15; 077: R-REG-16
+            found = rule(fitted)
+            if found is not None:
+                fitted.result.checks.append(found)
         self._fits[key] = fitted
         if len(self._fits) > FIT_CACHE:
             self._fits.popitem(last=False)
@@ -400,6 +424,8 @@ class RegressionService:
         if weights is not None:
             inputs.weights, inputs.weights_reason = weights[0].name, weights[1]
             inputs.weight_values = frame["__w"].to_numpy(dtype=float, na_value=np.nan)
+        if shape.kind == "series" and shape.date is not None:  # 073: the dates of the rows
+            inputs.dates = _date_labels(cast(pd.Series, frame[shape.date]))
         if cluster is not None:
             inputs.cluster = cluster.name
             inputs.cluster_codes = _codes(cast(pd.Series, frame["__g"]))
@@ -608,6 +634,14 @@ def _codes(values: pd.Series) -> np.ndarray:
     labels = values.astype(str).where(values.notna())
     found, _ = pd.factorize(labels, use_na_sentinel=True)
     return np.asarray(found, dtype=np.int64)
+
+
+def _date_labels(values: pd.Series) -> np.ndarray:
+    """073: dates as text, the time left out when every one is at midnight."""
+    parsed = pd.to_datetime(values, errors="coerce")
+    midnight = bool((parsed.dropna() == parsed.dropna().dt.normalize()).all())
+    text = parsed.dt.strftime("%Y-%m-%d" if midnight else "%Y-%m-%d %H:%M")
+    return text.fillna("").to_numpy(dtype=object)
 
 
 def _period_order(frame: pd.DataFrame, column: str) -> np.ndarray:

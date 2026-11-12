@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-Format = Literal["csv", "parquet", "excel", "npy", "json", "jsonl", "xml"]
+Format = Literal["csv", "parquet", "excel", "npy", "log", "json", "jsonl", "xml"]
 Encoding = Literal["utf-8", "latin-1", "windows-1252", "utf-16"]
 
 

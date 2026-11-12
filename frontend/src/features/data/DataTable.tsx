@@ -4,6 +4,7 @@ import { useMemo, useRef, type CSSProperties } from "react";
 import type { Cell, Column, RowsView } from "../../api/client";
 import { ROW_BLOCK, useRowBlocks } from "../../api/hooks";
 import { t } from "../../lib/i18n";
+import { colorVar } from "../pins/rows";
 import { CellView, columnWidth, isRightAligned } from "./cells";
 import { HeaderCell, type SortState } from "./HeaderCell";
 
@@ -24,11 +25,16 @@ type DataTableProps = {
   onFilter: (column: Column) => void;
   onHide: (name: string) => void;
   onPin: (name: string) => void;
+  /** 099: pinned rows (row number in the file, from 0) and their label's colour. */
+  marks?: ReadonlyMap<number, { label: string; color: number }>;
+  /** 099, while Advanced · Pinned rows is open: the row numbers become buttons that select. */
+  selected?: ReadonlySet<number>;
+  onToggleRow?: (row: number) => void;
 };
 
 /** Virtualized rows (only the visible ones exist in the page), sticky header and pinned columns. */
 export function DataTable(props: DataTableProps) {
-  const { datasetId, columns, pinned, total, view } = props;
+  const { datasetId, columns, pinned, total, view, marks, selected, onToggleRow } = props;
   const sort = view.sort ? { column: view.sort, desc: view.desc } : null;
   const scroller = useRef<HTMLDivElement>(null);
   // The compiler skips memoizing this component (the virtualizer's functions change on scroll).
@@ -112,13 +118,7 @@ export function DataTable(props: DataTableProps) {
               className="group absolute left-0 flex border-b border-line/60"
               style={{ top: HEADER_HEIGHT, height: ROW_HEIGHT, width, transform: `translateY(${virtualRow.start}px)` }}
             >
-              <div
-                role="rowheader"
-                style={numberStyle}
-                className="flex items-center justify-end bg-surface-1 px-2.5 text-xs text-ink-3 tabular-nums group-hover:bg-surface-2"
-              >
-                {row ? integer.format(row[0]) : ""}
-              </div>
+              <RowHeader number={row?.[0]} style={numberStyle} marks={marks} selected={selected} onToggle={onToggleRow} />
               {layout.map((item) => {
                 const value = row?.[item.index + 1] as Cell | undefined;
                 return (
@@ -144,6 +144,51 @@ export function DataTable(props: DataTableProps) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/** The row number, kept on the left; 099: the colour of its pin, and a selection button while
+ *  rows are being pinned. */
+function RowHeader({
+  number,
+  style,
+  marks,
+  selected,
+  onToggle,
+}: {
+  number: number | undefined; // from 1, as shown
+  style: CSSProperties;
+  marks?: ReadonlyMap<number, { label: string; color: number }>;
+  selected?: ReadonlySet<number>;
+  onToggle?: (row: number) => void;
+}) {
+  const row = number === undefined ? undefined : number - 1;
+  const mark = row === undefined ? undefined : marks?.get(row);
+  const chosen = row !== undefined && Boolean(selected?.has(row));
+  const shown = number === undefined ? "" : integer.format(number);
+  return (
+    <div
+      role="rowheader"
+      style={style}
+      title={mark ? t("pins.marked", { label: mark.label }) : undefined}
+      className={`relative flex items-center justify-end px-2.5 text-xs text-ink-3 tabular-nums group-hover:bg-surface-2 ${chosen ? "bg-accent-soft" : "bg-surface-1"}`}
+    >
+      {mark && <span aria-hidden className="absolute inset-y-1 left-0 w-1 rounded-r-sm" style={{ background: colorVar(mark.color) }} />}
+      {onToggle && row !== undefined ? (
+        <button
+          type="button"
+          aria-pressed={chosen}
+          aria-label={t("pins.selectRow", { row: shown })}
+          onClick={() => onToggle(row)}
+          className={`rounded px-1 tabular-nums hover:text-ink-1 hover:underline ${chosen ? "font-medium text-ink-1" : ""}`}
+        >
+          {shown}
+        </button>
+      ) : (
+        shown
+      )}
+      {mark && <span className="sr-only">{t("pins.marked", { label: mark.label })}</span>}
     </div>
   );
 }

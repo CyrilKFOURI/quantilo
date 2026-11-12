@@ -112,6 +112,12 @@ export type RegressionPartial = Complete<Schemas["PartialPlot"]>;
 export type RegressionRobust = Complete<Schemas["RobustTable"]>;
 export type RegressionQuantiles = Complete<Schemas["QuantileProcess"]>;
 export type RegressionQuantileCurve = RegressionQuantiles["curves"][number];
+// 073: stability over time; 077: resampling and selection
+export type RegressionStability = Complete<Schemas["StabilityTable"]>;
+export type RegressionRolling = RegressionStability["rolling"][number];
+export type RegressionCusum = NonNullable<RegressionStability["cusum"]>;
+export type RegressionResampling = Complete<Schemas["ResamplingTable"]>;
+export type RegressionSelection = Complete<Schemas["SelectionTable"]>;
 export type RegressionSection =
   | "standard-errors"
   | "influence"
@@ -120,7 +126,10 @@ export type RegressionSection =
   | "panel"
   | "families"
   | "robust"
-  | "quantiles";
+  | "quantiles"
+  | "stability"
+  | "resampling"
+  | "selection";
 export type RegressionSections = {
   "standard-errors": RegressionStandardErrors;
   influence: RegressionInfluence;
@@ -130,6 +139,9 @@ export type RegressionSections = {
   panel: RegressionPanel;
   robust: RegressionRobust;
   quantiles: RegressionQuantiles;
+  stability: RegressionStability;
+  resampling: RegressionResampling;
+  selection: RegressionSelection;
 };
 /** What the page asks for: absent fields follow the rules (R-REG-20, 21, SE-04). */
 export type RegressionParams = {

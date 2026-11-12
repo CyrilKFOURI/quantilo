@@ -171,6 +171,20 @@ export function StepFields({ step, original, columns, onChange }: Props) {
         </Cell>,
       );
       break;
+    case "label_rows": {
+      const s = step as StepOf<"label_rows">;
+      const names = [...new Set(Object.values(s.labels))];
+      cells.push(cell("to", "clean.field.to", text("to", "clean.field.to", s.to, (to) => to.trim() && set({ to: to.trim() }))));
+      cells.push(cell("other", "clean.field.other", text("other", "clean.field.other", s.other ?? "", (other) => set({ other: other === "" ? null : other }), t("clean.empty")), false, t("clean.field.why.other")));
+      cells.push(
+        <Cell key="labels" label={t("clean.field.pinned")} why={t("clean.opHint.label_rows")} changed={differs("labels")} onReset={reset("labels")}>
+          <p className="py-1.5 text-[13px] text-ink-2 tabular-nums">
+            {t("clean.field.pinnedSummary", { rows: String(Object.keys(s.labels).length), labels: String(names.length), names: names.slice(0, 4).join(", ") })}
+          </p>
+        </Cell>,
+      );
+      break;
+    }
     case "drop_duplicates":
       cells.push(cell("keys", "clean.field.keys", text("keys", "clean.field.keys", joined(step.keys), (value) => set({ keys: split(value).length ? split(value) : null }), t("clean.field.keysHint")), true, t("clean.field.keysHint")));
       cells.push(cell("keep", "clean.field.keep", choice("clean.field.keep", step.keep, ["first", "last", "most_complete"], "clean.keep", (keep) => set({ keep }))));

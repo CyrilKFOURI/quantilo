@@ -223,6 +223,8 @@ def steps_of(pipeline: Any) -> dict[str, TextStep]:
         if name == "remainder" or not hasattr(step, "named_steps"):
             continue
         features = step.named_steps.get("text")
+        # 091: embeddings that lost to TF-IDF (R-FUS-02) read through their fitted TF-IDF step
+        features = getattr(features, "fallback_", None) or features
         if isinstance(features, TextFeatures):
             found[str(columns[0])] = TextStep(
                 str(columns[0]), features, step.named_steps.get("scale", "passthrough")

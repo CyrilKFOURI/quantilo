@@ -22,6 +22,7 @@ from quantilo.ingestion.sql import ident, lit
 from quantilo.ml import preparation as prep
 from quantilo.ml.data import Field
 from quantilo.segments import methods, portrait, projection
+from quantilo.segments import pinned as pinned_rows
 from quantilo.segments import prepare as preparing
 from quantilo.segments import unusual as scoring
 from quantilo.segments.methods import (
@@ -32,6 +33,7 @@ from quantilo.segments.methods import (
     SegmentStability,
     Space,
 )
+from quantilo.segments.pinned import PinnedComparison
 from quantilo.segments.portrait import (
     SegmentProfileRow,
     SegmentRules,
@@ -772,11 +774,9 @@ class SegmentsEngine:
         identifier = next((v for v in views if v.type == "identifier" and not v.excluded), None)
         wanted = ", ".join(str(int(r)) for r in rows)
         if identifier is not None:
-            value = f"coalesce(CAST({ident(identifier.name)} AS VARCHAR), '')"
-            expression = f"{lit(identifier.name + '=')} || {value}"
+            expression = identifier_key(identifier.name)
         else:
-            parts = ", ".join(f"coalesce(CAST({ident(v.name)} AS VARCHAR), chr(0))" for v in views)
-            expression = f"'row:' || md5(concat_ws(chr(31), {parts}))"
+            expression = fingerprint([v.name for v in views])
         connection = duckdb.connect()
         try:
             found = connection.execute(
@@ -787,6 +787,67 @@ class SegmentsEngine:
         finally:
             connection.close()
         return {int(row): str(key) for row, key in found}
+
+    def find_keys(self, dataset_id: str, keys: list[str]) -> dict[str, int]:
+        """099 (R-PIN-02): the row that has each key now (the first in file order), for keys
+        whose row moved after a re-import. A fingerprint is looked for over every row, an
+        identifier key over its column if the column still exists; keys not found are left out."""
+        if not keys:
+            return {}
+        dataset = self.columns.ready(dataset_id)
+        views = self.columns.columns(dataset_id)
+        names = sorted((v.name for v in views), key=len, reverse=True)
+        wanted: dict[str, list[str]] = {}  # key expression → keys looked for with it
+        prints = [k for k in keys if k.startswith("row:")]
+        if prints:
+            wanted[fingerprint([v.name for v in views])] = prints
+        for key in keys:
+            column = next((n for n in names if key.startswith(n + "=")), None)
+            if column is not None and not key.startswith("row:"):
+                wanted.setdefault(identifier_key(column), []).append(key)
+        source = f"read_parquet({lit(dataset.storage_path)}, file_row_number = true)"
+        found: dict[str, int] = {}
+        connection = duckdb.connect()
+        try:
+            for expression, looked in wanted.items():
+                rows = connection.execute(
+                    f"SELECT k, min(file_row_number) FROM (SELECT file_row_number, {expression} "
+                    f"AS k FROM {source}) WHERE k IN {literals(looked)} GROUP BY k"
+                ).fetchall()
+                found.update({str(key): int(row) for key, row in rows})
+        finally:
+            connection.close()
+        return found
+
+    def compare_rows(
+        self,
+        dataset_id: str,
+        rows: list[int],
+        label: str | None = None,
+        seed: int = 42,
+    ) -> PinnedComparison:
+        """099: the given rows (row numbers in the file, from 0) against every other row of the
+        dataset, column by column (numbers, categories, booleans; R-PIN-14)."""
+        fields, source = self._fields(dataset_id, [])
+        fields = [f for f in fields if f.type in NUMERIC_TYPES or f.type in CATEGORY_TYPES]
+        numbers = [f.name for f in fields if f.type in NUMERIC_TYPES]
+        categories = [f.name for f in fields if f.type in CATEGORY_TYPES]
+        chosen = sorted({int(r) for r in rows if r >= 0})
+        if not fields:
+            raise SegmentsError(
+                "No number or category column to compare the rows on.", "no_columns"
+            )
+        pinned = preparing.typed(self._values(source, fields, chosen), fields)
+        listed = ", ".join(str(r) for r in chosen) or "-1"
+        rest = f"(SELECT * FROM {source} WHERE file_row_number NOT IN ({listed}))"
+        connection = duckdb.connect()
+        try:
+            others = preparing.load(connection, rest, fields)
+        finally:
+            connection.close()
+        return pinned_rows.compare(
+            pinned, others.data, numbers, categories, label, others.rows, seed
+        )
 
     def row_card(self, dataset_id: str, conditions: list[Condition], row: int) -> list["RowValue"]:
         """Each value of a row placed on its column's distribution (after the filters)."""
@@ -839,6 +900,21 @@ class RowValue:
     percentile: float | None  # numbers: share of rows at or below it
     share: float | None  # categories: share of rows with this value
     median: Any  # numbers: the column's median
+
+
+def identifier_key(column: str) -> str:
+    """The key of a row by its identifier: "<column>=<value>" (033, 099)."""
+    return f"{lit(column + '=')} || coalesce(CAST({ident(column)} AS VARCHAR), '')"
+
+
+def fingerprint(columns: list[str]) -> str:
+    """The key of a row without an identifier: "row:" + md5 of every stored value (033, 099)."""
+    parts = ", ".join(f"coalesce(CAST({ident(c)} AS VARCHAR), chr(0))" for c in columns)
+    return f"'row:' || md5(concat_ws(chr(31), {parts}))"
+
+
+def literals(values: list[str]) -> str:
+    return "(" + ", ".join(lit(v) for v in values) + ")"
 
 
 def segment_of(labels: pd.DataFrame, rows: np.ndarray) -> np.ndarray:

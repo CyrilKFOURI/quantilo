@@ -1,7 +1,7 @@
 import type { Preview } from "../../api/client";
 
 /** What the import screen shows once the file is read (082: told by its first bytes). One step per
- * kind of source; a new kind (images, 086) adds its component to `IMPORT_STEPS`. */
+ * kind of source; a new kind adds its component to `IMPORT_STEPS`. */
 export type ImportStepKind = "default" | "tables" | "image";
 
 export type ImportStepProps = {
@@ -19,7 +19,9 @@ export const DOCUMENT_FORMATS = ["json", "jsonl", "xml"];
 /** The step for this preview. `mode` is the user's choice: "simple" keeps the one-table dialog,
  * "tables" opens the tables of a workbook even when the detection found a single sure one. */
 export function importStepFor(preview: Preview, mode: "auto" | "simple" | "tables"): ImportStepKind {
-  if (preview.detected?.kind === "image") return "image";
+  // 106: an image set; a Parquet file with an image column is also a table ("simple" reads it so)
+  const table = preview.columns.length > 0;
+  if (preview.detected?.kind === "image" && !(mode === "simple" && table)) return "image";
   if (mode === "simple") return "default";
   const tables = preview.tables ?? [];
   if (DOCUMENT_FORMATS.includes(preview.format)) return tables.length > 1 ? "tables" : "default";

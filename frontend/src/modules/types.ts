@@ -28,6 +28,20 @@ export type PanelManifest = {
   component: () => ReactElement | null;
 };
 
+/** A column type, or "images" (106): an analysis type of the dataset itself, an image set
+ * (`format = 'images'`), whose columns stay ordinary columns for the tabular pages. */
+export type Requirement = AnalysisType | "images";
+
+/** Whether a dataset meets a page's requirement. */
+export function meets(
+  requirement: Requirement,
+  format: string | undefined,
+  columns: { type: AnalysisType; excluded: boolean }[],
+): boolean {
+  if (requirement === "images") return format === "images";
+  return columns.some((column) => column.type === requirement && !column.excluded);
+}
+
 /** What a module declares to appear in the sidebar and own a route. */
 export type ModuleManifest = Base &
   (
@@ -36,7 +50,8 @@ export type ModuleManifest = Base &
         /** A page of the open dataset, greyed out without the column types it needs. */
         scope: "dataset";
         path: `/d/$datasetId/${string}`;
-        requires?: AnalysisType[];
+        /** Column types the page needs, or "images": the dataset is an image set (106). */
+        requires?: Requirement[];
         requiresKey?: MessageKey;
       }
   );

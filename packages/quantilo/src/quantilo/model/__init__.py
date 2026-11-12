@@ -38,6 +38,14 @@ from quantilo.model.keys import (
     TableProfile,
     profile_table,
 )
+from quantilo.model.pair import (
+    ModeOption,
+    PairKey,
+    PairPreview,
+    preview_pair,
+    suggest,
+    write_pair,
+)
 from quantilo.model.relations import Relation, detect, pieces
 from quantilo.model.roles import RoleOf, Roles, assign
 
@@ -48,7 +56,10 @@ __all__ = [
     "Link",
     "LinkCheck",
     "Measure",
+    "ModeOption",
     "ModelError",
+    "PairKey",
+    "PairPreview",
     "Plan",
     "Preview",
     "Reason",
@@ -66,11 +77,14 @@ __all__ = [
     "detect_tables",
     "plan",
     "preview",
+    "preview_pair",
     "profile_table",
     "recommend",
+    "suggest",
     "table_of",
     "warnings",
     "write_flat",
+    "write_pair",
 ]
 
 

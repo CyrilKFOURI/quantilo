@@ -4,7 +4,7 @@ import { dataset } from "../../test/mockApi";
 import type { Dataset } from "../../api/client";
 import type { LineageItem, Step, Suggestion } from "./api";
 import { familyOf, groupFamilies, samePageOf } from "./lineage";
-import { describeStep, historyOf, move, newStep, nextId, push, redo, undo, withSuggestion, withoutSuggestion } from "./steps";
+import { describeStep, historyOf, move, newStep, nextId, push, redo, undo, withPinnedLabels, withSuggestion, withoutSuggestion } from "./steps";
 
 const item = (dataset_id: string, parent_id: string, seq: number): LineageItem => ({
   dataset_id,
@@ -84,5 +84,20 @@ describe("draft steps (065)", () => {
     expect(redo(undo(history)).present).toEqual([spaces]);
     expect(undo(historyOf([empty]))).toEqual(historyOf([empty]));
     expect(push(undo(history), [header]).future).toEqual([]);
+  });
+});
+
+describe("labels of pinned rows as a column (099)", () => {
+  it("adds one label_rows step at the end, under a free name, then updates it", () => {
+    const first = newStep("rename_column", "s1", "city");
+    const added = withPinnedLabels([first], { "3": "big" }, ["city", "pin_label"]);
+    expect(added).toHaveLength(2);
+    const step = added[1] as Extract<Step, { op: "label_rows" }>;
+    expect(step).toMatchObject({ id: "s2", op: "label_rows", to: "pin_label_2", labels: { "3": "big" }, other: null });
+    expect(describeStep(step)).toBe("Labels of pinned rows → pin_label_2 · 1 rows");
+
+    const updated = withPinnedLabels(added, { "3": "big", "8": "test" }, ["city"]);
+    expect(updated).toHaveLength(2);
+    expect((updated[1] as typeof step).labels).toEqual({ "3": "big", "8": "test" });
   });
 });

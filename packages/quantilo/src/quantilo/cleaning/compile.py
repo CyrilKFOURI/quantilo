@@ -447,6 +447,24 @@ def _assemble_date(step: m.AssembleDate, prev: Stage) -> Body:
     return _select(prev, after={last: [(step.to, assembled_date_sql(step, prev))]})
 
 
+def _label_rows(step: m.LabelRows, prev: Stage) -> Body:
+    """099 (R-PIN-15): a correspondence table joined on the row number, which every stage keeps."""
+    if step.to in prev.names:
+        raise m.CleanError(f"A column '{step.to}' already exists.")
+    pairs = ", ".join(f"({int(row)}, {lit(label)})" for row, label in step.labels.items())
+    table = f"(VALUES {pairs}) AS pin_table(pin_row, pin_label)"
+    other = "NULL" if step.other is None else lit(step.other)
+    parts = [f"p.{ident(name)} AS {ident(name)}" for name in prev.names]
+    parts.append(f"CAST(coalesce(pin_table.pin_label, {other}) AS VARCHAR) AS {ident(step.to)}")
+    sql = (
+        f"SELECT {', '.join(parts)}, p.{ident(ROW)} FROM {prev.name} AS p "
+        f"LEFT JOIN {table} ON p.{ident(ROW)} = pin_table.pin_row"
+    )
+    origin: dict[str, str | None] = {name: name for name in prev.names}
+    origin[step.to] = None
+    return Body(sql, origin)
+
+
 def _condition(condition: m.RowCondition, prev: Stage) -> str:
     _require(prev, condition.column)
     dtype = prev.dtype(condition.column)
@@ -519,6 +537,7 @@ BUILDERS: dict[str, Callable[[Any, Stage], Body]] = {
     "drop_columns": _drop,
     "duplicate_column": _duplicate,
     "assemble_date": _assemble_date,
+    "label_rows": _label_rows,
     "change_type": _change_type,
     "normalize_spaces": _normalize_spaces,
     "remove_invisible": _remove_invisible,

@@ -23,6 +23,7 @@ import { Instruments } from "./Instruments";
 import { PanelSection } from "./PanelSection";
 import { QuantilesBlock, RobustSection } from "./RobustSection";
 import { Sentence } from "./Sentence";
+import { ResamplingSection, SelectionBlock, StabilitySection } from "./StabilitySection";
 import { TermsSection, type Coding } from "./TermsSection";
 
 type AdvancedProps = {
@@ -53,6 +54,9 @@ const TITLES: Record<RegressionSection, MessageKey> = {
   panel: "regression.section.panel",
   robust: "regression.section.robust",
   quantiles: "regression.quantiles.title",
+  stability: "regression.section.stability",
+  resampling: "regression.section.resampling",
+  selection: "regression.selection.title",
 };
 const HINTS: Record<RegressionSection, MessageKey> = {
   "standard-errors": "regression.section.standardErrorsHint",
@@ -63,6 +67,9 @@ const HINTS: Record<RegressionSection, MessageKey> = {
   panel: "regression.section.panelHint",
   robust: "regression.section.robustHint",
   quantiles: "regression.quantiles.hint",
+  stability: "regression.section.stabilityHint",
+  resampling: "regression.section.resamplingHint",
+  selection: "regression.selection.hint",
 };
 
 /** Advanced (068): each section is asked for when it is opened, More only when More is (onion). */
@@ -106,6 +113,9 @@ export function Advanced(props: AdvancedProps) {
         />,
       )}
       {LEAST_SQUARES.has(result.model) && fold("robust", <RobustSection datasetId={datasetId} params={params} />)}
+      {/* 073: a dated series only (R-REG-STAB-01); 077: least squares */}
+      {result.structure.kind === "series" && LEAST_SQUARES.has(result.model) && fold("stability", <StabilitySection datasetId={datasetId} params={params} />)}
+      {LEAST_SQUARES.has(result.model) && fold("resampling", <ResamplingSection datasetId={datasetId} params={params} />)}
       {fold("influence", <InfluenceSection datasetId={datasetId} params={params} rows={result.quality.rows} />)}
       <div className="border-t border-line p-3">
         {fold(
@@ -114,6 +124,8 @@ export function Advanced(props: AdvancedProps) {
             <MoreSection datasetId={datasetId} params={params} result={result} />
             {/* 072: the effects along the distribution, asked for only once More is open */}
             {LEAST_SQUARES.has(result.model) && <QuantilesBlock datasetId={datasetId} params={params} />}
+            {/* 077: the lasso and double selection, asked for only once More is open */}
+            {LEAST_SQUARES.has(result.model) && <SelectionBlock datasetId={datasetId} params={params} />}
             {/* 069: the niche families, asked for only once More is open (onion rule) */}
             <FamiliesSection datasetId={datasetId} params={params} onFamily={onFamily} />
           </div>,

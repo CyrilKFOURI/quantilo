@@ -192,3 +192,40 @@ def test_terms_partial_robust_and_quantiles(client: TestClient, traps: str) -> N
     assert client.get(url(traps, "/robust"), params={**plain, "quantile": 0.3}).status_code == 422
     process = client.get(url(traps, "/quantiles"), params=plain).json()
     assert process["available"] and process["taus"][0] == 0.1 and process["curves"]
+
+
+def test_stability_resampling_and_selection(client: TestClient, traps: str, tmp_path) -> None:
+    """073 and 077: the stability of a dated series, resampling, selection; each its own route."""
+    import numpy as np
+    import pandas as pd
+
+    rng = np.random.default_rng(1)
+    n = 240
+    mkt = rng.normal(0.01, 0.04, n)
+    beta = np.where(np.arange(n) < n // 2, 0.8, 1.5)
+    path = tmp_path / "series.csv"
+    pd.DataFrame(
+        {
+            "Date": pd.date_range("2001-01-31", periods=n, freq="ME"),
+            "Ret": 0.002 + beta * mkt + rng.normal(0, 0.01, n),
+            "Mkt": mkt,
+        }
+    ).to_csv(path, index=False)
+    dataset_id = import_path(client, path)
+    params = {"target": "Ret", "columns": "Mkt"}
+    first = client.get(url(dataset_id), params=params).json()
+    assert any(c["key"] == "stability" and c["action"] == "stability" for c in first["checks"])
+    stable = client.get(url(dataset_id, "/stability"), params=params)
+    assert stable.status_code == 200, stable.text
+    body = stable.json()
+    assert body["available"] and body["date"] == "Date" and body["rolling"][0]["term"] == "Mkt"
+    assert body["chow"]["at"].startswith("201") and body["factor"]["periods"] == 12
+    resampled = client.get(url(dataset_id, "/resampling"), params=params).json()
+    assert resampled["scheme"] == "block" and resampled["terms"][1]["boot_low"] is not None
+    plain = {"target": "price_eur", "columns": "age,income", "focus": "age"}
+    flat = client.get(url(traps, "/stability"), params=plain).json()
+    assert not flat["available"] and "R-REG-STAB-01" in flat["reason"]
+    pairs = client.get(url(traps, "/resampling"), params=plain).json()
+    assert pairs["scheme"] == "pairs" and pairs["permutation"]["term"] == "age"
+    chosen = client.get(url(traps, "/selection"), params=plain).json()
+    assert chosen["available"] and chosen["double"]["term"] == "age"

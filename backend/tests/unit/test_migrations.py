@@ -38,6 +38,7 @@ def test_migrations_create_tables(tmp_path: Path) -> None:
         "0025_projects",
         "0026_sources",
         "0027_project_model",
+        "0030_pinned_rows",
     ]
     expected = {
         "schema_migrations",
@@ -72,6 +73,7 @@ def test_migrations_create_tables(tmp_path: Path) -> None:
         "model_builds",
         "sources",
         "dataset_links",
+        "pinned_rows",
     }
     assert expected <= tables
 
@@ -115,6 +117,7 @@ def test_projects_migration_is_additive_on_a_filled_0024_base(
         "0025_projects",
         "0026_sources",
         "0027_project_model",
+        "0030_pinned_rows",
     ]
     names = [row[0] for row in connection.execute("SELECT id FROM datasets ORDER BY id")]
     versions = connection.execute("SELECT count(*) FROM clean_versions").fetchone()[0]
@@ -150,7 +153,7 @@ def test_model_migration_is_additive_on_a_filled_0025_base(
     connection.commit()
 
     monkeypatch.undo()
-    assert db.apply_migrations(connection) == ["0026_sources", "0027_project_model"]
+    assert db.apply_migrations(connection)[:2] == ["0026_sources", "0027_project_model"]
     items = connection.execute("SELECT count(*) FROM project_items").fetchone()[0]
     counts = [
         connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0]

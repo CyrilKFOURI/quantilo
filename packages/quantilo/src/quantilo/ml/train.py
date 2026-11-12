@@ -23,7 +23,9 @@ from quantilo.ml import models as catalogue
 from quantilo.ml import panel as panels
 from quantilo.ml import preparation as prep
 from quantilo.ml.data import NUMERIC, Field
+from quantilo.ml.embed import outcomes as embed_outcomes
 from quantilo.ml.target import MAX_CLASSES, Task
+from quantilo.regression.inference import coefficients as shared_inference
 from quantilo.variable.source import clean
 
 SEED = 42
@@ -44,6 +46,7 @@ class Coefficient:
     low: float | None = None
     high: float | None = None
     p_value: float | None = None
+    q_value: float | None = None  # 079: adjusted over the coefficients, as in Regression
     vif: float | None = None
     per_unit: float | None = None  # in the column's own unit (standardised numbers only)
     odds_ratio: float | None = None  # logistic regression
@@ -90,6 +93,7 @@ class RegressionResult:
     predicted: list[float]
     residual_bins: list[dict[str, float]]
     heteroscedasticity_p: float | None = None  # Breusch-Pagan on the training residuals
+    inference: str | None = None  # 079: how the coefficients' errors and p-values were read
 
 
 @dataclass
@@ -713,6 +717,10 @@ def train(
     def fit(pipeline: Pipeline, x: pd.DataFrame, y: pd.Series) -> None:
         checkpoint()
         _quiet(lambda: fit_pipeline(pipeline, x, y, monotonic))
+        for note in embed_outcomes(pipeline):  # 091: what R-FUS-02 decided, said to the user
+            head = note.split(": ", 1)[0] + ": sentence embeddings"
+            preparation.warnings[:] = [w for w in preparation.warnings if not w.startswith(head)]
+            preparation.warnings.append(note)
 
     cross_validation = fold_predictions = None
     evaluated: np.ndarray | None = None  # rows a fold held out (walk-forward: not the first)
@@ -830,8 +838,15 @@ def train(
         if build is not None:
             pass  # not a catalogue model: no coefficients to read
         elif model_key == "linear_regression":
-            coefficients, regression.heteroscedasticity_p = _linear_coefficients(
-                pipeline, x_train, y_train.to_numpy(dtype=float), names, preparation, unregularized
+            coefficients, regression.heteroscedasticity_p, regression.inference = (
+                _linear_coefficients(
+                    pipeline,
+                    x_train,
+                    y_train.to_numpy(dtype=float),
+                    names,
+                    preparation,
+                    unregularized,
+                )
             )
         elif spec.linear:
             coefficients = _model_coefficients(pipeline, names)
@@ -1349,30 +1364,6 @@ MAX_BREUSCH_PAGAN_INPUTS = 200  # beyond, the test of constant variance is not r
 NORMAL_EQUATIONS_ABOVE = 2e9  # rows x inputs²: beyond, standard errors from (XᵀX)⁻¹ (094)
 
 
-def _normal_inference(coefficients: list[Coefficient], exog: np.ndarray, y: np.ndarray) -> None:
-    """Standard errors, 95 % intervals and p-values of an OLS fit from the normal equations,
-    σ² (XᵀX)⁻¹: the same as statsmodels on a full-rank design, without the SVD of the whole
-    design (40 s on 52 000 rows by 400 inputs, R-ML-06)."""
-    from scipy import stats as st
-
-    gram = exog.T @ exog
-    inverse = np.linalg.pinv(gram)
-    beta = inverse @ (exog.T @ y)
-    residuals = y - exog @ beta
-    rank = int(np.linalg.matrix_rank(gram))
-    freedom = max(exog.shape[0] - rank, 1)
-    sigma2 = float(residuals @ residuals) / freedom
-    errors = np.sqrt(np.maximum(np.diag(inverse) * sigma2, 0))
-    critical = float(st.t.ppf(0.975, freedom))
-    for i, coefficient in enumerate(coefficients, start=1):
-        error = float(errors[i])
-        coefficient.std_error = clean(error)
-        coefficient.low = clean(float(beta[i]) - critical * error)
-        coefficient.high = clean(float(beta[i]) + critical * error)
-        if error > 0:
-            coefficient.p_value = clean(float(2 * st.t.sf(abs(beta[i]) / error, freedom)))
-
-
 def _linear_coefficients(
     pipeline: Pipeline,
     x_train: pd.DataFrame,
@@ -1380,7 +1371,7 @@ def _linear_coefficients(
     names: list[str],
     preparation: prep.Preparation,
     unregularized: bool,
-) -> tuple[list[Coefficient], float | None]:
+) -> tuple[list[Coefficient], float | None, str | None]:
     design = np.asarray(pipeline[:-1].transform(x_train), dtype=float)
     model = pipeline.named_steps["model"]
     coefficients = [
@@ -1392,33 +1383,39 @@ def _linear_coefficients(
         if coefficient.feature in per_unit:
             coefficient.per_unit = coefficient.estimate / per_unit[coefficient.feature]
     het_p = None
+    note = None
     if unregularized and design.shape[0] > design.shape[1] + 2:
         exog = sm.add_constant(design, has_constant="add")
+        # 079: the same engine as the Regression tab (HC3 by rule, adjusted p-values)
+        found = shared_inference(np.asarray(exog, dtype=float), y_train)
+        for i, coefficient in enumerate(coefficients, start=1):
+            coefficient.std_error = clean(found.std_errors[i])
+            coefficient.low, coefficient.high = clean(found.low[i]), clean(found.high[i])
+            coefficient.p_value = clean(found.p_values[i])
+            coefficient.q_value = clean(found.q_values[i])
+        note = (
+            f"{found.reason} p-values adjusted over the {found.multiple.tests} coefficients: "
+            f"{found.multiple.label}. Open Inference for standard errors that follow the rows' "
+            "structure (clusters, dates), on every row."
+        )
         if exog.shape[0] * exog.shape[1] ** 2 > NORMAL_EQUATIONS_ABOVE:
-            _normal_inference(coefficients, exog, y_train)
             preparation.warnings.append(
                 f"Constant-variance test (Breusch-Pagan) not run: {design.shape[0]:,} rows by "
                 f"{design.shape[1]} inputs would take as long as the model (R-ML-06)."
             )
-            return sorted(coefficients, key=lambda c: -abs(c.estimate)), None
-        fit = _quiet(lambda: sm.OLS(y_train, exog).fit())
-        intervals = np.asarray(fit.conf_int(), dtype=float)
-        for i, coefficient in enumerate(coefficients, start=1):
-            coefficient.std_error = clean(fit.bse[i])
-            coefficient.low, coefficient.high = clean(intervals[i, 0]), clean(intervals[i, 1])
-            coefficient.p_value = clean(fit.pvalues[i])
+            return sorted(coefficients, key=lambda c: -abs(c.estimate)), None, note
         if len(coefficients) <= MAX_VIF_FEATURES:
             for i, coefficient in enumerate(coefficients, start=1):
                 coefficient.vif = clean(_quiet(lambda i=i: variance_inflation_factor(exog, i)))
         if design.shape[1] <= MAX_BREUSCH_PAGAN_INPUTS:  # its auxiliary fit costs as much again
-            het_p = clean(_quiet(lambda: het_breuschpagan(fit.resid, exog)[1]))
+            het_p = clean(_quiet(lambda: het_breuschpagan(found.residuals, exog)[1]))
         else:
             preparation.warnings.append(
                 f"Constant-variance test (Breusch-Pagan) not run: {design.shape[1]} inputs, more "
                 f"than {MAX_BREUSCH_PAGAN_INPUTS}; it would take as long as the model (R-ML-06)."
             )
     coefficients.sort(key=lambda c: -abs(c.estimate))
-    return coefficients, het_p
+    return coefficients, het_p, note
 
 
 def _unit_scales(pipeline: Pipeline, preparation: prep.Preparation) -> dict[str, float]:

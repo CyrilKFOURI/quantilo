@@ -11,6 +11,7 @@ import { InfoTip } from "../../ui/InfoTip";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Tabs } from "../../ui/Tabs";
 import { Loading } from "../../ui/Loading";
+import { TextRepresentation } from "./TextRepresentation";
 
 type Key = "impute" | "transform" | "encoding" | "scaling";
 type Tab = "columns" | "selection" | "missing" | "imbalance" | "preview";
@@ -205,10 +206,12 @@ function ColumnsTab({ preparation, target, onColumn }: { preparation: MlPreparat
  * Advanced › More, folded twice and not rendered before the user opens them. */
 export function AdvancedEncodings({ preparation, onColumn }: { preparation: MlPreparation; onColumn: OnColumn }) {
   const [more, setMore] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
   return (
-    <details className="mt-3 border-t border-line pt-3 text-xs">
+    <details className="mt-3 border-t border-line pt-3 text-xs" onToggle={(event) => setAdvanced(event.currentTarget.open)}>
       <summary className="cursor-pointer text-[13px] text-accent select-none hover:underline">{t("ml.prep.advanced")}</summary>
       {preparation.folds && <p className="mt-2 max-w-prose text-ink-2">{preparation.folds.why}</p>}
+      {advanced && <TextRepresentation preparation={preparation} onColumn={onColumn} />}
       <details className="mt-2" onToggle={(event) => setMore(event.currentTarget.open)}>
         <summary className="cursor-pointer text-[13px] text-accent select-none hover:underline">{t("ml.prep.more")}</summary>
         {more && <LagChoices preparation={preparation} onColumn={onColumn} />}

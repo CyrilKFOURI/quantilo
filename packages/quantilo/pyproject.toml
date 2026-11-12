@@ -45,6 +45,9 @@ ml = [
 deep = ["torch>=2.14"]
 # The app's charts as interactive figures (dx.plot).
 plot = ["plotly>=6"]
+# Sentence embeddings for free text (091): a static model (potion-multilingual-128M, MIT, about
+# 0.5 GB of weights, downloaded on confirmation), CPU only, no torch. Not in the browser version.
+embed = ["model2vec>=0.6"]
 
 [dependency-groups]
 dev = [

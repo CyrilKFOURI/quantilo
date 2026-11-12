@@ -101,9 +101,10 @@ const regressionRun = {
     predicted: [1.1, 2.1, 2.9],
     residual_bins: [{ start: -1, end: 1, count: 3 }],
     heteroscedasticity_p: 0.4,
+    inference: "R-REG-SE-05: HC3 standard errors, as in the Regression tab.",
   },
   classification: null,
-  coefficients: [{ feature: "size", estimate: 3, std_error: 0.1, low: 2.8, high: 3.2, p_value: 0.0001, vif: 1, per_unit: 0.5, odds_ratio: null }],
+  coefficients: [{ feature: "size", estimate: 3, std_error: 0.1, low: 2.8, high: 3.2, p_value: 0.0001, q_value: 0.0002, vif: 1, per_unit: 0.5, odds_ratio: null }],
   predictions: [{ row: 4, actual: "10", predicted: "11", error: 1, probability: null, correct: null }],
   primary: "r2",
   score: 0.82,
@@ -184,6 +185,19 @@ describe("Machine learning page", () => {
     expect(posted?.params.get("settings")).toBeNull(); // defaults resolved on the server
     await waitFor(() => expect(router.state.location.search).toMatchObject({ target: "price", run: "r1" }));
     expect(screen.getByText("1 columns → 1 model inputs · 1 excluded")).toBeInTheDocument();
+  });
+
+  it("reads the linear coefficients through the Regression engine and links to Inference (079)", async () => {
+    setup();
+    renderAt("/d/d1/ml");
+    fireEvent.click(await screen.findByRole("button", { name: /price/ }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Features" }));
+    expect(await screen.findByText(/R-REG-SE-05: HC3 standard errors/)).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "adj. p" })).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Inference →" });
+    expect(link.getAttribute("href")).toContain("/d/d1/regression");
+    expect(link.getAttribute("href")).toContain("target=price");
+    expect(link.getAttribute("href")).toContain("columns=size");
   });
 });
 

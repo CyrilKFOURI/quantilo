@@ -77,11 +77,14 @@ from quantilo.regression.analyze import (
 from quantilo.regression.families import FamilyRequest
 from quantilo.regression.iv import IvTable
 from quantilo.regression.panel import PanelTable
+from quantilo.regression.resampling import ResamplingTable
 from quantilo.regression.robust import QuantileProcess, RobustTable
 from quantilo.regression.rules import RegressionSuggestion, SeRequest
+from quantilo.regression.selection import SelectionTable
 from quantilo.regression.service import RegressionService
 from quantilo.regression.service import Request as RegressionRequest
 from quantilo.regression.service import Section as RegressionSection
+from quantilo.regression.stability import StabilityTable
 from quantilo.regression.terms import PartialPlot
 from quantilo.report.generate import ReportServices, generate
 from quantilo.rows.export import Format
@@ -115,6 +118,7 @@ if TYPE_CHECKING:  # machine learning and synthetic data load on first use (scik
     from quantilo.ml.facade import MachineLearning
     from quantilo.segments.engine import MethodChoice
     from quantilo.segments.facade import FittedSegments, FoundUnusualRows, Segments
+    from quantilo.segments.pinned import PinnedComparison
     from quantilo.synthetic.facade import Synthesizer
 
 DETECTION_VERSION = 3  # bump when detection changes, to ignore cached detections
@@ -584,6 +588,7 @@ class Dataset:
         weights: str | None = None,
         cluster: str | None = None,
         se: SeRequest = "auto",
+        focus: str | None = None,
         family: FamilyRequest = "auto",
         exposure: str | None = None,
         terms: list[str] | None = None,
@@ -597,19 +602,26 @@ class Dataset:
         | PanelTable
         | FamilyAlternatives
         | QuantileProcess
+        | StabilityTable
+        | ResamplingTable
+        | SelectionTable
     ):
         """An Advanced section of the same regression: standard_errors (every kind side by side),
         influence (the 20 most influential rows, DFBETAS), terms (references, left out, VIF),
         more (White's test, the fit without the influential rows), panel (071: fixed, first
         differences, between and random effects, Mundlak and Hausman), families (069: probit,
         Box-Cox, fractional and multinomial logit on the same rows), quantiles (072: the
-        coefficients at τ = 0.1…0.9, Student-t errors)."""
+        coefficients at τ = 0.1…0.9, Student-t errors), stability (073: CUSUM, Chow, rolling
+        coefficients, factor reading of a dated series), resampling (077: bootstrap, wild
+        cluster bootstrap, permutation), selection (077: lasso, post-lasso, double selection of
+        the `focus` column, stability selection)."""
         request = RegressionRequest(
             target,
             tuple(columns) if columns is not None else None,
             weights,
             cluster,
             se,
+            focus,
             family=family,
             exposure=exposure,
             terms=tuple(terms or ()),
@@ -937,6 +949,15 @@ class Dataset:
         chosen = facade.unusual_request(columns, method, preparation, seed)
         labels = segments.as_labels() if segments is not None else None
         return facade.FoundUnusualRows(engine.unusual(self._id, self.conditions, chosen, labels))
+
+    def compare_rows(self, rows: list[int], *, label: str | None = None) -> PinnedComparison:
+        """099: what distinguishes these rows (row numbers in the file, from 0) from every other
+        row, column by column: the strongest gaps in the columns' own units, a test for each
+        (Holm-corrected), and simple rules from 5 rows on. Filters do not apply."""
+        from quantilo.segments.engine import SegmentsEngine
+
+        engine = self._state.service(SegmentsEngine)
+        return engine.compare_rows(self._id, list(rows), label)
 
     def synthetic(self, use_gpu: bool | None = None) -> Synthesizer:
         """Synthetic copies of the whole dataset (filters do not apply, as in the app).

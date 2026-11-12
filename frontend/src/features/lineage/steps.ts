@@ -28,5 +28,6 @@ export function describeStep(step: CleanStep): string {
   if (step.op === "change_type") return `${label} · ${step.column} → ${t(`clean.type.${step.to}` as MessageKey)}`;
   if (step.op === "filter_rows") return `${t(step.action === "keep" ? "clean.action.keep" : "clean.action.remove")} · ${columns.join(", ")}`;
   if (step.op === "drop_duplicates") return step.keys?.length ? `${label} · ${step.keys.join(", ")}` : label;
+  if (step.op === "label_rows") return t("clean.describe.labelRows", { to: step.to, rows: String(Object.keys(step.labels).length) });
   return columns.length ? `${label} · ${columns.join(", ")}` : label;
 }

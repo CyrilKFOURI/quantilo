@@ -9,7 +9,7 @@ import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 
 import duckdb
 from quantilo.errors import NotFoundError
@@ -47,6 +47,19 @@ from app.services.datasets.repository import DatasetRecord, JobRecord, now
 from app.services.datasets.sources import LinkRecord, SourceRecord
 
 SourceState = Literal["ok", "changed", "missing"]
+
+
+class FormatHandler(Protocol):
+    """What a dataset of another kind than a table does at a reimport, a source check and a
+    deletion (106: `format = 'images'`, an image set)."""
+
+    def reimport(self, record: DatasetRecord) -> JobRecord: ...
+
+    def source_state(self, record: DatasetRecord) -> SourceState: ...
+
+    def deleted(self, record: DatasetRecord) -> None: ...
+
+
 # 085: what a source of several tables is, by the format of its file
 SOURCE_KINDS: dict[str, source_repo.SourceKind] = {
     "excel": "workbook",
@@ -70,6 +83,8 @@ class DatasetService:
         self.before_reimport: list[Callable[[str, str], object]] = []
         # One per running import: deleting the dataset sets it to stop the import.
         self._stops: dict[str, threading.Event] = {}
+        # 106: datasets that are not tables, by `format` (image sets)
+        self.handlers: dict[str, FormatHandler] = {}
 
     @contextmanager
     def _db(self) -> Iterator[sqlite3.Connection]:
@@ -291,6 +306,8 @@ class DatasetService:
 
     def reimport(self, dataset_id: str) -> JobRecord:
         record = self.get(dataset_id)
+        if (handler := self.handlers.get(record.format)) is not None:
+            return handler.reimport(record)
         options = ImportOptions.model_validate_json(record.options)
         path = Path(record.source_path)
         if not path.exists():
@@ -308,6 +325,16 @@ class DatasetService:
             job = self._new_job(connection, dataset_id)
         self.jobs.submit(lambda: self._run_import(dataset_id, job.id, files, options))
         return job
+
+    def stop_event(self, dataset_id: str) -> threading.Event:
+        """The event `delete()` sets to stop a running import (shared with the image sets, 106)."""
+        return self._stops.setdefault(dataset_id, threading.Event())
+
+    def release_stop(self, dataset_id: str) -> None:
+        self._stops.pop(dataset_id, None)
+
+    def new_job(self, connection: sqlite3.Connection, dataset_id: str) -> JobRecord:
+        return self._new_job(connection, dataset_id)
 
     def _new_job(self, connection: sqlite3.Connection, dataset_id: str) -> JobRecord:
         job = JobRecord(
@@ -418,6 +445,8 @@ class DatasetService:
         return job
 
     def source_state(self, record: DatasetRecord) -> SourceState:
+        if (handler := self.handlers.get(record.format)) is not None:
+            return handler.source_state(record)
         with self._db() as connection:
             recorded = repo.list_files(connection, record.id)
         source = Path(record.source_path)
@@ -466,6 +495,8 @@ class DatasetService:
                 source_repo.delete_if_empty(connection, record.source_id)
             still_used = repo.count_datasets_with_source(connection, record.source_path) > 0
         shutil.rmtree(self.workspace.dataset_dir(dataset_id), ignore_errors=True)
+        if (handler := self.handlers.get(record.format)) is not None:
+            handler.deleted(record)
         source = Path(record.source_path)
         uploads = self.workspace.uploads_dir.resolve()
         if not still_used and source.is_relative_to(uploads):

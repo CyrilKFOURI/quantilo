@@ -7,6 +7,7 @@ from typing import Literal
 import duckdb
 
 from quantilo.ingestion.errors import readable_errors
+from quantilo.ingestion.image_sets import image_source
 from quantilo.ingestion.normalize import normalized_sql, note_lines
 from quantilo.ingestion.options import CsvOptions, Format, SourceOptions
 from quantilo.ingestion.reader import SourceReader, excel_sheets, load_npy
@@ -165,6 +166,7 @@ def reading_notes(reader: SourceReader, files: list[SourceFile]) -> list[str]:
                 f"{shown} (R-ING-04)."
             )
         notes += [prefix + note for note in reader.csv_notes.get(file.path, [])]
+        notes += [prefix + note for note in reader.log_notes.get(file.path, [])]
     return list(dict.fromkeys(notes))
 
 
@@ -179,6 +181,11 @@ def estimate_rows(reader: SourceReader, file: SourceFile) -> int:
         return reader.excel_rows.get(file.path, 0)
     if file.format == "npy":
         return int(load_npy(file.path).shape[0])
+    if file.format == "log":  # one entry per line, about (090)
+        with file.path.open("rb") as handle:
+            sample = handle.read(1024 * 1024)
+        lines = max(sample.count(b"\n"), 1)
+        return max(1, int(file.size / max(len(sample), 1) * lines))
     if file.size <= EXACT_COUNT_MAX_BYTES:
         row = connection.execute(f"SELECT count(*) FROM ({reader.csv_sql(file)})").fetchone()
         return int(row[0]) if row else 0
@@ -320,6 +327,22 @@ def preview_source(path: Path, options: SourceOptions) -> Preview:
                 suggested_name=path.stem,
                 detected=detected,
             )
+        images = image_source(path)  # 106: a folder or a ZIP of images (R-VIS-SRC-01, 02)
+        if images is not None and images.kind != "parquet":
+            return Preview(
+                kind="folder" if path.is_dir() else "file",
+                format="other",
+                files=[],
+                columns=[],
+                rows=[],
+                row_estimate=None,
+                suggested_name=path.stem if path.is_file() else path.name,
+                detected=Detection(
+                    "image", "images", images.label, images.rule, images.reason
+                ),
+            )
+        if images is not None:  # R-VIS-SRC-03: read as a table, offered as an image set
+            detected = Detection("image", "parquet", images.label, images.rule, images.reason)
         all_files = list_source_files(path)
         files = list_source_files(path, options.files) if options.files else all_files
         header_rows: dict[str, int] = {}

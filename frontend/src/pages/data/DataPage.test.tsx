@@ -31,8 +31,17 @@ function page(params: URLSearchParams) {
   };
 }
 
+const pinned = {
+  pins: [{ key: "row:a", row: 0, label: "test", color: 2, created_at: "", found: true }],
+  labels: [{ label: "test", color: 2, rows: 1 }],
+  missing: 0,
+  limit: 5000,
+};
+
 function setup() {
   const calls = mockApi({
+    "GET /datasets/d1/pins": pinned,
+    "PUT /datasets/d1/pins": pinned,
     "GET /health": health,
     "GET /datasets/d1": dataset(),
     "GET /datasets/d1/columns": columns,
@@ -172,5 +181,27 @@ describe("Data page", () => {
 
     expect(await screen.findByRole("grid")).toBeInTheDocument();
     expect(screen.queryByRole("list", { name: "Rows of the dataset" })).not.toBeInTheDocument();
+  });
+
+  it("marks pinned rows, and pins rows picked in the table under Advanced (099)", async () => {
+    const calls = setup();
+    renderAt("/d/d1/data");
+    const grid = await screen.findByRole("grid", { name: "Rows of the dataset" });
+    await within(grid).findByText("1,000.5");
+    await waitFor(() => expect(within(grid).getAllByTitle("Pinned: test")).toHaveLength(1));
+    expect(within(grid).queryByRole("button", { name: "Select row 3 to pin it" })).not.toBeInTheDocument();
+
+    const advanced = screen.getByText("Advanced · Pinned rows").closest("details") as HTMLDetailsElement;
+    advanced.open = true;
+    fireEvent(advanced, new Event("toggle"));
+    fireEvent.click(await within(grid).findByRole("button", { name: "Select row 3 to pin it" }));
+    expect(screen.getByText("1 selected in the table, plus the rows typed here.")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Rows" }), { target: { value: "10-11" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Label" }), { target: { value: "big" } });
+    fireEvent.click(screen.getByRole("button", { name: "Pin 3 rows" }));
+
+    await waitFor(() => expect(calls.some((c) => c.key === "PUT /datasets/d1/pins")).toBe(true));
+    const sent = calls.find((c) => c.key === "PUT /datasets/d1/pins")?.body;
+    expect(sent).toEqual({ rows: [2, 9, 10], label: "big", color: 1 }); // colour 2 is taken by "test"
   });
 });

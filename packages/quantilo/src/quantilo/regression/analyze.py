@@ -104,6 +104,7 @@ class Inputs:
     out_of_sample: bool = True  # off for the alternatives of Advanced › More
     period_order: np.ndarray | None = None  # 071: each row's period rank (first differences)
     plan: tm.Plan = field(default_factory=tm.Plan)  # 070: curves, logs, interactions, contrasts
+    dates: np.ndarray | None = None  # 073: a series' date of each row read, as text
 
 
 @dataclass

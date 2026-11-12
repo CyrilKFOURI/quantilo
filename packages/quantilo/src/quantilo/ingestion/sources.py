@@ -21,6 +21,8 @@ EXTENSIONS: dict[str, Format] = {
     ".xlsx": "excel",
     ".xlsm": "excel",
     ".npy": "npy",
+    # 090: text logs (Apache, syslog, dated lines), read by ingestion/logs.py
+    ".log": "log",
 }
 # 082/085: a single document file is read as linked tables (083); never in a folder union.
 DOCUMENT_EXTENSIONS: dict[str, Format] = {
@@ -72,6 +74,12 @@ def legacy_excel_message(path: Path) -> str:
     )
 
 
+def _is_log(path: Path) -> bool:
+    from quantilo.ingestion.logs import looks_like_log
+
+    return path.is_file() and looks_like_log(path)
+
+
 def refusal(path: Path, found: Sniff) -> str:
     """R-DET-03: what a file that is not read as a table is, by name."""
     if path.suffix.lower() == ".xls" and found.format in ("xls", "zip", "csv"):
@@ -93,6 +101,12 @@ def source_file(path: Path, documents: bool = True) -> SourceFile:
     if stat.st_size == 0:
         raise IngestionError(f"The file {path.name} is empty.")
     found = sniff_path(path)
+    suffix = path.suffix.lower()
+    if found.format == "csv" and (
+        suffix == ".log" or (suffix in TEXT_EXTENSIONS and _is_log(path))
+    ):
+        # 090: a .log, or a text file whose lines start like log entries (R-DET-05)
+        return SourceFile(path=path, format="log", size=stat.st_size, mtime=stat.st_mtime)
     if found.format == "csv" and found.name_format is None:
         # plain text under an unknown name (.md, .log): not taken for a table without a sign
         raise IngestionError(f"Unsupported file type: {path.name}")

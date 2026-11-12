@@ -5334,6 +5334,777 @@
         }
       }
     },
+    "/api/v1/datasets/{dataset_id}/regression/stability": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Stability",
+        "description": "Advanced > Stability over time (073): CUSUM and CUSUM of squares of the recursive\nresiduals, a Chow test at the strongest date, rolling coefficients, the factor reading.",
+        "operationId": "stability_api_v1_datasets__dataset_id__regression_stability_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StabilityTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/regression/resampling": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Resampling",
+        "description": "Advanced > Resampling (077): bootstrap of rows, clusters or blocks, wild cluster\nbootstrap with few clusters, Freedman-Lane permutation of one coefficient.",
+        "operationId": "resampling_api_v1_datasets__dataset_id__regression_resampling_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResamplingTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/regression/selection": {
+      "get": {
+        "tags": [
+          "regression"
+        ],
+        "summary": "Selection",
+        "description": "Advanced > More > Selection (077, computed only when opened): plug-in lasso, post-lasso,\ndouble selection of the focus column, stability selection.",
+        "operationId": "selection_api_v1_datasets__dataset_id__regression_selection_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "JSON list of conditions, combined with AND.",
+              "title": "Filters"
+            },
+            "description": "JSON list of conditions, combined with AND."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Column to explain (default: R-REG-20).",
+              "title": "Target"
+            },
+            "description": "Column to explain (default: R-REG-20)."
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none).",
+              "title": "Columns"
+            },
+            "description": "Comma-separated explanatory columns (absent: R-REG-21; empty: none)."
+          },
+          {
+            "name": "weights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Weight column (absent: a column of role weight; empty: none).",
+              "title": "Weights"
+            },
+            "description": "Weight column (absent: a column of role weight; empty: none)."
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grouped by: errors clustered on it.",
+              "title": "Cluster"
+            },
+            "description": "Grouped by: errors clustered on it."
+          },
+          {
+            "name": "se",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "classic",
+                "hc0",
+                "hc1",
+                "hc2",
+                "hc3",
+                "hac",
+                "cluster",
+                "cluster2",
+                "dk"
+              ],
+              "type": "string",
+              "default": "auto",
+              "title": "Se"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The column the conclusion speaks of.",
+              "title": "Focus"
+            },
+            "description": "The column the conclusion speaks of."
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "auto",
+                "ols",
+                "logit",
+                "probit",
+                "poisson",
+                "negbin",
+                "gamma",
+                "log_ols",
+                "boxcox",
+                "fractional",
+                "mnlogit"
+              ],
+              "type": "string",
+              "description": "Model family (default: chosen from the target, 069).",
+              "default": "auto",
+              "title": "Family"
+            },
+            "description": "Model family (default: chosen from the target, 069)."
+          },
+          {
+            "name": "exposure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exposure of a count, its log the offset (absent: role exposure).",
+              "title": "Exposure"
+            },
+            "description": "Exposure of a count, its log the offset (absent: role exposure)."
+          },
+          {
+            "name": "terms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level.",
+              "default": "",
+              "title": "Terms"
+            },
+            "description": "070: comma-separated terms: spline:x, square:x, cube:x, log:x, interaction:a|b, trend:date, month:date, weekday:date, reference:column|level."
+          },
+          {
+            "name": "center",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "070: numbers centred at their mean (R-REG-TERM-05).",
+              "default": false,
+              "title": "Center"
+            },
+            "description": "070: numbers centred at their mean (R-REG-TERM-05)."
+          },
+          {
+            "name": "coding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "reference",
+                "deviation"
+              ],
+              "type": "string",
+              "description": "070: categories against a reference level, or their average.",
+              "default": "reference",
+              "title": "Coding"
+            },
+            "description": "070: categories against a reference level, or their average."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelectionTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/datasets/{dataset_id}/regression/instruments": {
       "get": {
         "tags": [
@@ -7759,6 +8530,711 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Topics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/join/suggest": {
+      "post": {
+        "tags": [
+          "joins"
+        ],
+        "summary": "Suggest Join",
+        "description": "The keys the rules propose between this dataset and `other_id` (R-JN-01 to 03).",
+        "operationId": "suggest_join_api_v1_datasets__dataset_id__join_suggest_post",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinSuggestIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinSuggestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/join/preview": {
+      "post": {
+        "tags": [
+          "joins"
+        ],
+        "summary": "Preview Join",
+        "description": "Counts on every row and the first rows of the result; nothing is written.",
+        "operationId": "preview_join_api_v1_datasets__dataset_id__join_preview_post",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinPreviewOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/join": {
+      "post": {
+        "tags": [
+          "joins"
+        ],
+        "summary": "Create Join",
+        "description": "Write the joined dataset (after the user confirmed the preview) and import it.",
+        "operationId": "create_join_api_v1_datasets__dataset_id__join_post",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/images/preview": {
+      "post": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Preview Image Set",
+        "description": "What the import would read, without decoding a pixel (rules R-VIS-* with their reasons).",
+        "operationId": "preview_image_set_api_v1_images_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImagePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImagePreviewOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/images/import": {
+      "post": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Import Image Set",
+        "operationId": "import_image_set_api_v1_images_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/images/rules": {
+      "get": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Quality Rules",
+        "description": "The R-VQ catalogue (105): title, reason, effect and default thresholds of each rule.",
+        "operationId": "quality_rules_api_v1_images_rules_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/QualityRuleOut"
+                  },
+                  "type": "array",
+                  "title": "Response Quality Rules Api V1 Images Rules Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/images/report": {
+      "get": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Image Set Report",
+        "operationId": "image_set_report_api_v1_datasets__dataset_id__images_report_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageReportOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/images/{image_id}/thumb": {
+      "get": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Image Thumbnail",
+        "description": "The WebP thumbnail (long side 256 px, no EXIF).",
+        "operationId": "image_thumbnail_api_v1_datasets__dataset_id__images__image_id__thumb_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Image Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/images/{image_id}/file": {
+      "get": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Image File",
+        "description": "The original bytes, typed by their signature.",
+        "operationId": "image_file_api_v1_datasets__dataset_id__images__image_id__file_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Image Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/images/{image_id}/mask": {
+      "get": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Image Mask",
+        "description": "The pixel mask of a defect (R-VIS-LAY-04), a grey PNG.",
+        "operationId": "image_mask_api_v1_datasets__dataset_id__images__image_id__mask_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Image Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/pins": {
+      "get": {
+        "tags": [
+          "pins"
+        ],
+        "summary": "Pins",
+        "description": "Every pin; a row that moved after a re-import is found again by its key (R-PIN-02).",
+        "operationId": "pins_api_v1_datasets__dataset_id__pins_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedRows"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "pins"
+        ],
+        "summary": "Pin",
+        "description": "Pin rows (numbers in the file, from 0) with a label; the label's rows take its colour.",
+        "operationId": "pin_api_v1_datasets__dataset_id__pins_put",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedRows"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/pins/remove": {
+      "post": {
+        "tags": [
+          "pins"
+        ],
+        "summary": "Unpin",
+        "operationId": "unpin_api_v1_datasets__dataset_id__pins_remove_post",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnpinRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedRows"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/pins/labels": {
+      "patch": {
+        "tags": [
+          "pins"
+        ],
+        "summary": "Change Label",
+        "description": "Rename a label, or give it another colour.",
+        "operationId": "change_label_api_v1_datasets__dataset_id__pins_labels_patch",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabelChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedRows"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/pins/compare": {
+      "get": {
+        "tags": [
+          "pins"
+        ],
+        "summary": "Compare",
+        "description": "What distinguishes the pinned rows (all, or one label) from every other row.",
+        "operationId": "compare_api_v1_datasets__dataset_id__pins_compare_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "label",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 60
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Label"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedComparison"
                 }
               }
             }
@@ -15467,6 +16943,52 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/modules/ml/text-embeddings": {
+      "get": {
+        "tags": [
+          "module:ml",
+          "module:ml"
+        ],
+        "summary": "Text Embeddings",
+        "description": "Installed? Downloaded? Otherwise the reason the option is greyed.",
+        "operationId": "text_embeddings_api_v1_modules_ml_text_embeddings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingsStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/modules/ml/text-embeddings/download": {
+      "post": {
+        "tags": [
+          "module:ml",
+          "module:ml"
+        ],
+        "summary": "Download Text Embeddings",
+        "description": "Fetch the model's weights once, after the user confirmed (size shown).",
+        "operationId": "download_text_embeddings_api_v1_modules_ml_text_embeddings_download_post",
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingsStatus"
                 }
               }
             }
@@ -24180,6 +25702,74 @@
         "title": "Choices",
         "description": "Everything the preparation editor can change. The defaults are the automatic rules."
       },
+      "ChowTest": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "f": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "F"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "before": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Before"
+          },
+          "after": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "After"
+          },
+          "searched": {
+            "type": "boolean",
+            "title": "Searched"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "index",
+          "f",
+          "p_value",
+          "before",
+          "after",
+          "searched",
+          "sentence"
+        ],
+        "title": "ChowTest"
+      },
       "ClassCurves": {
         "properties": {
           "label": {
@@ -24541,6 +26131,9 @@
                   "$ref": "#/components/schemas/AssembleDate"
                 },
                 {
+                  "$ref": "#/components/schemas/LabelRows"
+                },
+                {
                   "$ref": "#/components/schemas/ChangeType"
                 },
                 {
@@ -24600,6 +26193,7 @@
                   "fill": "#/components/schemas/Fill",
                   "fill_empty": "#/components/schemas/FillEmpty",
                   "filter_rows": "#/components/schemas/FilterRows",
+                  "label_rows": "#/components/schemas/LabelRows",
                   "map_values": "#/components/schemas/MapValues",
                   "normalize_spaces": "#/components/schemas/NormalizeSpaces",
                   "null_outside": "#/components/schemas/NullOutside",
@@ -24886,6 +26480,9 @@
                   "$ref": "#/components/schemas/AssembleDate"
                 },
                 {
+                  "$ref": "#/components/schemas/LabelRows"
+                },
+                {
                   "$ref": "#/components/schemas/ChangeType"
                 },
                 {
@@ -24945,6 +26542,7 @@
                   "fill": "#/components/schemas/Fill",
                   "fill_empty": "#/components/schemas/FillEmpty",
                   "filter_rows": "#/components/schemas/FilterRows",
+                  "label_rows": "#/components/schemas/LabelRows",
                   "map_values": "#/components/schemas/MapValues",
                   "normalize_spaces": "#/components/schemas/NormalizeSpaces",
                   "null_outside": "#/components/schemas/NullOutside",
@@ -25175,6 +26773,9 @@
                     "$ref": "#/components/schemas/AssembleDate"
                   },
                   {
+                    "$ref": "#/components/schemas/LabelRows"
+                  },
+                  {
                     "$ref": "#/components/schemas/ChangeType"
                   },
                   {
@@ -25234,6 +26835,7 @@
                     "fill": "#/components/schemas/Fill",
                     "fill_empty": "#/components/schemas/FillEmpty",
                     "filter_rows": "#/components/schemas/FilterRows",
+                    "label_rows": "#/components/schemas/LabelRows",
                     "map_values": "#/components/schemas/MapValues",
                     "normalize_spaces": "#/components/schemas/NormalizeSpaces",
                     "null_outside": "#/components/schemas/NullOutside",
@@ -25343,6 +26945,9 @@
                   "$ref": "#/components/schemas/AssembleDate"
                 },
                 {
+                  "$ref": "#/components/schemas/LabelRows"
+                },
+                {
                   "$ref": "#/components/schemas/ChangeType"
                 },
                 {
@@ -25402,6 +27007,7 @@
                   "fill": "#/components/schemas/Fill",
                   "fill_empty": "#/components/schemas/FillEmpty",
                   "filter_rows": "#/components/schemas/FilterRows",
+                  "label_rows": "#/components/schemas/LabelRows",
                   "map_values": "#/components/schemas/MapValues",
                   "normalize_spaces": "#/components/schemas/NormalizeSpaces",
                   "null_outside": "#/components/schemas/NullOutside",
@@ -25515,6 +27121,17 @@
               }
             ],
             "title": "P Value"
+          },
+          "q_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q Value"
           },
           "vif": {
             "anyOf": [
@@ -28404,6 +30021,63 @@
         ],
         "title": "CurvePoint"
       },
+      "CusumPath": {
+        "properties": {
+          "dates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dates"
+          },
+          "values": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Values"
+          },
+          "lower": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Lower"
+          },
+          "upper": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Upper"
+          },
+          "crossed": {
+            "type": "boolean",
+            "title": "Crossed"
+          },
+          "first": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dates",
+          "values",
+          "lower",
+          "upper",
+          "crossed",
+          "first"
+        ],
+        "title": "CusumPath"
+      },
       "DatasetOut": {
         "properties": {
           "id": {
@@ -29975,6 +31649,102 @@
         ],
         "title": "Distribution"
       },
+      "DoubleSelection": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "estimate": {
+            "type": "number",
+            "title": "Estimate"
+          },
+          "low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low"
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "controls": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Controls"
+          },
+          "ols": {
+            "type": "number",
+            "title": "Ols"
+          },
+          "ols_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ols Low"
+          },
+          "ols_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ols High"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "estimate",
+          "low",
+          "high",
+          "p_value",
+          "controls",
+          "ols",
+          "ols_low",
+          "ols_high",
+          "sentence"
+        ],
+        "title": "DoubleSelection"
+      },
       "DriftColumn": {
         "properties": {
           "column": {
@@ -30920,6 +32690,83 @@
         ],
         "title": "EffectCurve"
       },
+      "EmbeddingsStatus": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "installed": {
+            "type": "boolean",
+            "title": "Installed"
+          },
+          "downloaded": {
+            "type": "boolean",
+            "title": "Downloaded"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "size": {
+            "type": "string",
+            "title": "Size"
+          },
+          "license": {
+            "type": "string",
+            "title": "License"
+          },
+          "install": {
+            "type": "string",
+            "title": "Install"
+          },
+          "download": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "running",
+              "failed"
+            ],
+            "title": "Download"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "installed",
+          "downloaded",
+          "reason",
+          "model",
+          "size",
+          "license",
+          "install",
+          "download",
+          "error"
+        ],
+        "title": "EmbeddingsStatus"
+      },
       "EnsembleResult": {
         "properties": {
           "method": {
@@ -31081,6 +32928,7 @@
                   "parquet",
                   "excel",
                   "npy",
+                  "log",
                   "json",
                   "jsonl",
                   "xml"
@@ -32841,7 +34689,7 @@
           "permutation": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Permutation"
+                "$ref": "#/components/schemas/quantilo__ml__explain__Permutation"
               },
               {
                 "type": "null"
@@ -32979,6 +34827,122 @@
           "mean"
         ],
         "title": "Exposure"
+      },
+      "FactorReading": {
+        "properties": {
+          "periods": {
+            "type": "number",
+            "title": "Periods"
+          },
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "alpha": {
+            "type": "number",
+            "title": "Alpha"
+          },
+          "alpha_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alpha Low"
+          },
+          "alpha_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alpha High"
+          },
+          "alpha_year": {
+            "type": "number",
+            "title": "Alpha Year"
+          },
+          "alpha_year_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alpha Year Low"
+          },
+          "alpha_year_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alpha Year High"
+          },
+          "alpha_p": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alpha P"
+          },
+          "betas": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Betas"
+          },
+          "r2": {
+            "type": "number",
+            "title": "R2"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "periods",
+          "period",
+          "alpha",
+          "alpha_low",
+          "alpha_high",
+          "alpha_year",
+          "alpha_year_low",
+          "alpha_year_high",
+          "alpha_p",
+          "betas",
+          "r2",
+          "sentence"
+        ],
+        "title": "FactorReading"
       },
       "Factors": {
         "properties": {
@@ -33758,6 +35722,7 @@
               "parquet",
               "excel",
               "npy",
+              "log",
               "json",
               "jsonl",
               "xml"
@@ -35869,6 +37834,325 @@
         ],
         "title": "IdentifierProfile"
       },
+      "ImageImportRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ImageSetOptions"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "ImageImportRequest"
+      },
+      "ImagePreviewOut": {
+        "properties": {
+          "source_kind": {
+            "type": "string",
+            "enum": [
+              "image",
+              "folder",
+              "zip",
+              "parquet"
+            ],
+            "title": "Source Kind"
+          },
+          "suggested_name": {
+            "type": "string",
+            "title": "Suggested Name"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "n_images": {
+            "type": "integer",
+            "title": "N Images"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          },
+          "formats": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Formats"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Labels"
+          },
+          "splits": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Splits"
+          },
+          "normal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normal"
+          },
+          "masks": {
+            "type": "integer",
+            "title": "Masks"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/RuleNoteOut"
+            },
+            "type": "array",
+            "title": "Rules"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedOut"
+            },
+            "type": "array",
+            "title": "Skipped"
+          },
+          "skipped_count": {
+            "type": "integer",
+            "title": "Skipped Count"
+          },
+          "conflicts": {
+            "type": "integer",
+            "title": "Conflicts"
+          },
+          "sample": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sample"
+          },
+          "label_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_kind",
+          "suggested_name",
+          "sentence",
+          "n_images",
+          "bytes",
+          "formats",
+          "labels",
+          "splits",
+          "normal",
+          "masks",
+          "rules",
+          "skipped",
+          "skipped_count",
+          "conflicts",
+          "sample",
+          "label_file"
+        ],
+        "title": "ImagePreviewOut"
+      },
+      "ImagePreviewRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ImageSetOptions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "ImagePreviewRequest"
+      },
+      "ImageReportOut": {
+        "properties": {
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "source_kind": {
+            "type": "string",
+            "enum": [
+              "image",
+              "folder",
+              "zip",
+              "parquet"
+            ],
+            "title": "Source Kind"
+          },
+          "n_images": {
+            "type": "integer",
+            "title": "N Images"
+          },
+          "n_decoded": {
+            "type": "integer",
+            "title": "N Decoded"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Labels"
+          },
+          "splits": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Splits"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/RuleNoteOut"
+            },
+            "type": "array",
+            "title": "Rules"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedOut"
+            },
+            "type": "array",
+            "title": "Skipped"
+          },
+          "skipped_count": {
+            "type": "integer",
+            "title": "Skipped Count"
+          },
+          "conflicts": {
+            "items": {
+              "$ref": "#/components/schemas/LabelConflictOut"
+            },
+            "type": "array",
+            "title": "Conflicts"
+          },
+          "conflicts_count": {
+            "type": "integer",
+            "title": "Conflicts Count"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QualityOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "sentence",
+          "source_kind",
+          "n_images",
+          "n_decoded",
+          "labels",
+          "splits",
+          "rules",
+          "skipped",
+          "skipped_count",
+          "conflicts",
+          "conflicts_count",
+          "quality"
+        ],
+        "title": "ImageReportOut"
+      },
+      "ImageSetOptions": {
+        "properties": {
+          "labels": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Labels"
+          },
+          "label_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label Column"
+          },
+          "ignore_rules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 64,
+            "title": "Ignore Rules"
+          },
+          "thresholds": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Thresholds"
+          }
+        },
+        "type": "object",
+        "title": "ImageSetOptions",
+        "description": "What the import reads: a labels file, its label column, the rules undone by code\n(`R-VIS-LAY-01` = ignore folder labels, `R-VQ-08`...), quality thresholds (105)."
+      },
       "ImportOptions": {
         "properties": {
           "csv": {
@@ -36726,6 +39010,349 @@
         ],
         "title": "JobOut"
       },
+      "JoinColumnOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "default_pick": {
+            "type": "boolean",
+            "title": "Default Pick"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "default_pick"
+        ],
+        "title": "JoinColumnOut"
+      },
+      "JoinIn": {
+        "properties": {
+          "other_id": {
+            "type": "string",
+            "title": "Other Id"
+          },
+          "left_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Left Columns"
+          },
+          "right_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Right Columns"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "lookup",
+                  "expand",
+                  "summarise"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "join_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "left",
+                  "inner",
+                  "right",
+                  "full"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Join Type"
+          },
+          "columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Columns"
+          },
+          "measures": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MeasureIn"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measures"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "other_id",
+          "left_columns",
+          "right_columns"
+        ],
+        "title": "JoinIn"
+      },
+      "JoinKeyOut": {
+        "properties": {
+          "left_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Left Columns"
+          },
+          "right_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Right Columns"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "lookup",
+              "expand",
+              "summarise"
+            ],
+            "title": "Mode"
+          },
+          "cardinality": {
+            "type": "string",
+            "title": "Cardinality"
+          },
+          "confidence": {
+            "type": "string",
+            "title": "Confidence"
+          },
+          "matched_share": {
+            "type": "number",
+            "title": "Matched Share"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonOut"
+            },
+            "type": "array",
+            "title": "Reasons"
+          }
+        },
+        "type": "object",
+        "required": [
+          "left_columns",
+          "right_columns",
+          "mode",
+          "cardinality",
+          "confidence",
+          "matched_share",
+          "reasons"
+        ],
+        "title": "JoinKeyOut"
+      },
+      "JoinPreviewOut": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "lookup",
+              "expand",
+              "summarise"
+            ],
+            "title": "Mode"
+          },
+          "join_type": {
+            "type": "string",
+            "enum": [
+              "left",
+              "inner",
+              "right",
+              "full"
+            ],
+            "title": "Join Type"
+          },
+          "rows_before": {
+            "type": "integer",
+            "title": "Rows Before"
+          },
+          "rows_after": {
+            "type": "integer",
+            "title": "Rows After"
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "added": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Added"
+          },
+          "rows": {
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "check": {
+            "$ref": "#/components/schemas/CheckOut"
+          },
+          "modes": {
+            "items": {
+              "$ref": "#/components/schemas/ModeOut"
+            },
+            "type": "array",
+            "title": "Modes"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonOut"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonOut"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "refused": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonOut"
+            },
+            "type": "array",
+            "title": "Refused"
+          },
+          "suggested_name": {
+            "type": "string",
+            "title": "Suggested Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "join_type",
+          "rows_before",
+          "rows_after",
+          "columns",
+          "added",
+          "rows",
+          "check",
+          "modes",
+          "reasons",
+          "warnings",
+          "refused",
+          "suggested_name"
+        ],
+        "title": "JoinPreviewOut"
+      },
+      "JoinSuggestIn": {
+        "properties": {
+          "other_id": {
+            "type": "string",
+            "title": "Other Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "other_id"
+        ],
+        "title": "JoinSuggestIn"
+      },
+      "JoinSuggestOut": {
+        "properties": {
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/JoinKeyOut"
+            },
+            "type": "array",
+            "title": "Keys"
+          },
+          "other_columns": {
+            "items": {
+              "$ref": "#/components/schemas/JoinColumnOut"
+            },
+            "type": "array",
+            "title": "Other Columns"
+          },
+          "same_project": {
+            "type": "boolean",
+            "title": "Same Project"
+          }
+        },
+        "type": "object",
+        "required": [
+          "keys",
+          "other_columns",
+          "same_project"
+        ],
+        "title": "JoinSuggestOut"
+      },
       "JsonValue": {},
       "KeepTopics": {
         "properties": {
@@ -37108,6 +39735,162 @@
           "definition"
         ],
         "title": "KpiStep"
+      },
+      "LabelChange": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 8.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "LabelChange"
+      },
+      "LabelConflictOut": {
+        "properties": {
+          "rel_path": {
+            "type": "string",
+            "title": "Rel Path"
+          },
+          "folder_label": {
+            "type": "string",
+            "title": "Folder Label"
+          },
+          "file_label": {
+            "type": "string",
+            "title": "File Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rel_path",
+          "folder_label",
+          "file_label"
+        ],
+        "title": "LabelConflictOut"
+      },
+      "LabelRows": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^s[0-9]{1,4}$",
+            "title": "Id"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "suggested",
+              "manual"
+            ],
+            "title": "Origin",
+            "default": "manual"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 600
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggestion"
+          },
+          "op": {
+            "type": "string",
+            "const": "label_rows",
+            "title": "Op",
+            "default": "label_rows"
+          },
+          "to": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "To"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 60,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 5000,
+            "minProperties": 1,
+            "title": "Labels"
+          },
+          "other": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Other"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "to",
+          "labels"
+        ],
+        "title": "LabelRows",
+        "description": "099 (R-PIN-15): a new text column with the label of each pinned row, the rows given by their\nnumber in the file (from 0); the other rows are empty, or `other` when given. The numbers are\nthose of the current import: after a re-import that reorders the rows, make the step again."
       },
       "Law": {
         "properties": {
@@ -38890,6 +41673,36 @@
         ],
         "title": "MlStep",
         "description": "A model trained again on the new rows (not reused: that is predicting, 037)."
+      },
+      "ModeOut": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "lookup",
+              "expand",
+              "summarise"
+            ],
+            "title": "Mode"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "reason"
+        ],
+        "title": "ModeOut"
       },
       "ModelCard": {
         "properties": {
@@ -42279,37 +45092,6 @@
         "title": "PeriodSummary",
         "description": "How regular the model is from one period to the next."
       },
-      "Permutation": {
-        "properties": {
-          "metric": {
-            "type": "string",
-            "title": "Metric"
-          },
-          "rows": {
-            "type": "integer",
-            "title": "Rows"
-          },
-          "sampled": {
-            "type": "boolean",
-            "title": "Sampled"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/PermutationItem"
-            },
-            "type": "array",
-            "title": "Items"
-          }
-        },
-        "type": "object",
-        "required": [
-          "metric",
-          "rows",
-          "sampled",
-          "items"
-        ],
-        "title": "Permutation"
-      },
       "PermutationItem": {
         "properties": {
           "column": {
@@ -42332,6 +45114,289 @@
           "std"
         ],
         "title": "PermutationItem"
+      },
+      "Pin": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "row": {
+            "type": "integer",
+            "title": "Row"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "color": {
+            "type": "integer",
+            "title": "Color"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "found": {
+            "type": "boolean",
+            "title": "Found"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "row",
+          "label",
+          "color",
+          "created_at",
+          "found"
+        ],
+        "title": "Pin"
+      },
+      "PinLabel": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "color": {
+            "type": "integer",
+            "title": "Color"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "color",
+          "rows"
+        ],
+        "title": "PinLabel"
+      },
+      "PinRequest": {
+        "properties": {
+          "rows": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Rows"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "color": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Color"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rows",
+          "label",
+          "color"
+        ],
+        "title": "PinRequest"
+      },
+      "PinnedComparison": {
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "pinned": {
+            "type": "integer",
+            "title": "Pinned"
+          },
+          "others": {
+            "type": "integer",
+            "title": "Others"
+          },
+          "compared": {
+            "type": "integer",
+            "title": "Compared"
+          },
+          "sampled": {
+            "type": "boolean",
+            "title": "Sampled"
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "traits": {
+            "items": {
+              "$ref": "#/components/schemas/PinnedTrait"
+            },
+            "type": "array",
+            "title": "Traits"
+          },
+          "rules": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SegmentRules"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reading": {
+            "type": "string",
+            "title": "Reading"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "pinned",
+          "others",
+          "compared",
+          "sampled",
+          "columns",
+          "traits",
+          "rules",
+          "reading"
+        ],
+        "title": "PinnedComparison"
+      },
+      "PinnedRows": {
+        "properties": {
+          "pins": {
+            "items": {
+              "$ref": "#/components/schemas/Pin"
+            },
+            "type": "array",
+            "title": "Pins"
+          },
+          "labels": {
+            "items": {
+              "$ref": "#/components/schemas/PinLabel"
+            },
+            "type": "array",
+            "title": "Labels"
+          },
+          "missing": {
+            "type": "integer",
+            "title": "Missing"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit",
+            "default": 5000
+          }
+        },
+        "type": "object",
+        "required": [
+          "pins",
+          "labels",
+          "missing"
+        ],
+        "title": "PinnedRows"
+      },
+      "PinnedTrait": {
+        "properties": {
+          "column": {
+            "type": "string",
+            "title": "Column"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "number",
+              "category",
+              "missing"
+            ],
+            "title": "Kind"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "effect": {
+            "type": "number",
+            "title": "Effect"
+          },
+          "pinned": {
+            "type": "number",
+            "title": "Pinned"
+          },
+          "others": {
+            "type": "number",
+            "title": "Others"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "chance": {
+            "type": "boolean",
+            "title": "Chance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column",
+          "kind",
+          "rule",
+          "text",
+          "effect",
+          "pinned",
+          "others",
+          "value",
+          "p_value",
+          "chance"
+        ],
+        "title": "PinnedTrait"
       },
       "Plan": {
         "properties": {
@@ -43862,6 +46927,7 @@
                   "parquet",
                   "excel",
                   "npy",
+                  "log",
                   "json",
                   "jsonl",
                   "xml"
@@ -44506,6 +47572,263 @@
           "notable"
         ],
         "title": "QualityChange"
+      },
+      "QualityFindingOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "excluded",
+              "flagged",
+              "dataset"
+            ],
+            "title": "Effect"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "rows": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "parameters": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Parameters"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "title",
+          "message",
+          "reason",
+          "effect",
+          "count",
+          "rows",
+          "parameters"
+        ],
+        "title": "QualityFindingOut",
+        "description": "A quality rule that fired (R-VQ, 105), with its thresholds and the rows concerned."
+      },
+      "QualityGroupOut": {
+        "properties": {
+          "group": {
+            "type": "integer",
+            "title": "Group"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "near"
+            ],
+            "title": "Kind"
+          },
+          "rows": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "keep": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keep"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group",
+          "kind",
+          "rows",
+          "keep"
+        ],
+        "title": "QualityGroupOut"
+      },
+      "QualityLeakOut": {
+        "properties": {
+          "group": {
+            "type": "integer",
+            "title": "Group"
+          },
+          "train": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Train"
+          },
+          "eval": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Eval"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group",
+          "train",
+          "eval"
+        ],
+        "title": "QualityLeakOut"
+      },
+      "QualityOut": {
+        "properties": {
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/QualityFindingOut"
+            },
+            "type": "array",
+            "title": "Findings"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/QualityGroupOut"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "leaks": {
+            "items": {
+              "$ref": "#/components/schemas/QualityLeakOut"
+            },
+            "type": "array",
+            "title": "Leaks"
+          },
+          "thresholds": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Thresholds"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "recommended_metric": {
+            "type": "string",
+            "title": "Recommended Metric"
+          },
+          "class_weight": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class Weight"
+          },
+          "excluded": {
+            "type": "integer",
+            "title": "Excluded"
+          },
+          "flagged": {
+            "type": "integer",
+            "title": "Flagged"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sentence",
+          "findings",
+          "groups",
+          "leaks",
+          "thresholds",
+          "notes",
+          "recommended_metric",
+          "class_weight",
+          "excluded",
+          "flagged"
+        ],
+        "title": "QualityOut"
+      },
+      "QualityRuleOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "excluded",
+              "flagged",
+              "dataset"
+            ],
+            "title": "Effect"
+          },
+          "parameters": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Parameters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "title",
+          "reason",
+          "effect",
+          "parameters"
+        ],
+        "title": "QualityRuleOut"
       },
       "QuantileCurve": {
         "properties": {
@@ -46686,6 +50009,17 @@
               }
             ],
             "title": "Heteroscedasticity P"
+          },
+          "inference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inference"
           }
         },
         "type": "object",
@@ -47540,6 +50874,221 @@
         ],
         "title": "ReportJob"
       },
+      "ResampledTerm": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "estimate": {
+            "type": "number",
+            "title": "Estimate"
+          },
+          "low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low"
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "boot_se": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boot Se"
+          },
+          "boot_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boot Low"
+          },
+          "boot_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boot High"
+          },
+          "wild_p": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wild P"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "estimate",
+          "low",
+          "high",
+          "p_value",
+          "boot_se",
+          "boot_low",
+          "boot_high"
+        ],
+        "title": "ResampledTerm"
+      },
+      "ResamplingTable": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "scheme": {
+            "type": "string",
+            "enum": [
+              "pairs",
+              "cluster",
+              "block"
+            ],
+            "title": "Scheme",
+            "default": "pairs"
+          },
+          "scheme_reason": {
+            "type": "string",
+            "title": "Scheme Reason",
+            "default": ""
+          },
+          "draws": {
+            "type": "integer",
+            "title": "Draws",
+            "default": 999
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows",
+            "default": 0
+          },
+          "resampled": {
+            "type": "integer",
+            "title": "Resampled",
+            "default": 0
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/ResampledTerm"
+            },
+            "type": "array",
+            "title": "Terms"
+          },
+          "wild": {
+            "type": "boolean",
+            "title": "Wild",
+            "default": false
+          },
+          "wild_reason": {
+            "type": "string",
+            "title": "Wild Reason",
+            "default": ""
+          },
+          "weights": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weights"
+          },
+          "clusters": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clusters"
+          },
+          "permutation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/quantilo__regression__resampling__Permutation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "permutation_reason": {
+            "type": "string",
+            "title": "Permutation Reason",
+            "default": ""
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "ResamplingTable"
+      },
       "ResidualLaw": {
         "properties": {
           "name": {
@@ -48124,6 +51673,106 @@
         ],
         "title": "RoleOut"
       },
+      "RollingCurve": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "dates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dates"
+          },
+          "estimates": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Estimates"
+          },
+          "low": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Low"
+          },
+          "high": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "High"
+          },
+          "full": {
+            "type": "number",
+            "title": "Full"
+          },
+          "smallest": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Smallest"
+          },
+          "largest": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Largest"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "dates",
+          "estimates",
+          "low",
+          "high",
+          "full",
+          "smallest",
+          "largest"
+        ],
+        "title": "RollingCurve"
+      },
       "RowChanges": {
         "properties": {
           "key": {
@@ -48639,6 +52288,41 @@
           "message"
         ],
         "title": "RuleNote"
+      },
+      "RuleNoteOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "reason"
+        ],
+        "title": "RuleNoteOut",
+        "description": "A reading rule that fired: the sentence shown, why it exists, how many files."
       },
       "RuleView": {
         "properties": {
@@ -49561,6 +53245,9 @@
                   "$ref": "#/components/schemas/AssembleDate"
                 },
                 {
+                  "$ref": "#/components/schemas/LabelRows"
+                },
+                {
                   "$ref": "#/components/schemas/ChangeType"
                 },
                 {
@@ -49620,6 +53307,7 @@
                   "fill": "#/components/schemas/Fill",
                   "fill_empty": "#/components/schemas/FillEmpty",
                   "filter_rows": "#/components/schemas/FilterRows",
+                  "label_rows": "#/components/schemas/LabelRows",
                   "map_values": "#/components/schemas/MapValues",
                   "normalize_spaces": "#/components/schemas/NormalizeSpaces",
                   "null_outside": "#/components/schemas/NullOutside",
@@ -51568,6 +55256,82 @@
         ],
         "title": "Segmentation"
       },
+      "SelectedTerm": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "lasso": {
+            "type": "number",
+            "title": "Lasso"
+          },
+          "kept": {
+            "type": "boolean",
+            "title": "Kept"
+          },
+          "post": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Post"
+          },
+          "post_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Post Low"
+          },
+          "post_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Post High"
+          },
+          "share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share"
+          },
+          "stable": {
+            "type": "boolean",
+            "title": "Stable",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "lasso",
+          "kept",
+          "post",
+          "post_low",
+          "post_high",
+          "share"
+        ],
+        "title": "SelectedTerm"
+      },
       "SelectionChoice": {
         "properties": {
           "method": {
@@ -51638,6 +55402,88 @@
           "of"
         ],
         "title": "SelectionReport"
+      },
+      "SelectionTable": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows",
+            "default": 0
+          },
+          "sampled": {
+            "type": "boolean",
+            "title": "Sampled",
+            "default": false
+          },
+          "penalty": {
+            "type": "number",
+            "title": "Penalty",
+            "default": 0.0
+          },
+          "penalty_reason": {
+            "type": "string",
+            "title": "Penalty Reason",
+            "default": ""
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/SelectedTerm"
+            },
+            "type": "array",
+            "title": "Terms"
+          },
+          "kept": {
+            "type": "integer",
+            "title": "Kept",
+            "default": 0
+          },
+          "stable": {
+            "type": "integer",
+            "title": "Stable",
+            "default": 0
+          },
+          "double": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DoubleSelection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "double_reason": {
+            "type": "string",
+            "title": "Double Reason",
+            "default": ""
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "SelectionTable"
       },
       "SequencePlan": {
         "properties": {
@@ -54244,6 +58090,29 @@
         ],
         "title": "SimpleSlope"
       },
+      "SkippedOut": {
+        "properties": {
+          "rel_path": {
+            "type": "string",
+            "title": "Rel Path"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rel_path",
+          "code",
+          "reason"
+        ],
+        "title": "SkippedOut"
+      },
       "Slice": {
         "properties": {
           "where": {
@@ -54596,6 +58465,130 @@
         ],
         "title": "SplitOut"
       },
+      "StabilityTable": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows",
+            "default": 0
+          },
+          "cusum": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CusumPath"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cusum_squares": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CusumPath"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cusum_p": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cusum P"
+          },
+          "chow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChowTest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "window": {
+            "type": "integer",
+            "title": "Window",
+            "default": 0
+          },
+          "window_reason": {
+            "type": "string",
+            "title": "Window Reason",
+            "default": ""
+          },
+          "rolling": {
+            "items": {
+              "$ref": "#/components/schemas/RollingCurve"
+            },
+            "type": "array",
+            "title": "Rolling"
+          },
+          "rolled": {
+            "type": "integer",
+            "title": "Rolled",
+            "default": 0
+          },
+          "factor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FactorReading"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stable": {
+            "type": "boolean",
+            "title": "Stable",
+            "default": true
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "StabilityTable"
+      },
       "Stage": {
         "properties": {
           "label": {
@@ -54946,6 +58939,9 @@
                   "$ref": "#/components/schemas/AssembleDate"
                 },
                 {
+                  "$ref": "#/components/schemas/LabelRows"
+                },
+                {
                   "$ref": "#/components/schemas/ChangeType"
                 },
                 {
@@ -55005,6 +59001,7 @@
                   "fill": "#/components/schemas/Fill",
                   "fill_empty": "#/components/schemas/FillEmpty",
                   "filter_rows": "#/components/schemas/FilterRows",
+                  "label_rows": "#/components/schemas/LabelRows",
                   "map_values": "#/components/schemas/MapValues",
                   "normalize_spaces": "#/components/schemas/NormalizeSpaces",
                   "null_outside": "#/components/schemas/NullOutside",
@@ -59317,6 +63314,24 @@
         ],
         "title": "TypeChange"
       },
+      "UnpinRequest": {
+        "properties": {
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 5000,
+            "minItems": 1,
+            "title": "Keys"
+          }
+        },
+        "type": "object",
+        "required": [
+          "keys"
+        ],
+        "title": "UnpinRequest"
+      },
       "UnusualCurve": {
         "properties": {
           "ranks": {
@@ -61310,6 +65325,37 @@
         ],
         "title": "Pair"
       },
+      "quantilo__ml__explain__Permutation": {
+        "properties": {
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "sampled": {
+            "type": "boolean",
+            "title": "Sampled"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PermutationItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metric",
+          "rows",
+          "sampled",
+          "items"
+        ],
+        "title": "Permutation"
+      },
       "quantilo__ml__preparation__Decision": {
         "properties": {
           "column": {
@@ -61517,6 +65563,44 @@
           "y"
         ],
         "title": "Curve"
+      },
+      "quantilo__regression__resampling__Permutation": {
+        "properties": {
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "statistic": {
+            "type": "number",
+            "title": "Statistic"
+          },
+          "p_value": {
+            "type": "number",
+            "title": "P Value"
+          },
+          "draws": {
+            "type": "integer",
+            "title": "Draws"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "statistic",
+          "p_value",
+          "draws",
+          "reason",
+          "sentence"
+        ],
+        "title": "Permutation"
       },
       "quantilo__synthetic__detection__Detection": {
         "properties": {

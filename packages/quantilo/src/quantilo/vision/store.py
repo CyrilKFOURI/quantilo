@@ -59,6 +59,7 @@ class ImageStore:
 
     workspace: Path
     dataset_id: str
+    table_file: Path | None = None  # where the table goes when not the default (the app's layout)
 
     def __post_init__(self) -> None:
         check_dataset_id(self.dataset_id)
@@ -69,6 +70,8 @@ class ImageStore:
 
     @property
     def table_path(self) -> Path:
+        if self.table_file is not None:
+            return self.table_file
         return self.workspace / "datasets" / f"{self.dataset_id}.parquet"
 
     def file_rel(self, digest: str, ext: str) -> str:

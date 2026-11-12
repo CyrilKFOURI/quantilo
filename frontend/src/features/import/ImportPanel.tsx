@@ -8,9 +8,12 @@ import { LockBadge } from "../../lite/Locked";
 import { Button } from "../../ui/Button";
 import { ErrorNote } from "../../ui/fields";
 import { BrowseDialog } from "./BrowseDialog";
+import { IMAGE_ACCEPT } from "./ImageSetStep";
 import { ImportDialog } from "./ImportDialog";
 
-const ACCEPT = ".csv,.tsv,.parquet,.pq,.xlsx,.xlsm,.npy";
+const ACCEPT = ".csv,.tsv,.parquet,.pq,.xlsx,.xlsm,.npy,.log"; // 090: text logs
+// 106: images and ZIP archives of images (an image set)
+const ACCEPT_ALL = `${ACCEPT},${IMAGE_ACCEPT}`;
 
 /** Entry point of every import: drop zone, file picker, folder browser and samples. */
 export function ImportPanel({
@@ -93,7 +96,7 @@ export function ImportPanel({
         <input
           ref={inputRef}
           type="file"
-          accept={ACCEPT}
+          accept={ACCEPT_ALL}
           className="hidden"
           onChange={(event) => {
             sendFile(event.target.files?.[0]);

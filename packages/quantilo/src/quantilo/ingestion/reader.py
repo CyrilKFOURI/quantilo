@@ -146,6 +146,7 @@ class SourceReader:
         # A preview reads only the first rows of a .npy: the whole array may not fit in memory.
         self.npy_limit: int | None = None
         self.stop: threading.Event | None = None
+        self.log_notes: dict[Path, list[str]] = {}  # how each log file was read (090)
         self.copies: list[Path] = []  # UTF-8 copies of Windows-1252 files read
         self._views = 0
 
@@ -223,6 +224,15 @@ class SourceReader:
             return self.csv_sql(file)
         if file.format == "parquet":
             return f"SELECT * FROM read_parquet({lit(str(file.path))})"
+        if file.format == "log":
+            from quantilo.ingestion.logs import read_log
+
+            self._views += 1
+            view = f"log_file_{self._views}"
+            table, reading = read_log(file.path, limit=self.npy_limit)
+            self.log_notes[file.path] = reading.notes
+            self.connection.register(view, table)
+            return f"SELECT * FROM {view}"
         if file.format in ("json", "jsonl", "xml"):
             return self.document_sql(file)
         if file.format == "npy":

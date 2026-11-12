@@ -124,7 +124,7 @@ def test_free_text_is_used_by_rule_with_its_reasons() -> None:
     assert review.encoding == "words" and review.transform == "tfidf_svd"
     assert review.scaling == "standard"
     assert all(review.why)
-    assert [o.value for o in review.options["encoding"]] == ["words", "chars"]
+    assert [o.value for o in review.options["encoding"]] == ["words", "chars", "embeddings"]
 
 
 def test_short_labels_are_cut_into_characters() -> None:

@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from app.modules.ml.agent_tools import agent_tools as training_tools
 from app.modules.ml.auto import AutoService
 from app.modules.ml.auto_router import router as auto_router
+from app.modules.ml.embed_router import router as embed_router
 from app.modules.ml.predict_router import router as predict_router
 from app.modules.ml.predict_tools import prediction_tools
 from app.modules.ml.predictions import PredictionService
@@ -15,6 +16,7 @@ from app.modules.ml.service import MlService
 
 router.include_router(predict_router)  # predict on new data, export the model (037)
 router.include_router(auto_router)  # the Auto (038), on the same prefix
+router.include_router(embed_router)  # sentence embeddings, optional extra (091)
 
 
 def setup(app: FastAPI) -> None:

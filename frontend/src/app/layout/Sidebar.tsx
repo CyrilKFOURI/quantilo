@@ -19,7 +19,7 @@ import { ToolboxMenu } from "../../features/toolbox/ToolboxMenu";
 import { inToolbox } from "../../features/toolbox/tools";
 import { LockBadge } from "../../lite/Locked";
 import { t, type MessageKey } from "../../lib/i18n";
-import type { ModuleManifest } from "../../modules/types";
+import { meets, type ModuleManifest } from "../../modules/types";
 import { CyfouriLogo } from "../../ui/CyfouriLogo";
 import { Logo } from "../../ui/Logo";
 import { groupEntry, groupOf, type PageGroup } from "./PageGroups";
@@ -263,9 +263,7 @@ function DatasetModuleLink({
   const missing =
     module.requires &&
     columns.data &&
-    !module.requires.every((type) =>
-      columns.data.some((column) => column.type === type && !column.excluded),
-    );
+    !module.requires.every((requirement) => meets(requirement, dataset.data?.format, columns.data));
   if (!datasetId || missing) {
     return (
       <span
