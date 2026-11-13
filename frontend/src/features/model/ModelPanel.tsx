@@ -6,22 +6,25 @@ import { useState, type ReactNode } from "react";
 import { formatCount } from "../../lib/format";
 import { t, type MessageKey } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
-import { ErrorNote, Field, Select } from "../../ui/fields";
+import { Checkbox, ErrorNote, Field, Select } from "../../ui/fields";
 import {
   columnsOf,
   modelApi,
   useAggregate,
+  useDateTable,
   useDeleteRelation,
   useSaveLayout,
   useSaveRelation,
   useUpdateRelation,
   type JoinType,
+  type Match,
   type Model,
   type ModelTable,
   type Reason,
   type Relation,
   type RelationCheck,
 } from "./api";
+import { CleanNote } from "./CleanNote";
 import { cardinalityLabel, joinLabel, percent, primaryKey, relationTitle, roleLabel, tableNames } from "./labels";
 import type { Selection } from "./ModelCanvas";
 
@@ -201,14 +204,21 @@ function RelationDetail({ projectId, model, relation, onDone }: { projectId: str
   const parentName = parent?.name ?? "?";
   const many = relation.cardinality === "n:m";
   const [join, setJoin] = useState<JoinType>(relation.join_type === "none" ? "left" : relation.join_type);
+  // C1: the comparison of the keys (R-REL-14) and whether the build uses it (R-REL-13)
+  const [match, setMatch] = useState<Match>(relation.match ?? "exact");
+  const [active, setActive] = useState(relation.active ?? true);
   const [childColumn, setChildColumn] = useState(relation.child_columns.join(","));
   const [parentColumn, setParentColumn] = useState(relation.parent_columns.join(","));
   const save = useSaveRelation(projectId);
   const update = useUpdateRelation(projectId);
   const remove = useDeleteRelation(projectId);
   const edited =
-    join !== relation.join_type || childColumn !== relation.child_columns.join(",") || parentColumn !== relation.parent_columns.join(",");
-  const draft = { ...columnsOf(relation), child_columns: childColumn.split(","), parent_columns: parentColumn.split(","), join_type: join };
+    join !== relation.join_type ||
+    childColumn !== relation.child_columns.join(",") ||
+    parentColumn !== relation.parent_columns.join(",") ||
+    match !== (relation.match ?? "exact") ||
+    active !== (relation.active ?? true);
+  const draft = { ...columnsOf(relation), child_columns: childColumn.split(","), parent_columns: parentColumn.split(","), join_type: join, match };
   const checked = useQuery({
     queryKey: ["model", projectId, "check", draft],
     queryFn: () => modelApi.check(projectId, draft),
@@ -220,7 +230,7 @@ function RelationDetail({ projectId, model, relation, onDone }: { projectId: str
   const failure = save.error ?? update.error ?? remove.error ?? (edited ? checked.error : null);
 
   function accept(status: "accepted" | "rejected") {
-    save.mutate({ ...draft, status }, { onSuccess: onDone });
+    save.mutate({ ...draft, status, active }, { onSuccess: onDone });
   }
 
   return (
@@ -237,10 +247,12 @@ function RelationDetail({ projectId, model, relation, onDone }: { projectId: str
           {relation.confidence && (
             <span className="text-ink-3">{t(`model.relation.confidence.${relation.confidence}` as MessageKey)}</span>
           )}
+          {relation.active === false && <span className="text-ink-3">{t("model.relation.inactive")}</span>}
         </p>
       </header>
       {relation.problem && <ErrorNote>{t("model.relation.problem", { message: relation.problem })}</ErrorNote>}
       {check && <CheckSummary check={check} childName={childName} parentName={parentName} />}
+      {check && <CleanNote relation={relation} check={check} childName={childName} parentName={parentName} />}
 
       {relation.reasons.some((reason) => !reason.code.startsWith("R-JOIN")) && (
         <section className="space-y-2">
@@ -265,6 +277,28 @@ function RelationDetail({ projectId, model, relation, onDone }: { projectId: str
               </Select>
             </Field>
             <p className="text-xs text-ink-3">{t(`model.join.${join}Help` as MessageKey, { child: childName, parent: parentName })}</p>
+            {/* C1 (R-REL-14): a key written PARIS here and Paris there */}
+            <Field label={t("model.relation.match")}>
+              <Select value={match} onChange={(event) => setMatch(event.target.value as Match)}>
+                <option value="exact">{t("model.relation.match.exact")}</option>
+                <option value="normalized">{t("model.relation.match.normalized")}</option>
+              </Select>
+            </Field>
+            {/* C1 (R-REL-13): kept and drawn, not used by the build (a second date, a role) */}
+            <Checkbox checked={active} onChange={(event) => setActive(event.target.checked)} label={t("model.relation.active")} className="text-xs" />
+            <p className="text-xs text-ink-3">{t("model.relation.activeHelp")}</p>
+          </div>
+        )}
+        {(check?.near_misses?.length ?? 0) > 0 && (
+          <div className="space-y-1">
+            <p className="text-xs text-ink-2">{t("model.relation.nearMisses")}</p>
+            <ul className="flex flex-wrap gap-1.5 font-mono text-[11px] text-ink-2">
+              {check?.near_misses?.slice(0, 8).map((item) => (
+                <li key={item.value} className="rounded border border-line px-1.5 py-0.5">
+                  {item.value} → {item.key}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
         {(check?.warnings.length ?? 0) > 0 && (
@@ -314,7 +348,7 @@ function RelationDetail({ projectId, model, relation, onDone }: { projectId: str
               onClick={() =>
                 update.mutate({
                   id: relation.id,
-                  body: { join_type: join, child_columns: draft.child_columns, parent_columns: draft.parent_columns },
+                  body: { join_type: join, child_columns: draft.child_columns, parent_columns: draft.parent_columns, match, active },
                 })
               }
             >
@@ -484,6 +518,7 @@ function TableDetail({ projectId, model, table, onSelect }: { projectId: string;
         </Field>
       )}
       <AddRelation projectId={projectId} model={model} table={table} onSelect={onSelect} />
+      <DateTable projectId={projectId} table={table} />
       <section className="space-y-2">
         <SectionTitle>{t("model.table.columns")}</SectionTitle>
         <ul className="divide-y divide-line rounded-md border border-line bg-surface-1 text-xs">
@@ -496,6 +531,39 @@ function TableDetail({ projectId, model, table, onSelect }: { projectId: string;
         </ul>
       </section>
     </article>
+  );
+}
+
+/** C1 (R-BLD-08): a date table generated from a date column of this table, one row per day of its
+ *  range (gaps included), related to the table by the date. Made on a click, never on its own. */
+function DateTable({ projectId, table }: { projectId: string; table: ModelTable }) {
+  const dates = table.columns.filter((column) => column.category === "date");
+  const [column, setColumn] = useState(dates[0]?.name ?? "");
+  const make = useDateTable(projectId);
+  if (dates.length === 0) return null;
+  return (
+    <section className="space-y-2">
+      <SectionTitle>{t("model.dates.title")}</SectionTitle>
+      <p className="text-xs text-ink-3">{t("model.dates.help")}</p>
+      <div className="flex flex-wrap items-end gap-2">
+        {dates.length > 1 && (
+          <Field label={t("model.dates.column")}>
+            <Select value={column} onChange={(event) => setColumn(event.target.value)}>
+              {dates.map((item) => (
+                <option key={item.name} value={item.name}>
+                  {item.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+        <Button disabled={make.isPending || !column} onClick={() => make.mutate({ dataset_id: table.id, column })}>
+          {t("model.dates.make", { column })}
+        </Button>
+      </div>
+      {make.isSuccess && <p className="text-xs text-ok">{t("model.dates.done")}</p>}
+      {make.isError && <ErrorNote>{make.error.message}</ErrorNote>}
+    </section>
   );
 }
 

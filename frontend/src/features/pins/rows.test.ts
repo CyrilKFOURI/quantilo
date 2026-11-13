@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Pin } from "./api";
 import { colorVar, labelsOf, nextColor, parseRows, pinsByRow } from "./rows";
 
-const pin = (row: number, label: string, found = true): Pin => ({ key: `row:${row}`, row, label, color: 1, created_at: "", found });
+const pin = (row: number, label: string, found = true): Pin => ({ key: `row:${row}`, row, label, color: 1, created_at: "", found, inherited: false });
 
 describe("pinned rows helpers", () => {
   it("reads row numbers as shown (from 1) into file rows (from 0)", () => {

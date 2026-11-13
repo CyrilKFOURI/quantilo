@@ -1,5 +1,5 @@
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, Ban, Check, RotateCcw, Search, X } from "lucide-react";
-import { useMemo } from "react";
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, Ban, Check, Pin, PinOff, RotateCcw, Search, X } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import { formatNumber } from "../../charts/figures";
 import { formatCount } from "../../lib/format";
@@ -9,9 +9,10 @@ import { Button } from "../../ui/Button";
 import { Select, TextInput } from "../../ui/fields";
 import { ParamPanel } from "../../ui/ParamPanel";
 import { SegmentedControl } from "../../ui/SegmentedControl";
-import type { QualityRule } from "./api";
+import type { EditPatch, QualityRule } from "./api";
 import { DatasetStats, StatsStrip } from "./DatasetStats";
 import { ImageGrid } from "./ImageGrid";
+import { SaveConcept } from "./SaveConcept";
 import { countBy, issueCounts, SORTS, type Decision, type Draft, type ImageRow, type QualityFilter, type SortKey } from "./model";
 import { activeFilterCount, CLEARED, formatRange, parseRange, type Density, type VisionSearch } from "./search";
 
@@ -40,13 +41,36 @@ type GalleryProps = {
   onSelectedChange: (next: Set<string>) => void;
   onOpen: (row: ImageRow) => void;
   onDecide: (keys: string[], decision: Decision | null) => void;
+  /** 109: the images picked on the map, as a chip that clears them. */
+  pick?: { count: number; label: string } | null;
+  onClearPick?: () => void;
+  /** c3, R-VED-01: the labels keys 1 to 9 give, in order. */
+  labelChoices?: readonly string[];
+  /** c3: labels and pins of the draft (R-VED-01, R-VED-03). */
+  onEdit?: (patch: EditPatch) => void;
 };
 
 /**
  * 107: the set's figures and statistics, then a stuck toolbar (search, label, split, quality, size,
  * sort, density; the active filters as chips; the selection's actions), then every image.
  */
-export function Gallery({ datasetId, rows, shown, draft, rules, search, set, selected, onSelectedChange, onOpen, onDecide }: GalleryProps) {
+export function Gallery({
+  datasetId,
+  rows,
+  shown,
+  draft,
+  rules,
+  search,
+  set,
+  selected,
+  onSelectedChange,
+  onOpen,
+  onDecide,
+  pick = null,
+  onClearPick,
+  labelChoices = [],
+  onEdit,
+}: GalleryProps) {
   const phone = useMedia(PHONE);
   const density: Density = search.density ?? "m";
   const labels = useMemo(() => [...countBy(rows, (row) => row.label).entries()].filter(([label]) => label !== null).sort((a, b) => String(a[0]).localeCompare(String(b[0]))), [rows]);
@@ -106,8 +130,13 @@ export function Gallery({ datasetId, rows, shown, draft, rules, search, set, sel
           </div>
         )}
 
-        {(filters > 0 || issues.length > 0) && (
+        {(filters > 0 || issues.length > 0 || pick) && (
           <div className="flex flex-wrap items-center gap-1.5">
+            {pick && (
+              <Chip on onClick={() => onClearPick?.()}>
+                {t("vision.map.fromMap", { count: formatCount(pick.count), label: pick.label })}
+              </Chip>
+            )}
             {range && (
               <Chip on onClick={() => set({ range: undefined })}>
                 {t(`vision.measure.${range.measure}` as MessageKey)} {formatNumber(range.low)} {t("vision.to")} {formatNumber(range.high)}
@@ -151,6 +180,9 @@ export function Gallery({ datasetId, rows, shown, draft, rules, search, set, sel
             <Button variant="ghost" icon={RotateCcw} onClick={() => onDecide([...selected], null)}>
               {t("vision.decision.reset")} <Kbd>r</Kbd>
             </Button>
+            {onEdit && <EditTools keys={[...selected]} rows={rows} labelChoices={labelChoices} onEdit={onEdit} />}
+            {/* 118: the selection as a named concept, for the concept bottleneck and TCAV */}
+            <SaveConcept datasetId={datasetId} imageIds={rows.filter((row) => selected.has(row.key)).map((row) => row.id)} />
             <Button variant="ghost" icon={X} className="ml-auto" onClick={() => onSelectedChange(new Set())}>
               {t("vision.gallery.unselect")}
             </Button>
@@ -175,9 +207,13 @@ export function Gallery({ datasetId, rows, shown, draft, rules, search, set, sel
           onSelectedChange={onSelectedChange}
           onOpen={onOpen}
           onDecide={onDecide}
+          labelChoices={labelChoices}
+          onEdit={onEdit}
         />
       )}
-      <p className="text-xs text-ink-3 max-sm:hidden">{t("vision.gallery.keys")}</p>
+      <p className="text-xs text-ink-3 max-sm:hidden">
+        {t("vision.gallery.keys")} {onEdit && t("vision.edits.keys")}
+      </p>
     </div>
   );
 }
@@ -258,6 +294,7 @@ function Fields({
           <option value="none">{t("vision.quality.none")}</option>
           <option value="excluded">{t("vision.quality.excluded")}</option>
           <option value="decided">{t("vision.quality.decided")}</option>
+          <option value="pinned">{t("vision.quality.pinned")}</option>
           {issues.length > 0 && (
             <optgroup label={t("vision.gallery.byRule")}>
               {issues.map(([code, count]) => (
@@ -322,4 +359,72 @@ function Chip({ on, onClick, title, children }: { on: boolean; onClick: () => vo
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return <kbd className="ml-0.5 rounded-[3px] border border-line px-1 font-mono text-[10px] leading-4 text-ink-3 max-sm:hidden">{children}</kbd>;
+}
+
+/** c3, R-VED-01 and R-VED-03: the selection's label (keys 1 to 9, 0 back to the import's, or a new
+ *  name) and its pin (p). Everything goes to the draft, saved as a version from the decision bar. */
+function EditTools({
+  keys,
+  rows,
+  labelChoices,
+  onEdit,
+}: {
+  keys: string[];
+  rows: readonly ImageRow[];
+  labelChoices: readonly string[];
+  onEdit: (patch: EditPatch) => void;
+}) {
+  const [naming, setNaming] = useState(false);
+  const [name, setName] = useState("");
+  const chosen = new Set(keys);
+  const allPinned = keys.length > 0 && rows.every((row) => !chosen.has(row.key) || row.pinned);
+  const label = (value: string | null) => onEdit({ labels: Object.fromEntries(keys.map((key) => [key, value])) });
+  return (
+    <>
+      <label className="flex items-center gap-1 text-xs text-ink-2">
+        <span className="sr-only">{t("vision.edits.labelAs")}</span>
+        <Select
+          className="max-w-44"
+          value=""
+          aria-label={t("vision.edits.labelAs")}
+          onChange={(event) => {
+            const value = event.target.value;
+            if (value === "__new") setNaming(true);
+            else if (value === "__original") label(null);
+            else if (value) label(value);
+          }}
+        >
+          <option value="">{t("vision.edits.labelAs")}</option>
+          {labelChoices.map((choice, k) => (
+            <option key={choice} value={choice}>
+              {k < 9 ? `${k + 1} · ` : ""}
+              {choice}
+            </option>
+          ))}
+          <option value="__original">{t("vision.edits.original")}</option>
+          <option value="__new">{t("vision.edits.newLabel")}</option>
+        </Select>
+      </label>
+      {naming && (
+        <form
+          className="flex items-center gap-1"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const value = name.trim();
+            if (value) label(value);
+            setNaming(false);
+            setName("");
+          }}
+        >
+          <TextInput autoFocus value={name} maxLength={100} placeholder={t("vision.edits.newLabelPlaceholder")} onChange={(event) => setName(event.target.value)} className="w-36" aria-label={t("vision.edits.newLabel")} />
+          <Button type="submit" variant="ghost" disabled={!name.trim()}>
+            {t("vision.edits.apply")}
+          </Button>
+        </form>
+      )}
+      <Button variant="ghost" icon={allPinned ? PinOff : Pin} onClick={() => onEdit({ pins: Object.fromEntries(keys.map((key) => [key, !allPinned])) })}>
+        {allPinned ? t("vision.edits.unpin") : t("vision.edits.pin")} <Kbd>p</Kbd>
+      </Button>
+    </>
+  );
 }

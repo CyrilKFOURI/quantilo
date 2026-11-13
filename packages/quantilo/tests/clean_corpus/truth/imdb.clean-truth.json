@@ -1,0 +1,12 @@
+{
+ "label": "imdb",
+ "corpus": "data-corpus",
+ "path": "movies/imdb_5000_movie_metadata/movie_metadata.csv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-01:color", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-01:movie_title", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-14:rows", "verdict": "correct", "why": "the same identifier and every other value", "op": "drop_duplicates"}
+ ]
+}

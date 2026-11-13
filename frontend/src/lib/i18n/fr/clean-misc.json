@@ -1,0 +1,7 @@
+{
+  "cleanMisc.where.open": "Ouvrir ces lignes dans Données",
+  "cleanMisc.where.hint": "{count} valeurs : regardez-y les lignes, ou épinglez-les",
+  "cleanMisc.model.orphans": "Ces {count} lignes restent dans {child}. Nettoyer › Avancé de {child} les liste (T-01) et propose une correction pour les clés à une lettre d’une clé de {parent}.",
+  "cleanMisc.model.duplicates": "Nettoyer › Avancé de {parent} liste les clés répétées (T-02).",
+  "cleanMisc.model.open": "Ouvrir la page Nettoyer de {name}"
+}

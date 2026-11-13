@@ -1,17 +1,21 @@
 """Keys that two spellings of one value share (097, A-01 to A-03), after OpenRefine's clustering.
 
 - `fingerprint`: case, accents, punctuation and word order ignored ('Cruise, Tom' = 'Tom Cruise').
-- `ngram_fingerprint`: the same on letter pairs, spaces dropped ('New York' = 'NewYork').
+- `ngram_fingerprint`: the same on letter pairs, spaces dropped ('New York' = 'NewYork'); `ordered`
+  keeps the pairs in their order (N14: 'Pierre-Philippe' and 'Philippe Pierre' stay apart).
+- `items` / `items_key`: the items of a list value ('vegan, no gluten'), keyed one by one (N13).
 - `phonetic`: a sound key for English and French (no dependency, Pyodide-friendly): the rules both
   languages share, then the vowels after the first letter dropped ('Keyboard' = 'Kiboard').
 """
 
 import re
 import unicodedata
+from collections.abc import Callable
 
 PUNCTUATION = re.compile(r"[^\w\s]|_")
 NOT_LETTER = re.compile(r"[^a-z ]+")
 DIGITS = re.compile(r"\d+")
+ITEM_SEPARATOR = re.compile(r"[,;|]")
 # Applied in order; each pattern sees the result of the previous ones.
 SOUNDS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"eaux?|aux?"), "o"),
@@ -50,13 +54,29 @@ def fingerprint(value: str, ordered: bool = False) -> str:
     return " ".join(words if ordered else sorted(set(words)))
 
 
-def ngram_fingerprint(value: str, size: int = 2) -> str:
+def ngram_fingerprint(value: str, size: int = 2, ordered: bool = False) -> str:
     """The sorted letter pairs of the value without spaces or punctuation. Unlike OpenRefine, a
-    pair that repeats counts twice: with a set, 'Berge' and 'Berger' (be, er, rg, ge) collide."""
+    pair that repeats counts twice: with a set, 'Berge' and 'Berger' (be, er, rg, ge) collide.
+    `ordered` keeps the pairs in the order of the text: only spaces and separators differ
+    ('VANDAM ST' = 'VAN DAM ST'), letters moved around do not ('Pierre-Philippe' ≠ 'Philippe
+    Pierre')."""
     text = PUNCTUATION.sub("", fold(value)).replace(" ", "")
     if len(text) < size:
         return text
-    return " ".join(sorted(text[i : i + size] for i in range(len(text) - size + 1)))
+    pairs = [text[i : i + size] for i in range(len(text) - size + 1)]
+    return " ".join(pairs if ordered else sorted(pairs))
+
+
+def items(value: str) -> list[str]:
+    """The items of a list value, split on `,` `;` `|`, blanks left out."""
+    return [item.strip() for item in ITEM_SEPARATOR.split(value) if item.strip()]
+
+
+def items_key(value: str, key: Callable[[str], str]) -> str:
+    """N13: a list's key is the set of its items' keys, in any order: 'No gluten, No GMOs' =
+    'No GMOs; no gluten', but 'en:vegetarian' ≠ 'en:non-vegetarian' (the words of two items are
+    never pooled, as one fingerprint of the whole value would)."""
+    return " | ".join(sorted({k for k in (key(item) for item in items(value)) if k}))
 
 
 def _word(word: str) -> str:

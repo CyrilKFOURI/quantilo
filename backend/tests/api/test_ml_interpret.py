@@ -104,3 +104,94 @@ def test_monotonic_constraints_are_checked(client: TestClient, churn: str) -> No
     found = client.get(f"{BASE}/datasets/{churn}/runs/{run_id}/explain/monotonic").json()
     assert [m["column"] for m in found] == ["tenure"]
     assert found[0]["sign"] == -1 and found[0]["violations"] == 0
+
+
+def test_the_scorecard_tab_compares_readable_models_with_the_run(
+    client: TestClient, churn: str
+) -> None:
+    """121, 122: FasterRisk's card and the sparse tree, cached; the optional extra greyed."""
+    run_id = train(client, churn, "random_forest", '{"n_estimators": 20, "max_depth": 6}')
+    url = f"{BASE}/datasets/{churn}/runs/{run_id}/readable"
+    answer = client.get(f"{url}/scorecard", params={"conditions": 3, "points": 5})
+    assert answer.status_code == 200, answer.text
+    card = answer.json()
+    assert 1 <= len(card["best"]["lines"]) <= 3
+    assert all(abs(line["points"]) <= 5 for line in card["best"]["lines"])
+    assert card["gap"]["sentence"] and "R-XAI-07" in card["gap"]["sentence"]
+    assert client.get(f"{url}/scorecard", params={"conditions": 3, "points": 5}).json() == card
+    tree = client.get(f"{url}/sparse-tree", params={"depth": 3}).json()
+    assert tree["leaves"] <= 12 and "R-XAI-09" in tree["sentence"]
+
+    every = {a["key"]: a for a in client.get(f"{BASE}/interpret/available").json()}
+    assert set(every) == {"gosdt", "treefarms", "pacmap", "trimap"}
+    if not every["gosdt"]["available"]:
+        refused = client.get(f"{url}/optimal-tree")
+        assert refused.status_code == 409 and "R-XAI-10" in refused.json()["error"]["message"]
+
+
+def test_a_number_gets_no_scorecard(client: TestClient, churn: str) -> None:
+    params = {"target": "monthly", "model": "linear_regression"}
+    job = wait(client, client.post(f"{BASE}/datasets/{churn}/runs", params=params).json())
+    url = f"{BASE}/datasets/{churn}/runs/{job['run_id']}/readable/scorecard"
+    refused = client.get(url)
+    assert refused.status_code == 422 and "R-XAI-05" in refused.json()["error"]["message"]
+    # 122 bis (R-XAI-19): but a sparse tree, judged by R² against the run
+    tree = client.get(f"{BASE}/datasets/{churn}/runs/{job['run_id']}/readable/sparse-tree")
+    assert tree.status_code == 200, tree.text
+    assert tree.json()["measure"] == "R²" and "R-XAI-19" in tree.json()["gap"]["sentence"]
+
+
+def test_monotone_points_and_the_two_column_ale(client: TestClient, churn: str) -> None:
+    """121 bis (R-XAI-16) and 125 bis (R-XAI-20), each cached next to the run."""
+    run_id = train(client, churn, "random_forest", '{"n_estimators": 20, "max_depth": 6}')
+    url = f"{BASE}/datasets/{churn}/runs/{run_id}"
+    card = client.get(f"{url}/readable/scorecard", params={"conditions": 4, "monotone": True})
+    assert card.status_code == 200, card.text
+    assert card.json()["monotone"] is True and card.json()["shape"] == []
+    surface = client.get(f"{url}/explain/ale-2d", params={"first": "tenure", "second": "monthly"})
+    assert surface.status_code == 200, surface.text
+    body = surface.json()
+    assert len(body["values"]) == len(body["first_edges"]) and "R-XAI-20" in body["sentence"]
+    again = client.get(f"{url}/explain/ale-2d", params={"first": "tenure", "second": "monthly"})
+    assert again.json() == body
+    refused = client.get(f"{url}/explain/ale-2d", params={"first": "tenure", "second": "contract"})
+    assert refused.status_code == 422 and "not a number" in refused.json()["error"]["message"]
+
+
+def test_a_knn_gets_the_advanced_more_views_each_cached(client: TestClient, churn: str) -> None:
+    """126: SHAP by permutations for a model without exact SHAP, Friedman's H, one row's anchor,
+    the prototypes and criticisms of each class."""
+    run_id = train(client, churn, "knn")
+    body = explained(client, churn, run_id)
+    assert body["status"] == "done" and body["explanation"]["shap"] is None  # no exact SHAP
+    url = f"{BASE}/datasets/{churn}/runs/{run_id}/explain"
+
+    shap = client.get(f"{url}/permutation-shap", params={"pairs": 2, "background": 10})
+    assert shap.status_code == 200, shap.text
+    found = shap.json()
+    assert found["shap"]["method"].startswith("Permutation sampling")
+    assert found["additivity"] < 1e-9 and found["orders"] == 4
+    assert len(found["half_width"]) == len(found["shap"]["rows"])
+    again = client.get(f"{url}/permutation-shap", params={"pairs": 2, "background": 10}).json()
+    assert again == found  # cached beside the run
+
+    pairs = client.get(f"{url}/interactions", params={"columns": 3})
+    assert pairs.status_code == 200, pairs.text
+    h = pairs.json()
+    assert len(h["columns"]) == 3 and len(h["pairs"]) == 3
+    assert all(0 <= p["h"] <= 1 for p in h["pairs"]) and h["sentence"]
+
+    row = client.get(f"{BASE}/datasets/{churn}/runs/{run_id}").json()["predictions"][0]["row"]
+    rule = client.get(f"{url}/anchor", params={"row": row, "threshold": 0.9, "conditions": 3})
+    assert rule.status_code == 200, rule.text
+    anchor = rule.json()
+    assert anchor["rule"].startswith("IF ") and 0 < len(anchor["conditions"]) <= 3
+    assert anchor["threshold"] == 0.9 and 0 <= anchor["coverage"] <= 1
+    missing = client.get(f"{url}/anchor", params={"row": 10**8})
+    assert missing.status_code == 422 and "not among" in missing.json()["error"]["message"]
+
+    examples = client.get(f"{url}/prototypes", params={"prototypes": 2, "criticisms": 1})
+    assert examples.status_code == 200, examples.text
+    groups = examples.json()["groups"]
+    assert len(groups) == 2  # one per class (the app reads yes/no as a yes/no column)
+    assert all(len(g["prototypes"]) == 2 and len(g["criticisms"]) == 1 for g in groups)

@@ -252,7 +252,6 @@ def tune(
     """Optimise `request.space` on 3-fold cross-validation of the training rows `x`, `y`.
     `build(values, rows)` returns the full pipeline for a set of settings; `progress` is updated
     after every trial (the caller reads it while the search runs)."""
-    optuna = _optuna()
     space = request.space if request.space is not None else default_space(spec.key)
     if not [p for p in space if p.fixed is None]:
         raise TuneError(f"{spec.label} has nothing worth tuning.")
@@ -260,6 +259,7 @@ def tune(
     two = request.objectives == "score_time"
     if two and request.sampler in SINGLE_OBJECTIVE:
         raise TuneError("R-ML-TUNE-01: score and time together need NSGA-II, TPE or random search.")
+    optuna = _optuna()  # after the checks: a wrong request says so even without Optuna
     progress.objectives = request.objectives
     if two:
         progress.rules.append(

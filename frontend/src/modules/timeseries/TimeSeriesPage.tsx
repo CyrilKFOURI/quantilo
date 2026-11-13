@@ -545,6 +545,9 @@ function SeriesAnalysis({ datasetId, search, ready }: { datasetId: string; searc
                   what={valueLabel(overview.data)}
                   drivers={drivers}
                   onDrivers={setDrivers}
+                  search={search}
+                  onOptions={set}
+                  periods={overview.data.setup.periods}
                   scenarios={search.scen}
                   scenarioModel={search.smodel}
                   onScenarios={(scen, smodel) =>

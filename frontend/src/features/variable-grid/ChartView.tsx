@@ -38,7 +38,7 @@ export const ChartView = forwardRef<PlotHandle, ChartViewProps>(function ChartVi
   const figure = useMemo(() => {
     if (chart.kind === "histogram") {
       if (chart.view === "box") return boxFigure(chart, type);
-      return histogramFigure(chart, chart.view === "lengths" ? "text" : type, chart.view === "lengths" ? "texts" : "rows");
+      return histogramFigure(chart, chart.view === "lengths" ? "text" : type, chart.view === "lengths" ? t("fig.texts") : t("fig.rows"));
     }
     if (chart.kind === "timeline") return timelineFigure(chart);
     if (chart.kind === "bars") return chart.view === "pie" ? pieFigure(chart) : barsFigure(chart, type);

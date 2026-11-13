@@ -8,9 +8,12 @@ import { Dialog } from "../../ui/Dialog";
 import { TextInput } from "../../ui/fields";
 import { ParamPanel } from "../../ui/ParamPanel";
 import { usePreview, type Op, type Step, type Suggestion } from "./api";
+import { MakeCheckButton } from "./Checks";
+import { checkOfStep } from "./checkRules";
 import { PreviewPanel } from "./PreviewTable";
 import { StepFields } from "./StepFields";
 import { CATALOG, describeStep, move, newStep, nextId, opHint, opLabel, replaceStep, type CatalogGroup } from "./steps";
+import { suggestionTitle } from "./titles";
 
 type Props = {
   datasetId: string;
@@ -33,7 +36,7 @@ export function StepsEditor({ datasetId, steps, problems, suggestions, columns, 
   const preview = usePreview(datasetId, runs ? steps : undefined, selected?.id ?? null);
   const original = suggestions.find((suggestion) => suggestion.id === selected?.suggestion)?.step ?? null;
   // a step from a suggestion keeps its sentence ("Repair the encoding of brand")
-  const titles = new Map(suggestions.map((suggestion) => [suggestion.id, suggestion.title]));
+  const titles = new Map(suggestions.map((suggestion) => [suggestion.id, suggestionTitle(suggestion)]));
 
   const add = (op: Op) => {
     const step = newStep(op, nextId(steps), columns[0] ?? "");
@@ -42,6 +45,8 @@ export function StepsEditor({ datasetId, steps, problems, suggestions, columns, 
     setAdding(false);
   };
 
+  // N31: a filter or a de-duplication by key can become a declared check, run at each import
+  const check = selected ? checkOfStep(selected, "c1") : null;
   const fields = selected && <StepFields key={selected.id} step={selected} original={original as Step | null} columns={columns} onChange={(step) => onChange(replaceStep(steps, step))} />;
 
   return (
@@ -87,6 +92,11 @@ export function StepsEditor({ datasetId, steps, problems, suggestions, columns, 
                 <h3 className="mb-0.5 text-[13px] font-medium text-ink-1">{opLabel(selected.op)}</h3>
                 <p className="mb-3 text-xs text-ink-3">{opHint(selected.op)}</p>
                 {fields}
+                {check && (
+                  <div className="mt-3 -ml-3 flex flex-wrap items-center gap-2 border-t border-line pt-2">
+                    <MakeCheckButton key={selected.id} datasetId={datasetId} check={check} />
+                  </div>
+                )}
               </section>
             )}
             {problems[selected.id] ? (
@@ -166,7 +176,7 @@ function StepRow({
   );
 }
 
-const GROUPS: CatalogGroup[] = ["columns", "text", "values", "rows"];
+const GROUPS: CatalogGroup[] = ["columns", "text", "values", "dates", "rows", "calculate", "structure"];
 
 /** "+ Add step": the M3 batch of transformations, with a search. */
 function Catalog({ onPick, onClose }: { onPick: (op: Op) => void; onClose: () => void }) {

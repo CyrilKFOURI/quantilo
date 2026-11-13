@@ -15,12 +15,14 @@ export type JoinPreview = Schemas["JoinPreviewOut"];
 export type JoinBody = Schemas["JoinIn"];
 export type JoinMode = JoinKey["mode"];
 export type JoinType = "left" | "inner" | "right" | "full";
+export type JoinLineageInfo = Schemas["JoinLineageOut"];
 
 const base = (datasetId: string) => `/datasets/${encodeURIComponent(datasetId)}/join`;
 
 export const joinKeys = {
   suggest: (datasetId: string, otherId: string) => ["join", datasetId, "suggest", otherId] as const,
   preview: (datasetId: string, body: JoinBody) => ["join", datasetId, "preview", body] as const,
+  lineage: (datasetId: string) => ["join", datasetId, "lineage"] as const,
 };
 
 export const joinApi = {
@@ -28,6 +30,9 @@ export const joinApi = {
     request<JoinSuggestion>("POST", `${base(datasetId)}/suggest`, { other_id: otherId }),
   preview: (datasetId: string, body: JoinBody) => request<JoinPreview>("POST", `${base(datasetId)}/preview`, body),
   create: (datasetId: string, body: JoinBody) => request<{ dataset_id: string }>("POST", base(datasetId), body),
+  /** C1 (R-JN-06): what a joined dataset was made of; 404 for any other dataset. */
+  lineage: (datasetId: string) => request<JoinLineageInfo>("GET", base(datasetId)),
+  rebuild: (datasetId: string) => request<{ dataset_id: string }>("POST", `${base(datasetId)}/rebuild`),
 };
 
 /** Creating the joined dataset adds a dataset (and maybe a project member): both lists refresh. */

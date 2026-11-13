@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from quantilo.ingestion.csv_sniff import detect_encoding
+from quantilo.ingestion.encodings import codec as codec_of
 from quantilo.ingestion.layout.cells import clean_text
 from quantilo.ingestion.layout.grid import LIMITS, Grid, Limits
 
@@ -36,7 +37,7 @@ class CsvShape:
 def _decode(path: Path, limit: int) -> tuple[str, str]:
     encoding = detect_encoding(path)
     raw = path.read_bytes()[:limit]
-    codec = "cp1252" if encoding == "windows-1252" else encoding
+    codec = codec_of(encoding)
     decoder = codecs.getincrementaldecoder("utf-8-sig" if codec == "utf-8" else codec)("replace")
     return decoder.decode(raw, final=True), encoding
 
@@ -106,7 +107,7 @@ def load_csv_grid(path: Path, limits: Limits = LIMITS) -> tuple[Grid, CsvShape]:
 
 def stream_csv_end(path: Path, delimiter: str, encoding: str, start_row: int) -> int:
     """B1 for a CSV: from `start_row` (1-based) on, the body runs to the first empty row."""
-    codec = {"windows-1252": "cp1252", "utf-8": "utf-8-sig"}.get(encoding, encoding)
+    codec = "utf-8-sig" if encoding == "utf-8" else codec_of(encoding)
     last = start_row - 1
     with path.open(encoding=codec, errors="replace", newline="") as handle:
         for number, row in enumerate(csv.reader(handle, delimiter=delimiter), start=1):

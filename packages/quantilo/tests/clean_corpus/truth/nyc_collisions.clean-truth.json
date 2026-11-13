@@ -1,0 +1,15 @@
+{
+ "label": "nyc_collisions",
+ "corpus": "data-corpus",
+ "path": "transport/nyc_collisions/motor_vehicle_collisions.csv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-01:location", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-01:on_street_name", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-04:cross_street_name", "verdict": "correct", "why": "a word for 'missing' in this file", "op": "null_values"},
+  {"id": "B-03:on_street_name", "verdict": "correct", "why": "same value up to case or accents, each group read", "op": "map_values"},
+  {"id": "B-09:latitude:0,0", "verdict": "correct", "why": "(0, 0) is the geocoders' default point (mode S)", "op": "null_values"},
+  {"id": "B-09:longitude:0,0", "verdict": "correct", "why": "(0, 0) is the geocoders' default point (mode S)", "op": "null_values"}
+ ]
+}

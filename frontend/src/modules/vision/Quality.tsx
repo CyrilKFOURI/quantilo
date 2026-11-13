@@ -7,8 +7,10 @@ import { t, type MessageKey } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
 import type { DecisionPatch, ImageReport, QualityFinding, QualityGroup, QualityRule } from "./api";
 import { exclusionCause, isExcluded, type Decision, type Draft, type ImageRow, type QualityFilter } from "./model";
+import { QualityAdvanced } from "./QualityAdvanced";
+import { QualityThresholds } from "./QualityThresholds";
+import { Thumbs } from "./QualityThumbs";
 
-const THUMBS = 24;
 const GROUPS_STEP = 8;
 const STRIP = 5;
 
@@ -23,6 +25,9 @@ type QualityProps = {
   onPatch: (patch: DecisionPatch) => void;
   onOpen: (row: ImageRow) => void;
   onShow: (quality: QualityFilter) => void;
+  /** c3, R-VQT-02: the draft's thresholds (those that differ from the defaults). */
+  thresholds?: Readonly<Record<string, number>>;
+  onThresholds?: (thresholds: Record<string, number>) => void;
 };
 
 const EFFECT: Record<QualityFinding["effect"], MessageKey> = {
@@ -36,7 +41,7 @@ const EFFECT: Record<QualityFinding["effect"], MessageKey> = {
  * thresholds (R-108-01, 02); the copies side by side (R-108-08); what was checked and found nothing
  * (R-108-03). Every decision goes into the draft, saved as a version from the decision bar.
  */
-export function Quality({ datasetId, rows, report, rules, draft, onDecide, onPatch, onOpen, onShow }: QualityProps) {
+export function Quality({ datasetId, rows, report, rules, draft, onDecide, onPatch, onOpen, onShow, thresholds = {}, onThresholds }: QualityProps) {
   const quality = report.quality;
   const fired = useMemo(() => new Set(quality?.findings.map((finding) => finding.code) ?? []), [quality]);
   const excludedNow = rows.filter((row) => isExcluded(row, draft)).length;
@@ -120,6 +125,10 @@ export function Quality({ datasetId, rows, report, rules, draft, onDecide, onPat
           </ul>
         </details>
       )}
+
+      {onThresholds && <QualityThresholds datasetId={datasetId} rules={rules} draft={thresholds} onUse={onThresholds} />}
+
+      <QualityAdvanced datasetId={datasetId} rows={rows} draft={draft} onDecide={onDecide} onOpen={onOpen} />
 
       {report.rules.length > 0 && (
         <details className="group rounded-md border border-line bg-surface-1">
@@ -220,54 +229,6 @@ function Effect({ effect }: { effect: QualityFinding["effect"] }) {
       <Icon size={11} strokeWidth={1.75} aria-hidden className={effect === "excluded" ? "text-bad" : "text-warn"} />
       {t(EFFECT[effect])}
     </span>
-  );
-}
-
-function Thumbs({
-  datasetId,
-  rows,
-  positions,
-  draft,
-  onOpen,
-}: {
-  datasetId: string;
-  rows: readonly ImageRow[];
-  positions: readonly number[];
-  draft: Draft;
-  onOpen: (row: ImageRow) => void;
-}) {
-  const members = positions.slice(0, THUMBS).map((position) => rows[position]).filter((row): row is ImageRow => row !== undefined);
-  return (
-    <ul className="flex flex-wrap gap-2 pt-1">
-      {members.map((row) => {
-        const excluded = isExcluded(row, draft);
-        return (
-          <li key={row.key}>
-            <button type="button" onClick={() => onOpen(row)} title={row.key} className="group/thumb block w-[76px] text-left">
-              <span className="relative block size-[76px] overflow-hidden rounded-md bg-surface-2">
-                <img
-                  src={imageUrl(datasetId, row.id, "thumb")}
-                  alt={[row.name, row.label].filter(Boolean).join(", ")}
-                  loading="lazy"
-                  decoding="async"
-                  className={`size-full object-contain ${excluded ? "opacity-35" : ""}`}
-                />
-                <span aria-hidden className="pointer-events-none absolute inset-0 rounded-md ring-1 ring-ink-1/8 ring-inset transition-shadow group-hover/thumb:ring-2 group-hover/thumb:ring-accent" />
-                {excluded && (
-                  <Ban size={12} strokeWidth={1.75} aria-label={t("vision.tile.excluded")} className="absolute right-1 bottom-1 rounded-sm bg-surface-1/95 text-ink-1" />
-                )}
-              </span>
-              <span className="mt-1 block truncate font-mono text-[10px] text-ink-2">{row.name}</span>
-            </button>
-          </li>
-        );
-      })}
-      {positions.length > THUMBS && (
-        <li className="flex size-[76px] items-center justify-center rounded-md border border-dashed border-line text-xs text-ink-3 tabular-nums">
-          +{formatCount(positions.length - THUMBS)}
-        </li>
-      )}
-    </ul>
   );
 }
 

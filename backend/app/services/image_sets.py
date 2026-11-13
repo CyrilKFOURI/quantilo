@@ -76,6 +76,7 @@ INDEX_TEXT = (
     "dominant_colour",
     "decode_error",
     "decision",
+    "label_original",  # c3, R-VED-02: the label read at the import, once a label was edited
 )
 INDEX_INT = ("width", "height", "file_bytes", "bit_depth", "frames", "duplicate_group")
 INDEX_FLOAT = (
@@ -99,10 +100,12 @@ INDEX_BOOL = (
     "decode_ok",
     "excluded",
     "rule_excluded",
+    "pinned",  # c3, R-VED-03
 )
 INDEX_CACHE = 4
 Decision = Literal["exclude", "keep"]
 DECISIONS = ("exclude", "keep")
+MAX_LABEL = 100  # characters of a label typed in the gallery (R-VED-01)
 
 
 class _Index:
@@ -132,34 +135,6 @@ def _finite(value: Any) -> float | None:
         return None
     number = float(value)
     return round(number, 4) if math.isfinite(number) else None
-
-
-def decided_table(table: Any, decisions: dict[str, str]) -> Any:
-    """The image table with the user's decisions (108): `decision`, `rule_excluded` (what the rules
-    said, kept from the first application, R-108-07) and `excluded` (R-108-05: `keep` wins over a
-    rule's exclusion, `exclude` over a flag, no decision leaves it to the rule)."""
-    import pyarrow as pa
-
-    names = table.column_names
-    keys = table["rel_path"].to_pylist()
-    source = "rule_excluded" if "rule_excluded" in names else "excluded"
-    by_rule = [bool(value) for value in table[source].to_pylist()]
-    chosen = [decisions.get(key) for key in keys]
-    excluded = [
-        choice == "exclude" or (rule and choice != "keep")
-        for choice, rule in zip(chosen, by_rule, strict=True)
-    ]
-    columns = {
-        "excluded": pa.array(excluded, type=pa.bool_()),
-        "rule_excluded": pa.array(by_rule, type=pa.bool_()),
-        "decision": pa.array(chosen, type=pa.string()),
-    }
-    for name, values in columns.items():
-        if name in table.column_names:
-            table = table.set_column(table.column_names.index(name), name, values)
-        else:
-            table = table.append_column(name, values)
-    return table
 
 
 class ImportStopped(Exception):
@@ -377,8 +352,9 @@ class ImageSetService:
                 return
             if stopped():
                 return
-            self._reapply(dataset_id, target)  # 108: saved decisions survive a reimport
-            self._write_report(dataset_id, result)
+            # 108, c3: saved decisions, labels and pins survive a reimport
+            reassessed = self._reapply(dataset_id, target, options)
+            self._write_report(dataset_id, result, reassessed)
             repo.update_job(connection, job_id, progress=0.95, message="Detecting column types")
             for step in self.datasets.after_import:
                 try:
@@ -401,8 +377,9 @@ class ImageSetService:
                 connection, job_id, status="done", progress=1, message="Done", finished_at=stamp
             )
 
-    def _write_report(self, dataset_id: str, result: Any) -> None:
-        quality = result.quality.to_dict() if result.quality is not None else None
+    def _write_report(self, dataset_id: str, result: Any, quality_report: Any = None) -> None:
+        found = quality_report if quality_report is not None else result.quality
+        quality = found.to_dict() if found is not None else None
         report = {
             "sentence": result.sentence,
             "source_kind": result.source_kind,
@@ -546,16 +523,36 @@ class ImageSetService:
         self._index.put(dataset_id, stamp, encoded)
         return encoded
 
-    # --- decisions (108) -----------------------------------------------------------------------
+    # --- decisions (108), labels, pins and thresholds (c3) ---------------------------------------
 
-    def _read_decisions(self, dataset_id: str) -> dict[str, dict[str, str]]:
+    def _read_decisions(self, dataset_id: str) -> dict[str, Any]:
+        """The draft and the saved state of every edit: decisions (108), labels (R-VED-01), pins
+        (R-VED-03), thresholds (R-VQT-02). A file written before c3 holds decisions only."""
         path = self.decisions_path(dataset_id)
-        if not path.is_file():
-            return {"draft": {}, "applied": {}}
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return {"draft": dict(data.get("draft") or {}), "applied": dict(data.get("applied") or {})}
+        data = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
 
-    def _write_decisions(self, dataset_id: str, data: dict[str, dict[str, str]]) -> None:
+        def pair(name: str) -> dict[str, dict[str, Any]]:
+            part = data.get(name) or {}
+            return {
+                "draft": dict(part.get("draft") or {}),
+                "applied": dict(part.get("applied") or {}),
+            }
+
+        out: dict[str, Any] = {
+            "draft": dict(data.get("draft") or {}),
+            "applied": dict(data.get("applied") or {}),
+            "labels": pair("labels"),
+            "pins": pair("pins"),
+        }
+        if "thresholds" in data:
+            out["thresholds"] = pair("thresholds")
+        else:  # what the import used
+            record = self.datasets.get(dataset_id)
+            used = ImageImportOptions.from_json(record.options).thresholds if record.options else {}
+            out["thresholds"] = {"draft": dict(used), "applied": dict(used)}
+        return out
+
+    def _write_decisions(self, dataset_id: str, data: dict[str, Any]) -> None:
         path = self.decisions_path(dataset_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         partial = path.with_name(path.name + ".partial")
@@ -569,13 +566,32 @@ class ImageSetService:
             ).fetchone()
         return int(row[0]) if row and row[0] is not None else None
 
-    def _summary(self, dataset_id: str, data: dict[str, dict[str, str]]) -> dict[str, Any]:
-        draft, applied = data["draft"], data["applied"]
-        pending = sum(1 for key in set(draft) | set(applied) if draft.get(key) != applied.get(key))
+    @staticmethod
+    def _changed(draft: dict[str, Any], applied: dict[str, Any]) -> int:
+        return sum(1 for key in set(draft) | set(applied) if draft.get(key) != applied.get(key))
+
+    def _pending(self, data: dict[str, Any]) -> dict[str, int]:
+        thresholds = data["thresholds"]
         return {
-            "draft": draft,
-            "applied": applied,
-            "pending": pending,
+            "decisions": self._changed(data["draft"], data["applied"]),
+            "labels": self._changed(data["labels"]["draft"], data["labels"]["applied"]),
+            "pins": self._changed(data["pins"]["draft"], data["pins"]["applied"]),
+            "thresholds": int(thresholds["draft"] != thresholds["applied"]),
+        }
+
+    def _summary(self, dataset_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        pending = self._pending(data)
+        return {
+            "draft": data["draft"],
+            "applied": data["applied"],
+            "labels_draft": data["labels"]["draft"],
+            "labels_applied": data["labels"]["applied"],
+            "pins_draft": data["pins"]["draft"],
+            "pins_applied": data["pins"]["applied"],
+            "thresholds_draft": data["thresholds"]["draft"],
+            "thresholds_applied": data["thresholds"]["applied"],
+            "pending": sum(pending.values()),
+            "pending_by": pending,
             "version": self._version(dataset_id),
         }
 
@@ -589,53 +605,143 @@ class ImageSetService:
         table = pq.read_table(record.storage_path, columns=["rel_path"])
         return {str(v) for v in table["rel_path"].to_pylist() if v is not None}
 
-    def set_decisions(self, dataset_id: str, patch: Mapping[str, str | None]) -> dict[str, Any]:
+    def set_decisions(
+        self,
+        dataset_id: str,
+        patch: Mapping[str, str | None],
+        labels: Mapping[str, str | None] | None = None,
+        pins: Mapping[str, bool | None] | None = None,
+        thresholds: Mapping[str, float] | None = None,
+    ) -> dict[str, Any]:
         """Merge a patch into the draft (R-108-04), by the image's `rel_path` (unique, where exact
         copies share their `image_id`): `exclude`, `keep`, or None to leave the image to its rules
-        again. Nothing is applied before `apply_decisions`."""
+        again; a label (None: back to the import's, R-VED-01); a pin (False or None: unpinned,
+        R-VED-03); the thresholds, replaced as a whole (R-VQT-02). Nothing is applied before
+        `apply_decisions`."""
+        from quantilo.vision.quality import thresholds_from
+
         record = self._ready(dataset_id)
+        labels, pins = labels or {}, pins or {}
         unknown = [k for k, v in patch.items() if v not in (*DECISIONS, None)]
-        if not unknown:
+        unknown += [
+            k for k, v in labels.items() if v is not None and not (0 < len(v.strip()) <= MAX_LABEL)
+        ]
+        if not unknown and (patch or labels or pins):
             known = self._keys(record)
-            unknown = [k for k in patch if k not in known]
+            unknown = [k for k in (*patch, *labels, *pins) if k not in known]
         if unknown:
             raise AppError(
-                f"Unknown image or decision: {', '.join(sorted(unknown)[:5])}.",
+                f"Unknown image, decision or label: {', '.join(sorted(set(unknown))[:5])}.",
                 code="invalid_decision",
                 status_code=422,
             )
+        if thresholds is not None:
+            try:
+                thresholds_from(thresholds)
+            except ValueError as error:
+                raise AppError(str(error), code="invalid_thresholds", status_code=422) from error
         with self._decisions_lock:
             data = self._read_decisions(dataset_id)
-            for image_id, decision in patch.items():
+            for image, decision in patch.items():
                 if decision is None:
-                    data["draft"].pop(image_id, None)
+                    data["draft"].pop(image, None)
                 else:
-                    data["draft"][image_id] = decision
+                    data["draft"][image] = decision
+            for image, label in labels.items():
+                if label is None:
+                    data["labels"]["draft"].pop(image, None)
+                else:
+                    data["labels"]["draft"][image] = label.strip()
+            for image, pin in pins.items():
+                if pin:
+                    data["pins"]["draft"][image] = True
+                else:
+                    data["pins"]["draft"].pop(image, None)
+            if thresholds is not None:
+                data["thresholds"]["draft"] = {k: float(v) for k, v in sorted(thresholds.items())}
             self._write_decisions(dataset_id, data)
         return self._summary(dataset_id, data)
 
     def discard_decisions(self, dataset_id: str) -> dict[str, Any]:
-        """The draft goes back to the saved decisions."""
+        """The draft goes back to the saved state."""
         self._ready(dataset_id)
         with self._decisions_lock:
             data = self._read_decisions(dataset_id)
             data["draft"] = dict(data["applied"])
+            for name in ("labels", "pins", "thresholds"):
+                data[name]["draft"] = dict(data[name]["applied"])
             self._write_decisions(dataset_id, data)
         return self._summary(dataset_id, data)
 
-    def apply_decisions(self, dataset_id: str) -> dict[str, Any]:
-        """Save the draft as a new version of the set (R-108-06): the table is written again with
-        the decisions, through the steps of a reimport (previous version kept, types kept, 031
-        photo), so Changes compares it with the previous version like any other."""
+    def _quality_inputs(
+        self, dataset_id: str, record: DatasetRecord, table: Any, thresholds: Mapping[str, float]
+    ) -> dict[str, Any]:
+        """What the R-VQ rules read again (R-VQT-01): thresholds (moved to the browser's scale
+        when measured at 256 pixels, R-VIS-WEB-02), the rules undone at the import, the
+        descriptors kept at the import (R-VQT-03)."""
+        from quantilo.vision import browser
+        from quantilo.vision.edits import load_descriptors
+        from quantilo.vision.quality import thresholds_from
+
+        options = ImageImportOptions.from_json(record.options) if record.options else None
+        keys = [str(v) for v in table["rel_path"].to_pylist()]
+        return {
+            "thresholds": browser.quality_thresholds(
+                thresholds_from(thresholds), browser.measure_side()
+            ),
+            "ignore": frozenset(options.ignore_rules if options else ()),
+            "descriptors": load_descriptors(self.images_dir(dataset_id), keys),
+        }
+
+    def preview_quality(self, dataset_id: str, thresholds: Mapping[str, float]) -> dict[str, Any]:
+        """R-VQT-01: what the rules would say with these thresholds (and the labels of the
+        draft), next to what they say now; nothing is written."""
         import pyarrow.parquet as pq
+        from quantilo.vision.edits import Edits, edited_table
+
+        record = self._ready(dataset_id)
+        try:
+            table = pq.read_table(record.storage_path)
+            data = self._read_decisions(dataset_id)
+            inputs = self._quality_inputs(dataset_id, record, table, thresholds)
+        except ValueError as error:
+            raise AppError(str(error), code="invalid_thresholds", status_code=422) from error
+        _, found = edited_table(table, Edits(labels=data["labels"]["draft"]), **inputs)
+        assert found is not None
+        report = self.report(dataset_id)
+        current = report.get("quality") or {}
+        return {
+            "quality": found.to_dict(),
+            "counts": {f.code: f.count for f in found.findings},
+            "current_counts": {f["code"]: f["count"] for f in current.get("findings", [])},
+            "current_flagged": int(current.get("flagged") or 0),
+            "current_excluded": int(current.get("excluded") or 0),
+        }
+
+    def apply_decisions(self, dataset_id: str) -> dict[str, Any]:
+        """Save the draft as a new version of the set (R-108-06, R-VQT-02): the table is written
+        again with every edit, the R-VQ rules run again when labels or thresholds changed, then
+        the steps of a reimport (previous version kept, types kept, 031 photo), so Changes
+        compares it with the previous version like any other. The thresholds become the set's own
+        import options: a reimport uses them."""
+        import pyarrow.parquet as pq
+        from quantilo.vision.edits import Edits, edited_table
 
         record = self._ready(dataset_id)
         with self._decisions_lock:
             data = self._read_decisions(dataset_id)
-            if self._summary(dataset_id, data)["pending"] == 0:
+            pending = self._pending(data)
+            if sum(pending.values()) == 0:
                 raise AppError("No decision to save.", code="no_decision", status_code=409)
             target = Path(record.storage_path)
-            table = decided_table(pq.read_table(target), data["draft"])
+            source = pq.read_table(target)
+            reassess = bool(pending["labels"] or pending["thresholds"])
+            thresholds = data["thresholds"]["draft"]
+            inputs = (
+                self._quality_inputs(dataset_id, record, source, thresholds) if reassess else {}
+            )
+            edits = Edits(data["draft"], data["labels"]["draft"], data["pins"]["draft"])
+            table, found = edited_table(source, edits, reassess=reassess, **inputs)
             partial = target.with_name(target.name + ".decided")
             pq.write_table(table, partial)
             for step in self.datasets.before_reimport:
@@ -644,41 +750,74 @@ class ImageSetService:
                 except Exception:
                     logger.exception("Pre-version step failed for image set %s", dataset_id)
             partial.replace(target)
+            if found is not None:
+                self._replace_quality(dataset_id, found)
             for step in self.datasets.after_import:
                 try:
                     step(dataset_id, str(target))
                 except Exception:
                     logger.exception("Post-version step failed for image set %s", dataset_id)
             stamp = now()
+            changes: dict[str, Any] = {
+                "col_count": table.num_columns,
+                "size_bytes": target.stat().st_size,
+                "imported_at": stamp,
+            }
+            if pending["thresholds"] and record.options:
+                options = ImageImportOptions.from_json(record.options)
+                options.thresholds = dict(thresholds)
+                changes["options"] = options.to_json()
             with self._db() as connection:
-                repo.update_dataset(
-                    connection,
-                    dataset_id,
-                    col_count=table.num_columns,
-                    size_bytes=target.stat().st_size,
-                    imported_at=stamp,
-                )
+                repo.update_dataset(connection, dataset_id, **changes)
             data["applied"] = dict(data["draft"])
+            for name in ("labels", "pins", "thresholds"):
+                data[name]["applied"] = dict(data[name]["draft"])
             self._write_decisions(dataset_id, data)
         excluded = sum(1 for value in table["excluded"].to_pylist() if value)
         return {
             "version": self._version(dataset_id),
             "excluded": excluded,
             "decided": len(data["applied"]),
+            "relabelled": len(data["labels"]["applied"]),
+            "pinned": len(data["pins"]["applied"]),
+            "reassessed": found is not None,
         }
 
-    def _reapply(self, dataset_id: str, target: Path) -> None:
-        """At a reimport, the saved decisions go back on the new table by `rel_path`; an image no
-        longer there is ignored."""
-        import pyarrow.parquet as pq
-
-        applied = self._read_decisions(dataset_id)["applied"]
-        if not applied or not target.is_file():
+    def _replace_quality(self, dataset_id: str, found: Any) -> None:
+        path = self.report_path(dataset_id)
+        if not path.is_file():
             return
-        table = decided_table(pq.read_table(target), applied)
+        report = json.loads(path.read_text(encoding="utf-8"))
+        report["quality"] = found.to_dict()
+        partial = path.with_name(path.name + ".partial")
+        partial.write_text(json.dumps(report), encoding="utf-8")
+        partial.replace(path)
+
+    def _reapply(self, dataset_id: str, target: Path, options: ImageImportOptions) -> Any:
+        """At a reimport, the saved edits go back on the new table by `rel_path` (an image no
+        longer there is ignored); with edited labels the rules run again (R-VED-02). Returns the
+        new quality report, or None when the import's own stands."""
+        import pyarrow.parquet as pq
+        from quantilo.vision.edits import Edits, edited_table
+
+        if not self.decisions_path(dataset_id).is_file() or not target.is_file():
+            return None
+        data = self._read_decisions(dataset_id)
+        labels, pins = data["labels"]["applied"], data["pins"]["applied"]
+        if not (data["applied"] or labels or pins):
+            return None
+        record = self.datasets.get(dataset_id)
+        table = pq.read_table(target)
+        inputs = (
+            self._quality_inputs(dataset_id, record, table, options.thresholds) if labels else {}
+        )
+        edited, found = edited_table(
+            table, Edits(data["applied"], labels, pins), reassess=bool(labels), **inputs
+        )
         partial = target.with_name(target.name + ".decided")
-        pq.write_table(table, partial)
+        pq.write_table(edited, partial)
         partial.replace(target)
+        return found
 
 
 def _column_count(path: Path) -> int:
@@ -687,4 +826,4 @@ def _column_count(path: Path) -> int:
     return len(pq.read_schema(path).names)
 
 
-__all__ = ["FORMAT", "ImageImportOptions", "ImageSetService", "decided_table"]
+__all__ = ["FORMAT", "ImageImportOptions", "ImageSetService"]

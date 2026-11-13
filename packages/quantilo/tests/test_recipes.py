@@ -389,3 +389,46 @@ def test_a_recipe_keeps_the_forecast_drivers(tmp_path: Path) -> None:
     assert all(s.status in ("done", "warning") for s in report.steps)
     script = recipe.to_python(str(sample))
     assert "drivers=[" in script and "'units'" in script and "'flag'" in script
+
+
+def test_a_kpi_crossing_its_target_between_two_runs_is_said() -> None:
+    """061 bis, R-GOAL-04: reached or missed since the previous run, said with the numbers."""
+    from quantilo.recipes.run import KeyFigure, goal_crossing
+
+    crossed, said = goal_crossing("Revenue", 1.04, 0.92, "Dec 2025")
+    assert crossed == "reached"
+    assert said == (
+        "◎ Revenue reached its target: 104% of target in Dec 2025, 92% at the previous run "
+        "(R-GOAL-04)"
+    )
+    assert goal_crossing("Revenue", 0.9, 1.1, None)[0] == "missed"
+    assert goal_crossing("Revenue", 1.2, 1.1, None)[0] is None
+    assert goal_crossing("Revenue", None, 1.1, None) == (None, None)
+    first = [KeyFigure("s1", "s1", "kpi", "Revenue", 92.0, attained=0.92, period="Nov")]
+    second = [KeyFigure("s1", "s1", "kpi", "Revenue", 104.0, attained=1.04, period="Dec")]
+    (change,) = compare_figures(second, first)
+    assert change.crossed == "reached" and change.previous_attained == 0.92
+    assert change.goal and "reached its target" in change.goal
+
+
+def test_a_replayed_kpi_with_a_target_carries_its_attainment(recipe: Recipe, cache: Path) -> None:
+    """The KPI step reads its tile's goal (R-GOAL-02, a typed target) into the key figure."""
+    from quantilo.recipes.run import kpi_figure
+
+    october = open_csv(sales_frame(1), cache, "goal")
+    definition = {**REVENUE, "goal": {"measure": "m1", "value": 1000.0}}
+    result = october.kpi(definition)
+    step = next(s for s in recipe.steps if s.kind == "kpi")
+    figure = kpi_figure(step, result)  # type: ignore[arg-type]
+    assert figure.attained == pytest.approx(result.tiles[0].goal.attained)  # type: ignore[union-attr]
+    assert figure.attained == pytest.approx(result.tiles[0].value / 1000.0)  # type: ignore[operator]
+
+
+def test_a_name_cannot_declare_the_script_encoding() -> None:
+    """PEP 263: 'coding=utf-7' in the first two lines would change how Python reads the script."""
+    from quantilo.recipes.script import ENCODING_LINE, comment
+
+    line = comment("Sales coding=utf-7 +AAo-import os")
+    assert line == "# Sales coding =utf-7 +AAo-import os"
+    assert comment("plain") == "# plain"
+    assert ENCODING_LINE == "# -*- coding: utf-8 -*-"

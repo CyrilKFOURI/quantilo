@@ -1,0 +1,9 @@
+{
+ "label": "dvf",
+ "corpus": "data-corpus",
+ "path": "real_estate/fr_dvf_2024/dvf_2024_head.csv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+ ]
+}

@@ -3,15 +3,15 @@ parent row, plus the parent rows removed and the step that removed them). The pa
 read; both files are written beside their target then renamed, so a failure leaves nothing."""
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
 import duckdb
 
-from quantilo.cleaning.compile import ROW, compile_steps
+from quantilo.cleaning.compile import ROW, Compiled, compile_steps
 from quantilo.cleaning.model import CleanError
-from quantilo.cleaning.preview import compare
+from quantilo.cleaning.preview import CleanPreview, compare
 from quantilo.cleaning.report import CleanReport, StepReport
 from quantilo.ingestion.sql import ident, lit
 
@@ -28,9 +28,10 @@ def apply_steps(
     target: Path,
     rowmap: Path,
     stopped: Callable[[], bool] = lambda: False,
+    sources: Mapping[str, str] | None = None,
 ) -> CleanReport:
     started = time.monotonic()
-    compiled = compile_steps(connection, parquet_path, steps, strict=True)
+    compiled = compile_steps(connection, parquet_path, steps, strict=True, sources=sources)
     if stopped():
         raise CleanCancelled
     overall = compare(connection, compiled, 0, -1)
@@ -48,6 +49,11 @@ def apply_steps(
         )
         if stopped():
             raise CleanCancelled
+        reshaping = compiled.reshaped()
+        if reshaping is not None:  # C-59: no row of the child comes from one parent row
+            rowmap.unlink(missing_ok=True)
+            data_partial.replace(target)
+            return _report(compiled, overall, {}, started, reshaping.step.id)
         final = compiled.final.name
         parts = [
             f"SELECT CAST(row_number() OVER (ORDER BY {row}) - 1 AS BIGINT) AS child_row, "
@@ -79,6 +85,16 @@ def apply_steps(
     finally:
         data_partial.unlink(missing_ok=True)
         map_partial.unlink(missing_ok=True)
+    return _report(compiled, overall, removed_by, started, None)
+
+
+def _report(
+    compiled: Compiled,
+    overall: CleanPreview,
+    removed_by: dict[Any, Any],
+    started: float,
+    reshaped_by: str | None,
+) -> CleanReport:
     return CleanReport(
         rows_before=overall.rows_before,
         rows_after=overall.rows_after,
@@ -100,4 +116,5 @@ def apply_steps(
         added=overall.added,
         dropped=overall.dropped,
         seconds=round(time.monotonic() - started, 2),
+        reshaped_by=reshaped_by,
     )

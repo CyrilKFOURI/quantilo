@@ -2,16 +2,20 @@
 independent (rows, whole clusters, or blocks of a series), the wild cluster bootstrap tests each
 coefficient when the clusters are few, and the Freedman–Lane permutation tests one coefficient
 without assuming normal errors. 999 draws, seeded; beyond 5·10⁷ resampled values, "m out of n"
-as in `compare/bootstrap.py`. Rules R-REG-RS-01…05.
+as in `compare/bootstrap.py`. Rules R-REG-RS-01…07: a logistic, Poisson or other non-linear
+family is refitted on 199 draws (R-REG-RS-06); two-way clustered errors take the two-way wild
+bootstrap (R-REG-RS-07).
 
 Everything is numpy / scipy on one thread: Pyodide-compatible."""
 
 import math
+import warnings
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
-from scipy import stats
+from scipy import sparse, stats
 
 from quantilo.compare import bootstrap as bs
 from quantilo.regression import analyze as an
@@ -25,6 +29,9 @@ FEW_CLUSTERS = 40  # R-REG-SE-03
 WEBB_BELOW = 12  # R-REG-RS-03
 MAX_TERMS = 20
 LEAST_SQUARES = ("ols", "wls", "log_ols", "boxcox")
+NONLINEAR = ("logit", "probit", "poisson", "negbin", "gamma", "fractional")  # R-REG-RS-06
+NONLINEAR_DRAWS = 199  # R-REG-RS-06: each draw refits the model
+NONLINEAR_ROWS = 20_000  # rows a draw at most ("m out of n" beyond)
 WEBB = np.array([-math.sqrt(1.5), -1.0, -math.sqrt(0.5), math.sqrt(0.5), 1.0, math.sqrt(1.5)])
 
 Scheme = Literal["pairs", "cluster", "block"]
@@ -71,14 +78,20 @@ class ResamplingTable:
     permutation_reason: str = ""
     sentence: str = ""
     notes: list[str] = field(default_factory=list)
+    family: str | None = None  # R-REG-RS-06: the non-linear family refitted on each draw
+    wild_two_way: bool = False  # R-REG-RS-07
 
 
 def _unavailable(fit: an.Fitted) -> str | None:
+    if fit.model in NONLINEAR:
+        n, k = fit.design.x.shape
+        return None if n >= max(20, 2 * k + 5) else f"{n} rows for {k} terms: too few."
     if fit.ls is None or fit.model not in LEAST_SQUARES:
         label = fit.family.label if fit.family is not None else fit.model
         return (
-            "Resampling is offered for a number explained by least squares; the "
-            f"{label} model keeps its robust standard errors."
+            "Resampling is offered for least squares and the logistic, probit, Poisson, "
+            f"negative binomial, gamma and fractional models; the {label} model keeps its "
+            "robust standard errors."
         )
     n, k = fit.design.x.shape
     if n < max(20, 2 * k + 5):
@@ -121,7 +134,7 @@ def _solve(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     return np.linalg.lstsq(x, y, rcond=None)[0]
 
 
-def _counted(x: np.ndarray, y: np.ndarray, rows: np.ndarray) -> np.ndarray:
+def _least(x: np.ndarray, y: np.ndarray, rows: np.ndarray) -> np.ndarray:
     """Least squares on the drawn rows, each counted as often as drawn: (X'CX)⁻¹ X'Cy, no copy
     of the rows; a draw that leaves a level out falls back to the pseudo-inverse."""
     c = np.bincount(rows, minlength=len(y)).astype(float)
@@ -140,26 +153,34 @@ def bootstrap(
     codes: np.ndarray | None = None,
     draws: int = DRAWS,
     seed: int = SEED,
+    refit: Callable[[np.ndarray], np.ndarray] | None = None,
+    center: np.ndarray | None = None,
+    budget: int = BUDGET,
 ) -> tuple[np.ndarray, int]:
     """`draws` × k coefficients, the deviations from the full fit scaled by √(m/n) when only m
-    of the n rows (or clusters) are drawn each time (R-REG-RS-02)."""
+    of the n rows (or clusters) are drawn each time (R-REG-RS-02). `refit` (the drawn rows →
+    coefficients) replaces least squares for a non-linear family (R-REG-RS-06)."""
     n = len(y)
-    beta = _solve(x, y)
+    beta = _solve(x, y) if center is None else center
     rng = np.random.default_rng(seed)
+
+    def _counted(x: np.ndarray, y: np.ndarray, rows: np.ndarray) -> np.ndarray:
+        return refit(rows) if refit is not None else _least(x, y, rows)
+
     found = np.empty((draws, x.shape[1]))
     if scheme == "cluster" and codes is not None:
         order = np.argsort(codes, kind="stable")
         starts = np.flatnonzero(np.r_[True, np.diff(codes[order]) != 0])
         members = np.split(order, starts[1:])
         g = len(members)
-        m = min(g, max(2, BUDGET // (draws * max(n // g, 1))))
+        m = min(g, max(2, budget // (draws * max(n // g, 1))))
         for b in range(draws):
             rows = np.concatenate([members[i] for i in rng.integers(0, g, m)])
             found[b] = _counted(x, y, rows)
         units = g
     elif scheme == "block":
         length = block_length(n)
-        m = min(n, BUDGET // draws)
+        m = min(n, budget // draws)
         blocks = math.ceil(m / length)
         for b in range(draws):
             first = rng.integers(0, n - length + 1, blocks)
@@ -167,7 +188,7 @@ def bootstrap(
             found[b] = _counted(x, y, rows)
         units = n
     else:
-        m = min(n, BUDGET // draws)
+        m = min(n, budget // draws)
         for b in range(draws):
             rows = rng.integers(0, n, m)
             found[b] = _counted(x, y, rows)
@@ -175,6 +196,133 @@ def bootstrap(
     if m < units:
         found = beta + (found - beta) * math.sqrt(m / units)
     return found, m
+
+
+def _family(kind: str, alpha: float | None) -> Any:
+    import statsmodels.api as sm
+
+    families: dict[str, Any] = {
+        "logit": lambda: sm.families.Binomial(),
+        "fractional": lambda: sm.families.Binomial(),
+        "probit": lambda: sm.families.Binomial(sm.families.links.Probit()),
+        "poisson": lambda: sm.families.Poisson(),
+        "gamma": lambda: sm.families.Gamma(sm.families.links.Log()),
+        "negbin": lambda: sm.families.NegativeBinomial(alpha=alpha or 1.0),
+    }
+    return families[kind]()
+
+
+def glm_refit(
+    kind: str,
+    x: np.ndarray,
+    y: np.ndarray,
+    start: np.ndarray,
+    offset: np.ndarray | None = None,
+    weights: np.ndarray | None = None,
+    alpha: float | None = None,
+) -> Callable[[np.ndarray], np.ndarray]:
+    """R-REG-RS-06: the drawn rows → the family's coefficients (statsmodels GLM, each drawn
+    row counted as often as drawn, from the full fit's coefficients; the negative binomial keeps
+    the full fit's α). A draw that does not converge (separation) gives NaN."""
+    import statsmodels.api as sm
+
+    family = _family(kind, alpha)
+
+    def refit(rows: np.ndarray) -> np.ndarray:
+        counts = np.bincount(rows, minlength=len(y)).astype(float)
+        kept = counts > 0
+        try:
+            with warnings.catch_warnings(), np.errstate(all="ignore"):
+                warnings.simplefilter("ignore")
+                model = sm.GLM(
+                    y[kept],
+                    x[kept],
+                    family=family,
+                    offset=offset[kept] if offset is not None else None,
+                    freq_weights=counts[kept],
+                    var_weights=weights[kept] if weights is not None else None,
+                )
+                found: Any = model.fit(start_params=start, maxiter=50)
+            beta = np.asarray(found.params, dtype=float)
+            return beta if np.all(np.isfinite(beta)) else np.full(len(start), np.nan)
+        except (ValueError, np.linalg.LinAlgError, OverflowError):
+            return np.full(len(start), np.nan)
+
+    return refit
+
+
+def wild_two_way(
+    x: np.ndarray,
+    y: np.ndarray,
+    first: np.ndarray,
+    second: np.ndarray,
+    columns: list[int],
+    draws: int = DRAWS,
+    seed: int = SEED,
+) -> tuple[list[float | None], str, bool]:
+    """R-REG-RS-07: wild restricted bootstrap-t with two-way clustered errors (MacKinnon,
+    Nielsen & Webb 2021): the weights are drawn on the dimension with fewer clusters, and each
+    draw's variance is that of Cameron, Gelbach & Miller, V₁ + V₂ − V₁∩₂, each with its CR1
+    factor. β*_j and the residuals are linear in the weights, so no row is refitted; the scores
+    are summed per cluster by sparse indicator matrices, draws in chunks."""
+    n, k = x.shape
+    _, c1 = np.unique(first, return_inverse=True)
+    _, c2 = np.unique(second, return_inverse=True)
+    g1, g2 = int(c1.max()) + 1, int(c2.max()) + 1
+    _, c12 = np.unique(c1 * g2 + c2, return_inverse=True)
+    g12 = int(c12.max()) + 1
+    swapped = g2 < g1
+    if swapped:  # weights on the smaller dimension
+        c1, c2, g1, g2 = c2, c1, g2, g1
+    bread = np.linalg.pinv(x.T @ x)
+    p_matrix = bread @ x.T
+    beta = p_matrix @ y
+    rng = np.random.default_rng(seed)
+    if g1 < WEBB_BELOW:
+        v = WEBB[rng.integers(0, 6, (g1, draws))]
+        label = "Webb"
+    else:
+        v = rng.choice(np.array([-1.0, 1.0]), (g1, draws))
+        label = "Rademacher"
+    factors = [g / max(g - 1, 1) * (n - 1) / max(n - k, 1) for g in (g1, g2, g12)]
+    rows = np.arange(n)
+    found: list[float | None] = []
+    chunk = max(1, CHUNK // max(n, 1))
+    for j in columns:
+        c = p_matrix[j]
+        indicators = [
+            sparse.csr_matrix((c, (codes, rows)), shape=(g, n))
+            for codes, g in ((c1, g1), (c2, g2), (c12, g12))
+        ]
+
+        def variance(e: np.ndarray, indicators: list[Any] = indicators) -> np.ndarray:
+            sums = [np.asarray(m @ e) for m in indicators]  # e: n × b residuals → b variances
+            return (
+                factors[0] * (sums[0] ** 2).sum(axis=0)
+                + factors[1] * (sums[1] ** 2).sum(axis=0)
+                - factors[2] * (sums[2] ** 2).sum(axis=0)
+            )
+
+        resid = y - x @ beta
+        observed = float(variance(resid[:, None])[0])
+        if observed <= 0:
+            found.append(None)
+            continue
+        t = beta[j] / math.sqrt(observed)
+        rest = np.delete(x, j, axis=1)
+        restricted = y - rest @ _solve(rest, y)
+        beyond = 0
+        for start in range(0, draws, chunk):
+            weights = v[:, start : start + chunk]
+            star = restricted[:, None] * weights[c1]  # restricted residuals × the weights
+            e = star - x @ (p_matrix @ star)  # the residuals of the refit on y*
+            stars = c @ star
+            spread = variance(e)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                t_star = np.where(spread > 0, stars / np.sqrt(np.clip(spread, 0, None)), 0.0)
+            beyond += int((np.abs(t_star) >= abs(t) - 1e-12).sum())
+        found.append((beyond + 1) / (draws + 1))
+    return found, label, not swapped
 
 
 def wild_cluster(
@@ -283,6 +431,8 @@ def section(fit: an.Fitted) -> ResamplingTable:
     missing = _unavailable(fit)
     if missing is not None:
         return ResamplingTable(False, missing)
+    if fit.model in NONLINEAR:
+        return _nonlinear(fit)
     assert fit.ls is not None
     a = fit.ls.arrays
     x, y = a.x, a.x @ fit.ls.beta + a.e  # weighted rows: WLS is OLS on them
@@ -331,6 +481,31 @@ def section(fit: an.Fitted) -> ResamplingTable:
         else:
             table.wild_reason = (
                 f"{g} clusters: enough for the clustered standard errors; no wild bootstrap."
+            )
+    elif fit.se.kind == "cluster2" and fit.grouping.entity_codes is not None:
+        entity, period = fit.grouping.entity_codes, fit.grouping.period_codes
+        assert period is not None
+        sizes = (len(np.unique(entity)), len(np.unique(period)))
+        smaller = min(sizes)
+        if smaller <= WILD_CLUSTERS:
+            p_values, label, on_entity = wild_two_way(x, y, entity, period, own)
+            for term, p in zip(terms[1:], p_values, strict=True):
+                term.wild_p = p
+            table.wild, table.weights, table.wild_two_way = True, label, True
+            table.clusters = smaller
+            name = (
+                fit.inputs.shape.entity if on_entity else fit.inputs.shape.period
+            ) or "the smaller dimension"
+            table.wild_reason = (
+                f"R-REG-RS-07: errors clustered two ways ({sizes[0]} × {sizes[1]}); the wild "
+                f"bootstrap draws its {label} weights by `{name}` ({smaller} clusters, the "
+                "fewer) and recomputes the two-way variance at each draw (MacKinnon, Nielsen & "
+                "Webb 2021)."
+            )
+        else:
+            table.wild_reason = (
+                f"Both dimensions have more than {WILD_CLUSTERS} clusters: enough for the two-way "
+                "clustered errors; no wild bootstrap."
             )
     else:
         table.wild_reason = "The wild cluster bootstrap is for clustered standard errors."
@@ -410,3 +585,82 @@ def _sentence(table: ResamplingTable) -> str:
         f"The resampled intervals disagree with the first plane on {names}: trust the "
         "resampling there, it leans on no formula (R-REG-RS-05)."
     )
+
+
+def _nonlinear(fit: an.Fitted) -> ResamplingTable:
+    """R-REG-RS-06: a non-linear family is refitted on each draw (199 draws, at most 20 000 rows
+    a draw), from the full fit's coefficients; no wild bootstrap nor permutation, which rest on
+    linear residuals."""
+    x, y = fit.design.x, fit.design.y
+    n, k = x.shape
+    if fit.logit is not None:
+        start, offset, alpha = fit.logit.beta, None, None
+    else:
+        assert fit.glm is not None
+        start, offset, alpha = fit.glm.beta, fit.glm.offset, fit.glm.alpha
+    weights = None
+    if fit.inputs.weight_values is not None and fit.model in ("poisson", "gamma", "fractional"):
+        weights = np.asarray(fit.inputs.weight_values, dtype=float)[fit.design.used]
+    scheme, why = scheme_of(fit)
+    codes = _codes(fit)
+    refit = glm_refit(fit.model, x, y, np.asarray(start, dtype=float), offset, weights, alpha)
+    reps, m = bootstrap(
+        x,
+        y,
+        scheme,
+        codes if scheme == "cluster" else None,
+        NONLINEAR_DRAWS,
+        refit=refit,
+        center=np.asarray(start, dtype=float),
+        budget=NONLINEAR_DRAWS * NONLINEAR_ROWS,
+    )
+    failed = int(np.isnan(reps).any(axis=1).sum())
+    good = reps[~np.isnan(reps).any(axis=1)]
+    se = np.sqrt(np.clip(np.diag(fit.covariance), 0, None))
+    crit = 1.959963984540054
+    terms: list[ResampledTerm] = []
+    for j in range(min(k, MAX_TERMS + 1)):
+        b = float(start[j])
+        has = se[j] > 0
+        enough = len(good) >= 20
+        lo, hi = np.quantile(good[:, j], [0.025, 0.975]) if enough else (np.nan, np.nan)
+        terms.append(
+            ResampledTerm(
+                fit.design.terms[j],
+                b,
+                b - crit * se[j] if has else None,
+                b + crit * se[j] if has else None,
+                float(2 * stats.norm.sf(abs(b / se[j]))) if has else None,
+                float(np.std(good[:, j], ddof=1)) if enough else None,
+                float(lo) if enough else None,
+                float(hi) if enough else None,
+            )
+        )
+    label = fit.family.label if fit.family is not None else fit.model
+    table = ResamplingTable(
+        True,
+        "",
+        scheme,
+        why,
+        NONLINEAR_DRAWS,
+        n,
+        m,
+        terms,
+        notes=_notes(fit, scheme, m, n, codes),
+        family=label,
+    )
+    table.notes.insert(
+        0,
+        f"R-REG-RS-06: the {label} model is refitted on each of {NONLINEAR_DRAWS} draws (fewer "
+        "than for least squares: each draw costs a fit), from the full fit's coefficients; the "
+        "intervals are on the scale of the coefficients (log-odds, log of the rate).",
+    )
+    if failed:
+        table.notes.append(
+            f"{failed} draws did not converge (a level absent, or classes separated) and are left "
+            "out."
+        )
+    table.wild_reason = "The wild bootstrap rests on linear residuals: least squares only."
+    table.permutation_reason = "The permutation test rests on linear residuals: least squares only."
+    table.sentence = _sentence(table)
+    return table

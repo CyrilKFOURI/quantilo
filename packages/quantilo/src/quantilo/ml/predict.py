@@ -34,6 +34,7 @@ from quantilo.compare.analyze import label_sql, number_label_sql
 from quantilo.filters.model import Condition
 from quantilo.ml import classes as binning
 from quantilo.ml import conformal as intervals
+from quantilo.ml import counterfactual as whatif
 from quantilo.ml import data as ml_data
 from quantilo.ml import evaluate
 from quantilo.ml import explain as explainer
@@ -1103,6 +1104,85 @@ def explain_row(
     if rest:
         steps.append(Contribution(f"{len(rest)} other features", sum(values[j] for j in rest)))
     return RowExplanation(row, shap.method, shap.scale, shap.base, shap.positive, steps, None)
+
+
+def _first_and_sample(
+    connection: duckdb.DuckDBPyConnection,
+    source: str,
+    card: ModelCard,
+    views: list[Any],
+    row: int,
+) -> pd.DataFrame:
+    """The row first, then up to 2 000 rows of the same data drawn with a seed."""
+    return read_rows(
+        connection,
+        source,
+        card,
+        views,
+        order=f"ORDER BY (file_row_number = {int(row)}) DESC, hash(file_row_number + {SEED})",
+        limit=f"LIMIT {EXPLAIN_ROWS}",
+    )
+
+
+def counterfactual_row(
+    connection: duckdb.DuckDBPyConnection,
+    source: str,
+    pipeline: Any,
+    card: ModelCard,
+    views: list[Any],
+    row: int,
+    editable: list[str] | None = None,
+    target_class: str | None = None,
+    target_value: float | None = None,
+    max_changes: int = whatif.MAX_CHANGES,
+) -> whatif.Counterfactual:
+    """R-XAI-21 (125 bis): what would change the prediction of one row of the new data. The
+    values tried and the nearest real row come from up to 2 000 rows of that same data (drawn
+    with a seed), not from the training rows: a change is judged plausible against the data the
+    model is used on."""
+    data = _first_and_sample(connection, source, card, views, row)
+    if data.empty or int(data["__row"].iloc[0]) != row:
+        raise whatif.CounterfactualError("This row is not in the data.")
+    x = cast(pd.DataFrame, data[[c.name for c in card.columns]])
+    rows = data["__row"].to_numpy(dtype=int)
+    found = whatif.counterfactual(
+        pipeline,
+        x,
+        rows,
+        card.task,
+        row,
+        [_field(c) for c in card.columns],
+        set(textual.steps_of(pipeline)),
+        editable,
+        target_class,
+        target_value,
+        max_changes,
+        card.threshold,
+        card.positive,
+    )
+    found.plausibility = (
+        f"{found.plausibility} Compared with {len(x):,} rows of this data (R-XAI-21)."
+    ).strip()
+    return found
+
+
+def one_row(
+    connection: duckdb.DuckDBPyConnection,
+    source: str,
+    card: ModelCard,
+    views: list[Any],
+    row: int,
+) -> pd.DataFrame:
+    """One row of the new data, read as the model reads it (R-XAI-18)."""
+    data = read_rows(
+        connection,
+        source,
+        card,
+        views,
+        where=f"WHERE file_row_number = {int(row)}",
+        limit="LIMIT 1",
+    )
+    return data.reset_index(drop=True)
 
 
 # --- Exporting the model -------------------------------------------------------------------------

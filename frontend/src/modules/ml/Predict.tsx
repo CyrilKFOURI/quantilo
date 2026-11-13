@@ -11,6 +11,7 @@ import {
   useMlCheck,
   useMlPredict,
   useMlPrediction,
+  useMlPredictionRowCard,
   useMlPredictionRowExplanation,
   useMlPredictionRows,
   useMlPredictions,
@@ -23,6 +24,7 @@ import { t, type MessageKey } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
 import { Checkbox, ErrorNote, Field, ProgressBar, Select } from "../../ui/fields";
+import { WhatWouldChange } from "./Counterfactual";
 import { waterfallFigure } from "./figures";
 import { intervalExplain, intervalValue } from "./IntervalNote";
 import { distributionFigure } from "./predictFigures";
@@ -459,7 +461,13 @@ function PredictionTable({ datasetId, run, prediction }: { datasetId: string; ru
   const at = (name: string) => data?.columns.indexOf(name) ?? -1;
   return (
     <div className="space-y-2">
-      {row !== null && <PredictedRowExplanation datasetId={datasetId} predictionId={prediction.id} row={row} />}
+      {row !== null && (
+        <div className="space-y-2">
+          <PredictedRowExplanation datasetId={datasetId} predictionId={prediction.id} row={row} />
+          {run.task === "binary" && <PredictedRowCard key={row} datasetId={datasetId} predictionId={prediction.id} row={row} />}
+          <WhatWouldChange key={`w${row}`} datasetId={datasetId} run={run} row={row} predictionId={prediction.id} />
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-ink-3">
         <span className="flex items-center gap-4">
           <span>{t("ml.predict.rowsHint")}</span>
@@ -556,6 +564,36 @@ function Cell({ value, name }: { value: unknown; name: string }) {
   if (name === "less_reliable") return <>{value === true ? t("ml.predict.yes") : ""}</>;
   if (typeof value === "number") return <>{name.startsWith("p(") ? `${(value * 100).toFixed(1)} %` : formatNumber(value)}</>;
   return <>{String(value)}</>;
+}
+
+/** 121 bis (R-XAI-18): the run's scorecard read on one predicted row, folded and asked for on
+ *  opening (the card is computed once for the run, then kept). */
+function PredictedRowCard({ datasetId, predictionId, row }: { datasetId: string; predictionId: string; row: number }) {
+  const [open, setOpen] = useState(false);
+  const found = useMlPredictionRowCard(datasetId, predictionId, row, open);
+  return (
+    <details className="border-t border-line pt-2 text-xs" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="cursor-pointer text-[13px] text-accent select-none hover:underline">{t("ml.predict.card")}</summary>
+      {open &&
+        (found.isError ? (
+          <ErrorNote>{found.error.message}</ErrorNote>
+        ) : !found.data ? (
+          <Loading label={t("ml.scorecard.computing")} compact className="mt-2 h-16 rounded-md" />
+        ) : (
+          <div className="mt-2 space-y-2">
+            <p className="max-w-prose text-[13px] text-ink-1">{found.data.sentence}</p>
+            <ul className="max-w-md space-y-0.5 font-mono text-xs tabular-nums">
+              {found.data.lines.map((line) => (
+                <li key={line.condition} className="flex justify-between gap-3 border-t border-line py-1">
+                  <span className="text-ink-1">{line.condition}</span>
+                  <span className="font-semibold text-ink-1">{line.points > 0 ? `+${line.points}` : line.points}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+    </details>
+  );
 }
 
 /** The waterfall of one predicted row, as on the Predictions tab (020). */

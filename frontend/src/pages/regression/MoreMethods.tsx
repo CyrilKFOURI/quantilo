@@ -14,7 +14,10 @@ import type {
   RegressionMixed,
   RegressionOutputs,
   RegressionParams,
+  RegressionRegimes,
   RegressionTobit,
+  RegressionTwoPass,
+  RegressionVarying,
 } from "../../api/client";
 import { useRegressionMethod, useRegressionMethods } from "../../api/hooks";
 import { formatNumber } from "../../charts/figures";
@@ -24,7 +27,7 @@ import { formatCount } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { ErrorNote, Field, Select } from "../../ui/fields";
 import { Loading } from "../../ui/Loading";
-import { curvesFigure } from "./figures";
+import { curvesFigure, driftFigure, regimesFigure, survivalFigure } from "./figures";
 import { Sentence } from "./Sentence";
 
 const th = "px-3 py-1.5 font-normal";
@@ -33,6 +36,7 @@ const field = "h-8 w-full min-w-0 text-[13px]";
 const RULE = "__rule";
 const NONE = "__none";
 const CURVE_HEIGHT = 280;
+const SMALL_HEIGHT = 220;
 const SHOWN_CURVES = 3;
 
 const interval = (low: number | null | undefined, high: number | null | undefined) => `[${formatNumber(low ?? null)} ; ${formatNumber(high ?? null)}]`;
@@ -192,6 +196,10 @@ function MethodBody({ kind, ...props }: BodyProps & { kind: RegressionMethodKind
       return <Tobit {...props} />;
     case "mixed":
       return <Mixed {...props} />;
+    case "varying":
+      return <Varying {...props} />;
+    case "regimes":
+      return <Regimes {...props} />;
   }
 }
 
@@ -249,6 +257,11 @@ function CrossSection(props: BodyProps) {
                 <th scope="col" className={`${th} text-right`}>ICIR</th>
                 <th scope="col" className={`${th} text-right`}>{t("regression.methods.nwT")}</th>
                 <th scope="col" className={`${th} text-right`}>{t("regression.methods.positive")}</th>
+                {data.weights && (
+                  <th scope="col" className={`${th} text-right`}>
+                    {t("regression.methods.weightedIc")}
+                  </th>
+                )}
               </>
             }
           >
@@ -259,13 +272,52 @@ function CrossSection(props: BodyProps) {
                 <td className={`${td} text-ink-2`}>{formatNumber(ic.icir)}</td>
                 <td className={`${td} ${ic.ranks ? "text-ink-1" : "text-ink-2"}`}>{formatNumber(ic.t)}</td>
                 <td className={`${td} text-ink-2`}>{Math.round(ic.positive * 100)} %</td>
+                {data.weights && <td className={`${td} text-ink-1`}>{ic.weighted === null ? "—" : ic.weighted.toFixed(3)}</td>}
               </tr>
             ))}
           </Table>
         </div>
       )}
+      {data.two_pass ? <TwoPassTable passes={data.two_pass} /> : data.two_pass_reason && <p className="text-xs text-ink-3">{data.two_pass_reason}</p>}
       <Notes notes={data.notes} />
     </>
+  );
+}
+
+function TwoPassTable({ passes }: { passes: RegressionTwoPass }) {
+  return (
+    <div className="space-y-1.5">
+      <h4 className="text-xs font-medium text-ink-2">{t("regression.methods.twoPass")}</h4>
+      <p className="max-w-prose text-ink-2">
+        <Sentence text={passes.sentence} />
+      </p>
+      <Table
+        head={
+          <>
+            <th scope="col" className={th}>{t("regression.term")}</th>
+            <th scope="col" className={`${th} text-right`}>{t("regression.methods.premium")}</th>
+            <th scope="col" className={`${th} text-right`}>{t("regression.methods.fmSe")}</th>
+            <th scope="col" className={`${th} text-right`}>{t("regression.methods.shankenSe")}</th>
+            <th scope="col" className={`${th} text-right`}>p</th>
+            <th scope="col" className={`${th} text-right`}>{t("regression.methods.factorMean")}</th>
+          </>
+        }
+      >
+        {passes.terms.map((term) => (
+          <tr key={term.term} className="border-t border-line">
+            <td className="px-3 py-1.5 font-mono text-xs">{term.term}</td>
+            <td className={`${td} whitespace-nowrap text-ink-1`}>
+              {formatNumber(term.estimate)} <span className="text-ink-3">{interval(term.ci_low, term.ci_high)}</span>
+            </td>
+            <td className={`${td} text-ink-3`}>{formatNumber(term.fm_se)}</td>
+            <td className={`${td} text-ink-2`}>{formatNumber(term.shanken_se)}</td>
+            <td className={`${td} text-ink-2`}>{formatP(term.p_value)}</td>
+            <td className={`${td} text-ink-2`}>{term.factor_mean === null ? "—" : formatNumber(term.factor_mean)}</td>
+          </tr>
+        ))}
+      </Table>
+      <Notes notes={passes.notes} />
+    </div>
   );
 }
 
@@ -435,7 +487,8 @@ function Components(props: BodyProps) {
 function Measurement(props: BodyProps) {
   const [sigma, setSigma] = useState<string | undefined>(undefined);
   const [sigmaX, setSigmaX] = useState<string | undefined>(undefined);
-  const query = useMethod("measurement", props, { sigma, sigma_x: sigmaX });
+  const [rho, setRho] = useState("");
+  const query = useMethod("measurement", props, rho ? { sigma, sigma_x: sigmaX, rho } : { sigma, sigma_x: sigmaX });
   const data: RegressionMeasurement | undefined = query.data;
   const { offered } = props;
   return (
@@ -443,6 +496,16 @@ function Measurement(props: BodyProps) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <PickSelect label={t("regression.methods.sigma")} value={sigma} onChange={setSigma} rule={offered.sigma?.column ?? null} choices={offered.numbers} />
         <PickSelect label={t("regression.methods.sigmaX")} value={sigmaX} onChange={setSigmaX} rule={offered.sigma_x?.column ?? null} choices={offered.numbers} />
+        <Field label={t("regression.methods.rho")}>
+          <Select aria-label={t("regression.methods.rho")} value={rho} onChange={(event) => setRho(event.target.value)} className={field}>
+            <option value="">{t("regression.methods.none")}</option>
+            {offered.numbers.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </Select>
+        </Field>
       </div>
       {!data ? (
         <Pending error={query.error} />
@@ -557,13 +620,40 @@ function Measurement(props: BodyProps) {
 }
 
 function Curves(props: BodyProps) {
-  const query = useMethod("curves", props);
+  const [draft, setDraft] = useState("");
+  const [formula, setFormula] = useState("");
+  const query = useMethod("curves", props, formula ? { formula } : {});
   const data: RegressionCurves | undefined = query.data;
   const figure = useMemo(() => (data?.available && data.fits.length ? curvesFigure(data, SHOWN_CURVES, data.column ?? "x", props.params.target ?? "y") : null), [data, props.params.target]);
+  const typed = (
+    <form
+      className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        setFormula(draft.trim());
+      }}
+    >
+      <Field label={t("regression.methods.formula")}>
+        <input
+          aria-label={t("regression.methods.formula")}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder="a * exp(-k * x) + c"
+          spellCheck={false}
+          className={`${field} rounded-md border border-line bg-surface-1 px-2 font-mono text-ink-1`}
+        />
+      </Field>
+      <button type="submit" className="h-8 rounded-md border border-line px-3 text-[13px] text-ink-1 hover:text-accent">
+        {t("regression.methods.fit")}
+      </button>
+      <p className="text-xs text-ink-3 sm:col-span-3">{data?.formula_error ?? t("regression.methods.formulaHint")}</p>
+    </form>
+  );
   if (!data) return <Pending error={query.error} />;
   if (!data.available) return <p className="text-ink-2">{data.reason}</p>;
   return (
     <>
+      {typed}
       {data.sentence && (
         <p className="max-w-prose text-ink-2">
           <Sentence text={data.sentence} />
@@ -612,13 +702,27 @@ function Curves(props: BodyProps) {
 
 function Survival(props: BodyProps) {
   const [event, setEvent] = useState<string | undefined>(undefined);
-  const query = useMethod("survival", props, { event });
+  const [strata, setStrata] = useState("");
+  const [start, setStart] = useState<string | undefined>(undefined);
+  const query = useMethod("survival", props, { event, start, ...(strata ? { strata } : {}) });
   const data: RegressionCox | undefined = query.data;
   const { offered } = props;
+  const figure = useMemo(() => (data?.available && data.curves.length ? survivalFigure(data.curves, props.params.target ?? "time") : null), [data, props.params.target]);
   return (
     <>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <PickSelect label={t("regression.methods.event")} value={event} onChange={setEvent} rule={offered.event?.column ?? null} choices={offered.events} allowNone={false} />
+        <Field label={t("regression.methods.strata")}>
+          <Select aria-label={t("regression.methods.strata")} value={strata} onChange={(change) => setStrata(change.target.value)} className={field}>
+            <option value="">{t("regression.methods.none")}</option>
+            {offered.categories.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <PickSelect label={t("regression.methods.start")} value={start} onChange={setStart} rule={offered.start?.column ?? null} choices={offered.numbers} />
       </div>
       {!data ? (
         <Pending error={query.error} />
@@ -656,6 +760,19 @@ function Survival(props: BodyProps) {
           <p className="max-w-prose text-ink-2">
             <Sentence text={data.ph_sentence} />
           </p>
+          {data.strata_hint && (
+            <p className="max-w-prose text-xs text-warn">
+              <Sentence text={data.strata_hint} />
+            </p>
+          )}
+          {figure && (
+            <figure className="min-w-0 space-y-1.5 rounded-lg border border-line bg-surface-1 p-3">
+              <figcaption className="text-xs text-ink-2">
+                <Sentence text={data.curves_sentence} />
+              </figcaption>
+              <Plot figure={figure} height={CURVE_HEIGHT} label={t("regression.methods.survivalChart")} />
+            </figure>
+          )}
           <Notes notes={data.notes} />
         </>
       )}
@@ -738,7 +855,7 @@ function Mixed(props: BodyProps) {
               <>
                 <th scope="col" className={th}>{t("regression.term")}</th>
                 <th scope="col" className={`${th} text-right`}>{t("regression.methods.mixedFixed")}</th>
-                <th scope="col" className={`${th} text-right`}>{t("regression.methods.leastSquares")}</th>
+                <th scope="col" className={`${th} text-right`}>{data.family === "gaussian" ? t("regression.methods.leastSquares") : t("regression.methods.withoutGroups")}</th>
               </>
             }
           >
@@ -754,9 +871,106 @@ function Mixed(props: BodyProps) {
               </tr>
             ))}
           </Table>
-          <p className="text-xs text-ink-3">
-            {t("regression.methods.variances", { between: formatNumber(data.group_variance), within: formatNumber(data.residual_variance), groups: formatCount(data.groups) })}
+          {data.family === "gaussian" && (
+            <p className="text-xs text-ink-3">
+              {t("regression.methods.variances", { between: formatNumber(data.group_variance), within: formatNumber(data.residual_variance), groups: formatCount(data.groups) })}
+            </p>
+          )}
+          <Notes notes={data.notes} />
+        </>
+      )}
+    </>
+  );
+}
+
+// --- 073 ------------------------------------------------------------------------------------------
+
+function Varying(props: BodyProps) {
+  const query = useMethod("varying", props);
+  const data: RegressionVarying | undefined = query.data;
+  const figures = useMemo(() => (data ? data.curves.map((curve) => [curve, driftFigure(curve)] as const) : []), [data]);
+  if (!data) return <Pending error={query.error} />;
+  if (!data.available) return <p className="text-ink-2">{data.reason}</p>;
+  return (
+    <>
+      <p className={`max-w-prose ${data.drifts ? "text-warn" : "text-ink-2"}`}>
+        <Sentence text={data.sentence} />
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {figures.map(([curve, figure]) => (
+          <figure key={curve.term} className="min-w-0 space-y-1.5 rounded-lg border border-line bg-surface-1 p-3">
+            <figcaption className="text-xs text-ink-2">
+              <Sentence text={curve.sentence} />
+            </figcaption>
+            <Plot figure={figure} height={SMALL_HEIGHT} label={t("regression.methods.driftOf", { term: curve.term })} />
+          </figure>
+        ))}
+      </div>
+      {data.shown > data.curves.length && <p className="text-xs text-ink-3">{t("regression.methods.driftShown", { shown: formatCount(data.curves.length), of: formatCount(data.shown) })}</p>}
+      <Notes notes={data.notes} />
+    </>
+  );
+}
+
+function Regimes(props: BodyProps) {
+  const [count, setCount] = useState(2);
+  const query = useMethod("regimes", props, { regimes: count });
+  const data: RegressionRegimes | undefined = query.data;
+  const figure = useMemo(() => (data?.available ? regimesFigure(data) : null), [data]);
+  const terms = data?.regimes[0]?.terms.map((term) => term.term) ?? [];
+  return (
+    <>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Field label={t("regression.methods.regimeCount")}>
+          <Select aria-label={t("regression.methods.regimeCount")} value={String(count)} onChange={(event) => setCount(Number(event.target.value))} className={field}>
+            <option value="2">2</option>
+            <option value="3">3</option>
+          </Select>
+        </Field>
+      </div>
+      {!data ? (
+        <Pending error={query.error} />
+      ) : !data.available ? (
+        <p className="text-ink-2">{data.reason}</p>
+      ) : (
+        <>
+          <p className={`max-w-prose ${data.worth ? "text-ink-1" : "text-ink-2"}`}>
+            <Sentence text={data.sentence} />
           </p>
+          <Table
+            head={
+              <>
+                <th scope="col" className={th}>{t("regression.methods.regime")}</th>
+                <th scope="col" className={`${th} text-right`}>{t("regression.methods.regimeShare")}</th>
+                <th scope="col" className={`${th} text-right`}>{t("regression.methods.regimeDuration")}</th>
+                <th scope="col" className={`${th} text-right`}>σ</th>
+                {terms.map((term) => (
+                  <th key={term} scope="col" className={`${th} text-right font-mono`}>
+                    {term}
+                  </th>
+                ))}
+              </>
+            }
+          >
+            {data.regimes.map((regime) => (
+              <tr key={regime.name} className="border-t border-line">
+                <td className="px-3 py-1.5 text-xs text-ink-1">{regime.name}</td>
+                <td className={`${td} text-ink-2`}>{Math.round(regime.share * 100)} %</td>
+                <td className={`${td} text-ink-2`}>{regime.duration === null ? "—" : formatNumber(regime.duration)}</td>
+                <td className={`${td} text-ink-2`}>{formatNumber(regime.sigma)}</td>
+                {regime.terms.map((term) => (
+                  <td key={term.term} className={`${td} whitespace-nowrap text-ink-1`} title={interval(term.ci_low, term.ci_high)}>
+                    {formatNumber(term.estimate)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </Table>
+          {figure && (
+            <figure className="min-w-0 rounded-lg border border-line bg-surface-1 p-3">
+              <Plot figure={figure} height={CURVE_HEIGHT} label={t("regression.methods.regimesChart")} />
+            </figure>
+          )}
           <Notes notes={data.notes} />
         </>
       )}

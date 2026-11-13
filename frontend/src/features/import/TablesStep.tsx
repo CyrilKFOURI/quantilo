@@ -14,6 +14,7 @@ import { Tabs } from "../../ui/Tabs";
 import { ReadingNotes } from "../readings/ReadingNotes";
 import { PreviewTable } from "./PreviewTable";
 import { gridAreas, SheetGrid } from "./SheetGrid";
+import { StackTables } from "./StackTables";
 import { DOCUMENT_FORMATS, type ImportStepProps } from "./stepTypes";
 
 const LEVEL_CLASS = { high: "text-ok", review: "text-warn", low: "text-ink-3" } as const;
@@ -41,6 +42,29 @@ function manualChoice(sheet: string, range: string): TableChoice {
 
 const RANGE = /^\$?[A-Za-z]{1,3}\$?\d+:\$?[A-Za-z]{1,3}\$?\d+$/;
 
+/** 080's confidence levels: ticked from 0.7 (R-TBL-02), low under 0.4. */
+export const LEVELS = { high: 0.7, review: 0.4 } as const;
+export type Levels = { high: number; review: number };
+
+/** b2 (Advanced › More): the level and the default tick of a table under the user's thresholds.
+ *  A table marked by hand keeps its own (U1: what the user marked is never dropped). */
+export function withLevels(table: TableChoice, levels: Levels, manual: boolean): TableChoice {
+  if (manual || (levels.high === LEVELS.high && levels.review === LEVELS.review)) return table;
+  const level = table.confidence >= levels.high ? "high" : table.confidence >= levels.review ? "review" : "low";
+  return { ...table, level, selected: level === "high" };
+}
+
+/** b2 (T2u): "nil, none" -> ["nil", "none"]; null when empty (the API's default). */
+export function tokenList(text: string): string[] | null {
+  const tokens = [...new Set(text.split(",").map((token) => token.trim()).filter(Boolean))];
+  return tokens.length > 0 ? tokens.slice(0, 50) : null;
+}
+
+function threshold(text: string, fallback: number): number {
+  const value = Number(text);
+  return text.trim() !== "" && Number.isFinite(value) && value >= 0 && value <= 1 ? value : fallback;
+}
+
 /**
  * 080b and 085: the tables of one file, the original on the left and the result on the right.
  * Everything is detected by written rules (080, 083); each table says its rules and its
@@ -61,17 +85,37 @@ export function TablesStep({ path, preview, onClose, onImported, project, onSimp
   const [reshape, setReshape] = useState(false);
   const [range, setRange] = useState("");
   const [pane, setPane] = useState<"original" | "result">("original");
+  // b2: Advanced of a document (085) and Advanced › More of a workbook (080b)
+  const [recordsPath, setRecordsPath] = useState("");
+  const [oneTable, setOneTable] = useState(false);
+  const [highText, setHighText] = useState(String(LEVELS.high));
+  const [reviewText, setReviewText] = useState(String(LEVELS.review));
+  const [emptyText, setEmptyText] = useState("");
+  const [keepText, setKeepText] = useState("");
   const [intoProject, setIntoProject] = useState(true);
   const [jobId, setJobId] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
+  const review = threshold(reviewText, LEVELS.review);
+  const levels: Levels = { high: Math.max(threshold(highText, LEVELS.high), review), review };
+  const records = recordsPath.trim() || null;
+  const documentOptions = { records_path: records, one_table: oneTable || null };
+  const reread = document && (records !== null || oneTable);
+  // 085: another records path or "One table" reads the document again (its tables change)
+  const documentPreview = usePreview(reread ? path : null, { ...documentOptions, sheets: null, folder_mode: "union" });
+  const documentTables = reread ? documentPreview.data?.tables : preview.tables;
+  const documentLinks = (reread ? documentPreview.data?.links : preview.links) ?? [];
+  const tokens = { null_tokens: document ? null : tokenList(emptyText), text_tokens: document ? null : tokenList(keepText) };
+
   const others = useSheetPreviews(path, visited);
   const tablesOf = (name: string | null): TableChoice[] => {
     const found =
-      name === firstSheet || document
-        ? (preview.tables ?? [])
-        : (others[visited.indexOf(name ?? "")]?.data?.tables ?? []);
-    return [...found, ...manual.filter((table) => table.sheet === name)];
+      document
+        ? (documentTables ?? [])
+        : name === firstSheet
+          ? (preview.tables ?? [])
+          : (others[visited.indexOf(name ?? "")]?.data?.tables ?? []);
+    return [...found.map((table) => withLevels(table, levels, false)), ...manual.filter((table) => table.sheet === name)];
   };
   const known = document
     ? tablesOf(null)
@@ -84,7 +128,13 @@ export function TablesStep({ path, preview, onClose, onImported, project, onSimp
   const active = shownTables.find((table) => table.id === activeId) ?? shownTables[0] ?? null;
 
   const original = useOriginal(path, document ? null : sheet, document || Boolean(sheet));
-  const result = usePreview(active ? path : null, { table: active?.id ?? null, reshape, sheets: null, folder_mode: "union" });
+  const result = usePreview(active ? path : null, {
+    table: active?.id ?? null,
+    reshape,
+    sheets: null,
+    folder_mode: "union",
+    ...(document ? documentOptions : tokens),
+  });
   const importTables = useImportTables();
   const job = useJob(jobId);
 
@@ -116,14 +166,16 @@ export function TablesStep({ path, preview, onClose, onImported, project, onSimp
     setRange("");
   };
 
-  const start = () => {
+  /** `stacked` (S1, C1): these tables, which share their columns, as one dataset. */
+  const start = (stacked: string[] | null = null) => {
     setImportError(null);
     importTables.mutate(
       {
         path,
-        tables: chosen.map((table) => ({ id: table.id, name: names[table.id] ?? table.name })),
-        options: { reshape, folder_mode: "union", sample_pct: 100 },
+        tables: stacked ? stacked.map((id) => ({ id, name: null })) : chosen.map((table) => ({ id: table.id, name: names[table.id] ?? table.name })),
+        options: { reshape, folder_mode: "union", sample_pct: 100, ...(document ? documentOptions : tokens) },
         projectId: project && intoProject ? project.id : null,
+        stack: stacked !== null,
       },
       {
         onSuccess: (response) => {
@@ -201,10 +253,12 @@ export function TablesStep({ path, preview, onClose, onImported, project, onSimp
         </ul>
       </fieldset>
 
-      {document && (preview.links ?? []).length > 0 && (
+      {document && documentPreview.isError && <ErrorNote>{documentPreview.error.message}</ErrorNote>}
+      {document && reread && documentPreview.isPending && <p className="text-ink-3">{t("preview.tables.loading")}</p>}
+      {document && documentLinks.length > 0 && (
         <div className="text-xs text-ink-2">
           <span className="text-ink-3">{t("preview.tables.links")}: </span>
-          {(preview.links ?? [])
+          {documentLinks
             .map((link) =>
               t("preview.tables.link", {
                 parent: link.parent,
@@ -288,7 +342,7 @@ export function TablesStep({ path, preview, onClose, onImported, project, onSimp
             <Button variant="ghost" onClick={onClose}>
               {t("import.cancel")}
             </Button>
-            <Button variant="primary" disabled={chosen.length === 0} onClick={start}>
+            <Button variant="primary" disabled={chosen.length === 0} onClick={() => start()}>
               {t("preview.tables.import", { count: String(chosen.length) })}
             </Button>
           </>
@@ -354,12 +408,54 @@ export function TablesStep({ path, preview, onClose, onImported, project, onSimp
                 />
               </div>
             )}
+            {document && (
+              <Field label={t("preview.document.recordsPath")}>
+                <TextInput
+                  className="w-56 max-w-full font-mono"
+                  placeholder="data.items"
+                  value={recordsPath}
+                  aria-describedby="document-hint"
+                  onChange={(event) => setRecordsPath(event.target.value)}
+                />
+              </Field>
+            )}
+            {document && (
+              <div className="flex h-(--control-h) items-center">
+                <Checkbox checked={oneTable} onChange={(event) => setOneTable(event.target.checked)} label={t("preview.document.oneTable")} />
+              </div>
+            )}
           </div>
           {!document && (
             <p id="range-hint" className="mt-2 text-xs text-ink-3">
               {t("preview.tables.rangeHint")}
             </p>
           )}
+          {document && (
+            <p id="document-hint" className="mt-2 text-xs text-ink-3">
+              {t("preview.document.advancedHint")}
+            </p>
+          )}
+          {!document && (
+            <details className="mt-3 border-t border-line pt-2">
+              <summary className="cursor-pointer text-xs text-ink-2">{t("preview.tables.more")}</summary>
+              <div className="params-grid mt-3 grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Field label={t("preview.tables.highFrom")}>
+                  <TextInput type="number" inputMode="decimal" min={0} max={1} step={0.05} className="w-24" value={highText} onChange={(event) => setHighText(event.target.value)} />
+                </Field>
+                <Field label={t("preview.tables.lowUnder")}>
+                  <TextInput type="number" inputMode="decimal" min={0} max={1} step={0.05} className="w-24" value={reviewText} onChange={(event) => setReviewText(event.target.value)} />
+                </Field>
+                <Field label={t("preview.tables.emptyTokens")}>
+                  <TextInput className="w-full font-mono" placeholder="nil, none, ?" value={emptyText} onChange={(event) => setEmptyText(event.target.value)} />
+                </Field>
+                <Field label={t("preview.tables.textTokens")}>
+                  <TextInput className="w-full font-mono" placeholder="-, x" value={keepText} onChange={(event) => setKeepText(event.target.value)} />
+                </Field>
+              </div>
+              <p className="mt-2 text-xs text-ink-3">{t("preview.tables.moreHint")}</p>
+            </details>
+          )}
+          {!document && (preview.sheets?.length ?? 0) > 1 && <StackTables path={path} busy={running} onImport={(tables) => start(tables)} />}
         </details>
       </div>
     </Dialog>

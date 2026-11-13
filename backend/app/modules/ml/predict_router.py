@@ -7,6 +7,9 @@ from typing import Annotated
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
+from quantilo.interpret.risk_score import CardRow
+from quantilo.ml import counterfactual as whatif
+from quantilo.ml.counterfactual import Counterfactual
 from quantilo.ml.predict import ModelCard, ModelCheck, RowExplanation
 
 from app.modules.ml.predictions import (
@@ -25,6 +28,15 @@ def _service(request: Request) -> PredictionService:
 
 
 Source = Annotated[str, Query(min_length=1, description="The dataset to predict.")]
+
+
+class RowCounterfactual(BaseModel):
+    """What would change one predicted row (125 bis): the columns allowed to change, the goal."""
+
+    editable: list[str] | None = Field(default=None, max_length=500)
+    target_class: str | None = Field(default=None, max_length=500)
+    target_value: float | None = None
+    max_changes: int = Field(default=whatif.MAX_CHANGES, ge=1, le=whatif.MAX_CHANGES)
 
 
 class PredictStart(BaseModel):
@@ -99,6 +111,23 @@ def prediction_row_explanation(
 ) -> RowExplanation:
     """Why the model predicts what it does for one predicted row (0-based)."""
     return _service(request).explain_row(dataset_id, prediction_id, row)
+
+
+@router.get("/datasets/{dataset_id}/predictions/{prediction_id}/rows/{row}/scorecard")
+def prediction_row_scorecard(
+    dataset_id: str, prediction_id: str, row: int, request: Request
+) -> CardRow:
+    """Two classes (R-XAI-18): the run's scorecard read on one predicted row (0-based)."""
+    return _service(request).card_row(dataset_id, prediction_id, row)
+
+
+@router.post("/datasets/{dataset_id}/predictions/{prediction_id}/rows/{row}/counterfactual")
+def prediction_row_counterfactual(
+    dataset_id: str, prediction_id: str, row: int, body: RowCounterfactual, request: Request
+) -> Counterfactual:
+    """What would change one predicted row's prediction (R-XAI-21): at most three changes,
+    judged plausible against up to 2 000 rows of that same data."""
+    return _service(request).counterfactual_row(dataset_id, prediction_id, row, body)
 
 
 @router.get("/datasets/{dataset_id}/predictions/{prediction_id}/predictions.csv")

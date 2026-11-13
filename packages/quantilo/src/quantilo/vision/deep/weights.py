@@ -10,21 +10,17 @@ the caller confirms, checked by SHA-256, read as safetensors.
 
 Standard library only at import time (no torch): `status` works without the extra."""
 
-import hashlib
 import os
 import sys
-import time
-import urllib.error
-import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any
 
-HF = "https://huggingface.co"
-ATTEMPTS = 8  # Hugging Face often resets long connections: resume with Range
-TIMEOUT = 60
-CHUNK = 1 << 20
+from quantilo import hub
+
+HF = hub.HF
+ATTEMPTS = hub.ATTEMPTS
 USER_AGENT = "quantilo-vision-weights/1"
 
 
@@ -100,6 +96,18 @@ MANIFEST: dict[str, WeightSpec] = {
             "BSD-3-Clause",
             _IMAGENET,
         ),
+        # PatchCore and PaDiM (115): the torchvision IMAGENET1K_V1 weights of the papers.
+        WeightSpec(
+            "wide_resnet50_2",
+            "Wide ResNet-50-2 (torchvision IMAGENET1K_V1)",
+            "timm/wide_resnet50_2.tv_in1k",
+            "343c5fa59ca8a131e0cdf42144a641b36a0387c2",
+            "model.safetensors",
+            275_835_296,
+            "df6fb6c4824769769de18e14088475fd6ee94236849aa4e5d8022ba9d9a9a16c",
+            "BSD-3-Clause",
+            _IMAGENET,
+        ),
     )
 }
 
@@ -127,9 +135,7 @@ class WeightsMissing(RuntimeError):
         super().__init__(missing_reason(spec))
 
 
-def size_text(size: int) -> str:
-    mb = size / 1_000_000
-    return f"{mb / 1000:.1f} GB" if mb >= 1000 else f"{mb:.0f} MB"
+size_text = hub.size_text
 
 
 def missing_reason(spec: WeightSpec) -> str:
@@ -165,12 +171,7 @@ def path(key: str | WeightSpec) -> Path:
     return root() / spec_of(key).local_name
 
 
-def file_sha256(file: Path) -> str:
-    digest = hashlib.sha256()
-    with file.open("rb") as handle:
-        while block := handle.read(CHUNK):
-            digest.update(block)
-    return digest.hexdigest()
+file_sha256 = hub.file_sha256
 
 
 def downloaded(key: str | WeightSpec) -> bool:
@@ -203,25 +204,7 @@ def verify(key: str | WeightSpec) -> Path:
     return file
 
 
-Opener = Callable[[urllib.request.Request, float], Any]
-
-
-def _open(request: urllib.request.Request, timeout: float) -> Any:
-    return urllib.request.urlopen(request, timeout=timeout)
-
-
-def _copy(response: BinaryIO, out: BinaryIO, digest: Any, have: int, limit: int, progress) -> int:
-    while block := response.read(CHUNK):
-        have += len(block)
-        if have > limit:
-            raise WeightsError(
-                f"The server sent more than the {limit:,} bytes expected (R-VDP-03)."
-            )
-        digest.update(block)
-        out.write(block)
-        if progress is not None:
-            progress(have, limit)
-    return have
+Opener = hub.Opener
 
 
 def download(
@@ -249,55 +232,21 @@ def download(
             file.unlink()
     if not confirm:
         raise ConfirmationRequired(spec)
-    file.parent.mkdir(parents=True, exist_ok=True)
-    part = file.with_suffix(".part")
-    part.unlink(missing_ok=True)
-    digest = hashlib.sha256()
-    have = 0
-    fetch = opener or _open
-    last: BaseException | None = None
-    for attempt in range(attempts):
-        headers = {"User-Agent": USER_AGENT}
-        if have:
-            headers["Range"] = f"bytes={have}-"
-        request = urllib.request.Request(spec.url, headers=headers)
-        try:
-            with fetch(request, TIMEOUT) as response, part.open("ab") as out:
-                status = getattr(response, "status", 200)
-                if have and status != 206:  # the server ignored Range: start again
-                    out.truncate(0)
-                    have, digest = 0, hashlib.sha256()
-                have = _copy(response, out, digest, have, spec.size, progress)
-            if have == spec.size:
-                break
-            last = WeightsError(f"Connection closed after {have:,} of {spec.size:,} bytes.")
-        except WeightsError:
-            part.unlink(missing_ok=True)
-            raise
-        except (OSError, urllib.error.URLError) as error:
-            last = error
-            # what reached the disk is kept: resume from there, with its digest
-            have = part.stat().st_size if part.exists() else 0
-            digest = hashlib.sha256()
-            if have:
-                with part.open("rb") as kept:
-                    while block := kept.read(CHUNK):
-                        digest.update(block)
-        if attempt + 1 < attempts:
-            time.sleep(pause)
-    else:
-        part.unlink(missing_ok=True)
-        raise WeightsError(
-            f"Download of {spec.title} failed after {attempts} attempts ({last}). "
-            "Check the connection and try again."
+    try:
+        hub.fetch(
+            spec.url,
+            spec.size,
+            spec.sha256,
+            file,
+            title=spec.title,
+            user_agent=USER_AGENT,
+            progress=progress,
+            opener=opener,
+            attempts=attempts,
+            pause=pause,
         )
-    if digest.hexdigest() != spec.sha256:
-        part.unlink(missing_ok=True)
-        raise WeightsError(
-            f"{spec.title}: the SHA-256 of the downloaded file does not match the manifest: "
-            "file deleted (R-VDP-03)."
-        )
-    os.replace(part, file)
+    except hub.DownloadError as error:
+        raise WeightsError(f"{error} (R-VDP-03)") from error
     stat = file.stat()
     _VERIFIED[file] = (stat.st_size, stat.st_mtime_ns)
     return file

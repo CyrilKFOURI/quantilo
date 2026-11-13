@@ -1,0 +1,23 @@
+{
+ "label": "air_quality",
+ "corpus": "data-corpus",
+ "path": "iot_sensors/uci_air_quality/AirQualityUCI.csv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-15:empty", "verdict": "correct", "why": "rows with no value at the end of the file", "op": "drop_empty_rows"},
+  {"id": "B-09:CO(GT):-200", "verdict": "correct", "why": "-200 is the file's code for 'no measure' (13 sensor columns) (mode S)", "op": "null_values"},
+  {"id": "B-09:PT08.S1(CO):-200", "verdict": "correct", "why": "-200 is the file's code for 'no measure' (13 sensor columns) (mode S)", "op": "null_values"},
+  {"id": "B-09:NMHC(GT):-200", "verdict": "correct", "why": "-200 is the file's code for 'no measure' (13 sensor columns) (mode S)", "op": "null_values"},
+  {"id": "B-09:C6H6(GT):-200", "verdict": "correct", "why": "-200 is the file's code for 'no measure' (13 sensor columns) (mode S)", "op": "null_values"},
+  {"id": "B-09:PT08.S2(NMHC):-200", "verdict": "correct", "why": "-200 is the file's code for 'no measure' (13 sensor columns) (mode S)", "op": "null_values"},
+  {"id": "B-09:NOx(GT):-200", "verdict": "correct", "why": "-200 is the file's code for 'no measure' (13 sensor columns) (mode S)", "op": "null_values"},
+  {"id": "B-09:PT08.S3(NOx):-200", "verdict": "correct", "why": "-200 is the file's code for 'no measure' (13 sensor columns) (mode S)", "op": "null_values"},
+  {"id": "B-09:NO2(GT):-200", "verdict": "correct", "why": "-200 is the file's code for 'no measure' (13 sensor columns) (mode S)", "op": "null_values"},
+  {"id": "B-09:PT08.S4(NO2):-200", "verdict": "correct", "why": "-200 is the file's code for 'no measure' (13 sensor columns) (mode S)", "op": "null_values"},
+  {"id": "B-09:PT08.S5(O3):-200", "verdict": "correct", "why": "-200 is the file's code for 'no measure' (13 sensor columns) (mode S)", "op": "null_values"},
+  {"id": "B-09:T:-200", "verdict": "correct", "why": "-200 is the file's code for 'no measure' (13 sensor columns) (mode S)", "op": "null_values"},
+  {"id": "B-09:RH:-200", "verdict": "correct", "why": "-200 is the file's code for 'no measure' (13 sensor columns) (mode S)", "op": "null_values"},
+  {"id": "B-09:AH:-200", "verdict": "correct", "why": "-200 is the file's code for 'no measure' (13 sensor columns) (mode S)", "op": "null_values"}
+ ]
+}

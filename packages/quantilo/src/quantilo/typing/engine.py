@@ -13,15 +13,29 @@ import duckdb
 
 from quantilo.ingestion.normalize import stored_notes
 from quantilo.ingestion.sql import ident, lit
+from quantilo.reasons import Reason, say
 from quantilo.typing import date_parts
-from quantilo.typing.knowledge_base import MEASURE_ROLES, KnowledgeBase, Role, load, name_tokens
+from quantilo.typing.knowledge_base import (
+    MEASURE_ROLES,
+    KnowledgeBase,
+    Role,
+    load,
+    name_note,
+    name_tokens,
+)
+from quantilo.typing.knowledge_base.synonyms import load_synonyms
 from quantilo.typing.parsers import (
-    DATE_FORMATS,
+    ALL_DATE_FORMATS,
+    CURRENCY_PATTERN,
     NUMBER_PATTERNS,
     TIME_FORMATS,
     VALUE_PATTERNS,
     clean_text,
+    currency_text_sql,
+    month_words_sql,
+    needs_letters,
     number_sql,
+    strptime_sql,
 )
 from quantilo.typing.text import TextMeasures, language_reason, measure
 from quantilo.typing.types import (
@@ -106,9 +120,15 @@ def unix_time(low: float | None, high: float | None, digits: int | None) -> bool
     return UNIX_SECONDS[0] * scale <= low and high <= UNIX_SECONDS[1] * scale
 
 
-def rule(text: str, code: str) -> str:
-    """A reason given by a 092 rule: the sentence and its code, which the interface lists."""
-    return f"{text} ({code})"
+def rule(code: str, template: str, **values: Any) -> Reason:
+    """A reason given by a 092 rule: the sentence and its code, which the interface lists
+    (`R-TYP-05.length` is said "(R-TYP-05)"); `say` keeps the code and vars (M02)."""
+    return say(code, f"{template} ({code.split('.')[0]})", **values)
+
+
+def name_reason(role: Role) -> Reason:
+    """The reason a role read from the column's name gives."""
+    return say("TYP.name", "name suggests {role}", role=role.label.lower())
 
 
 @dataclass
@@ -131,6 +151,11 @@ class Profile:
     # with 0 (R-TYP-03), holding ";" (R-TYP-09), read as times of day (R-TYP-07)
     length_mode: int | None = None
     length_share: float = 0
+    # N18: what decided the decimal separator when some values read both ways ('1.234'), and
+    # whether that was an inference (confidence medium)
+    decimal_reason: Reason | None = None
+    decimal_doubt: bool = False
+    grouped: int = 0  # values with a dot or a comma before three digits ('1.234'): R-TYP-15
     leading_zero: int = 0
     lists: int = 0
     time_matches: dict[str, int] = field(default_factory=dict)
@@ -166,6 +191,10 @@ def percent(value: float) -> str:
 
 def examples(profile: Profile, count: int = 3) -> str:
     return ", ".join(value for value, _ in profile.top[:count])
+
+
+def unique_values(ratio: float) -> Reason:
+    return say("TYP.unique", "{share} unique values", share=percent(ratio))
 
 
 ROW_INDEX = re.compile(r"column0+|unnamed[ _:]*0|index|level[ _]0")
@@ -245,12 +274,14 @@ class ColumnDetector:
             f"coalesce(sum(length({value}) * c) / sum(c), 0)",
             weighted(f"contains({value}, ' ')"),
             weighted(f"contains({value}, '%')"),
-            weighted(f"regexp_matches({value}, '[€$£]')"),
+            weighted(f"regexp_matches({value}, {lit(CURRENCY_PATTERN)})"),
             weighted(f"regexp_full_match({value}, '0[0-9]+')"),
             weighted(f"contains({value}, ';')"),
+            weighted(f"regexp_matches({value}, '[.,][0-9]{{3}}')"),
+            weighted(f"regexp_matches({value}, '[A-Za-z]')"),
         ]
         aggregates += [
-            weighted(f"regexp_full_match({value}, {lit(pattern)})")
+            weighted(f"regexp_full_match({currency_text_sql(value)}, {lit(pattern)})")
             for pattern in NUMBER_PATTERNS.values()
         ]
         aggregates += [
@@ -259,22 +290,33 @@ class ColumnDetector:
         ]
         row = self.one(f"SELECT {', '.join(aggregates)} FROM {VALUES_TABLE}")
         present, distinct, avg_length, spaced, percent_count, currency, zeros, lists = row[:8]
-        offset = 8
+        grouped, lettered = int(row[8]), int(row[9])
+        offset = 10
         number_matches = dict(zip(NUMBER_PATTERNS, row[offset : offset + 2], strict=True))
         offset += 2
         pattern_matches = dict(zip(VALUE_PATTERNS, row[offset:], strict=True))
-        # Only short texts with a digit can be dates or times: the others skip the 21 formats
-        # (a filtered table, since DuckDB evaluates every FILTER condition on every row).
-        formats = (*DATE_FORMATS, *TIME_FORMATS)
-        parsed = [weighted(f"TRY_STRPTIME(v, {lit(fmt)}) IS NOT NULL") for fmt in formats]
+        # Only short texts with a digit can be dates or times: the others skip the 39 formats
+        # (a filtered table, since DuckDB evaluates every FILTER condition on every row). Month
+        # names are rewritten once (`m`, N19) for the formats that read them; a column without a
+        # letter skips the formats that need one (month names, AM/PM, ISO's T).
+        formats = (*ALL_DATE_FORMATS, *TIME_FORMATS)
+        parsed = [
+            weighted(f"{strptime_sql('v', fmt, 'm')} IS NOT NULL")
+            if lettered or not needs_letters(fmt)
+            else "0"
+            for fmt in formats
+        ]
+        months = month_words_sql("v") if lettered else "v"
         dated = self.one(
-            f"SELECT {', '.join(parsed)} FROM {VALUES_TABLE} "
-            "WHERE length(v) <= 40 AND regexp_matches(v, '[0-9]')"
+            f"SELECT {', '.join(parsed)} FROM (SELECT v, c, {months} AS m FROM "
+            f"{VALUES_TABLE} WHERE length(v) <= 40 AND regexp_matches(v, '[0-9]'))"
         )
-        date_matches = {fmt: int(count) for fmt, count in zip(DATE_FORMATS, dated, strict=False)}
+        date_matches = {
+            fmt: int(count) for fmt, count in zip(ALL_DATE_FORMATS, dated, strict=False)
+        }
         time_matches = {
             fmt: int(count)
-            for fmt, count in zip(TIME_FORMATS, dated[len(DATE_FORMATS) :], strict=True)
+            for fmt, count in zip(TIME_FORMATS, dated[len(ALL_DATE_FORMATS) :], strict=True)
         }
         top = self.connection.execute(
             f"SELECT v, c FROM {VALUES_TABLE} ORDER BY c DESC, v LIMIT {TOP_VALUES}"
@@ -293,6 +335,7 @@ class ColumnDetector:
             pattern_matches=pattern_matches,
             leading_zero=int(zeros),
             lists=int(lists),
+            grouped=grouped,
             time_matches=time_matches,
         )
 
@@ -304,6 +347,94 @@ class ColumnDetector:
             f"FROM (SELECT {parsed} AS p FROM {VALUES_TABLE}) WHERE p IS NOT NULL"
         )
         return int(distinct), float(low), float(high), bool(integer)
+
+    def decimal_choice(self, profile: Profile) -> str:
+        """R-TYP-15 (N18): the decimal separator, decided on the whole column. The reading that
+        reads more values wins ('12,5' reads only with a decimal comma), as before; the reason says
+        so when some values read both ways ('1.234': 1.234 or 1234). When every value reads both
+        ways, the separator is a thousands one if the numbers written without it are all below
+        1,000 (250 beside 1.234), a decimal one if some are not (1500 beside 1.234: a writer
+        grouping thousands would write 1.500); with no such number, the dot stays a decimal point
+        and the comma a thousands separator, as before, and the reason says it is a guess."""
+        dot, comma = profile.number_matches["."], profile.number_matches[","]
+        best = "," if comma > dot else "."
+        if not dot or not comma or not profile.grouped:
+            return best  # only '1.234' or '1,234' can read two ways
+        point, decimal_comma = number_sql("v", "."), number_sql("v", ",")
+        both, dotted, commas, plain, largest, either, only_point, only_comma = self.one(
+            "SELECT coalesce(sum(c) FILTER (WHERE d <> k), 0), "
+            "coalesce(sum(c) FILTER (WHERE d <> k AND contains(v, '.')), 0), "
+            "coalesce(sum(c) FILTER (WHERE d <> k AND contains(v, ',')), 0), "
+            "coalesce(sum(c) FILTER (WHERE d IS NOT NULL AND NOT regexp_matches(v, '[.,]')), 0), "
+            "max(abs(d)) FILTER (WHERE d IS NOT NULL AND NOT regexp_matches(v, '[.,]')), "
+            "arg_max(v, c) FILTER (WHERE d <> k), "
+            "arg_max(v, c) FILTER (WHERE d IS NOT NULL AND k IS NULL), "
+            "arg_max(v, c) FILTER (WHERE k IS NOT NULL AND d IS NULL) "
+            f"FROM (SELECT v, c, {point} AS d, {decimal_comma} AS k FROM {VALUES_TABLE})"
+        )
+        if not both:
+            return best  # every value reads the same both ways: nothing to decide
+        if dot != comma:
+            only, shown = (dot - comma, only_point) if best == "." else (comma - dot, only_comma)
+            if best == ".":
+                profile.decimal_reason = rule(
+                    "R-TYP-15.dot",
+                    "dot read as the decimal point: {only} values such as '{value}' read only "
+                    "this way ({both} such as '{either}' read both ways)",
+                    only=only, value=shown, both=both, either=either,
+                )  # fmt: skip
+            else:
+                profile.decimal_reason = rule(
+                    "R-TYP-15.comma",
+                    "comma read as the decimal separator: {only} values such as '{value}' read "
+                    "only this way ({both} such as '{either}' read both ways)",
+                    only=only, value=shown, both=both, either=either,
+                )  # fmt: skip
+            return best
+        profile.decimal_doubt = True
+        if not dotted or not commas:
+            grouping = "," if dotted else "."  # the reading where this separator groups thousands
+            if plain and largest is not None and largest < 1000:
+                if dotted:
+                    profile.decimal_reason = rule(
+                        "R-TYP-15.thousands_dot",
+                        "the dot is read as a thousands separator: the {both} values with one "
+                        "have groups of three digits (such as '{either}') and the {plain} "
+                        "numbers written without one are all below 1,000",
+                        both=both, either=either, plain=plain,
+                    )  # fmt: skip
+                else:
+                    profile.decimal_reason = rule(
+                        "R-TYP-15.thousands_comma",
+                        "the comma is read as a thousands separator: the {both} values with one "
+                        "have groups of three digits (such as '{either}') and the {plain} "
+                        "numbers written without one are all below 1,000",
+                        both=both, either=either, plain=plain,
+                    )  # fmt: skip
+                return grouping
+            if plain:
+                if dotted:
+                    profile.decimal_reason = rule(
+                        "R-TYP-15.decimal_dot",
+                        "the dot is read as the decimal separator: '{either}' could be "
+                        "thousands, but numbers up to {largest} are written without one",
+                        either=either, largest=f"{largest:g}",
+                    )  # fmt: skip
+                else:
+                    profile.decimal_reason = rule(
+                        "R-TYP-15.decimal_comma",
+                        "the comma is read as the decimal separator: '{either}' could be "
+                        "thousands, but numbers up to {largest} are written without one",
+                        either=either, largest=f"{largest:g}",
+                    )  # fmt: skip
+                return "." if dotted else ","
+        profile.decimal_reason = rule(
+            "R-TYP-15.ambiguous",
+            "'{either}' reads both as a decimal and as thousands, and no value tells: the dot is "
+            "read as the decimal point, the comma as a thousands separator (ambiguous)",
+            either=either,
+        )
+        return "."
 
     def digit_length(self) -> tuple[int | None, float]:
         """Most common length of the current column's digit-only texts, and its share."""
@@ -320,32 +451,42 @@ class ColumnDetector:
 
     def empty_or_constant(self, profile: Profile) -> tuple[str, str] | None:
         if profile.rows == 0 or profile.present / profile.rows < 1 - self.thresholds.empty_rate:
-            return (
-                "ignored",
-                f"{percent(1 - profile.present / max(profile.rows, 1))} of values are empty",
-            )
+            empty = percent(1 - profile.present / max(profile.rows, 1))
+            return "ignored", say("TYP.empty", "{share} of values are empty", share=empty)
         if profile.distinct == 1:
-            return "ignored", f"a single value everywhere: {profile.top[0][0]!r}"
+            value = repr(profile.top[0][0])
+            return "ignored", say("TYP.constant", "a single value everywhere: {value}", value=value)
         return None
 
     def numeric_type(
         self, role: Role | None, integer: bool, distinct: int
     ) -> tuple[AnalysisType, Confidence, list[str]]:
         if role and role.type in NUMERIC_TYPES:
-            return role.type, "high", [f"name suggests {role.label.lower()}"]
+            return role.type, "high", [name_reason(role)]
         if integer and distinct <= self.thresholds.discrete_max:
             confidence: Confidence = "high" if distinct <= 12 else "medium"
-            return (
-                "numeric_discrete",
-                confidence,
-                [f"only {distinct} distinct whole numbers: shown as categories"],
+            discrete = say(
+                "TYP.discrete",
+                "only {count} distinct whole numbers: shown as categories",
+                count=distinct,
             )
+            return "numeric_discrete", confidence, [discrete]
         confidence = "high" if distinct > 30 else "medium"
-        return "numeric_continuous", confidence, [f"{distinct} distinct numeric values"]
+        continuous = say("TYP.continuous", "{count} distinct numeric values", count=distinct)
+        return "numeric_continuous", confidence, [continuous]
 
     # --- Detection by storage ------------------------------------------------------------------
 
     def detect(self, name: str, dtype: str, position: int) -> ColumnDetection:
+        found = self._detect(name, dtype, position)
+        # N30 (R-SYN-01): a role read through a business synonym says which one ('Qté')
+        if found.role is not None and found.role == getattr(self.kb.match_role(name), "id", None):
+            why = load_synonyms().reason(name)
+            if why and why not in found.reasons:
+                found.reasons.append(why)
+        return found
+
+    def _detect(self, name: str, dtype: str, position: int) -> ColumnDetection:
         kind = storage_kind(dtype)
         role = self.kb.match_role(name)
 
@@ -372,18 +513,23 @@ class ColumnDetector:
             )
 
         if kind == "boolean":
-            return make("boolean", "high", ["stored as true/false"])
+            return make("boolean", "high", [say("TYP.stored_boolean", "stored as true/false")])
         if kind == "temporal":
-            return make("datetime", "high", ["stored as a date"], candidates={"date": RAW_PARSER})
+            stored = say("TYP.stored_date", "stored as a date")
+            return make("datetime", "high", [stored], candidates={"date": RAW_PARSER})
         if kind == "time":
             # R-TYP-07: a time of day alone is no date; as hours it keeps its order and distances
             time_parser = Parser(kind="time")
-            reasons = [rule("stored as a time of day: read as hours since midnight (07:40 → "
-                            "7.67)", "R-TYP-07")]  # fmt: skip
+            stored_time = rule(
+                "R-TYP-07.stored",
+                "stored as a time of day: read as hours since midnight (07:40 → 7.67)",
+            )
+            reasons: list[str] = [stored_time]
             return make("numeric_continuous", "high", reasons, time_parser, "hour",
                         candidates={"number": time_parser, "text": TEXT_PARSER})  # fmt: skip
         if kind == "other":
-            return make("ignored", "high", [f"unsupported storage type {dtype}"])
+            unsupported = say("TYP.unsupported", "unsupported storage type {dtype}", dtype=dtype)
+            return make("ignored", "high", [unsupported])
         if kind == "numeric":
             return self.detect_numeric(name, role, make)
         return self.detect_text(name, role, make)
@@ -400,8 +546,8 @@ class ColumnDetector:
         if ignored := self.empty_or_constant(profile):
             return make("ignored", "high", [ignored[1]], candidates=candidates)
         if is_row_index(name, profile):
-            return make("ignored", "high", ["row numbers left by an export (pandas index)"],
-                        candidates=candidates)  # fmt: skip
+            index = say("TYP.row_index", "row numbers left by an export (pandas index)")
+            return make("ignored", "high", [index], candidates=candidates)
         if role and not role.accepts_range(profile.minimum, profile.maximum):
             role = None
         # Decimal values are measures: a categorical name ("..._country_score") does not win.
@@ -413,26 +559,44 @@ class ColumnDetector:
         # R-TYP-08 (b): mostly distinct whole numbers are no region ("x_coordinate_state_plane")
         if role and role.id in PLACE_ROLES and profile.unique_ratio > 0.5:
             role = None
-        role_reason = [f"name suggests {role.label.lower()}"] if role else []
+        role_reason = [name_reason(role)] if role else []
+        if role and role.id == "amount" and profile.integer and self.kb.only_total(name):
+            # R-TYP-14: "total ads" in whole numbers counts ads; "TotalCharges" in cents is money
+            role = self.kb.role("quantity")
+            role_reason = [
+                rule("R-TYP-14", "the name says 'total' with no money word and the values are "
+                     "whole numbers: read as a count, not an amount")
+            ]  # fmt: skip
+        note = name_note(name)
+        if role and note and self.kb.match_role(name, notes=False) != role:
+            role_reason = [
+                *role_reason,
+                rule(
+                    "R-TYP-13",
+                    "'{note}' closing the name is a note, not the word it is about",
+                    note=note,
+                ),
+            ]
 
         if role and role.id == "year" and profile.integer:
-            return make(
-                "datetime", "high", [*role_reason, "whole numbers between "
-                f"{profile.minimum:.0f} and {profile.maximum:.0f}"],
-                Parser(kind="year"), "year", candidates=candidates,
-            )  # fmt: skip
+            between = say("TYP.year_range", "whole numbers between {low} and {high}",
+                          low=f"{profile.minimum:.0f}", high=f"{profile.maximum:.0f}")  # fmt: skip
+            return make("datetime", "high", [*role_reason, between], Parser(kind="year"), "year",
+                        candidates=candidates)  # fmt: skip
         if role and role.type == "categorical_nominal":
             return make(role.type, "high", role_reason, TEXT_PARSER, role.id, candidates=candidates)
         if role and role.key:
-            unique = f"{percent(profile.unique_ratio)} unique values"
             if profile.unique_ratio >= 0.9:
+                unique = unique_values(profile.unique_ratio)
                 return make("identifier", "high", [*role_reason, unique], TEXT_PARSER, role.id,
                             candidates=candidates)  # fmt: skip
             # Repeated ids (e.g. store_id) reference another table: they are categories.
-            reasons = [
-                *role_reason,
-                f"only {unique}: a reference shared by rows, used as categories",
-            ]
+            shared = say(
+                "TYP.shared_key",
+                "only {share} unique values: a reference shared by rows, used as categories",
+                share=percent(profile.unique_ratio),
+            )
+            reasons = [*role_reason, shared]
             return make("categorical_nominal", "medium", reasons, TEXT_PARSER, role.id,
                         candidates=candidates)  # fmt: skip
         values = {value for value, _ in profile.top}
@@ -440,9 +604,10 @@ class ColumnDetector:
         count_reason: list[str] = []
         if zero_one and role and role.id == "quantity":
             # R-TYP-11: "number_of_cyclist_killed" is 0 or 1 in a sample, but it is a count
-            count_reason = [rule("the name says a count: 0 and 1 kept as numbers", "R-TYP-11")]
+            count_reason = [rule("R-TYP-11", "the name says a count: 0 and 1 kept as numbers")]
         elif zero_one:
-            return make("boolean", "high", ["only the values 0 and 1"],
+            zero_one_reason = say("TYP.zero_one", "only the values 0 and 1")
+            return make("boolean", "high", [zero_one_reason],
                         Parser(kind="boolean"), candidates=candidates)  # fmt: skip
         if not count_reason and (
             code := self.code_reading(
@@ -495,21 +660,32 @@ class ColumnDetector:
         confidence: Confidence = "high"
         if leading_zero >= LEADING_ZERO_SHARE and not measured:
             reason = rule(
-                f"{percent(leading_zero)} of values start with 0 (e.g. {zero_examples}): a code, "
-                "kept as text so the zeros stay",
                 "R-TYP-03",
-            )
+                "{share} of values start with 0 (e.g. {examples}): a code, kept as text so the "
+                "zeros stay",
+                share=percent(leading_zero), examples=zero_examples,
+            )  # fmt: skip
         elif named := self.code_name(name):
             # a measure named by another word wins ("YearsCode" is a number of years); not one
             # named by the head word itself ("item_nbr" is an item number, not a quantity)
             kind, word = named
-            what = "a code or a number" if kind == "code" else "a category"
-            said = "a number sign" if word == "#" else f"'{word}'"
-            reason = rule(
-                f"the name says {what} ({said}): whole numbers read as "
-                f"{'codes' if kind == 'code' else 'category codes'}, not as a measure",
-                "R-TYP-04",
-            )
+            if kind == "code" and word == "#":
+                reason = rule("R-TYP-04.sign", "the name says a code or a number (a number "
+                              "sign): whole numbers read as codes, not as a measure")  # fmt: skip
+            elif kind == "code":
+                reason = rule(
+                    "R-TYP-04.code",
+                    "the name says a code or a number ('{word}'): whole numbers read as codes, "
+                    "not as a measure",
+                    word=word,
+                )
+            else:
+                reason = rule(
+                    "R-TYP-04.category",
+                    "the name says a category ('{word}'): whole numbers read as category codes, "
+                    "not as a measure",
+                    word=word,
+                )
         elif (
             not measured
             and role is None
@@ -524,20 +700,22 @@ class ColumnDetector:
                     and digits >= UNIQUE_CODE_DIGITS
                 ):
                     reason = rule(
-                        f"all values are different whole numbers of {digits} digits: an "
+                        "R-TYP-05.unique",
+                        "all values are different whole numbers of {digits} digits: an "
                         "identifier, not a measure",
-                        "R-TYP-05",
+                        digits=digits,
                     )
                 elif digits >= FIXED_CODE_DIGITS:
                     reason = rule(
-                        f"{percent(share)} of values have exactly {digits} digits: a code "
-                        "(a measure would vary in length)",
-                        "R-TYP-05",
-                    )
+                        "R-TYP-05.length",
+                        "{share} of values have exactly {digits} digits: a code (a measure "
+                        "would vary in length)",
+                        share=percent(share), digits=digits,
+                    )  # fmt: skip
                 confidence = "medium"
         if reason is None:
             return None
-        unique = f"{percent(unique_ratio)} unique values"
+        unique = unique_values(unique_ratio)
         if unique_ratio >= 0.9:
             return "identifier", confidence, [reason, unique]
         return "categorical_nominal", confidence, [reason, unique]
@@ -558,10 +736,10 @@ class ColumnDetector:
             return verdict("ignored", "high", [ignored], candidates={"text": TEXT_PARSER})
         profile = self.text_profile(name)
         candidates: dict[str, Parser] = {"text": TEXT_PARSER}
-        best_decimal = max(NUMBER_PATTERNS, key=lambda d: (profile.number_matches[d], d == "."))
+        best_decimal = self.decimal_choice(profile)
         if profile.number_matches[best_decimal]:
             candidates["number"] = Parser(kind="number", decimal=best_decimal)  # type: ignore[arg-type]
-        best_format = max(DATE_FORMATS, key=lambda fmt: profile.date_matches[fmt])
+        best_format = max(ALL_DATE_FORMATS, key=lambda fmt: profile.date_matches[fmt])
         if profile.date_matches[best_format]:
             candidates["date"] = Parser(kind="date", format=best_format)
         lowered = {value.lower() for value, _ in profile.top}
@@ -588,15 +766,17 @@ class ColumnDetector:
             and profile.rate(profile.pattern_matches[role.pattern]) < 0.5
         ):
             role = None
-        role_reason = [f"name suggests {role.label.lower()}"] if role else []
+        role_reason = [name_reason(role)] if role else []
 
         if role and role.type == "text":
             return self.named_text(name, role, profile, make, candidates)
         if pair:
-            reason = f"two values: {' / '.join(value for value, _ in profile.top)}"
+            reason = say("TYP.two_values", "two values: {values}",
+                         values=" / ".join(value for value, _ in profile.top))  # fmt: skip
             return make("boolean", "high", [reason], candidates["boolean"], candidates=candidates)
         if role and role.id in ("postal_code", "phone"):
-            reasons = [*role_reason, "kept as text to preserve leading zeros and formatting"]
+            kept = say("TYP.kept_text", "kept as text to preserve leading zeros and formatting")
+            reasons: list[str] = [*role_reason, kept]
             return make("categorical_nominal", "high", reasons, TEXT_PARSER, role.id,
                         candidates=candidates)  # fmt: skip
 
@@ -624,26 +804,29 @@ class ColumnDetector:
             )
             if reading is not None:
                 return reading
-            role_reason = [f"name suggests {role.label.lower()}"] if role else []
+            role_reason = [name_reason(role)] if role else []
 
         date_rate = profile.rate(profile.date_matches[best_format])
         if date_rate >= self.thresholds.parse_rate:
-            reasons = [f"{percent(date_rate)} of values read as dates ({best_format})"]
+            reasons: list[str] = [say("TYP.dates", "{share} of values read as dates ({format})",
+                           share=percent(date_rate), format=best_format)]  # fmt: skip
             confidence = "high" if date_rate >= 0.99 else "medium"
             swapped = swap_day_month(best_format)
             if swapped and profile.date_matches.get(swapped) == profile.date_matches[best_format]:
                 confidence = "medium"
-                reasons.append("day/month order is ambiguous: day first assumed")
+                reasons.append(
+                    say("TYP.day_first", "day/month order is ambiguous: day first assumed")
+                )
             return make("datetime", confidence, reasons, candidates["date"], candidates=candidates)
         if second := self.second_date_format(profile, best_format):
             other, rate = second
             parser = Parser(kind="date", format=best_format, formats=[best_format, other])
             candidates["date"] = parser
             reason = rule(
-                f"{percent(rate)} of values read as dates in two formats ({best_format} and "
-                f"{other})",
                 "R-TYP-06",
-            )
+                "{share} of values read as dates in two formats ({first} and {second})",
+                share=percent(rate), first=best_format, second=other,
+            )  # fmt: skip
             return make("datetime", "medium", [reason], parser, candidates=candidates)
 
         best_time = max(TIME_FORMATS, key=lambda fmt: profile.time_matches[fmt])
@@ -652,10 +835,11 @@ class ColumnDetector:
             parser = Parser(kind="time", format=best_time)
             candidates["number"] = parser
             reason = rule(
-                f"{percent(time_rate)} of values are times of day ({best_time}, e.g. "
-                f"{examples(profile, 2)}): read as hours since midnight",
                 "R-TYP-07",
-            )
+                "{share} of values are times of day ({format}, e.g. {examples}): read as hours "
+                "since midnight",
+                share=percent(time_rate), format=best_time, examples=examples(profile, 2),
+            )  # fmt: skip
             return make("numeric_continuous", "high", [reason], parser, "hour",
                         candidates=candidates)  # fmt: skip
 
@@ -663,12 +847,14 @@ class ColumnDetector:
         if order:
             by_lower = {value.lower(): value for value, _ in profile.top}
             ordered = [by_lower[item] for item in order if item in by_lower]
-            reason = "values follow a known order: " + " < ".join(ordered)
+            reason = say("TYP.order", "values follow a known order: {order}",
+                         order=" < ".join(ordered))  # fmt: skip
             return make("categorical_ordinal", "high", [reason], TEXT_PARSER,
                         role.id if role else None, ordered, candidates)  # fmt: skip
         if ranges := self.range_order(profile):
             shown = " < ".join(ranges[:4]) + (" < …" if len(ranges) > 4 else "")
-            reason = rule(f"values are ranges ordered by their lower bound: {shown}", "R-TYP-10")
+            reason = rule("R-TYP-10", "values are ranges ordered by their lower bound: {order}",
+                          order=shown)  # fmt: skip
             return make("categorical_ordinal", "high", [reason], TEXT_PARSER,
                         role.id if role else None, ranges, candidates)  # fmt: skip
 
@@ -678,13 +864,18 @@ class ColumnDetector:
                 analysis_type: AnalysisType = (
                     "identifier" if profile.unique_ratio >= 0.9 else "categorical_nominal"
                 )
-                reasons = [f"values look like {'URLs' if pattern == 'url' else pattern + 's'}",
-                           f"{percent(profile.unique_ratio)} unique"]  # fmt: skip
+                looks = {
+                    "email": say("TYP.emails", "values look like emails"),
+                    "url": say("TYP.urls", "values look like URLs"),
+                    "uuid": say("TYP.uuids", "values look like uuids"),
+                }[pattern]
+                share = percent(profile.unique_ratio)
+                reasons: list[str] = [looks, say("TYP.unique_share", "{share} unique", share=share)]
                 return make(analysis_type, "high", reasons, TEXT_PARSER, pattern_role,
                             candidates=candidates)  # fmt: skip
 
         if role and role.key and profile.unique_ratio >= 0.9:
-            reasons = [*role_reason, f"{percent(profile.unique_ratio)} unique values"]
+            reasons: list[str] = [*role_reason, unique_values(profile.unique_ratio)]
             return make("identifier", "high", reasons, TEXT_PARSER, role.id, candidates=candidates)
 
         if choices := self.choice_list(profile):
@@ -697,7 +888,15 @@ class ColumnDetector:
             and profile.present >= 20
             and spaced_rate < 0.1
         ):
-            reasons = [f"{percent(profile.unique_ratio)} unique values, e.g. {examples(profile)}"]
+            share = percent(profile.unique_ratio)
+            reasons: list[str] = [
+                say(
+                    "TYP.unique_examples",
+                    "{share} unique values, e.g. {examples}",
+                    share=share,
+                    examples=examples(profile),
+                )
+            ]
             return make("identifier", "medium", reasons, TEXT_PARSER,
                         role.id if role else None, candidates=candidates)  # fmt: skip
         return self.text_verdict(name, role, profile, make, candidates)
@@ -775,9 +974,11 @@ class ColumnDetector:
         if profile.rate(coded_lost) > LOST_LIMIT and not marker:
             notes.append(
                 rule(
-                    f"{percent(profile.rate(coded_lost))} of values, such as {', '.join(codes)}, "
-                    "cannot be read as numbers: kept as text so that no value is lost",
                     "R-TYP-01",
+                    "{share} of values, such as {examples}, cannot be read as numbers: kept as "
+                    "text so that no value is lost",
+                    share=percent(profile.rate(coded_lost)),
+                    examples=", ".join(codes),
                 )
             )
         _distinct, low, high, integer = self.parsed_number_profile(name, decimal)
@@ -803,7 +1004,7 @@ class ColumnDetector:
                             candidates=candidates)  # fmt: skip
             if role and role.type == "categorical_nominal" and not notes:
                 # a categorical name on whole numbers written as text ("store" = "12")
-                reasons = [f"name suggests {role.label.lower()}", "whole numbers kept as codes"]
+                reasons = [name_reason(role), say("TYP.codes_kept", "whole numbers kept as codes")]
                 return make("categorical_nominal", "high", reasons, TEXT_PARSER, role.id,
                             candidates=candidates)  # fmt: skip
         if notes or coded:
@@ -822,7 +1023,7 @@ class ColumnDetector:
         needed = (1 - LOST_LIMIT) * profile.present
         swapped = swap_day_month(best)
         others = sorted(
-            (fmt for fmt in DATE_FORMATS if fmt not in (best, swapped)),
+            (fmt for fmt in ALL_DATE_FORMATS if fmt not in (best, swapped)),
             key=lambda fmt: -profile.date_matches[fmt],
         )
         for other in others[:3]:
@@ -830,8 +1031,8 @@ class ColumnDetector:
             if not count or profile.date_matches[best] + count < needed:
                 continue
             (read,) = self.one(
-                f"SELECT coalesce(sum(c) FILTER (WHERE TRY_STRPTIME(v, {lit(best)}) IS NOT NULL "
-                f"OR TRY_STRPTIME(v, {lit(other)}) IS NOT NULL), 0) FROM {VALUES_TABLE}"
+                f"SELECT coalesce(sum(c) FILTER (WHERE {strptime_sql('v', best)} IS NOT NULL "
+                f"OR {strptime_sql('v', other)} IS NOT NULL), 0) FROM {VALUES_TABLE}"
             )
             if read >= needed:
                 return other, profile.rate(int(read))
@@ -850,10 +1051,11 @@ class ColumnDetector:
             return None
         shown = ", ".join(str(item) for item, _ in items[:3])
         return rule(
-            f"{percent(profile.rate(profile.lists))} of values are lists separated by ';' of "
-            f"{len(items)} choices (e.g. {shown}): a multiple-choice answer, not categories",
             "R-TYP-09",
-        )
+            "{share} of values are lists separated by ';' of {count} choices (e.g. {examples}): "
+            "a multiple-choice answer, not categories",
+            share=percent(profile.rate(profile.lists)), count=len(items), examples=shown,
+        )  # fmt: skip
 
     @staticmethod
     def range_order(profile: Profile) -> list[str] | None:
@@ -896,14 +1098,17 @@ class ColumnDetector:
             return ""
         coverage = profile.rate(sum(count for _, count in profile.top[:20]))
         if coverage >= CATEGORY_TOP_COVERAGE:
-            return f"the 20 most frequent values cover {percent(coverage)} of rows"
+            return say("TYP.top20", "the 20 most frequent values cover {share} of rows",
+                       share=percent(coverage))  # fmt: skip
         if profile.unique_ratio < CATEGORY_MAX_UNIQUE and not named_text:
-            return f"only {percent(profile.unique_ratio)} unique values"
+            return say("TYP.few_unique", "only {share} unique values",
+                       share=percent(profile.unique_ratio))  # fmt: skip
         return None
 
     @staticmethod
     def words_reason(measures: TextMeasures) -> str:
-        return f"median {measures.median_words:.0f} words (P90 {measures.p90_words:.0f})"
+        median, p90 = f"{measures.median_words:.0f}", f"{measures.p90_words:.0f}"
+        return say("TYP.words", "median {median} words (P90 {p90})", median=median, p90=p90)
 
     @staticmethod
     def is_short_label(measures: TextMeasures) -> bool:
@@ -917,15 +1122,24 @@ class ColumnDetector:
     def label_reasons(self, measures: TextMeasures) -> list[str]:
         return [
             self.words_reason(measures),
-            f"few stop words ({percent(measures.stopword_share)}) and little sentence "
-            f"punctuation ({percent(measures.sentence_share)}): short labels",
+            say(
+                "TYP.labels",
+                "few stop words ({stopwords}) and little sentence punctuation ({punctuation}): "
+                "short labels",
+                stopwords=percent(measures.stopword_share),
+                punctuation=percent(measures.sentence_share),
+            ),
         ]
 
     def sentence_reasons(self, measures: TextMeasures) -> list[str]:
         reasons = [
             self.words_reason(measures),
-            f"{percent(measures.stopword_share)} stop words",
-            f"{percent(measures.sentence_share)} with sentence punctuation",
+            say("TYP.stopwords", "{share} stop words", share=percent(measures.stopword_share)),
+            say(
+                "TYP.punctuation",
+                "{share} with sentence punctuation",
+                share=percent(measures.sentence_share),
+            ),
         ]
         language = language_reason(measures, self.kb)
         return [*reasons, language] if language else reasons
@@ -934,11 +1148,13 @@ class ColumnDetector:
         self, name: str, role: Role, profile: Profile, make, candidates: dict[str, Parser]
     ) -> ColumnDetection:
         """R-TXT-9: a free-text name keeps the text type; the values choose the role."""
-        role_reason = f"name suggests {role.label.lower()}"
+        role_reason = name_reason(role)
         measures = measure(self.text_values(name), self.kb)
         categories = self.categories_by_count(profile, named_text=True)
         if categories is None and self.is_short_label(measures):
-            reasons = [f"{role_reason}, but values are short labels", *self.label_reasons(measures)]
+            labels = say("TYP.name_labels", "name suggests {role}, but values are short labels",
+                         role=role.label.lower())  # fmt: skip
+            reasons = [labels, *self.label_reasons(measures)]
             return make("text", "medium", reasons, TEXT_PARSER, "label", candidates=candidates)
         confidence: Confidence = "high" if profile.avg_length > 20 else "medium"
         reasons = [role_reason, self.words_reason(measures)]
@@ -950,7 +1166,7 @@ class ColumnDetector:
         self, name: str, role: Role | None, profile: Profile, make, candidates: dict[str, Parser]
     ) -> ColumnDetection:
         """R-TXT-2 to R-TXT-8: categories, address, free text, short text, in this order."""
-        role_reason = [f"name suggests {role.label.lower()}"] if role else []
+        role_reason = [name_reason(role)] if role else []
         role_id = role.id if role else None
 
         def categories(reason: str = "") -> ColumnDetection:
@@ -960,7 +1176,8 @@ class ColumnDetector:
             confidence: Confidence = (
                 "medium" if profile.distinct <= CATEGORY_MAX_DISTINCT else "low"
             )
-            reasons = [f"{profile.distinct} distinct values, e.g. {examples(profile)}"]
+            reasons: list[str] = [say("TYP.distinct", "{count} distinct values, e.g. {examples}",
+                           count=profile.distinct, examples=examples(profile))]  # fmt: skip
             kept = role_id if role_id != "label" else None  # R-TXT-11
             if reason:
                 reasons.append(reason)
@@ -986,11 +1203,15 @@ class ColumnDetector:
             reasons = [*role_reason] if by_name else []
             if measures.address_share:
                 reasons.append(
-                    f"{percent(measures.address_share)} look like street addresses "
-                    "(a number and a street word)"
+                    say(
+                        "TYP.addresses",
+                        "{share} look like street addresses (a number and a street word)",
+                        share=percent(measures.address_share),
+                    )
                 )
             if measures.postal_share >= 0.1:
-                reasons.append(f"{percent(measures.postal_share)} with a postal code")
+                reasons.append(say("TYP.postal", "{share} with a postal code",
+                                   share=percent(measures.postal_share)))  # fmt: skip
             sure = (by_name and by_values) or measures.address_share >= 0.8
             return make("text", "high" if sure else "medium", [*reasons, words], TEXT_PARSER,
                         "address", candidates=candidates)  # fmt: skip
@@ -1026,7 +1247,9 @@ class ColumnDetector:
         if profile.avg_length > FREE_MEAN_LENGTH or (
             profile.unique_ratio > 0.5 and spaced_rate > 0.5 and profile.avg_length > 20
         ):
-            reasons = [f"long values (average {profile.avg_length:.0f} characters)", words]
+            long = say("TYP.long", "long values (average {length} characters)",
+                       length=f"{profile.avg_length:.0f}")  # fmt: skip
+            reasons = [long, words]
             return make("text", "medium", reasons, TEXT_PARSER, "free_text",
                         candidates=candidates)  # fmt: skip
         return categories()
@@ -1051,26 +1274,31 @@ class ColumnDetector:
         elif role is None and profile.rate(profile.currency) >= 0.5:
             role = self.kb.role("amount")
         shown = [value for value, _ in profile.top if value not in (marker or [])][:2]
-        reasons = [f"{percent(rate)} of values read as numbers (e.g. {', '.join(shown)})"]
+        reasons = [say("TYP.numbers", "{share} of values read as numbers (e.g. {examples})",
+                       share=percent(rate), examples=", ".join(shown))]  # fmt: skip
         if decimal == ",":
-            reasons.append("comma used as decimal separator")
+            reasons.append(say("TYP.comma", "comma used as decimal separator"))
+        if profile.decimal_reason:
+            reasons.append(profile.decimal_reason)
         if marker:
             missing = profile.present - profile.number_matches[decimal]
             tokens = ", ".join(repr(token) for token in marker)
             reasons.append(
                 rule(
-                    f"words in place of numbers ({tokens}: {percent(profile.rate(missing))} of "
-                    "values) read as missing",
                     "R-TYP-02",
+                    "words in place of numbers ({words}: {share} of values) read as missing",
+                    words=tokens,
+                    share=percent(profile.rate(missing)),
                 )
             )
         if role and role.id == "year" and integer:
-            return make("datetime", "high", [*reasons, "name suggests year"], Parser(kind="year"),
+            year = say("TYP.name", "name suggests {role}", role="year")
+            return make("datetime", "high", [*reasons, year], Parser(kind="year"),
                         "year", candidates=candidates)  # fmt: skip
         analysis_type, confidence, type_reasons = self.numeric_type(role, integer, distinct)
-        if rate < 0.99:
+        if rate < 0.99 or profile.decimal_doubt:
             confidence = "medium"
-        role_reason = [f"name suggests {role.label.lower()}"] if role else []
+        role_reason = [name_reason(role)] if role else []
         all_reasons = list(dict.fromkeys([*reasons, *role_reason, *type_reasons]))
         return make(analysis_type, confidence, all_reasons, parser,
                     role.id if role else None, candidates=candidates)  # fmt: skip
@@ -1102,9 +1330,11 @@ def date_part_notes(detections: list[ColumnDetection]) -> None:
         year = by_name[group.parts["year"]]
         year.reasons.append(
             rule(
-                f"{group.listed} look like the parts of one date: Clean proposes to assemble "
-                f"them into a '{group.name}' column (B-20)",
                 "R-TYP-12",
+                "{columns} look like the parts of one date: Clean proposes to assemble them "
+                "into a '{name}' column (B-20)",
+                columns=group.listed,
+                name=group.name,
             )
         )
 

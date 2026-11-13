@@ -103,6 +103,28 @@ def test_spellings_merge_rare_variants_into_the_most_frequent(tmp_path: Path) ->
     assert "'Pariss' (4 rows)" in found["A-03:city"].reason
 
 
+def test_merges_carry_their_groups_value_by_value(tmp_path: Path) -> None:
+    """N38: each merge lists its groups (the target, its rows) and their values with their rows
+    and the step's keys they stand for, so the page can untick one and keep the rest."""
+    found = advanced(write(tmp_path, cities(random.Random(1))))
+    for rule in ("A-01", "A-02", "A-03"):
+        suggestion = found[f"{rule}:city"]
+        keys = {
+            key
+            for group in suggestion.clusters
+            for value in group.values
+            for key in value.spellings
+        }
+        assert keys == set(suggestion.step.map)  # type: ignore[union-attr]
+    a03 = {group.target: group for group in found["A-03:city"].clusters}
+    assert a03["Paris"].rows == 600
+    assert [(v.value, v.rows, v.spellings) for v in a03["Paris"].values] == [
+        ("Pariss", 4, ["Pariss"])
+    ]
+    assert a03["Toulouse"].values[0].value == "Tolouse"
+    assert all(not s.clusters for s in found.values() if s.rule not in ("A-01", "A-02", "A-03"))
+
+
 def test_spellings_skip_names_of_people_by_distance(tmp_path: Path) -> None:
     rows = [{"last_name": "Martin", "score": i} for i in range(300)]
     rows += [{"last_name": "Martine", "score": i} for i in range(5)]
@@ -166,9 +188,21 @@ def places(rng: random.Random, broken: int) -> list[dict[str, Any]]:
 
 
 def test_dependency_lists_the_rows_that_break_it(tmp_path: Path) -> None:
-    found = advanced(write(tmp_path, places(random.Random(4), broken=7)))
+    ds = write(tmp_path, places(random.Random(4), broken=7))
+    found = advanced(ds)
     suggestion = found["A-10:city+country"]
-    assert suggestion.mode == "I" and suggestion.step is None and suggestion.cells == 7
+    # B1 (C-45): the conditional step sets country back on these rows only
+    assert suggestion.mode == "S" and suggestion.cells == 7
+    assert suggestion.step is not None and suggestion.step.op == "set_where"
+    connection = duckdb.connect()
+    try:
+        compiled = compile_steps(connection, str(ds.path), [suggestion.step], strict=True)
+        left = connection.execute(
+            f"SELECT count(*) FROM ({compiled.sql()}) WHERE country = 'Belgium'"
+        ).fetchone()
+    finally:
+        connection.close()
+    assert left == (0,)
     assert suggestion.examples[0].before.startswith("row ")  # type: ignore[union-attr]
     assert "determines country" in suggestion.reason
     assert not any("channel" in s.columns for s in found.values())  # independent: no rule

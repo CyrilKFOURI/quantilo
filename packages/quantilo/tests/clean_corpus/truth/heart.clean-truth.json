@@ -1,0 +1,11 @@
+{
+ "label": "heart",
+ "corpus": "data-corpus",
+ "path": "health/uci_heart_cleveland/processed.cleveland.csv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-07:column11", "verdict": "correct", "why": "numbers stored as text, every value read", "op": "change_type"},
+  {"id": "B-07:column12", "verdict": "correct", "why": "numbers stored as text, every value read", "op": "change_type"}
+ ]
+}

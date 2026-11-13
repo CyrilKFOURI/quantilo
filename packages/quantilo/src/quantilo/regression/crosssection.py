@@ -2,7 +2,9 @@
 period, the mean of the coefficients with Newey–West errors), the information coefficient of each
 column (rank correlation with the target a period, ICIR), several outcomes on the same columns
 (coefficient matrix, Wilks and Pillai, the GRS test of the alphas) and the regression on principal
-components. Rules R-REG-XS-01…06.
+components. Rules R-REG-XS-01…08: a column that does not vary within a period is a factor
+(the market's return), read by two passes with Shanken's correction (R-REG-XS-08); with row
+weights, the IC is weighted too (R-REG-XS-07).
 
 Everything is numpy / scipy on one thread: Pyodide-compatible."""
 
@@ -26,6 +28,7 @@ IC_T = 2.0
 MAX_OUTPUTS = 10  # R-REG-XS-04
 MAX_IC_COLUMNS = 30
 ALPHA = 0.05
+MIN_BETA_PERIODS = 10  # R-REG-XS-08: periods an entity needs for its betas
 
 
 class CrossSectionError(ValueError):
@@ -61,6 +64,8 @@ class ColumnIc:
     periods: int
     ranks: bool  # |t| ≥ 2 (R-REG-XS-03)
     sentence: str = ""
+    weighted: float | None = None  # R-REG-XS-07: mean IC weighted by the row weights
+    weighted_t: float | None = None
 
 
 @dataclass
@@ -68,6 +73,31 @@ class CoefficientSeries:
     term: str
     periods: list[str]
     values: list[float]
+
+
+@dataclass
+class PremiumTerm:
+    """R-REG-XS-08: the price of a factor's beta in the cross-section."""
+
+    term: str
+    estimate: float
+    fm_se: float | None  # Fama–MacBeth, betas taken as known
+    shanken_se: float | None  # with Shanken's correction (1992)
+    ci_low: float | None  # with Shanken's errors
+    ci_high: float | None
+    p_value: float | None
+    factor_mean: float | None  # the factor's mean a period (a traded factor's premium)
+
+
+@dataclass
+class TwoPass:
+    factors: list[str]
+    entities: int
+    periods: int
+    terms: list[PremiumTerm]
+    widening: float  # Shanken's factor c: the variance × (1 + c)
+    sentence: str
+    notes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -88,6 +118,9 @@ class CrossSectionTable:
     sentence: str = ""
     ic_sentence: str = ""
     notes: list[str] = field(default_factory=list)
+    weights: str | None = None  # R-REG-XS-07
+    two_pass: TwoPass | None = None  # R-REG-XS-08
+    two_pass_reason: str = ""
 
 
 def newey_west_mean(values: np.ndarray, lag: int) -> float:
@@ -157,6 +190,121 @@ def _numeric_terms(fit: an.Fitted) -> list[int]:
     return found
 
 
+def factors_of(fit: an.Fitted, codes: np.ndarray) -> list[int]:
+    """R-REG-XS-08: numeric columns that take one value a period (the market's return, a
+    rate): no cross-section can price them, their betas can."""
+    found = []
+    x = fit.design.x
+    for j in _numeric_terms(fit):
+        values = x[:, j]
+        spread = 0.0
+        for code in np.unique(codes[codes >= 0]):
+            rows = values[codes == code]
+            spread = max(spread, float(np.ptp(rows)) if len(rows) else 0.0)
+        if spread <= 1e-12 * max(float(np.abs(values).max()), 1.0):
+            found.append(j)
+    return found
+
+
+def _weighted_rank_correlation(x: np.ndarray, y: np.ndarray, w: np.ndarray) -> float | None:
+    """R-REG-XS-07: Pearson's correlation of the ranks, each row weighted (a capitalisation)."""
+    if len(x) < MIN_IC_ROWS or w.sum() <= 0:
+        return None
+    rx, ry = stats.rankdata(x), stats.rankdata(y)
+    mx, my = np.average(rx, weights=w), np.average(ry, weights=w)
+    sx = float(np.average((rx - mx) ** 2, weights=w))
+    sy = float(np.average((ry - my) ** 2, weights=w))
+    if sx <= 0 or sy <= 0:
+        return None
+    return float(np.average((rx - mx) * (ry - my), weights=w)) / math.sqrt(sx * sy)
+
+
+def two_pass(
+    y: np.ndarray,
+    factors: np.ndarray,
+    entity: np.ndarray,
+    period: np.ndarray,
+    names: list[str],
+) -> TwoPass | str:
+    """R-REG-XS-08 (Fama & MacBeth 1973 with Shanken 1992): each entity's betas on the factors
+    over time, then one cross-section a period of the target on [1, betas]; the premia's
+    variance × (1 + λ′Σ_f⁻¹λ), plus Σ_f/T for the factors' own premia."""
+    entities = [int(e) for e in np.unique(entity[entity >= 0])]
+    betas: dict[int, np.ndarray] = {}
+    kf = factors.shape[1]
+    for e in entities:
+        rows = entity == e
+        if rows.sum() < max(MIN_BETA_PERIODS, kf + 3):
+            continue
+        design = np.column_stack([np.ones(int(rows.sum())), factors[rows]])
+        betas[e] = np.linalg.lstsq(design, y[rows], rcond=None)[0][1:]
+    if len(betas) < kf + 3:
+        return (
+            f"{len(betas)} entities have {MIN_BETA_PERIODS} periods or more: too few betas for "
+            "the second pass (R-REG-XS-08)."
+        )
+    lambdas: list[np.ndarray] = []
+    realised: list[np.ndarray] = []
+    for t in np.unique(period[period >= 0]):
+        rows = np.flatnonzero((period == t) & np.isin(entity, list(betas)))
+        if len(rows) < kf + 2:
+            continue
+        b = np.vstack([betas[int(e)] for e in entity[rows]])
+        design = np.column_stack([np.ones(len(rows)), b])
+        if np.linalg.matrix_rank(design) < kf + 1:
+            continue
+        lambdas.append(np.linalg.lstsq(design, y[rows], rcond=None)[0])
+        realised.append(factors[rows[0]])
+    if len(lambdas) < MIN_PERIODS:
+        return f"{len(lambdas)} periods with enough betas: the second pass needs {MIN_PERIODS}."
+    series, f = np.vstack(lambdas), np.vstack(realised)
+    t = len(series)
+    sigma_f = np.atleast_2d(np.cov(f, rowvar=False, ddof=1))
+    mean = series.mean(axis=0)
+    fm_var = np.var(series, axis=0, ddof=1) / t
+    premia = mean[1:]
+    try:
+        c = float(premia @ np.linalg.solve(sigma_f, premia))
+    except np.linalg.LinAlgError:
+        c = float(premia @ np.linalg.pinv(sigma_f) @ premia)
+    shanken = fm_var * (1 + c)
+    shanken[1:] += np.diag(sigma_f) / t
+    crit = float(stats.t.ppf(0.975, t - 1))
+    terms: list[PremiumTerm] = []
+    for i, name in enumerate(["(Zero-beta rate)", *names]):
+        se_fm = math.sqrt(fm_var[i]) if fm_var[i] > 0 else None
+        se = math.sqrt(shanken[i]) if shanken[i] > 0 else None
+        terms.append(
+            PremiumTerm(
+                name,
+                float(mean[i]),
+                se_fm,
+                se,
+                float(mean[i] - crit * se) if se else None,
+                float(mean[i] + crit * se) if se else None,
+                float(2 * stats.t.sf(abs(mean[i] / se), t - 1)) if se else None,
+                float(f[:, i - 1].mean()) if i > 0 else None,
+            )
+        )
+    main = min(terms[1:], key=lambda term: term.p_value if term.p_value is not None else 1.0)
+    wider = (main.shanken_se / main.fm_se - 1) if main.shanken_se and main.fm_se else 0.0
+    verb = "takes" if len(names) == 1 else "take"
+    sentence = (
+        f"Two passes, as {', '.join(f'`{n}`' for n in names)} {verb} one value a period: each of "
+        f"the {len(betas):,} entities' betas over time, then one cross-section a period on the "
+        f"betas ({t} periods). A beta of 1 on `{main.term}` earns {an.fmt(main.estimate)} a "
+        f"period [{an.fmt(main.ci_low)} ; {an.fmt(main.ci_high)}], {an.fmt_p(main.p_value)}; "
+        f"Shanken's correction widens its standard error by {wider:.0%}, as the betas are "
+        "estimated (R-REG-XS-08)."
+    )
+    notes = [
+        "For a factor that is itself a return (a traded portfolio), its premium should match its "
+        "mean a period; a gap, or a zero-beta rate far from 0, says the betas do not price the "
+        "cross-section."
+    ]
+    return TwoPass(names, len(betas), t, terms, c, sentence, notes)
+
+
 def _spearman(x: np.ndarray, y: np.ndarray) -> float | None:
     if len(x) < MIN_IC_ROWS:
         return None
@@ -180,17 +328,25 @@ def cross_section(fit: an.Fitted) -> CrossSectionTable:
     kept: list[str] = []
     sizes: list[int] = []
     raw_y, raw_x = fit.design.y, fit.design.x
-    numeric = _numeric_terms(fit)
+    factors = factors_of(fit, codes)
+    priced = [j for j in range(k) if j not in factors]  # the cross-section's columns
+    numeric = [j for j in _numeric_terms(fit) if j not in factors]
     ic: dict[int, list[float]] = {j: [] for j in numeric[:MAX_IC_COLUMNS]}
+    weighted_ic: dict[int, list[float]] = {j: [] for j in ic}
+    weights = fit.ls.weights
     skipped = 0
     for code, label in zip(present, labels, strict=True):
         rows = codes == code
-        xs, ys = x[rows], y[rows]
+        xs, ys = x[np.ix_(rows, priced)], y[rows]
         for j in ic:
             value = _spearman(raw_x[rows, j], raw_y[rows])
             if value is not None:
                 ic[j].append(value)
-        if len(ys) < k + 2 or np.linalg.matrix_rank(xs) < k:
+            if weights is not None:
+                found = _weighted_rank_correlation(raw_x[rows, j], raw_y[rows], weights[rows])
+                if found is not None:
+                    weighted_ic[j].append(found)
+        if len(ys) < len(priced) + 2 or np.linalg.matrix_rank(xs) < len(priced):
             skipped += 1
             continue
         beta = np.linalg.lstsq(xs, ys, rcond=None)[0]
@@ -200,11 +356,20 @@ def cross_section(fit: an.Fitted) -> CrossSectionTable:
         r2s.append(1 - float(e @ e) / tss if tss > 0 else float("nan"))
         kept.append(label)
         sizes.append(int(rows.sum()))
-    if len(betas) < MIN_PERIODS:
+    passes = _two_pass(fit, factors, codes)
+    if len(betas) < MIN_PERIODS or (len(priced) == 1 and factors):
+        if isinstance(passes, TwoPass):  # only factors: the two passes are the answer
+            table = CrossSectionTable(
+                True, "", fit.inputs.shape.entity, fit.inputs.shape.period, passes.periods
+            )
+            table.two_pass, table.sentence = passes, passes.sentence
+            table.ic_sentence = "No column varies within a period: no IC to read."
+            return table
         return CrossSectionTable(
             False,
             f"{len(betas)} periods have at least {k + 2} rows for {k} terms: Fama–MacBeth needs "
-            f"{MIN_PERIODS} (R-REG-XS-01).",
+            f"{MIN_PERIODS} (R-REG-XS-01)."
+            + (f" {passes}" if isinstance(passes, str) and factors else ""),
         )
     series = np.vstack(betas)
     t = len(series)
@@ -212,8 +377,9 @@ def cross_section(fit: an.Fitted) -> CrossSectionTable:
     se_pooled = np.sqrt(np.clip(np.diag(fit.covariance), 0, None))
     terms: list[MacBethTerm] = []
     crit = float(stats.t.ppf(0.975, t - 1))
-    for j, term in enumerate(fit.design.terms):
-        column = series[:, j]
+    for i, j in enumerate(priced):
+        term = fit.design.terms[j]
+        column = series[:, i]
         se, stat, p = _mean_test(column, lag)
         mean = float(column.mean())
         terms.append(
@@ -231,13 +397,20 @@ def cross_section(fit: an.Fitted) -> CrossSectionTable:
             )
         )
     ics = [_ic(fit.design.terms[j], np.asarray(values), lag) for j, values in ic.items() if values]
+    for found in ics:
+        j = fit.design.terms.index(found.column)
+        if weighted_ic.get(j):
+            values = np.asarray(weighted_ic[j])
+            found.weighted = float(values.mean())
+            found.weighted_t = _mean_test(values, lag)[1]
     ics.sort(key=lambda found: -abs(found.t or 0))
     keep = st._thin(t)
     drawn = [
         CoefficientSeries(
-            fit.design.terms[j], [kept[i] for i in keep], [float(series[i, j]) for i in keep]
+            fit.design.terms[j], [kept[i] for i in keep], [float(series[i, c]) for i in keep]
         )
-        for j in range(1, k)
+        for c, j in enumerate(priced)
+        if c > 0
     ][: st.MAX_CURVES]
     finite_r2 = [r for r in r2s if math.isfinite(r)]
     table = CrossSectionTable(
@@ -264,8 +437,38 @@ def cross_section(fit: an.Fitted) -> CrossSectionTable:
             "left out (R-REG-XS-01)."
         )
     if fit.ls.weights is not None:
-        table.notes.append(f"Each cross-section is weighted by `{fit.inputs.weights}`.")
+        table.weights = fit.inputs.weights
+        table.notes.append(
+            f"Each cross-section is weighted by `{fit.inputs.weights}`; so is the IC, read beside "
+            "the plain one (R-REG-XS-07: a capitalisation-weighted IC)."
+        )
+    if isinstance(passes, TwoPass):
+        table.two_pass = passes
+    elif factors:
+        table.two_pass_reason = passes
+    if factors:
+        table.notes.append(
+            "R-REG-XS-08: "
+            + ", ".join(f"`{fit.design.terms[j]}`" for j in factors)
+            + " take one value a period: no cross-section prices them, they are read by the two "
+            "passes."
+        )
     return table
+
+
+def _two_pass(fit: an.Fitted, factors: list[int], codes: np.ndarray) -> TwoPass | str:
+    if not factors:
+        return ""
+    entity = fit.grouping.entity_codes
+    if entity is None:
+        return "The two passes need the entity of the panel (R-REG-XS-08)."
+    return two_pass(
+        fit.design.y,
+        fit.design.x[:, factors],
+        entity,
+        codes,
+        [fit.design.terms[j] for j in factors],
+    )
 
 
 def _ic(term: str, values: np.ndarray, lag: int) -> ColumnIc:

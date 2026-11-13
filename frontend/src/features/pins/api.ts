@@ -38,6 +38,8 @@ export function usePinActions(id: string) {
   const done = (found: PinnedRows) => {
     client.setQueryData(pinsKey(id), found);
     void client.invalidateQueries({ queryKey: [...pinsKey(id), "compare"] });
+    // 099 bis: a table narrowed to the pinned rows (R-PIN-17) reads them again
+    void client.invalidateQueries({ queryKey: ["datasets", id, "rows", { pinned: true }] });
   };
   return {
     pin: useMutation({

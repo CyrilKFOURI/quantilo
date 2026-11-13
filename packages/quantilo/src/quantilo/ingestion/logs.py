@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pyarrow as pa
 
+from quantilo.ingestion.errors import IngestionError
+
 SNIFF_LINES = 200  # lines the format is chosen on (R-LOG-06)
 MATCH_SHARE = 0.8  # share of those lines a format must read (R-LOG-06, R-DET-05)
 MAX_CONTINUATION = 200  # continuation lines glued to one entry at most (R-LOG-07)
@@ -152,6 +154,52 @@ FORMATS: tuple[LogFormat, ...] = (
     ),
 )
 BY_KEY = {fmt.key: fmt for fmt in FORMATS}
+
+# R-LOG-11 (C1): a line pattern the user declares, `{time} [{level}] {message}` or a regular
+# expression with named groups `(?P<time>…)`
+USER = "user"
+MAX_PATTERN = 500
+MAX_FIELDS = 30
+_FIELD = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]{0,40})\}")
+
+
+def user_format(pattern: str) -> LogFormat:
+    """R-LOG-11: the user's pattern as a format. A template's `{name}` fields read as little as
+    they can (the last one, the rest of the line), the text between them as written (runs of
+    spaces: one or more); `(?P<name>…)` makes it a regular expression, used as it is."""
+    text = pattern.strip()
+    if not text or len(text) > MAX_PATTERN:
+        raise IngestionError(f"A line pattern has 1 to {MAX_PATTERN} characters.")
+    if "(?P<" in text:
+        try:
+            compiled = re.compile(text if text.startswith("^") else f"^{text}")
+        except re.error as error:
+            raise IngestionError(f"Invalid line pattern: {error}.") from None
+        names = tuple(compiled.groupindex)
+    else:
+        names = tuple(_FIELD.findall(text))
+        if not names:
+            raise IngestionError("A line pattern names its fields in braces: {time} {message}.")
+        if len(set(names)) != len(names):
+            raise IngestionError("Each field of a line pattern is named once.")
+        parts: list[str] = []
+        last = 0
+        fields = list(_FIELD.finditer(text))
+        for index, found in enumerate(fields):
+            parts.append(_literal(text[last : found.start()]))
+            greedy = index == len(fields) - 1
+            parts.append(f"(?P<{found.group(1)}>{'.*' if greedy else '.*?'})")
+            last = found.end()
+        parts.append(_literal(text[last:]))
+        compiled = re.compile("^" + "".join(parts) + "$")
+    if not names or len(names) > MAX_FIELDS or len(set(names)) != len(names):
+        raise IngestionError(f"A line pattern has 1 to {MAX_FIELDS} fields, each named once.")
+    columns = names if "message" in names else (*names, "message")
+    return LogFormat(USER, "R-LOG-11", f"your line pattern ({', '.join(names)})", compiled, columns)
+
+
+def _literal(text: str) -> str:
+    return r"\s+".join(re.escape(piece) for piece in re.split(r"\s+", text)) if text else ""
 
 
 @dataclass
@@ -372,9 +420,12 @@ def _year(path: Path) -> int:
         return datetime.now().year
 
 
-def read_log(path: Path, limit: int | None = None) -> tuple[pa.Table, LogReading]:
-    """The whole file (or its first `limit` entries, for a preview) as one table."""
-    fmt = choose_format(_sample(path))
+def read_log(
+    path: Path, limit: int | None = None, pattern: str | None = None
+) -> tuple[pa.Table, LogReading]:
+    """The whole file (or its first `limit` entries, for a preview) as one table. `pattern`:
+    the user's line pattern (R-LOG-11) instead of the known formats."""
+    fmt = user_format(pattern) if pattern else choose_format(_sample(path))
     if fmt is None:
         reading = LogReading("lines", "R-LOG-09", "lines of text")
         columns: tuple[str, ...] = ("message",)
@@ -389,7 +440,8 @@ def read_log(path: Path, limit: int | None = None) -> tuple[pa.Table, LogReading
         reading.lines += 1
         if not line.strip():
             continue
-        if rows and line[0].isspace() and glued < MAX_CONTINUATION and fmt is not None:
+        glue = fmt is not None and "message" in fmt.columns
+        if rows and line[0].isspace() and glued < MAX_CONTINUATION and glue:
             message = str(rows[-1].get("message") or "")
             if len(message) < MAX_MESSAGE:
                 rows[-1]["message"] = (message + "\n" + line)[:MAX_MESSAGE]
@@ -400,7 +452,9 @@ def read_log(path: Path, limit: int | None = None) -> tuple[pa.Table, LogReading
             break
         glued = 0
         match = fmt.pattern.match(line) if fmt is not None else None
-        if fmt is not None and match is not None:
+        if fmt is not None and match is not None and fmt.key == USER:
+            row = {k: v for k, v in match.groupdict().items() if v is not None}  # text (R-LOG-11)
+        elif fmt is not None and match is not None:
             row = parse(fmt, match, year)
         else:
             row: dict[str, object] = {"message": line[:MAX_MESSAGE]}
@@ -424,15 +478,16 @@ def read_log(path: Path, limit: int | None = None) -> tuple[pa.Table, LogReading
         data[name] = [row.get(name) for row in rows]
     data["template_id"] = [index + 1 for index in template_of]
     data["template"] = [drain.text(index) for index in template_of]
-    table = pa.table({name: _array(name, values) for name, values in data.items()})
+    typed = fmt is None or fmt.key != USER  # the user's fields stay text; the import types them
+    table = pa.table({name: _array(name, values, typed) for name, values in data.items()})
     reading.notes = _notes(path, reading)
     return table, reading
 
 
-def _array(name: str, values: list[object]) -> pa.Array:
-    if name == "time":
+def _array(name: str, values: list[object], typed: bool = True) -> pa.Array:
+    if name == "time" and typed:
         return pa.array(values, type=pa.timestamp("us"))
-    if name in ("line_no", "status", "bytes", "facility", "template_id"):
+    if name in ("line_no", "template_id") or (typed and name in ("status", "bytes", "facility")):
         return pa.array(values, type=pa.int64())
     return pa.array([None if v is None else str(v) for v in values], type=pa.string())
 
@@ -444,6 +499,12 @@ def _notes(path: Path, reading: LogReading) -> list[str]:
         out = [
             f"{path.name}: no known log format matched 80 % of its first lines; one row per "
             f"line, its text in `message` (R-LOG-09). {check}"
+        ]
+    elif reading.format == USER:
+        read = reading.entries - reading.unmatched
+        out = [
+            f"{path.name} read with {reading.label}: R-LOG-11. {read:,} of {reading.entries:,} "
+            f"entries follow it; its fields are read as text, then typed like any column. {check}"
         ]
     else:
         out = [f"{path.name} read as {reading.label}: {reading.rule}. {check}"]

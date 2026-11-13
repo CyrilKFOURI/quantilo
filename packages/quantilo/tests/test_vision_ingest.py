@@ -398,6 +398,61 @@ def test_hf_parquet_with_class_names_and_split(tmp_path: Path) -> None:
     assert rows[0]["image_file_path"] == "/data/img_0.png"  # other columns kept as metadata
 
 
+def _hf_folder(root: Path) -> Path:
+    """The Hugging Face layout of Beans: data/{train,validation,test}-00000-of-00001.parquet, the
+    same image names in every file (img_0.png ...)."""
+    names = ["angular_leaf_spot", "bean_rust", "healthy"]
+    data = root / "data"
+    data.mkdir(parents=True)
+    for split, n in (("train", 5), ("validation", 2), ("test", 3)):
+        hf_parquet(
+            data / f"{split}-00000-of-00001.parquet",
+            [encode(scene(i + 10 * n)) for i in range(n)],
+            [i % 3 for i in range(n)],
+            names,
+        )
+    (root / "README.md").write_text("# beans")
+    return data
+
+
+def test_folder_of_hf_parquet_files_reads_each_file_and_its_split(tmp_path: Path) -> None:
+    from quantilo.vision.ingest import preview_image_set
+
+    data = _hf_folder(tmp_path / "beans")
+    images = image_set(data, workspace=tmp_path / "ws", dataset_id="beans-folder")
+    assert images.source_kind == "parquet" and images.n_images == 10
+    assert images.splits == {"train": 5, "val": 2, "test": 3}
+    assert images.labels == {"angular_leaf_spot": 4, "bean_rust": 4, "healthy": 2}
+    codes = _codes(images)
+    assert {"R-VIS-LAY-06", "R-VIS-HF-01", "R-VIS-HF-02"} <= codes
+    assert "R-VIS-HF-03" not in codes  # the folder's note replaces each file's
+    note = next(r for r in images.rules if r.code == "R-VIS-LAY-06")
+    assert "3 Parquet files" in note.message and "train 5" in note.message and note.count == 10
+    hf01 = next(r for r in images.rules if r.code == "R-VIS-HF-01")
+    assert hf01.count == 10  # one note for the three files, their rows added up
+    rows = images.table.to_pylist()
+    paths = [r["rel_path"] for r in rows]
+    assert len(set(paths)) == 10  # the same image names in three files stay apart
+    assert "train-00000-of-00001/img_0.png" in paths
+    assert {r["file_name"] for r in rows} >= {"img_0.png", "img_4.png"}
+    assert all(r["image_file_path"].startswith("/data/") for r in rows)  # metadata kept
+    assert "folder of 3 Parquet files" in images.sentence
+    # the preview reads the same, decoding nothing
+    preview = preview_image_set(data)
+    assert preview.n_images == 10 and preview.splits == images.splits
+    # undone: no split read from the names
+    undone = preview_image_set(data, ignore_rules={"R-VIS-LAY-06"})
+    assert undone.n_images == 10 and undone.splits == {}
+    assert "R-VIS-LAY-06" not in {r.code for r in undone.rules}
+
+
+def test_a_folder_with_images_ignores_its_parquet_files(tmp_path: Path) -> None:
+    data = _hf_folder(tmp_path / "mixed")
+    write(data / "photo.png", encode(scene(1)))
+    images = image_set(data, workspace=tmp_path / "ws", dataset_id="mixed")
+    assert images.source_kind == "folder" and images.n_images == 1
+
+
 def test_parquet_without_images_is_refused(tmp_path: Path) -> None:
     import pyarrow as pa
 

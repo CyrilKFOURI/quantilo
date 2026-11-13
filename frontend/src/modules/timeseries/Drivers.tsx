@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import type {
   DriverSpec,
   ForecastJob,
+  HolidayOffer,
   SeriesDrivers,
 } from "../../api/client";
 import { formatNumber } from "../../charts/figures";
@@ -17,13 +18,14 @@ type Candidate = SeriesDrivers["candidates"][number];
 type Future = DriverSpec["future"];
 
 /** The models that use drivers (028 A4); the others ignore them. */
-export const DRIVER_MODELS = ["sarimax", "tslm", "gbm_lags"];
+export const DRIVER_MODELS = ["sarimax", "tslm", "gbm_lags", "prophet_like"];
 const MAX_DRIVERS = 6;
 
 const modelName = (key: string) => t(`tsm.${key}` as MessageKey);
 const r = (value: number | null) => (value === null ? "—" : value.toFixed(2));
 
-/** The drivers worth sending: columns still offered, calendar parts valid for the period. */
+/** The drivers worth sending: columns still offered, calendar parts valid for the period,
+ * public holidays when the period allows them and a country is chosen (028 A5). */
 export function usableDrivers(
   drivers: DriverSpec[],
   candidates: SeriesDrivers | undefined,
@@ -33,8 +35,50 @@ export function usableDrivers(
   return drivers.filter((d) =>
     d.kind === "calendar"
       ? candidates.calendar.includes(d.column)
-      : columns.has(d.column),
+      : d.kind === "holidays"
+        ? Boolean(candidates.holidays?.usable && d.column)
+        : columns.has(d.column),
   );
+}
+
+/** The drivers kept by the page, holidays still waiting for a country included (shown in the
+ * panel, not sent). */
+export function shownDrivers(
+  drivers: DriverSpec[],
+  candidates: SeriesDrivers | undefined,
+): DriverSpec[] {
+  const usable = usableDrivers(drivers, candidates);
+  return drivers.filter(
+    (d) =>
+      usable.includes(d) ||
+      (d.kind === "holidays" && !d.column && candidates?.holidays?.usable),
+  );
+}
+
+const HOLIDAY_NAME = /^Public holidays \((.+)\)$/;
+/** A driver's name as shown: the holidays' label in the reader's language. */
+export function driverLabel(name: string): string {
+  const found = HOLIDAY_NAME.exec(name);
+  return found ? t("ts.holidays.name", { code: found[1] ?? "" }) : name;
+}
+
+/** Why this country is proposed, or why none is (coded rule, R-TS-HOL-01). */
+export function guessText(offer: HolidayOffer): string {
+  const { guess } = offer;
+  const country = offer.countries.find((c) => c.code === guess.code);
+  return t(`ts.holidays.rule.${guess.rule}` as MessageKey, {
+    country: country ? `${country.name} (${country.code})` : (guess.code ?? ""),
+    column: guess.column ?? "",
+    value: guess.value ?? "",
+  });
+}
+
+/** Why the calendar cannot be used here. */
+function holidaysBlocked(offer: HolidayOffer): string | null {
+  if (offer.usable) return null;
+  return offer.countries.length
+    ? t("ts.holidays.needsPeriod")
+    : t("ts.holidays.missing");
 }
 
 const spec = (
@@ -107,8 +151,13 @@ export function DriversPanel({
     candidates?.candidates.map((c) => [c.column, c]) ?? [],
   );
   const chosen = new Set(
-    drivers.filter((d) => d.kind !== "calendar").map((d) => d.column),
+    drivers
+      .filter((d) => d.kind === "column" || d.kind === "flag")
+      .map((d) => d.column),
   );
+  const holidays = candidates?.holidays ?? null;
+  const holidaysOn = drivers.some((d) => d.kind === "holidays");
+  const blocked = holidays ? holidaysBlocked(holidays) : null;
   const free = candidates?.candidates.filter((c) => !chosen.has(c.column)) ?? [];
   const full = drivers.length >= MAX_DRIVERS;
   const update = (at: number, next: DriverSpec) =>
@@ -138,7 +187,7 @@ export function DriversPanel({
             <span className="text-ink-3 tabular-nums">· {drivers.length}</span>
           )}
         </button>
-        <span className="text-xs text-ink-3">{t("ts.drivers.usedBy")}</span>
+        <span className="text-xs text-ink-3">{t("ts.drivers.usedByModels")}</span>
       </div>
       {open && (
         <div className="space-y-2 border-t border-line px-3 py-2 text-xs">
@@ -147,9 +196,10 @@ export function DriversPanel({
             <ul className="divide-y divide-line rounded-md border border-line bg-surface-1">
               {drivers.map((driver, at) => (
                 <DriverRow
-                  key={`${driver.kind}:${driver.column}`}
+                  key={`${driver.kind}:${driver.kind === "holidays" ? "" : driver.column}`}
                   driver={driver}
                   candidate={byColumn.get(driver.column)}
+                  holidays={holidays}
                   horizon={horizon}
                   onChange={(next) => update(at, next)}
                   onRemove={() => remove(at)}
@@ -179,6 +229,30 @@ export function DriversPanel({
                 );
               })}
               <span className="text-ink-3">{t("ts.drivers.calendarHint")}</span>
+            </div>
+          )}
+          {holidays && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-ink-3">{t("ts.holidays.title")}</span>
+              {!holidaysOn && (
+                <button
+                  type="button"
+                  disabled={Boolean(blocked) || full}
+                  onClick={() =>
+                    onChange([
+                      ...drivers,
+                      spec(holidays.guess.code ?? "", "holidays", true),
+                    ])
+                  }
+                  className="inline-flex h-6 items-center gap-1 rounded-full border border-line px-2.5 text-ink-2 hover:bg-surface-2 hover:text-ink-1 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Plus size={11} strokeWidth={2} aria-hidden />
+                  {t("ts.holidays.add")}
+                </button>
+              )}
+              <span className={blocked ? "text-ink-3" : "text-ink-2"}>
+                {blocked ?? guessText(holidays)}
+              </span>
             </div>
           )}
           <div className="flex flex-wrap items-center gap-2">
@@ -259,12 +333,14 @@ function AddSelect({
 function DriverRow({
   driver,
   candidate,
+  holidays,
   horizon,
   onChange,
   onRemove,
 }: {
   driver: DriverSpec;
   candidate: Candidate | undefined;
+  holidays: HolidayOffer | null;
   horizon: number;
   onChange: (driver: DriverSpec) => void;
   onRemove: () => void;
@@ -273,12 +349,14 @@ function DriverRow({
   const name =
     kind === "calendar"
       ? t(`ts.drivers.cal.${driver.column}` as MessageKey)
-      : driver.column;
+      : kind === "holidays"
+        ? t("ts.holidays.title")
+        : driver.column;
   const future = driver.future;
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-2.5 py-1.5">
       <span
-        className={`min-w-24 text-[13px] text-ink-1 ${kind === "calendar" ? "" : "font-mono"}`}
+        className={`min-w-24 text-[13px] text-ink-1 ${kind === "calendar" || kind === "holidays" ? "" : "font-mono"}`}
       >
         {name}
       </span>
@@ -350,6 +428,9 @@ function DriverRow({
       {kind === "calendar" && (
         <span className="text-ink-3">{t("ts.drivers.calendarHint")}</span>
       )}
+      {kind === "holidays" && holidays && (
+        <HolidaysChoice driver={driver} offer={holidays} onChange={onChange} />
+      )}
       <button
         type="button"
         aria-label={t("ts.drivers.remove", { name })}
@@ -359,6 +440,60 @@ function DriverRow({
         <X size={12} strokeWidth={2} aria-hidden />
       </button>
     </li>
+  );
+}
+
+/** Country and subdivision of the public-holiday driver (028 A5). */
+function HolidaysChoice({
+  driver,
+  offer,
+  onChange,
+}: {
+  driver: DriverSpec;
+  offer: HolidayOffer;
+  onChange: (driver: DriverSpec) => void;
+}) {
+  const country = offer.countries.find((c) => c.code === driver.column);
+  const subdivisions = country?.subdivisions ?? [];
+  return (
+    <>
+      <Select
+        aria-label={t("ts.holidays.country")}
+        value={driver.column}
+        onChange={(event) =>
+          onChange({ ...driver, column: event.target.value, subdiv: null })
+        }
+        className="h-7 max-w-56 text-xs"
+      >
+        {!driver.column && <option value="">{t("ts.holidays.choose")}</option>}
+        {offer.countries.map((c) => (
+          <option key={c.code} value={c.code}>
+            {c.name} ({c.code})
+          </option>
+        ))}
+      </Select>
+      {subdivisions.length > 0 && (
+        <Select
+          aria-label={t("ts.holidays.subdiv")}
+          value={driver.subdiv ?? ""}
+          onChange={(event) =>
+            onChange({ ...driver, subdiv: event.target.value || null })
+          }
+          className="h-7 max-w-48 text-xs"
+        >
+          <option value="">{t("ts.holidays.wholeCountry")}</option>
+          {subdivisions.map((s) => (
+            <option key={s.code} value={s.code}>
+              {s.name ? `${s.code} · ${s.name}` : s.code}
+            </option>
+          ))}
+        </Select>
+      )}
+      <span className="basis-full text-ink-3">
+        {offer.weekly ? t("ts.holidays.hintWeek") : t("ts.holidays.hintDay")}{" "}
+        {t("ts.holidays.separate")}
+      </span>
+    </>
   );
 }
 
@@ -399,7 +534,7 @@ export function DriverResults({ result }: { result: Result }) {
             {models.flatMap((model) =>
               model.drivers.map((effect) => (
                 <tr key={`${model.key}:${effect.driver}`} className="border-t border-line">
-                  <td className="px-3 py-1.5 text-ink-1">{effect.driver}</td>
+                  <td className="px-3 py-1.5 text-ink-1">{driverLabel(effect.driver)}</td>
                   <td className="px-3 py-1.5 text-ink-2">{modelName(model.key)}</td>
                   <td className="px-3 py-1.5 text-right">
                     {effect.coefficient !== null

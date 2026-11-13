@@ -108,25 +108,53 @@ class ImageStore:
     def put_thumbnail(self, digest: str, image: Image.Image) -> str:
         """A WebP thumbnail, long side 256 px, quality 80, without any metadata."""
         rel = self.thumb_rel(digest)
-        target = self.root / rel
-        if not target.is_file():
-            thumb = image.convert("RGB")  # a copy, so the caller's image is left as it is
-            thumb.thumbnail((THUMB_SIDE, THUMB_SIDE), Image.Resampling.LANCZOS)
-            thumb.info = {}
-            buffer = io.BytesIO()
-            thumb.save(buffer, "WEBP", quality=THUMB_QUALITY, method=2, exif=b"", icc_profile=None)
-            _write(target, buffer.getvalue())
+        if not (self.root / rel).is_file():
+            _write(self.root / rel, thumbnail_bytes(image))
+        return rel
+
+    def put_thumbnail_bytes(self, digest: str, data: bytes) -> str:
+        """A thumbnail already encoded by `thumbnail_bytes` (a reading process, R-VIS-ING-07)."""
+        rel = self.thumb_rel(digest)
+        if not (self.root / rel).is_file():
+            _write(self.root / rel, data)
         return rel
 
     def put_mask(self, digest: str, mask: Image.Image) -> str:
         """The image's mask as a grey PNG (any value > 0 is the defect)."""
+        return self.put_mask_bytes(digest, mask_bytes(mask))
+
+    def put_mask_bytes(self, digest: str, data: bytes) -> str:
         rel = self.mask_rel(digest)
-        grey = mask.convert("L")
-        grey.info = {}
-        buffer = io.BytesIO()
-        grey.save(buffer, "PNG", optimize=True)
-        _write(self.root / rel, buffer.getvalue())
+        _write(self.root / rel, data)
         return rel
 
 
-__all__ = ["THUMB_QUALITY", "THUMB_SIDE", "ImageStore", "check_dataset_id", "image_id", "sha256"]
+def thumbnail_bytes(image: Image.Image) -> bytes:
+    """The WebP thumbnail of an image: long side 256 px, quality 80, no metadata."""
+    thumb = image.convert("RGB")  # a copy, so the caller's image is left as it is
+    thumb.thumbnail((THUMB_SIDE, THUMB_SIDE), Image.Resampling.LANCZOS)
+    thumb.info = {}
+    buffer = io.BytesIO()
+    thumb.save(buffer, "WEBP", quality=THUMB_QUALITY, method=2, exif=b"", icc_profile=None)
+    return buffer.getvalue()
+
+
+def mask_bytes(mask: Image.Image) -> bytes:
+    """A mask as a grey PNG without metadata."""
+    grey = mask.convert("L")
+    grey.info = {}
+    buffer = io.BytesIO()
+    grey.save(buffer, "PNG", optimize=True)
+    return buffer.getvalue()
+
+
+__all__ = [
+    "THUMB_QUALITY",
+    "THUMB_SIDE",
+    "ImageStore",
+    "check_dataset_id",
+    "image_id",
+    "mask_bytes",
+    "sha256",
+    "thumbnail_bytes",
+]

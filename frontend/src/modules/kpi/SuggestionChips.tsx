@@ -3,8 +3,10 @@ import { useId, useState } from "react";
 
 import type { KpiDefinition, KpiSuggestions } from "../../api/client";
 import { t } from "../../lib/i18n";
+import { reasonTexts, type ReasonDetail } from "../../lib/i18n/reasons";
 import { TipBox } from "../../ui/InfoTip";
 import { Popover } from "../../ui/Popover";
+import { kpiName } from "./names";
 
 /** Chips shown in the row; the others wait under "More (n)" (048). */
 export const VISIBLE_SUGGESTIONS = 6;
@@ -17,6 +19,11 @@ export function splitReason(reason: string): { rule: string | null; text: string
   const at = reason.indexOf(" · ");
   if (at < 0 || !reason.startsWith("R-")) return { rule: null, text: reason };
   return { rule: reason.slice(0, at), text: reason.slice(at + 3) };
+}
+
+/** A suggested KPI's reasons in the interface language (M02). */
+export function kpiReasons(kpi: { reasons: string[]; reason_details?: ReasonDetail[] | null }): string[] {
+  return reasonTexts(kpi.reasons, kpi.reason_details);
 }
 
 function Reasons({ reasons }: { reasons: string[] }) {
@@ -47,11 +54,11 @@ function Chip({ kpi, active, onPick }: { kpi: Suggested; active: boolean; onPick
         onClick={onPick}
         className={`border-b-2 px-0.5 pb-0.5 text-[13px] ${active ? "border-accent font-medium text-ink-1" : "border-transparent text-ink-2 hover:border-line hover:text-ink-1"}`}
       >
-        {kpi.name}
+        {kpiName(kpi)}
       </button>
       <TipBox id={id} placement="below">
         <span className="mb-1 block font-medium text-ink-1">{t("kpi.whyKpi", { score: String(kpi.score) })}</span>
-        <Reasons reasons={kpi.reasons} />
+        <Reasons reasons={kpiReasons(kpi)} />
       </TipBox>
     </span>
   );
@@ -92,8 +99,8 @@ function More({ kpis, isActive, onPick }: { kpis: Suggested[]; isActive: (kpi: S
               }}
               className="w-full rounded-md px-2 py-1.5 text-left hover:bg-surface-2"
             >
-              <span className={`block text-[13px] text-ink-1 ${isActive(kpi) ? "font-medium" : ""}`}>{kpi.name}</span>
-              {kpi.reasons[0] && <span className="block text-xs text-ink-3">{splitReason(kpi.reasons[0]).text}</span>}
+              <span className={`block text-[13px] text-ink-1 ${isActive(kpi) ? "font-medium" : ""}`}>{kpiName(kpi)}</span>
+              {kpi.reasons[0] && <span className="block text-xs text-ink-3">{splitReason(kpiReasons(kpi)[0] ?? "").text}</span>}
             </button>
           </li>
         ))}

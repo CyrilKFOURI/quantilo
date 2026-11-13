@@ -1,22 +1,24 @@
 from types import SimpleNamespace
 from typing import Any
 
-import httpx2
-import openai
 import pytest
-from openai.types.chat import ChatCompletionChunk
 
-from app.modules.agent.engine.messages import Block, Message, user_text
-from app.modules.agent.engine.provider import (
+openai = pytest.importorskip("openai", reason="the assistant's `[agent]` extra is not installed")
+httpx2 = pytest.importorskip("httpx2")
+
+from openai.types.chat import ChatCompletionChunk  # noqa: E402
+
+from app.modules.agent.engine.messages import Block, Message, user_text  # noqa: E402
+from app.modules.agent.engine.provider import (  # noqa: E402
     Completed,
     ProviderError,
     Request,
     TextDelta,
     ToolSpec,
 )
-from app.modules.agent.providers.openai_compat import OpenAICompatProvider, to_api, translate
-from app.modules.agent.providers.vendors import BY_ID, chat_models, detect, pick_default
-from app.modules.agent.settings import SettingsStore
+from app.modules.agent.providers.openai_compat import OpenAICompatProvider, to_api, translate  # noqa: E402
+from app.modules.agent.providers.vendors import BY_ID, chat_models, detect, pick_default  # noqa: E402
+from app.modules.agent.settings import SettingsStore  # noqa: E402
 
 
 def chunk(**delta: Any) -> ChatCompletionChunk:

@@ -11,10 +11,21 @@ every real model must beat:
 Expected: random ~0.5 AUROC, random AUPRO ~0.15 (= 0.3 / 2: the PRO curve of random maps is the
 diagonal).
 
+With `--models classic` (or `deep`), the bench also imports each set (104, in a temporary folder
+deleted at the end) and scores the first-plan models of 112 (`vision.classic_models`): logistic
+regression and HGB on the classic descriptors for Beans, patch PCA, nearest normals and their
+average rank for MVTec bottle; `deep` adds the DINOv2-S/14 probe and kNN when the extra `vision`
+and its weights are installed (R-VCL-06), and the real models of 114 to 118 (b2): the fine-tuned
+DINOv2 (Advanced > More) on Beans, and PatchCore, PaDiM and the convolutional autoencoder on MVTec
+bottle (one run per detector on the same import, so the vectors are computed once). The
+temperature scaling applied out of fold (R-VM-06) is reported (ECE before and after), and the
+images R-VQ-16 suggests are counted.
+
 Usage (from packages/quantilo, so that quantilo is importable):
     uv run --no-sync python ../../scripts/vision_bench.py [--data DIR] [--only beans]
-        [--draws 1000] [--seed 0] [--json results.json]
-Download the sets first with scripts/vision_datasets.py. Nothing here writes images anywhere.
+        [--draws 1000] [--seed 0] [--models classic|deep] [--json results.json]
+Download the sets first with scripts/vision_datasets.py. Images are written only to that
+temporary folder (`--models`).
 """
 
 import argparse
@@ -23,6 +34,7 @@ import json
 import math
 import struct
 import sys
+import tempfile
 import time
 import zlib
 from collections import Counter
@@ -353,7 +365,139 @@ def _anomaly(is_defect, scores, kinds, held_scores, gt, maps, draws, seed) -> di
 # ---------------------------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------------------------
+# Models of 112 (imported sets, temporary folder)
+
+
+def _model_summary(model) -> dict:
+    out: dict = {"title": model.title, "setting": model.setting, "default": model.default}
+    if model.classification is not None:
+        c = model.classification
+        out |= {
+            "main": c.main.metric,
+            "accuracy": round(c.accuracy, 4),
+            "balanced_accuracy": round(c.balanced_accuracy, 4),
+            "f1_macro": round(c.f1_macro, 4),
+            "kappa": round(c.kappa, 4),
+            "roc_auc": None if c.roc_auc is None else round(c.roc_auc, 4),
+            "log_loss": None if c.log_loss is None else round(c.log_loss, 4),
+            "ece": None if c.calibration is None else round(c.calibration.reliability.ece, 4),
+            "ece_after": None
+            if c.calibration is None or not c.calibration.applied or c.calibration.ece_after is None
+            else round(c.calibration.ece_after, 4),
+            "temperature": None
+            if c.calibration is None or c.calibration.temperature is None
+            else round(c.calibration.temperature, 3),
+            "log_loss_after": None
+            if c.calibration is None or c.calibration.log_loss_after is None
+            else round(c.calibration.log_loss_after, 4),
+            "intervals": {k: [round(v.low, 4), round(v.high, 4)] for k, v in c.intervals.items()},
+            "confusion": c.confusion,
+            "inner_cv": None if model.selection is None else round(model.selection, 4),
+        }
+    if model.anomaly is not None:
+        a = model.anomaly
+        out |= {
+            "auroc": round(a.auroc, 4),
+            "auroc_interval": None
+            if a.auroc_interval is None
+            else [round(a.auroc_interval.low, 4), round(a.auroc_interval.high, 4)],
+            "ap": round(a.ap, 4),
+            "auroc_by_type": {k: round(v, 4) for k, v in a.auroc_by_type.items()},
+            "threshold": None if a.threshold is None else a.threshold.message,
+        }
+        if a.at_threshold is not None:
+            out["at_threshold"] = {
+                "f1": round(a.at_threshold.f1, 4),
+                "precision": round(a.at_threshold.precision, 4),
+                "recall": round(a.at_threshold.recall, 4),
+                "false_alarm_rate": round(a.at_threshold.false_alarm_rate, 4),
+            }
+        if a.pixel is not None:
+            out["pixel"] = {
+                "auroc": round(a.pixel.auroc, 4),
+                "aupro_30": round(a.pixel.aupro, 4),
+                "f1": None if a.pixel.f1 is None else round(a.pixel.f1, 4),
+                "iou": None if a.pixel.iou is None else round(a.pixel.iou, 4),
+            }
+    out["seconds"] = model.seconds
+    return out
+
+
+def _run_models(
+    source: Path, workspace: Path, name: str, deep: bool, seed: int, runs: list[dict]
+) -> dict:
+    """Import once, then one `evaluate` per entry of `runs` (its options); a model already scored
+    by an earlier run (the classic ones) is kept from the first."""
+    from quantilo.vision import image_set
+    from quantilo.vision.classic_models import evaluate_image_set
+
+    started = time.perf_counter()
+    images = image_set(source, workspace=workspace, dataset_id=name)
+    imported = time.perf_counter() - started
+    out: dict = {"dataset": name, "import_seconds": round(imported, 1), "models": {}, "runs": []}
+    for options in runs if deep else [{}]:
+        began = time.perf_counter()
+        outcome = evaluate_image_set(images, deep=None if deep else False, seed=seed, **options)
+        result = outcome.result
+        out.setdefault("task", result.task.message)
+        out.setdefault("split", result.split.sentence)
+        out.setdefault("deep", result.deep.reason or "used")
+        for m in result.models:
+            out["models"].setdefault(m.key, _model_summary(m))
+        found = result.mislabelled
+        out["runs"].append(
+            {
+                "options": options,
+                "default": result.default,
+                "sentence": result.sentence,
+                "features": {
+                    f.key: {"computed": f.computed, "seconds": f.seconds} for f in result.features
+                },
+                "notes": result.notes,
+                "mislabelled": None
+                if found is None
+                else {
+                    "count": found.count,
+                    "checked": found.details["checked"],
+                    "images": found.details["images"][:10],
+                },
+                "seconds": round(time.perf_counter() - began, 1),
+            }
+        )
+    return out
+
+
+def models_beans(folder: Path, seed: int, deep: bool) -> dict:
+    """The three Parquet files written as train / validation / test folders of JPEG files (the
+    producer's split, R-VIS-LAY-02), then imported and scored; `deep` adds the fine-tuned DINOv2
+    of 118 (Advanced > More)."""
+    with tempfile.TemporaryDirectory(prefix="quantilo-bench-") as tmp:
+        root = Path(tmp) / "beans"
+        for split in BEANS_SPLITS:
+            labels, blobs, names = _beans_split(folder, split)
+            for i, (label, blob) in enumerate(zip(labels, blobs, strict=True)):
+                target = root / split / names[label]
+                target.mkdir(parents=True, exist_ok=True)
+                (target / f"{i:04d}.jpg").write_bytes(blob)
+        runs = [{"more": ["finetune"], "confirm_long": True}]
+        return _run_models(root, Path(tmp) / "workspace", "beans", deep, seed, runs)
+
+
+def models_bottle(folder: Path, seed: int, deep: bool) -> dict:
+    """`deep`: PatchCore, PaDiM (115) and the convolutional autoencoder (116), one run each."""
+    base = folder / "bottle"
+    if not base.is_dir():
+        raise BenchError(f"{base} missing: run scripts/vision_datasets.py get mvtec-bottle")
+    with tempfile.TemporaryDirectory(prefix="quantilo-bench-") as tmp:
+        runs = [
+            {"detector": d, "confirm_long": True} for d in ("patchcore", "padim", "autoencoder")
+        ]
+        return _run_models(base, Path(tmp) / "workspace", "bottle", deep, seed, runs)
+
+
 BENCHES = {"beans": ("beans", bench_beans), "mvtec-bottle": ("mvtec-bottle", bench_bottle)}
+MODELS = {"beans": models_beans, "mvtec-bottle": models_bottle}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -363,6 +507,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--draws", type=int, default=vm.BOOTSTRAP_DRAWS)
     parser.add_argument("--seed", type=int, default=vm.SEED)
     parser.add_argument("--json", type=Path)
+    parser.add_argument("--models", choices=["classic", "deep"], help="also score 112's models")
     args = parser.parse_args(argv)
     results, failed = [], False
     for name in args.only or list(BENCHES):
@@ -374,6 +519,14 @@ def main(argv: list[str] | None = None) -> int:
             failed = True
             continue
         failed |= bool(result["problems"])
+        if args.models:
+            try:
+                result["models_112"] = MODELS[name](
+                    args.data / folder_name, args.seed, args.models == "deep"
+                )
+            except BenchError as error:
+                print(f"{name}: models skipped, {error}", file=sys.stderr)
+                failed = True
         results.append(result)
         print(json.dumps(result, indent=1, default=str))
     if args.json:

@@ -28,7 +28,7 @@ class Formula:
 
     def predict(self, frame: pd.DataFrame) -> np.ndarray:
         a, b, d = (frame[c].to_numpy(dtype=float) for c in ("a", "b", "d"))
-        return 2 * a + 3 * b**2 + frame["c"].map(STEP).to_numpy(dtype=float) + a * d
+        return 2 * a + 3 * b**2 + np.array([STEP[v] for v in frame["c"]], dtype=float) + a * d
 
 
 def _frame() -> pd.DataFrame:
@@ -76,14 +76,14 @@ def test_ale_reads_real_neighbours_where_the_partial_dependence_extrapolates() -
 
 def test_ale_of_ordered_categories_matches_the_step_function() -> None:
     found = effects.ale(
-        Formula(),
+        Formula(),  # type: ignore[arg-type]
         DATA,
         "regression",
         "c",
-        orders={"c": ["low", "mid", "high"]},  # type: ignore[arg-type]
+        orders={"c": ["low", "mid", "high"]},
     )
     counts = np.array(found.counts)
-    steps = np.array([STEP[c] for c in found.grid])
+    steps = np.array([STEP[str(c)] for c in found.grid])
     assert found.kind == "category" and found.grid == ["low", "mid", "high"]
     assert found.order == "the order set in Columns"
     assert np.allclose(found.curves["prediction"], steps - (counts * steps).sum() / counts.sum())
@@ -261,3 +261,41 @@ def test_a_surrogate_of_low_fidelity_is_flagged() -> None:
         assert found.warning and found.warning.startswith("R-XAI-04")
     rules = {r for n in found.nodes for r in (n.left_rule, n.right_rule) if r}
     assert rules  # categories read as "contract = month", numbers as "tenure ≤ 12"
+
+
+# --- 125 bis: the two-column ALE (R-XAI-20) ---------------------------------------------------
+
+
+class Pair:
+    """2a + 3b² + k·a·b: an interaction of strength k between a and b."""
+
+    classes_: tuple[str, ...] = ()
+
+    def __init__(self, k: float) -> None:
+        self.k = k
+
+    def predict(self, frame: pd.DataFrame) -> np.ndarray:
+        a, b = (frame[c].to_numpy(dtype=float) for c in ("a", "b"))
+        return 2 * a + 3 * b**2 + self.k * a * b
+
+
+def test_the_two_column_ale_is_zero_without_interaction() -> None:
+    found = effects.ale_2d(cast(object, Pair(0.0)), DATA, "regression", "a", "b")  # type: ignore[arg-type]
+    assert np.allclose(found.values, 0.0, atol=1e-9)
+    assert found.strength < 0.05 and "next to no interaction" in found.sentence
+    assert "R-XAI-20" in found.sentence
+    assert len(found.first_edges) == 11 and len(found.second_edges) == 11
+
+
+def test_the_two_column_ale_draws_the_product_without_the_main_effects() -> None:
+    found = effects.ale_2d(cast(object, Pair(4.0)), DATA, "regression", "a", "b")  # type: ignore[arg-type]
+    a = np.array(found.first_edges)
+    b = np.array(found.second_edges)
+    surface = np.array(found.values)
+    product = 4 * np.outer(a - DATA["a"].mean(), b - DATA["b"].mean())
+    # the same shape as the centred product: what is left once each column's own effect is out
+    r = np.corrcoef(surface.ravel(), product.ravel())[0, 1]
+    assert r > 0.97 and found.strength > 0.05
+    assert sum(map(sum, found.counts)) == N
+    with pytest.raises(effects.AleError, match="not a number"):
+        effects.ale_2d(cast(object, Pair(1.0)), DATA, "regression", "a", "c")  # type: ignore[arg-type]

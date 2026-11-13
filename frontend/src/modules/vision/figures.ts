@@ -4,6 +4,7 @@ import type { Figure } from "../../charts/Plot";
 import { formatNumber, withAlpha } from "../../charts/figures";
 import type { ChartTokens } from "../../charts/theme";
 import { OTHER, type Bins, type ImageRow } from "./model";
+import { t } from "../../lib/i18n";
 
 const LOG_TICKS = [0, 1, 10, 100, 1000, 10000, 100000];
 
@@ -29,7 +30,7 @@ export function histogramFigure(bins: Bins, options: { unit: string; series: rea
       widths.push(position(high) - position(low));
       ranges.push([low, high, formatNumber(low), formatNumber(high)]);
     }
-    const hover = `%{customdata[2]} to %{customdata[3]}<br>%{y:,} ${options.unit}<extra>%{fullData.name}</extra>`;
+    const hover = t("fig.vision.hoverRangeSeries", { unit: options.unit });
     const line = { color: tokens.surface, width: 1 };
     const data: Data[] =
       options.series && bins.byLabel
@@ -55,7 +56,7 @@ export function histogramFigure(bins: Bins, options: { unit: string; series: rea
               width: widths,
               customdata: ranges,
               marker: { color: tokens.numeric, line },
-              hovertemplate: `%{customdata[2]} to %{customdata[3]}<br>%{y:,} ${options.unit}<extra></extra>`,
+              hovertemplate: t("fig.vision.hoverRange", { unit: options.unit }),
             } as Data,
           ];
     const layout: Partial<Layout> = {
@@ -127,8 +128,8 @@ export function sizeFigure(rows: readonly ImageRow[]): Figure {
     return {
       data: [...lines, points],
       layout: {
-        xaxis: { type: "log", range: [Math.log10(low), Math.log10(high)], showgrid: false, title: { text: "width (px)", font: { size: 11 } } },
-        yaxis: { type: "log", range: [Math.log10(low), Math.log10(high)], title: { text: "height (px)", font: { size: 11 } } },
+        xaxis: { type: "log", range: [Math.log10(low), Math.log10(high)], showgrid: false, title: { text: t("fig.vision.width"), font: { size: 11 } } },
+        yaxis: { type: "log", range: [Math.log10(low), Math.log10(high)], title: { text: t("fig.vision.height"), font: { size: 11 } } },
         annotations,
       },
     };
@@ -155,7 +156,7 @@ export function labelsFigure(counts: readonly [string, number][], series: readon
             color: ordered.map(([label]) => seriesColour(tokens, series, series.includes(label) ? label : OTHER)),
             line: { color: tokens.surface, width: 1 },
           },
-          hovertemplate: "%{y}<br>%{x:,} images<extra></extra>",
+          hovertemplate: t("fig.vision.hoverImages"),
         } as Data,
       ],
       layout: {

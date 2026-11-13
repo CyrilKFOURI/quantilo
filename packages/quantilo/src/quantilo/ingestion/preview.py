@@ -90,6 +90,56 @@ class TableChoice:
     reasons: list[RuleNote] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     proposals: list[str] = field(default_factory=list)  # K rules, applied only with `reshape`
+    column_names: list[str] = field(default_factory=list)  # C1: the names read (S1 compares them)
+
+
+@dataclass
+class TableStack:
+    """S1 (C1): tables of one workbook with the same column names, in the same order (case and
+    spaces aside): they can be imported as one dataset, stacked, with a `source_sheet` column."""
+
+    rule: str
+    tables: list[str]  # their ids, in the workbook's order
+    locations: list[str]
+    columns: list[str]
+    rows: int
+    reason: str
+
+
+MIN_STACK_COLUMNS = 2
+
+
+def stack_groups(path: Path) -> list[TableStack]:
+    """S1: every group of two tables or more that share their columns, across the sheets. Reads
+    every sheet's layout: asked for on demand (Advanced), never when the import screen opens."""
+    groups: dict[tuple[str, ...], list[TableChoice]] = {}
+    for choice in sheet_choices(path):
+        if choice.kind != "table" or len(choice.column_names) < MIN_STACK_COLUMNS:
+            continue
+        key = tuple(" ".join(name.split()).casefold() for name in choice.column_names)
+        groups.setdefault(key, []).append(choice)
+    stacks = []
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        names = members[0].column_names
+        shown = ", ".join(f"'{name}'" for name in names[:4]) + ("…" if len(names) > 4 else "")
+        places = ", ".join(choice.location for choice in members[:6])
+        stacks.append(
+            TableStack(
+                rule="S1",
+                tables=[choice.id for choice in members],
+                locations=[choice.location for choice in members],
+                columns=list(names),
+                rows=sum(choice.rows for choice in members),
+                reason=(
+                    f"{len(members)} tables ({places}{'…' if len(members) > 6 else ''}) have the "
+                    f"same {len(names)} columns ({shown}): they can be stacked into one dataset, "
+                    "with a column 'source_sheet' saying where each row comes from (S1)."
+                ),
+            )
+        )
+    return stacks
 
 
 @dataclass
@@ -250,9 +300,25 @@ def sheet_choices(path: Path, sheets: list[str] | None = None) -> list[TableChoi
                     reasons=[RuleNote(r.rule, r.weight, r.message) for r in table.reasons],
                     warnings=list(table.warnings),
                     proposals=[t.message for t in table.transforms if not t.default],
+                    column_names=[plan.name for plan in table.columns][:500],
                 )
             )
     return choices
+
+
+def token_notes(options: SourceOptions) -> list[str]:
+    """T2u: the sentence the result shows when the user changed the placeholders."""
+    from quantilo.ingestion.layout.cells import token_set
+
+    notes = []
+    empty, text = token_set(options.null_tokens), token_set(options.text_tokens)
+    if empty:
+        listed = ", ".join(repr(t) for t in sorted(empty))
+        notes.append(f"{listed} read as empty in every column, as you asked (T2u).")
+    if text:
+        listed = ", ".join(repr(t) for t in sorted(text))
+        notes.append(f"{listed} kept as text, never read as empty, as you asked (T2u).")
+    return notes
 
 
 def first_sheet_with_a_table(path: Path, look: int = 5) -> tuple[list[str], list[str]]:
@@ -337,9 +403,7 @@ def preview_source(path: Path, options: SourceOptions) -> Preview:
                 rows=[],
                 row_estimate=None,
                 suggested_name=path.stem if path.is_file() else path.name,
-                detected=Detection(
-                    "image", "images", images.label, images.rule, images.reason
-                ),
+                detected=Detection("image", "images", images.label, images.rule, images.reason),
             )
         if images is not None:  # R-VIS-SRC-03: read as a table, offered as an image set
             detected = Detection("image", "parquet", images.label, images.rule, images.reason)
@@ -353,7 +417,9 @@ def preview_source(path: Path, options: SourceOptions) -> Preview:
         single = files[0] if len(files) == 1 else None
         if single is not None and single.format == "excel":
             read = options.sheets
-            if read is None and options.table is None:
+            if read is None and options.table is not None:
+                read = [options.table.rpartition("!")[0]]
+            elif read is None:
                 read, empty = first_sheet_with_a_table(single.path)
                 if empty:
                     options = options.model_copy(update={"sheets": read})
@@ -362,9 +428,9 @@ def preview_source(path: Path, options: SourceOptions) -> Preview:
                         f"{'is' if len(empty) == 1 else 'are'} empty: '{read[0]}' is shown "
                         "first (R-ING-07)."
                     )
-            elif read is None and options.table is not None:
-                read = [options.table.rpartition("!")[0]]
             tables = sheet_choices(single.path, read)
+            if options.table is not None:
+                notes += token_notes(options)
             if options.header_row is None and options.table is None:
                 header_rows, header_notes = detected_header_rows(single.path, read)
                 notes += header_notes

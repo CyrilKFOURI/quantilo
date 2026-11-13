@@ -16,6 +16,7 @@ from app.modules import (
     segments,
     synthetic,
     timeseries,
+    vision,
 )
 
 
@@ -62,6 +63,8 @@ MODULES: list[Module] = [
     ),
     # Clean (065): cleaned versions, an ordinary dataset each (QUANTILO_CLEAN_ENABLED)
     Module(id="clean", router=clean.router, setup=clean.setup, agent_tools=clean.agent_tools),
+    # Vision models (112): image sets only (`format = 'images'`, 106)
+    Module(id="vision", router=vision.router, setup=vision.setup),
 ]
 
 

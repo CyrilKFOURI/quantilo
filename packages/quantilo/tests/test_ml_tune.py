@@ -1,5 +1,6 @@
 """021 — search spaces and the optimizer."""
 
+import importlib.util
 import time
 from typing import Any
 
@@ -13,6 +14,11 @@ from tests.test_ml import FIELDS, FRAME, by_name
 
 PRICE = by_name["price"]
 FEATURES = [f for f in FIELDS if f.name not in ("price_copy", "expensive")]
+
+# a search needs Optuna (extra `ml`); without it these tests are skipped with their reason
+needs_optuna = pytest.mark.skipif(
+    importlib.util.find_spec("optuna") is None, reason="Optuna is not installed (quantilo[ml])"
+)
 
 
 @pytest.mark.parametrize("key", sorted(catalog.spaces.SPACES))
@@ -66,6 +72,7 @@ def search(
     return found, setup
 
 
+@needs_optuna
 def test_a_search_records_trials_beats_or_matches_defaults_and_keeps_the_best() -> None:
     found, setup = search("hist_gradient_boosting", {"trials": 8, "budget_seconds": None})
 
@@ -76,6 +83,7 @@ def test_a_search_records_trials_beats_or_matches_defaults_and_keeps_the_best() 
     assert len(setup.x_train) == 960  # 80 % of the rows: the test rows never reach the search
 
 
+@needs_optuna
 def test_the_budget_and_a_manual_stop_are_respected() -> None:
     started = time.monotonic()
     found, _ = search("random_forest", {"budget_seconds": 10})
@@ -86,7 +94,21 @@ def test_the_budget_and_a_manual_stop_are_respected() -> None:
     assert stopped.stopped and 3 <= len(stopped.trials) <= 4
 
 
-@pytest.mark.parametrize("sampler", ["random", "grid", "cmaes", "nsga2"])
+@needs_optuna
+@pytest.mark.parametrize(
+    "sampler",
+    [
+        "random",
+        "grid",
+        pytest.param(
+            "cmaes",
+            marks=pytest.mark.skipif(
+                importlib.util.find_spec("cmaes") is None, reason="cmaes is not installed"
+            ),
+        ),
+        "nsga2",
+    ],
+)
 def test_every_sampler_runs(sampler: str) -> None:
     found, _ = search(
         "linear_regression",
@@ -95,6 +117,7 @@ def test_every_sampler_runs(sampler: str) -> None:
     assert len(found.trials) == 4 and found.best_value is not None
 
 
+@needs_optuna
 def test_settings_importance_after_enough_trials_and_fixed_settings() -> None:
     space = [
         tuner.SearchParam(key="regularization", kind="categorical", fixed="ridge"),
@@ -145,6 +168,7 @@ def test_boosting_libraries_can_be_tuned_on_a_class_with_roc_auc(model: str) -> 
 # --- 066: very advanced search ---------------------------------------------------------------
 
 
+@needs_optuna
 def test_two_objectives_give_a_pareto_front_of_score_and_time() -> None:
     found, _ = search(
         "random_forest",
@@ -165,6 +189,7 @@ def test_two_objectives_refuse_a_single_objective_sampler() -> None:
         search("random_forest", {"trials": 2, "sampler": "cmaes", "objectives": "score_time"})
 
 
+@needs_optuna
 def test_a_warm_start_runs_first_and_says_where_it_comes_from() -> None:
     from quantilo.ml import warm
 

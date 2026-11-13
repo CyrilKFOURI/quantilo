@@ -1,8 +1,20 @@
+import { locale, t } from "./i18n";
+
 const LOCALE = "en-US";
 
 const integer = new Intl.NumberFormat(LOCALE);
 const compact = new Intl.NumberFormat(LOCALE, { notation: "compact", maximumFractionDigits: 1 });
-const relative = new Intl.RelativeTimeFormat(LOCALE, { numeric: "auto" });
+// Relative times follow the chosen language (127); numbers keep LOCALE.
+const relatives = new Map<string, Intl.RelativeTimeFormat>();
+function relativeFormat(): Intl.RelativeTimeFormat {
+  const language = locale() === "fr" ? "fr-FR" : LOCALE;
+  let format = relatives.get(language);
+  if (!format) {
+    format = new Intl.RelativeTimeFormat(language, { numeric: "auto" });
+    relatives.set(language, format);
+  }
+  return format;
+}
 
 export function formatCount(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
@@ -32,9 +44,9 @@ export function formatRelativeTime(iso: string | null | undefined, now = Date.no
     ["minute", 60],
   ];
   for (const [unit, size] of steps) {
-    if (Math.abs(seconds) >= size) return relative.format(Math.round(seconds / size), unit);
+    if (Math.abs(seconds) >= size) return relativeFormat().format(Math.round(seconds / size), unit);
   }
-  return "just now";
+  return t("fig.time.justNow");
 }
 
 /** Last segment of a file system path (Windows or POSIX). */

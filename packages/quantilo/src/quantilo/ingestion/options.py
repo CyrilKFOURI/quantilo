@@ -3,7 +3,18 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Format = Literal["csv", "parquet", "excel", "npy", "log", "json", "jsonl", "xml"]
-Encoding = Literal["utf-8", "latin-1", "windows-1252", "utf-16"]
+# N28: the last five are read through a UTF-8 copy (ingestion/encodings.py, R-ING-08)
+Encoding = Literal[
+    "utf-8",
+    "latin-1",
+    "windows-1252",
+    "utf-16",
+    "utf-16-be",
+    "utf-32",
+    "iso-8859-15",
+    "mac-roman",
+    "cp850",
+]
 
 
 class CsvOptions(BaseModel):
@@ -27,9 +38,17 @@ class SourceOptions(BaseModel):
     # its plan), or a range typed by the user (rule U1); a document: the linked table's name.
     # None keeps the current path (a whole sheet; a document's main table).
     table: str | None = None
+    # S1 (C1): tables of a workbook stacked into one dataset (their ids), with `source_sheet`
+    stack: list[str] | None = Field(default=None, max_length=200)
+    # R-LOG-11 (C1): a text log read with the user's line pattern ({time} [{level}] {message})
+    log_pattern: str | None = Field(default=None, max_length=500)
     reshape: bool | None = None  # Excel table: apply the proposed restructurings (K1-K4)
     records_path: str | None = None  # a document: where the records are (None: found, R-SST)
     one_table: bool | None = None  # a document: explode its only list into one table (R-SST-15b)
+    # T2u (b2, Advanced > More): an Excel table's own placeholders read as empty, and tokens kept as
+    # text (never read as empty); the detection of the tables does not change
+    null_tokens: list[str] | None = Field(default=None, max_length=50)
+    text_tokens: list[str] | None = Field(default=None, max_length=50)
 
 
 class ImportOptions(SourceOptions):

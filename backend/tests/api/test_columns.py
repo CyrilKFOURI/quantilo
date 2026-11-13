@@ -45,6 +45,15 @@ def test_types_are_detected_at_import(client: TestClient, traps_id: str) -> None
     assert columns["income"]["summary"]["null_count"] > 0  # "N/A" values
 
 
+def test_reasons_come_with_their_codes(client: TestClient, traps_id: str) -> None:
+    """M02: each reason with its template code and vars, read back from the database."""
+    columns = client.get(f"/api/v1/datasets/{traps_id}/columns").json()
+    for column in columns:
+        assert [d["text"] for d in column["reason_details"]] == column["reasons"]
+    price = by_name(columns)["price_eur"]["reason_details"]
+    assert {"text": "name suggests amount", "code": "TYP.name", "vars": {"role": "amount"}} in price
+
+
 def test_changing_a_type_reports_invalid_values(client: TestClient, traps_id: str) -> None:
     before = client.get(f"/api/v1/datasets/{traps_id}").json()["types_version"]
 

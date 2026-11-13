@@ -22,6 +22,7 @@ import {
   TextInput,
 } from "../../ui/fields";
 import { SegmentedControl } from "../../ui/SegmentedControl";
+import { entryName, familyName, modelName } from "./catalogText";
 import { CriterionSelect, metricName, PANEL } from "./SettingsDrawer";
 import { Loading } from "../../ui/Loading";
 
@@ -74,8 +75,8 @@ function settingsText(
     const members = progress.ensemble.members
       .map((m) =>
         progress.ensemble?.method === "greedy"
-          ? `${m.label} ×${m.weight}`
-          : m.label,
+          ? `${modelName(m.model, m.label)} ×${m.weight}`
+          : modelName(m.model, m.label),
       )
       .join(", ");
     return { short: members, full: members };
@@ -122,14 +123,14 @@ function Leaderboard({ progress }: { progress: MlAutoProgress }) {
                 className={`border-t border-line align-top ${kept ? "font-medium text-ink-1" : "text-ink-2"}`}
               >
                 <td className="py-1.5 pr-3">
-                  {entry.label}
+                  {entryName(entry.model, entry.label)}
                   {kept && (
                     <span className="ml-1.5 rounded-sm bg-accent-soft px-1 text-[11px] font-normal text-accent">
                       {t("ml.auto.kept")}
                     </span>
                   )}
                   <span className="block text-[11px] font-normal text-ink-3">
-                    {entry.family}
+                    {familyName(entry.family)}
                   </span>
                   {entry.note && (
                     <span

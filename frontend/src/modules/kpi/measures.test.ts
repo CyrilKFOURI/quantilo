@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Column, KpiResult, KpiSeries } from "../../api/client";
-import { columnsFor, defaultMeasure, keyColumns, levelsOf, weightColumns } from "./definition";
+import { columnsFor, defaultMeasure, keyColumns, levelsOf, rankedDates, weightColumns } from "./definition";
 import { effectiveMode, rollingMean, rollingWindow, shownValues } from "./pivot";
 
 const column = (name: string, type: string, role: string | null = null, levels: string[] = []): Column =>
@@ -21,6 +21,15 @@ const columns = [
   column("Order ID", "categorical_nominal", "order_key"),
   column("Churn", "boolean"),
 ];
+
+describe("the Builder's date list (048 bis, R-SUG-17)", () => {
+  it("follows the server's order and keeps unranked dates last", () => {
+    const dates = ["birth_date", "Ship Date", "Order Date", "derived"].map((n) => column(n, "datetime"));
+    const order = [{ name: "Order Date" }, { name: "Ship Date" }, { name: "birth_date" }];
+    expect(rankedDates(dates, order).map((c) => c.name)).toEqual(["Order Date", "Ship Date", "birth_date", "derived"]);
+    expect(rankedDates(dates, undefined)).toBe(dates);
+  });
+});
 
 describe("business measures (053)", () => {
   it("weights a unit price by the quantity, never a flow (R-MES-01)", () => {

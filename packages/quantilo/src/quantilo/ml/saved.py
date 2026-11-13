@@ -116,6 +116,32 @@ class Predicting:
         finally:
             connection.close()
 
+    def what_would_change(
+        self,
+        data: "Dataset | pd.DataFrame",
+        row: int,
+        editable: list[str] | None = None,
+        target_class: str | None = None,
+        target_value: float | None = None,
+        max_changes: int = 3,
+    ) -> Any:
+        """125 bis (R-XAI-21): at most `max_changes` changes to one row of new data that give
+        `target_class` (or bring a number to `target_value`), judged plausible against the rows
+        of that same data."""
+        from quantilo.ml.counterfactual import CounterfactualError
+
+        source, views = self._scope(data)
+        connection = duckdb.connect()
+        try:
+            return use.counterfactual_row(
+                connection, source, self.pipeline, self.card, views, row, editable,
+                target_class, target_value, max_changes,
+            )  # fmt: skip
+        except CounterfactualError as error:
+            raise MlError(str(error), "no_counterfactual") from None
+        finally:
+            connection.close()
+
     def export(self, path: str | os.PathLike[str]) -> Path:
         """Write the model as a zip: model.joblib, model_card.json (no data rows) and predict.py,
         which reloads it with `dx.load_model`."""

@@ -3,6 +3,7 @@ import type { Data, Layout } from "plotly.js-dist-min";
 import type { Tail } from "../../api/client";
 import { withAlpha } from "../../charts/figures";
 import type { ChartTokens } from "../../charts/theme";
+import { t } from "../../lib/i18n";
 
 type Built = { data: Data[]; layout?: Partial<Layout> };
 type Figure = (tokens: ChartTokens) => Built;
@@ -22,11 +23,11 @@ export function returnLevelFigure(tail: Tail): Figure {
         {
           type: "scatter",
           mode: "markers",
-          name: "Observed",
+          name: t("fig.tail.observed"),
           x: tail.observed.x,
           y: tail.observed.y,
           marker: { color: tokens.ink3, size: 5 },
-          hovertemplate: "1 in %{x:,.0f} rows<br>observed %{y:,.4g}<extra></extra>",
+          hovertemplate: t("fig.tail.hoverObserved"),
         } as Data,
         {
           type: "scatter",
@@ -35,24 +36,24 @@ export function returnLevelFigure(tail: Tail): Figure {
           x: tail.curve.x,
           y: tail.curve.y,
           line: { color: tokens.numeric, width: 2 },
-          hovertemplate: "1 in %{x:,.0f} rows<br>GPD %{y:,.4g}<extra></extra>",
+          hovertemplate: t("fig.tail.hoverGpd"),
         } as Data,
         {
           type: "scatter",
           mode: "markers",
-          name: "95 % interval",
+          name: t("fig.tail.interval95"),
           x: levels.map((r) => r.period),
           y: levels.map((r) => r.value),
           error_y: { type: "data", symmetric: false, array: plus, arrayminus: minus, color: tokens.accent, thickness: 1.5 },
           marker: { color: tokens.accent, size: 8, line: { color: tokens.surface, width: 1 } },
-          hovertemplate: "1 in %{x:,.0f} rows exceed %{y:,.4g}<extra></extra>",
+          hovertemplate: t("fig.tail.hoverInterval"),
         } as Data,
       ],
       layout: {
         showlegend: true,
         legend: { orientation: "h", x: 0, y: 1.14, font: { size: 11 } },
-        xaxis: { type: "log", title: { text: "Once every … rows", ...small } },
-        yaxis: { type: "log", title: { text: "Value", ...small } },
+        xaxis: { type: "log", title: { text: t("fig.tail.onceEvery"), ...small } },
+        yaxis: { type: "log", title: { text: t("fig.tail.value"), ...small } },
       },
     };
   };
@@ -74,12 +75,12 @@ export function meanExcessFigure(tail: Tail): Figure {
           customdata: curve.count,
           line: { color: tokens.numeric, width: 2 },
           marker: { color: tokens.numeric, size: 5 },
-          hovertemplate: "threshold %{x:,.4g}<br>mean excess %{y:,.4g}<br>%{customdata:,} values above<extra></extra>",
+          hovertemplate: t("fig.tail.hoverExcess"),
         } as Data,
       ],
       layout: {
-        xaxis: { title: { text: "Threshold u", ...small } },
-        yaxis: { title: { text: "Mean excess above u", ...small } },
+        xaxis: { title: { text: t("fig.tail.threshold"), ...small } },
+        yaxis: { title: { text: t("fig.tail.meanExcess"), ...small } },
         shapes:
           threshold === undefined
             ? []
@@ -139,7 +140,7 @@ export function hillFigure(tail: Tail): Figure {
         } as Data,
       ],
       layout: {
-        xaxis: { type: "log", title: { text: "k largest values", ...small } },
+        xaxis: { type: "log", title: { text: t("fig.tail.kLargest"), ...small } },
         yaxis: { title: { text: "Hill ξ", ...small } },
         shapes:
           xi === null

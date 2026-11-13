@@ -1,15 +1,34 @@
 name: CI
 
+# Actions minutes are counted on this private repo: docs-only pushes and the bot's
+# backend/static commits skip CI, and a newer push cancels the run still going.
 on:
   push:
+    branches: [master]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "backend/static/**"
+      - ".github/dependabot.yml"
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "backend/static/**"
+      - ".github/dependabot.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: backend
@@ -18,6 +37,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.12.15"
+          enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --frozen --extra deep --extra agent  # CPU PyTorch on Linux: the deep models are tested too; the agent's SDK
       - name: Lint
@@ -38,6 +58,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.12.15"
+          enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --frozen --extra ml --extra deep --extra plot  # CPU PyTorch on Linux
       - name: Lint
@@ -51,6 +72,7 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
@@ -69,7 +91,10 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [backend, library, frontend]
+    # The image is checked on master only, not on every pull request.
+    if: github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Build the image

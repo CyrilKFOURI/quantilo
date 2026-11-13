@@ -16,6 +16,8 @@ from app.modules.agent.engine.tools import ToolError
 from app.modules.agent.providers.vendors import VENDORS
 from app.modules.agent.repository import MAX_NOTE_CHARS, Conversation, Note
 from app.modules.agent.service import AgentService, strip_context
+from app.modules.agent.settings import RowsSharing
+from app.modules.agent.tools.rows import Mask
 
 router = APIRouter(tags=["agent"])
 
@@ -59,6 +61,9 @@ class AgentSettingsOut(BaseModel):
     sdk_installed: bool
     ready: bool  # a key (or none needed), an address for a custom API, and the SDK
     token_limit: int  # per conversation, when the model's price is unknown
+    rows_sharing: RowsSharing = Field(
+        description="Raw rows for the assistant (R-AG-P2): never (default), ask each time, allow."
+    )
 
     @classmethod
     def of(cls, agent: AgentService) -> "AgentSettingsOut":
@@ -90,6 +95,7 @@ class AgentSettingsOut(BaseModel):
             and (vendor.id != "custom" or bool(settings.base_url))
             and agent.sdk_available(vendor),
             token_limit=TOKEN_LIMIT,
+            rows_sharing=settings.rows_sharing,
         )
 
 
@@ -100,6 +106,7 @@ class AgentSettingsIn(BaseModel):
     effort: Effort | None = None
     budget_usd: float | None = None
     api_key: str | None = Field(None, description="Write-only; an empty string removes it.")
+    rows_sharing: RowsSharing | None = None
 
 
 class AgentKeyTest(BaseModel):
@@ -120,7 +127,13 @@ def read_settings(agent: Agent) -> AgentSettingsOut:
 @router.put("/settings")
 def write_settings(body: AgentSettingsIn, agent: Agent) -> AgentSettingsOut:
     agent.update_settings(
-        body.provider, body.model, body.base_url, body.effort, body.budget_usd, body.api_key
+        body.provider,
+        body.model,
+        body.base_url,
+        body.effort,
+        body.budget_usd,
+        body.api_key,
+        body.rows_sharing,
     )
     return AgentSettingsOut.of(agent)
 
@@ -135,6 +148,34 @@ def models(agent: Agent, refresh: bool = False) -> AgentModels:
 @router.post("/settings/test")
 def test_key(agent: Agent) -> AgentKeyTest:
     return AgentKeyTest(ok=True, model=agent.test_key())
+
+
+# --- raw rows (R-AG-P2) -----------------------------------------------------------------------
+
+
+class AgentPersonalColumn(BaseModel):
+    name: str
+    mask: Mask  # identifier | email | phone | address | postal_code
+    unmasked: bool  # the user lets it leave as it is
+
+
+class AgentUnmaskedIn(BaseModel):
+    unmasked: list[str] = Field(max_length=200, description="Personal columns shared unmasked.")
+
+
+def _personal(found: list[tuple[str, Mask, bool]]) -> list[AgentPersonalColumn]:
+    return [AgentPersonalColumn(name=n, mask=m, unmasked=u) for n, m, u in found]
+
+
+@router.get("/datasets/{dataset_id}/personal-columns")
+def personal_columns(dataset_id: str, agent: Agent) -> list[AgentPersonalColumn]:
+    """The columns masked before rows reach the assistant, and those the user shares as they are."""
+    return _personal(agent.personal_columns(dataset_id))
+
+
+@router.put("/datasets/{dataset_id}/personal-columns")
+def set_unmasked(dataset_id: str, body: AgentUnmaskedIn, agent: Agent) -> list[AgentPersonalColumn]:
+    return _personal(agent.set_unmasked(dataset_id, body.unmasked))
 
 
 # --- notes ------------------------------------------------------------------------------------
@@ -268,12 +309,17 @@ def send_message(conversation_id: str, body: AgentSend, agent: Agent) -> Streami
 
 class AgentDecision(BaseModel):
     approved: bool
+    unmask: list[str] = Field(
+        default_factory=list,
+        max_length=200,
+        description="Rows only: masked columns the user shows unmasked for this request.",
+    )
 
 
 @router.post("/conversations/{conversation_id}/confirm/{call_id}", status_code=204)
 def confirm(conversation_id: str, call_id: str, body: AgentDecision, agent: Agent) -> None:
     """The user's answer to a change the assistant asked to make (Confirm or Dismiss)."""
-    agent.confirm(conversation_id, call_id, body.approved)
+    agent.confirm(conversation_id, call_id, body.approved, body.unmask)
 
 
 @router.post("/conversations/{conversation_id}/stop")

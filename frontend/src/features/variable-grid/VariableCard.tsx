@@ -6,6 +6,7 @@ import type { AnalysisType, Column } from "../../api/client";
 import { useChart } from "../../api/hooks";
 import type { PlotHandle } from "../../charts/Plot";
 import { t } from "../../lib/i18n";
+import { columnReasons } from "../../lib/i18n/reasons";
 import { useInView } from "../../lib/useInView";
 import { PHONE, useMedia } from "../../lib/useMedia";
 import { Button } from "../../ui/Button";
@@ -46,7 +47,7 @@ export function VariableCard({ datasetId, column, topN, onChangeType }: Variable
             {column.name}
           </h3>
           <div className="-ml-1.5">
-            <TypeBadge type={column.type} detectedType={column.detected_type} reasons={column.reasons} role={column.role} onChange={onChangeType} />
+            <TypeBadge type={column.type} detectedType={column.detected_type} reasons={columnReasons(column)} role={column.role} onChange={onChangeType} />
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">

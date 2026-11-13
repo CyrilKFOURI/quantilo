@@ -162,6 +162,24 @@ function setup() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Machine learning page", () => {
+  it("links to the latest cleaned version when the original is open (B1)", async () => {
+    const version = { dataset_id: "v2", parent_id: "d1", seq: 2, name: "Cleaned v2", origin: "user", status: "ready", created_at: "2026-11-12T10:00:00Z", out_of_date: false, steps: [{ id: "s1", enabled: true }], report: null, source_id: null, source_seq: null };
+    mockApi({
+      "GET /health": health,
+      "GET /datasets": [dataset()],
+      "GET /datasets/d1": dataset(),
+      "GET /datasets/d1/columns": [column({ name: "price" })],
+      "GET /column-roles": roles,
+      "GET /modules/ml/datasets/d1/targets": { candidates: [candidate("price", "regression", { suggested: true })], rows: 100 },
+      "GET /modules/ml/catalog": catalogue([]),
+      "GET /modules/ml/datasets/d1/runs": [],
+      "GET /modules/clean/datasets/d1/versions": { original_id: "d1", versions: [{ ...version, seq: 1, dataset_id: "v1" }, version] },
+    });
+    renderAt("/d/d1/ml");
+    expect(await screen.findByText("A cleaned version of this dataset exists: Cleaned v2, 1 steps.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Use it for ML" })).toHaveAttribute("href", "/d/v2/ml");
+  });
+
   it("asks what to predict, with the columns that cannot be predicted greyed out", async () => {
     setup();
     renderAt("/d/d1/ml");
@@ -285,7 +303,7 @@ describe("Preparation editor", () => {
     expect(screen.getByRole("button", { name: "Back to automatic — size" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Use copy" }));
-    expect(screen.getByText(/seems to contain the answer/)).toBeInTheDocument();
+    expect(screen.getAllByText(/seems to contain the answer/).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     fireEvent.click(screen.getByRole("button", { name: "Train" }));

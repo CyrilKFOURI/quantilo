@@ -22,7 +22,7 @@ from concurrent.futures import (
     wait,
 )
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
@@ -387,6 +387,18 @@ class GlobalSummary:
 
 
 @dataclass
+class BatchSummary:
+    """An AI model run on every series at once (028 B3, B4): pretrained in batches (Chronos-2
+    learning across the series), or one network trained on every series' windows."""
+
+    model: str
+    info: str
+    wins: int  # series where it has the lowest MASE
+    series: int
+    error: str | None = None  # why it did not run (extra, weights, too few groups)
+
+
+@dataclass
 class LevelError:
     level: str
     nodes: int
@@ -424,6 +436,7 @@ class GroupForecast:
     notes: list[str]
     workers: int
     seconds: float = 0.0
+    batch_models: list[BatchSummary] = field(default_factory=list)
 
 
 @dataclass
@@ -432,7 +445,7 @@ class GroupJob:
     status: Status
     done: int  # series finished
     total: int
-    stage: Literal["series", "global", "reconcile"] = "series"
+    stage: Literal["series", "global", "ai", "reconcile"] = "series"
     current: str | None = None
     result: GroupForecast | None = None
     error: str | None = None
@@ -533,15 +546,18 @@ def reconcile_outcomes(
     )
 
 
-def _with_global(outcome: SeriesOutcome, found: gm.GlobalSeries, info: str) -> SeriesOutcome:
-    """The global model replaces a series' best model where its MASE is lower."""
+def _with_global(
+    outcome: SeriesOutcome, found: gm.GlobalSeries, info: str, key: str = gm.KEY
+) -> SeriesOutcome:
+    """The global model (or an AI model run on every series, `key`) replaces a series' best
+    model where its MASE is lower."""
     mine = outcome.scores.mase if outcome.scores and outcome.scores.mase is not None else math.inf
     theirs = found.scores.mase if found.scores and found.scores.mase is not None else math.inf
     if theirs >= mine or not found.forecast:
         return outcome
     return SeriesOutcome(
         outcome.label,
-        gm.KEY,
+        key,
         info,
         found.scores,
         found.forecast,
@@ -553,9 +569,50 @@ def _with_global(outcome: SeriesOutcome, found: gm.GlobalSeries, info: str) -> S
         found.residuals,
         outcome.short_history,
         outcome.demand,
-        [*outcome.models, gm.KEY],
+        [*outcome.models, key],
         seconds=outcome.seconds,
     )
+
+
+def batch_refusal(key: str, series: int, periods: int) -> str | None:
+    """Why an AI model is not run on every group (None: it is): a trained network needs many
+    groups or long series (028 B4); a pretrained one needs the extra and its weights."""
+    from quantilo.timeseries import ai, neural
+
+    few = series < neural.MIN_GROUPS and periods < neural.MIN_PERIODS
+    if key in fc.NEURAL_MODELS and few:
+        return (
+            f"{neural.KINDS[key]} needs {neural.MIN_GROUPS} groups or more, or "
+            f"{neural.MIN_PERIODS} periods: {series} series of {periods} periods are too "
+            "few windows to learn from."
+        )
+    try:
+        ai.require(key)
+    except ai.AiError as error:
+        return str(error)
+    return None
+
+
+def run_batch_model(key: str, values: np.ndarray, h: int, season: int | None) -> list[Any]:
+    if key in fc.NEURAL_MODELS:
+        from quantilo.timeseries import neural
+
+        return neural.forecast_many(key, values, h, season)
+    from quantilo.timeseries import pretrained
+
+    return pretrained.forecast_many(key, values, h, season)
+
+
+def batch_info(key: str, values: np.ndarray, season: int | None) -> str:
+    from quantilo.timeseries import ai, neural
+
+    title = ai.spec_of(key).title
+    if key in fc.NEURAL_MODELS:
+        length = neural.window(1, season)
+        return f"{title} trained on every series' windows (up to {length} periods)"
+    if key == "chronos_2":
+        return f"{title}, zero-shot, learning across the {len(values)} series"
+    return f"{title}, zero-shot, every series"
 
 
 def forecast_groups(
@@ -578,7 +635,11 @@ def forecast_groups(
     """Forecast every node (leaves first, in `nodes`' order; with a tree, `nodes` follows its
     nodes), then the global model on the leaves, then reconcile. None when cancelled."""
     started = time.monotonic()
-    tasks = [SeriesTask(n.label, n.values, keys, horizon, season, n.start) for n in nodes]
+    # AI models (028 B3, B4) run on every series at once, in this process, after the others:
+    # never loaded once per worker process.
+    batched = [k for k in keys if k in fc.AI_MODELS]
+    own = [k for k in keys if k not in fc.AI_MODELS] or ["seasonal_naive", "naive"]
+    tasks = [SeriesTask(n.label, n.values, own, horizon, season, n.start) for n in nodes]
     chosen_workers = workers or default_workers(len(tasks))
 
     def finished(outcome: SeriesOutcome) -> None:
@@ -607,6 +668,31 @@ def forecast_groups(
             wins += replaced.best == gm.KEY
             outcomes[leaf] = replaced
         summary = GlobalSummary(kind, info, wins, len(leaves))
+    batches: list[BatchSummary] = []
+    if batched and leaves:
+        job.stage = "ai"
+        values = np.array([nodes[i].values for i in leaves])
+        for key in batched:
+            job.current = key
+            refused = batch_refusal(key, len(leaves), values.shape[1])
+            found_ai: list[Any] = []
+            if refused is None:
+                try:
+                    found_ai = run_batch_model(key, values, horizon, season)
+                except (fc.ModelError, ValueError, RuntimeError) as error:
+                    refused = str(error)
+            if refused is not None:
+                batches.append(BatchSummary(key, "", 0, len(leaves), refused))
+                continue
+            if cancelled():
+                return None
+            info = batch_info(key, values, season)
+            wins = 0
+            for leaf, result in zip(leaves, found_ai, strict=True):
+                replaced = _with_global(outcomes[leaf], result, info, key)
+                wins += replaced.best == key
+                outcomes[leaf] = replaced
+            batches.append(BatchSummary(key, info, wins, len(leaves)))
     forecasts = np.array([o.forecast for o in outcomes])
     hierarchy = None
     notes = list(meta.get("notes", []))
@@ -685,6 +771,7 @@ def forecast_groups(
         notes,
         chosen_workers,
         time.monotonic() - started,
+        batches,
     )
 
 

@@ -4,6 +4,7 @@ import type { Figure } from "../../charts/Plot";
 import { withAlpha } from "../../charts/figures";
 import type { ChartTokens } from "../../charts/theme";
 import type { SegmentDendrogram, SegmentMap, SegmentScore, Segmentation, UnusualResult } from "./api";
+import { t, type MessageKey } from "../../lib/i18n";
 
 const title = (text: string) => ({ title: { text, font: { size: 11 } } });
 
@@ -29,14 +30,14 @@ export function mapFigure(shown: SegmentMap, names: Record<number, string>): Fig
         y: index.map((i) => shown.y[i]),
         customdata: index.map((i) => shown.rows[i]),
         marker: { color: segmentColor(segment, tokens), size: 6, opacity: segment < 0 ? 0.35 : 0.6 },
-        hovertemplate: `${name}<br>row %{customdata}<extra></extra>`,
+        hovertemplate: `${name}<br>${t("fig.seg.row")} %{customdata}<extra></extra>`,
       } as Data;
     });
     const centres = shown.centres.filter((c) => c.segment >= 0);
     traces.push({
       type: "scatter",
       mode: "markers+text",
-      name: "Centres",
+      name: t("fig.seg.centres"),
       showlegend: false,
       x: centres.map((c) => c.x),
       y: centres.map((c) => c.y),
@@ -58,24 +59,25 @@ export function mapFigure(shown: SegmentMap, names: Record<number, string>): Fig
       layout: {
         showlegend: true,
         legend: { orientation: "h", x: 0, y: 1.12, font: { size: 11 } },
-        xaxis: { ...title(pca ? `Component 1 (${share(0)})` : "t-SNE 1"), zeroline: false },
-        yaxis: { ...title(pca ? `Component 2 (${share(1)})` : "t-SNE 2"), zeroline: false },
+        xaxis: { ...title(pca ? t("fig.seg.component", { n: "1", share: share(0) }) : "t-SNE 1"), zeroline: false },
+        yaxis: { ...title(pca ? t("fig.seg.component", { n: "2", share: share(1) }) : "t-SNE 2"), zeroline: false },
       },
     };
   };
 }
 
-export const SCORES: { key: keyof SegmentScore; label: string }[] = [
-  { key: "silhouette", label: "Silhouette (higher is better)" },
-  { key: "calinski_harabasz", label: "Calinski–Harabasz (higher is better)" },
-  { key: "davies_bouldin", label: "Davies–Bouldin (lower is better)" },
-  { key: "inertia", label: "Inertia (look for the elbow)" },
-  { key: "bic", label: "BIC (lower is better)" },
+/** Each score with its label and its short name, translated when shown (127). */
+const SCORES: { key: keyof SegmentScore; label: MessageKey; name: MessageKey }[] = [
+  { key: "silhouette", label: "fig.seg.silhouette", name: "fig.seg.silhouetteName" },
+  { key: "calinski_harabasz", label: "fig.seg.calinski", name: "fig.seg.calinskiName" },
+  { key: "davies_bouldin", label: "fig.seg.davies", name: "fig.seg.daviesName" },
+  { key: "inertia", label: "fig.seg.inertia", name: "fig.seg.inertiaName" },
+  { key: "bic", label: "fig.seg.bic", name: "fig.seg.bicName" },
 ];
 
 /** The scores this run has (BIC only for a Gaussian mixture). */
-export function shownScores(scores: SegmentScore[]) {
-  return SCORES.filter((s) => scores.some((score) => score[s.key] !== null));
+export function shownScores(scores: SegmentScore[]): { key: keyof SegmentScore; label: string }[] {
+  return SCORES.filter((s) => scores.some((score) => score[s.key] !== null)).map((s) => ({ key: s.key, label: t(s.label) }));
 }
 
 /** One score against k, the chosen k marked: the page shows one small chart per score side by
@@ -83,7 +85,8 @@ export function shownScores(scores: SegmentScore[]) {
 export function scoreFigure(scores: SegmentScore[], key: keyof SegmentScore, chosen: number): Figure {
   return (tokens) => {
     const points = scores.filter((score) => score[key] !== null);
-    const label = SCORES.find((s) => s.key === key)?.label.split(" (")[0] ?? key;
+    const found = SCORES.find((s) => s.key === key);
+    const label = found ? t(found.name) : key;
     return {
       data: [
         {
@@ -118,12 +121,12 @@ export function stabilityFigure(runs: number[]): Figure {
         x: runs.map((_, i) => `#${i + 1}`),
         y: runs,
         marker: { color: withAlpha(tokens.palette[0] ?? tokens.numeric, 0.8) },
-        hovertemplate: "subsample %{x}<br>adjusted Rand %{y:.2f}<extra></extra>",
+        hovertemplate: t("fig.seg.hoverSubsample"),
       } as Data,
     ],
     layout: {
-      yaxis: { ...title("Agreement (adjusted Rand)"), range: [0, 1.05] },
-      xaxis: title("Subsample (80 % of the rows)"),
+      yaxis: { ...title(t("fig.seg.agreement")), range: [0, 1.05] },
+      xaxis: title(t("fig.seg.subsample")),
       shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: 0.6, y1: 0.6, line: { color: tokens.ink3, width: 1, dash: "dash" } }],
     },
   });
@@ -138,7 +141,7 @@ export function dendrogramFigure(tree: SegmentDendrogram): Figure {
     layout: {
       showlegend: false,
       xaxis: { tickvals: tree.leaves.map((_, i) => 5 + 10 * i), ticktext: tree.leaves, tickangle: -60, tickfont: { size: 9 } },
-      yaxis: title("Merge height (Ward)"),
+      yaxis: title(t("fig.seg.mergeHeight")),
       shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: tree.cut, y1: tree.cut, line: { color: tokens.accent, width: 1.5, dash: "dash" } }],
     },
   });
@@ -158,7 +161,7 @@ export function unusualFigure(result: UnusualResult, threshold: number): Figure 
           x: ranks,
           y: scores,
           line: { color: tokens.palette[0], width: 2 },
-          hovertemplate: "rank %{x:,}<br>score %{y:.4g}<extra></extra>",
+          hovertemplate: t("fig.seg.hoverRank"),
         } as Data,
         {
           type: "scatter",
@@ -171,8 +174,8 @@ export function unusualFigure(result: UnusualResult, threshold: number): Figure 
       ],
       layout: {
         showlegend: false,
-        xaxis: { ...title("Rows, most unusual first"), type: "log" },
-        yaxis: title("Unusual score"),
+        xaxis: { ...title(t("fig.seg.rowsUnusualFirst")), type: "log" },
+        yaxis: title(t("fig.seg.unusualScore")),
         shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: threshold, y1: threshold, line: { color: tokens.accent, width: 1.5, dash: "dash" } }],
       },
     };

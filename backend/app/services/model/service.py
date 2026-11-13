@@ -22,10 +22,12 @@ from typing import Any, cast
 import duckdb
 from quantilo import model as engine
 from quantilo.catalog import ColumnChange, ColumnView, to_view
+from quantilo.cleaning.rules.tables import TableLink
 from quantilo.errors import NotFoundError
 from quantilo.ingestion.options import ImportOptions
-from quantilo.model.build import JoinType, OutputColumn
-from quantilo.model.keys import TableInput, TableProfile
+from quantilo.model.build import Filter, JoinType, OutputColumn
+from quantilo.model.dates import write_date_table
+from quantilo.model.keys import Match, TableInput, TableProfile
 
 from app.core import db
 from app.core.errors import AppError
@@ -57,6 +59,8 @@ class Stored:
     join_type: JoinType
     status: str
     origin: str
+    active: bool = True  # C1 (R-REL-13)
+    match: Match = "exact"  # C1 (R-REL-14)
 
 
 @dataclass
@@ -104,6 +108,8 @@ def _check_out(check: engine.LinkCheck, warnings: list[engine.Reason]) -> m.Chec
         recommended=check.recommended,
         reasons=_reasons(check.reasons),
         warnings=_reasons(warnings),
+        normalized_gain=check.normalized_gain,
+        near_misses=[m.NearMissOut(value=a, key=b) for a, b in check.near_misses],
     )
 
 
@@ -135,7 +141,14 @@ class ModelService:
     # --- The project's tables ------------------------------------------------------------------
 
     def _built(self, connection: sqlite3.Connection) -> set[str]:
-        return {row[0] for row in connection.execute("SELECT dataset_id FROM model_builds")}
+        """Analysis datasets, never a table of the model (R-REL-01); a generated date table
+        (C1, R-BLD-08) is one: a dimension."""
+        return {
+            row[0]
+            for row in connection.execute(
+                "SELECT dataset_id FROM model_builds WHERE kind <> 'dates'"
+            )
+        }
 
     def _context(self, project_id: str) -> Context:
         project = self.projects.get(project_id)
@@ -203,9 +216,11 @@ class ModelService:
         child_columns: list[str],
         parent_id: str,
         parent_columns: list[str],
+        match: Match = "exact",
     ) -> engine.LinkCheck:
         child, parent = context.tables[child_id], context.tables[parent_id]
         key = (
+            match,
             child_id,
             context.records[child_id].imported_at,
             context.records[child_id].types_version,
@@ -220,7 +235,7 @@ class ModelService:
             return self._checks[key]
         connection = duckdb.connect()
         try:
-            found = engine.check(connection, child, child_columns, parent, parent_columns)
+            found = engine.check(connection, child, child_columns, parent, parent_columns, match)
         except engine.ModelError as error:
             raise AppError(error.message, code=error.code, status_code=422) from None
         finally:
@@ -246,6 +261,8 @@ class ModelService:
                 join_type=row["join_type"],
                 status=row["status"],
                 origin=row["origin"],
+                active=bool(row["active"]),
+                match=row["match"],
             )
             for row in rows
         ]
@@ -309,7 +326,7 @@ class ModelService:
                 context, stored, child_id, parent_id, self._why(found, stored, child_id, parent_id)
             )
             out.append(relation)
-            if relation.problem is None:
+            if relation.problem is None and stored.active:  # R-REL-13: roles from active ones
                 as_engine.append(
                     engine.Relation(
                         child_id=child_id,
@@ -408,10 +425,17 @@ class ModelService:
             "confidence": None,
             "score": None,
             "inclusion": None,
+            "active": stored.active,
+            "match": stored.match,
         }
         try:
             check = self._check(
-                context, child_id, stored.child_columns, parent_id, stored.parent_columns
+                context,
+                child_id,
+                stored.child_columns,
+                parent_id,
+                stored.parent_columns,
+                stored.match,
             )
         except AppError as error:
             return m.RelationOut(
@@ -502,11 +526,60 @@ class ModelService:
             status_code=409,
         )
 
+    def links_for(self, dataset_id: str) -> list[TableLink]:
+        """N32: the accepted relations of every project the dataset is a table of, with the
+        dataset itself on its side (the version Clean is opened on, which may not be the one the
+        model uses) and the model's version of the other table. Clean checks them (T-01, T-02)."""
+        links: list[TableLink] = []
+        for project in self.projects.list_all():
+            if dataset_id not in project.dataset_ids:
+                continue
+            context = self._context(project.id)
+            root = next(
+                (
+                    root
+                    for root, family in context.families.items()
+                    if any(tid == dataset_id for tid, _ in family.versions)
+                ),
+                None,
+            )
+            if root is None:  # an analysis dataset, or not ready
+                continue
+            record = context.records[dataset_id]
+            mine = TableInput(
+                dataset_id, record.name, record.storage_path, self.columns.columns(dataset_id)
+            )
+            for stored in self._stored(project.id):
+                if stored.status != "accepted":
+                    continue
+                if stored.child_root == root and stored.parent_root in context.used_of:
+                    parent = context.tables[context.used_of[stored.parent_root]]
+                    child = mine
+                elif stored.parent_root == root and stored.child_root in context.used_of:
+                    child = context.tables[context.used_of[stored.child_root]]
+                    parent = mine
+                else:
+                    continue
+                links.append(
+                    TableLink(
+                        child,
+                        stored.child_columns,
+                        parent,
+                        stored.parent_columns,
+                        stored.match,
+                        stored.id,
+                        project.name,
+                    )
+                )
+        return links
+
     def check(self, project_id: str, body: m.CheckIn) -> m.CheckOut:
         context = self._context(project_id)
         child_id = context.used_of[self._in_project(context, body.child_id)]
         parent_id = context.used_of[self._in_project(context, body.parent_id)]
-        found = self._check(context, child_id, body.child_columns, parent_id, body.parent_columns)
+        found = self._check(
+            context, child_id, body.child_columns, parent_id, body.parent_columns, body.match
+        )
         join_type: JoinType = body.join_type or (
             found.recommended if found.recommended != "none" else "left"
         )
@@ -533,6 +606,7 @@ class ModelService:
                 body.child_columns,
                 context.used_of[parent_root],
                 body.parent_columns,
+                body.match,
             )
             if body.join_type is None and found.recommended != "none":
                 join_type = cast(JoinType, found.recommended)
@@ -540,11 +614,12 @@ class ModelService:
         with self._db() as connection, connection:
             connection.execute(
                 "INSERT INTO dataset_relations (id, project_id, child_root, child_columns, "
-                "parent_root, parent_columns, join_type, status, origin, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "parent_root, parent_columns, join_type, status, origin, created_at, updated_at, "
+                "active, match) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (project_id, child_root, child_columns, parent_root, parent_columns) "
                 "DO UPDATE SET join_type = excluded.join_type, status = excluded.status, "
-                "updated_at = excluded.updated_at",
+                "updated_at = excluded.updated_at, active = excluded.active, "
+                "match = excluded.match",
                 (
                     uuid.uuid4().hex[:12],
                     project_id,
@@ -557,6 +632,8 @@ class ModelService:
                     body.origin,
                     stamp,
                     stamp,
+                    int(body.active),
+                    body.match,
                 ),
             )
         return self.model(project_id)
@@ -573,21 +650,25 @@ class ModelService:
         stored = self._stored_one(project_id, relation_id)
         child_columns = body.child_columns or stored.child_columns
         parent_columns = body.parent_columns or stored.parent_columns
-        if body.child_columns or body.parent_columns:
+        match = body.match or stored.match
+        active = stored.active if body.active is None else body.active
+        if body.child_columns or body.parent_columns or body.match:
             context = self._context(project_id)
             child_id = context.used_of.get(stored.child_root)
             parent_id = context.used_of.get(stored.parent_root)
             if child_id and parent_id:
-                self._check(context, child_id, child_columns, parent_id, parent_columns)
+                self._check(context, child_id, child_columns, parent_id, parent_columns, match)
         with self._db() as connection, connection:
             try:
                 connection.execute(
                     "UPDATE dataset_relations SET child_columns = ?, parent_columns = ?, "
-                    "join_type = ?, updated_at = ? WHERE id = ?",
+                    "join_type = ?, active = ?, match = ?, updated_at = ? WHERE id = ?",
                     (
                         json.dumps(child_columns),
                         json.dumps(parent_columns),
                         body.join_type or stored.join_type,
+                        int(active),
+                        match,
                         now(),
                         relation_id,
                     ),
@@ -649,6 +730,8 @@ class ModelService:
                         stored.parent_columns,
                         stored.join_type,
                         stored.id,
+                        stored.active,
+                        stored.match,
                     )
                 )
         return links
@@ -687,8 +770,21 @@ class ModelService:
         elif fact_id not in context.tables:
             fact_id = context.used_of[self._in_project(context, fact_id)]
         profiles = {profile.id: profile for profile in found.profiles}
+        filters = [
+            Filter(
+                context.used_of.get(
+                    context.root_of.get(item.table_id, item.table_id), item.table_id
+                ),
+                item.column,
+                item.op,
+                list(item.values),
+            )
+            for item in body.filters
+        ]
         try:
-            plan = engine.plan(fact_id, context.tables, links, body.picks or None, profiles)
+            plan = engine.plan(
+                fact_id, context.tables, links, body.picks or None, profiles, filters
+            )
         except engine.ModelError as error:
             raise AppError(error.message, code=error.code, status_code=422) from None
         return plan, fact_id
@@ -733,6 +829,7 @@ class ModelService:
             refused=_reasons(result.refused),
             skipped=_reasons(result.skipped),
             name=f"{context.tables[fact_id].name} · analysis",
+            filtered_out=result.filtered_out,
         )
 
     def build(self, project_id: str, body: m.BuildIn) -> m.CreatedOut:
@@ -755,6 +852,10 @@ class ModelService:
                 for step in plan.steps
             ],
             "picks": {context.root_of[step.link.parent_id]: step.columns for step in plan.steps},
+            "filters": [
+                {**item.model_dump(), "table_id": context.root_of.get(item.table_id, item.table_id)}
+                for item in body.filters
+            ],
         }
         dataset_id = self._import(context, target, name, plan.columns)
         self._record(dataset_id, project_id, "flat", spec, context, self._sources(plan), report)
@@ -898,6 +999,50 @@ class ModelService:
         finally:
             connection.close()
 
+    # --- A generated date table (C1, R-BLD-08) ---------------------------------------------------
+
+    def _write_dates(self, fact: TableInput, column: str, target: Path) -> dict[str, Any]:
+        connection = duckdb.connect()
+        try:
+            made = write_date_table(connection, fact, column, target)
+        except engine.ModelError as error:
+            raise AppError(error.message, code=error.code, status_code=422) from None
+        finally:
+            connection.close()
+        return {"rows": made.rows, "first": made.first.isoformat(), "last": made.last.isoformat()}
+
+    def dates(self, project_id: str, body: m.DatesIn) -> m.CreatedOut:
+        """One row per day of the column's range, filed in the project and related to the table
+        by the date (an accepted relation, made by the user's click)."""
+        context = self._context(project_id)
+        root = self._in_project(context, body.dataset_id)
+        fact = context.tables[context.used_of[root]]
+        name = body.name or f"{fact.name} · dates"
+        target = self.datasets.new_upload_path(f"{_safe_name(name)}.parquet")
+        report = self._write_dates(fact, body.column, target)
+        dataset_id = self._import(context, target, name, [])
+        spec = {"fact_root": root, "column": body.column}
+        self._record(dataset_id, project_id, "dates", spec, context, [fact.id], report)
+        stamp = now()
+        with self._db() as connection, connection:
+            connection.execute(
+                "INSERT OR IGNORE INTO dataset_relations (id, project_id, child_root, "
+                "child_columns, parent_root, parent_columns, join_type, status, origin, "
+                "created_at, updated_at, active, match) "
+                "VALUES (?, ?, ?, ?, ?, ?, 'left', 'accepted', 'user', ?, ?, 1, 'exact')",
+                (
+                    uuid.uuid4().hex[:12],
+                    project_id,
+                    root,
+                    json.dumps([body.column]),
+                    dataset_id,
+                    json.dumps(["date"]),
+                    stamp,
+                    stamp,
+                ),
+            )
+        return m.CreatedOut(dataset_id=dataset_id)
+
     # --- Lineage: out of date, rebuild ---------------------------------------------------------
 
     def _builds(self, project_id: str, context: Context) -> list[m.BuildOut]:
@@ -908,6 +1053,8 @@ class ModelService:
         stored = {s.id: s for s in self._stored(project_id) if s.status == "accepted"}
         out = []
         for row in rows:
+            if row["kind"] == "join":  # 089: said on the joined dataset's page (C1)
+                continue
             try:
                 record = self.datasets.get(row["dataset_id"])
             except NotFoundError:
@@ -990,7 +1137,8 @@ class ModelService:
                 for root, columns in spec.get("picks", {}).items()
                 if root in context.used_of
             }
-            plan, _ = self._plan(context, m.BuildIn(fact_id=fact_id, picks=picks))
+            filters = [m.FilterIn.model_validate(item) for item in spec.get("filters", [])]
+            plan, _ = self._plan(context, m.BuildIn(fact_id=fact_id, picks=picks, filters=filters))
             report = self._write_flat(context, plan, partial)
             columns, sources = plan.columns, self._sources(plan)
             spec["links"] = [
@@ -1004,6 +1152,14 @@ class ModelService:
                 }
                 for step in plan.steps
             ]
+        elif row["kind"] == "dates":  # C1 (R-BLD-08): the days of the fact's dates again
+            fact_id = context.used_of.get(spec["fact_root"])
+            if fact_id is None:
+                raise AppError(
+                    "Its table is no longer in the project.", code="not_in_project", status_code=409
+                )
+            report = self._write_dates(context.tables[fact_id], spec["column"], partial)
+            columns, sources = [], [fact_id]
         else:
             link = next((x for x in self._links(context) if x.id == spec.get("relation_id")), None)
             if link is None:

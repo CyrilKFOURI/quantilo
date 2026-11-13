@@ -1,8 +1,9 @@
 """The map of the segments (032 § 7): the prepared rows in 2D (PCA, or t-SNE on demand), coloured
-by segment, with each segment's centre; and Ward's tree, cut where the segments are."""
+by segment, with each segment's centre; and Ward's tree, cut where the segments are. Under More
+(122), PaCMAP or TriMAP when the optional `interpret` extra is there (R-XAI-10)."""
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast
 
 import numpy as np
 from scipy.cluster import hierarchy
@@ -22,7 +23,7 @@ class SegmentMapCentre:
 
 @dataclass
 class SegmentMap:
-    projection: Literal["pca", "tsne"]
+    projection: Literal["pca", "tsne", "pacmap", "trimap"]
     x: list[float]
     y: list[float]
     segments: list[int]  # segment of each point
@@ -96,6 +97,26 @@ def tsne_map(x: np.ndarray, labels: np.ndarray, rows: np.ndarray, of: int, seed:
     ).fit_transform(x)
     return SegmentMap(
         "tsne",
+        _rounded(coordinates[:, 0]),
+        _rounded(coordinates[:, 1]),
+        [int(v) for v in labels],
+        [int(v) for v in rows],
+        _centres(coordinates, labels),
+        None,
+        len(x),
+        of,
+    )
+
+
+def extra_map(
+    x: np.ndarray, labels: np.ndarray, rows: np.ndarray, of: int, seed: int, method: str
+) -> SegmentMap:
+    """PaCMAP or TriMAP of the drawn rows (122): local and global structure kept together."""
+    from quantilo.interpret import maps
+
+    coordinates = maps.embed(x, cast(maps.Method, method), seed)
+    return SegmentMap(
+        cast(Literal["pacmap", "trimap"], method),
         _rounded(coordinates[:, 0]),
         _rounded(coordinates[:, 1]),
         [int(v) for v in labels],

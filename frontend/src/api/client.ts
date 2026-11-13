@@ -10,6 +10,7 @@ export type Preview = Schemas["Preview"];
 export type TableChoice = Schemas["TableChoice"];
 export type Original = Schemas["Original"];
 export type SourceImportResponse = Schemas["SourceImportResponse"];
+export type TableStack = Schemas["TableStack"];
 export type Origin = Schemas["OriginOut"];
 export type SourceOptions = Schemas["SourceOptions"];
 export type ImportOptions = Schemas["ImportOptions"];
@@ -131,6 +132,12 @@ export type RegressionCurveFit = RegressionCurves["fits"][number];
 export type RegressionCox = Complete<Schemas["CoxTable"]>;
 export type RegressionTobit = Complete<Schemas["TobitTable"]>;
 export type RegressionMixed = Complete<Schemas["MixedTable"]>;
+// 073: coefficients that drift (Kalman) and regimes (Markov switching), in More
+export type RegressionVarying = Complete<Schemas["VaryingTable"]>;
+export type RegressionDriftCurve = RegressionVarying["curves"][number];
+export type RegressionRegimes = Complete<Schemas["RegimesTable"]>;
+export type RegressionSurvivalCurve = RegressionCox["curves"][number];
+export type RegressionTwoPass = NonNullable<RegressionCrossSection["two_pass"]>;
 export type RegressionMethodResults = {
   cross_section: RegressionCrossSection;
   outputs: RegressionOutputs;
@@ -140,9 +147,11 @@ export type RegressionMethodResults = {
   survival: RegressionCox;
   tobit: RegressionTobit;
   mixed: RegressionMixed;
+  varying: RegressionVarying;
+  regimes: RegressionRegimes;
 };
 /** What a method of More may name; absent fields follow the rules ("" turns a σ off). */
-export type RegressionMethodOptions = { outputs?: string[]; sigma?: string; sigma_x?: string; event?: string; slope?: string };
+export type RegressionMethodOptions = { outputs?: string[]; sigma?: string; sigma_x?: string; event?: string; slope?: string; regimes?: number; strata?: string; start?: string; rho?: string; formula?: string };
 const METHOD_PATHS: Record<RegressionMethodKind, string> = {
   cross_section: "cross-section",
   outputs: "outputs",
@@ -152,6 +161,8 @@ const METHOD_PATHS: Record<RegressionMethodKind, string> = {
   survival: "survival",
   tobit: "tobit",
   mixed: "mixed",
+  varying: "varying",
+  regimes: "regimes",
 };
 export type RegressionSection =
   | "standard-errors"
@@ -240,8 +251,15 @@ export type DurationParams = Record<string, string | undefined>;
 export type SmoothCurve = SeriesSmoothing["curves"][number];
 export type ForecastJob = Complete<Schemas["ForecastJob"]>;
 export type SeriesDrivers = Complete<Schemas["SeriesDrivers"]>;
-/** A driver of a forecast (028 A4): a column, a 0/1 flag or a calendar part. */
+/** A driver of a forecast (028 A4): a column, a 0/1 flag, a calendar part or the public
+ * holidays of a country (028 A5). */
 export type DriverSpec = Schemas["Driver"];
+/** The public-holiday calendar offered as a driver (028 A5). */
+export type HolidayOffer = NonNullable<SeriesDrivers["holidays"]>;
+/** Options of the forecast models (028 A7); a key left out keeps its default. */
+export type ForecastTuning = Partial<Schemas["Tuning"]>;
+/** One component of a Prophet-like fit (trend, a season, the holidays, a driver). */
+export type ForecastComponent = Complete<Schemas["Component"]>;
 /** Every group of a series at once (039): setup, job and result. */
 export type GroupsSetup = Complete<Schemas["GroupsSetup"]>;
 export type GroupJob = Complete<Schemas["GroupJob"]>;
@@ -263,6 +281,25 @@ export type MlAle = Complete<Schemas["Ale"]>;
 export type MlMonotonic = Complete<Schemas["Monotonic"]>;
 export type MlSurrogate = Complete<Schemas["Surrogate"]>;
 export type MlCounterfactual = Complete<Schemas["Counterfactual"]>;
+/** Under Explain › Advanced › More (126), each asked for by its own button. */
+export type MlPermutationShap = Complete<Schemas["PermutationShap"]>;
+export type MlInteractions = Complete<Schemas["Interactions"]>;
+export type MlAnchor = Complete<Schemas["Anchor"]>;
+export type MlPrototypes = Complete<Schemas["Prototypes"]>;
+/** Models readable by construction, in the Scorecard tab of a two-class run (121, 122). */
+export type MlRiskScores = Complete<Schemas["RiskScores"]>;
+export type MlScorecard = MlRiskScores["best"];
+export type MlGap = MlRiskScores["gap"];
+export type MlSparseTree = Complete<Schemas["SparseTree"]>;
+export type MlOptimalTree = Complete<Schemas["OptimalTree"]>;
+export type MlRashomonSet = Complete<Schemas["RashomonSet"]>;
+/** 121 bis: one card per class (R-XAI-17), the card on a predicted row (R-XAI-18). */
+export type MlClassCards = Complete<Schemas["ClassCards"]>;
+export type MlCardRow = Complete<Schemas["CardRow"]>;
+/** 125 bis: the two-column ALE (R-XAI-20). */
+export type MlAle2d = Complete<Schemas["Ale2d"]>;
+export type MlRowCounterfactualRequest = { editable?: string[] | null; target_class?: string | null; target_value?: number | null; max_changes?: number };
+export type InterpretAvailability = Complete<Schemas["Availability"]>;
 export type MlCounterfactualRequest = {
   row: number;
   editable: string[] | null;
@@ -349,6 +386,7 @@ export type KpiDefinition = Omit<
 };
 export type KpiResult = Complete<Schemas["KpiResult"]>;
 export type KpiSuggestions = Complete<Schemas["Suggestions"]>;
+export type DateChoice = Complete<Schemas["DateChoice"]>;
 export type KpiAnalysis = Complete<Schemas["Analysis"]>;
 export type KpiArchetype = Complete<Schemas["Archetype"]>;
 export type CohortResult = Complete<Schemas["CohortResult"]>;
@@ -476,6 +514,8 @@ export type RowsView = {
   search: string;
   sort: string | null;
   desc: boolean;
+  /** 099 bis (R-PIN-17): only the pinned rows found. */
+  pinned?: boolean;
 };
 export type ExportFormat = "csv" | "parquet" | "xlsx";
 
@@ -487,6 +527,7 @@ function viewQuery(view: RowsView, filters?: Condition[]): URLSearchParams {
   if (view.search.trim()) query.set("search", view.search.trim());
   if (view.sort) query.set("sort", view.sort);
   if (view.sort && view.desc) query.set("desc", "true");
+  if (view.pinned) query.set("pinned", "true");
   return query;
 }
 
@@ -731,15 +772,19 @@ export const api = {
     extra: Record<string, string>,
     filters?: Condition[],
     drivers?: DriverSpec[],
+    tuning?: ForecastTuning,
   ) => {
     const query = new URLSearchParams({ ...filtersParam(filters), ...extra });
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== "") query.set(key, String(value));
     }
+    const tuned = tuning && Object.keys(tuning).length > 0;
     return request<ForecastJob>(
       "POST",
       `/modules/timeseries/datasets/${id}/forecast?${query}`,
-      drivers?.length ? { drivers } : undefined,
+      drivers?.length || tuned
+        ? { drivers: drivers ?? [], ...(tuned ? { tuning } : {}) }
+        : undefined,
     );
   },
   startGroupForecast: (
@@ -776,6 +821,7 @@ export const api = {
     filters: Condition[] | undefined,
     drivers: DriverSpec[],
     changes: ScenarioChange[],
+    tuning?: ForecastTuning,
   ) => {
     const query = new URLSearchParams({ ...filtersParam(filters), ...extra });
     for (const [key, value] of Object.entries(params)) {
@@ -784,7 +830,7 @@ export const api = {
     return request<DriverForecast>(
       "POST",
       `/modules/timeseries/datasets/${id}/scenario?${query}`,
-      { drivers, changes },
+      { drivers, changes, ...(tuning && Object.keys(tuning).length ? { tuning } : {}) },
     );
   },
   forecastJob: (jobId: string) =>
@@ -868,6 +914,45 @@ export const api = {
   mlMonotonic: (id: string, runId: string) => request<MlMonotonic[]>("GET", `/modules/ml/datasets/${id}/runs/${runId}/explain/monotonic`),
   mlCounterfactual: (id: string, runId: string, body: MlCounterfactualRequest) =>
     request<MlCounterfactual>("POST", `/modules/ml/datasets/${id}/runs/${runId}/explain/counterfactual`, body),
+  mlPermutationShap: (id: string, runId: string, pairs: number, background: number) =>
+    request<MlPermutationShap>(
+      "GET",
+      `/modules/ml/datasets/${id}/runs/${runId}/explain/permutation-shap?${new URLSearchParams({ pairs: String(pairs), background: String(background) })}`,
+    ),
+  mlInteractions: (id: string, runId: string, columns: number) =>
+    request<MlInteractions>("GET", `/modules/ml/datasets/${id}/runs/${runId}/explain/interactions?${new URLSearchParams({ columns: String(columns) })}`),
+  mlAnchor: (id: string, runId: string, row: number, threshold: number, conditions: number) =>
+    request<MlAnchor>(
+      "GET",
+      `/modules/ml/datasets/${id}/runs/${runId}/explain/anchor?${new URLSearchParams({ row: String(row), threshold: String(threshold), conditions: String(conditions) })}`,
+    ),
+  mlPrototypes: (id: string, runId: string, prototypes: number, criticisms: number) =>
+    request<MlPrototypes>(
+      "GET",
+      `/modules/ml/datasets/${id}/runs/${runId}/explain/prototypes?${new URLSearchParams({ prototypes: String(prototypes), criticisms: String(criticisms) })}`,
+    ),
+  mlScorecard: (id: string, runId: string, conditions: number, points: number, monotone = false) =>
+    request<MlRiskScores>(
+      "GET",
+      `/modules/ml/datasets/${id}/runs/${runId}/readable/scorecard?${new URLSearchParams({ conditions: String(conditions), points: String(points), monotone: String(monotone) })}`,
+    ),
+  mlClassCards: (id: string, runId: string, conditions: number, points: number, monotone: boolean) =>
+    request<MlClassCards>(
+      "GET",
+      `/modules/ml/datasets/${id}/runs/${runId}/readable/class-scorecards?${new URLSearchParams({ conditions: String(conditions), points: String(points), monotone: String(monotone) })}`,
+    ),
+  mlAle2d: (id: string, runId: string, first: string, second: string) =>
+    request<MlAle2d>("GET", `/modules/ml/datasets/${id}/runs/${runId}/explain/ale-2d?${new URLSearchParams({ first, second })}`),
+  mlSparseTree: (id: string, runId: string, depth: number, leaves: number) =>
+    request<MlSparseTree>(
+      "GET",
+      `/modules/ml/datasets/${id}/runs/${runId}/readable/sparse-tree?${new URLSearchParams({ depth: String(depth), leaves: String(leaves) })}`,
+    ),
+  mlOptimalTree: (id: string, runId: string, depth: number) =>
+    request<MlOptimalTree>("GET", `/modules/ml/datasets/${id}/runs/${runId}/readable/optimal-tree?${new URLSearchParams({ depth: String(depth) })}`),
+  mlRashomon: (id: string, runId: string, depth: number) =>
+    request<MlRashomonSet>("GET", `/modules/ml/datasets/${id}/runs/${runId}/readable/rashomon?${new URLSearchParams({ depth: String(depth) })}`),
+  interpretAvailable: () => request<InterpretAvailability[]>("GET", "/modules/ml/interpret/available"),
   mlErrors: (id: string, runId: string, measure: string | null) =>
     request<MlErrors>("GET", `/modules/ml/datasets/${id}/runs/${runId}/errors${measure ? `?${new URLSearchParams({ measure })}` : ""}`),
   mlErrorsCompared: (id: string, runId: string, otherId: string) =>
@@ -930,6 +1015,10 @@ export const api = {
   },
   mlPredictionRowExplanation: (id: string, predictionId: string, row: number) =>
     request<MlRowExplanation>("GET", `/modules/ml/datasets/${id}/predictions/${predictionId}/rows/${row}/explanation`),
+  mlPredictionRowCard: (id: string, predictionId: string, row: number) =>
+    request<MlCardRow>("GET", `/modules/ml/datasets/${id}/predictions/${predictionId}/rows/${row}/scorecard`),
+  mlPredictionRowCounterfactual: (id: string, predictionId: string, row: number, body: MlRowCounterfactualRequest) =>
+    request<MlCounterfactual>("POST", `/modules/ml/datasets/${id}/predictions/${predictionId}/rows/${row}/counterfactual`, body),
   mlSavePrediction: (id: string, predictionId: string) =>
     request<{ dataset_id: string }>("POST", `/modules/ml/datasets/${id}/predictions/${predictionId}/dataset`),
   mlPredictionCsvUrl: (id: string, predictionId: string) =>
@@ -984,10 +1073,11 @@ export const api = {
   regressionMethod: <K extends RegressionMethodKind>(id: string, kind: K, params: RegressionParams, options: RegressionMethodOptions, filters?: Condition[]) => {
     const query = regressionQuery(params, filters);
     if (options.outputs?.length) query.set("outputs", options.outputs.join(","));
-    for (const key of ["sigma", "sigma_x", "event", "slope"] as const) {
+    for (const key of ["sigma", "sigma_x", "event", "slope", "strata", "start", "rho", "formula"] as const) {
       const value = options[key];
       if (value !== undefined) query.set(key, value);
     }
+    if (options.regimes !== undefined) query.set("regimes", String(options.regimes));
     return request<RegressionMethodResults[K]>("GET", `/datasets/${id}/regression/${METHOD_PATHS[kind]}?${query}`);
   },
   regressionInstruments: (id: string, params: RegressionParams, endogenous: string[], instruments: string[], filters?: Condition[]) => {
@@ -1114,13 +1204,17 @@ export const api = {
     tables: { id: string; name: string | null }[],
     options: ImportOptions,
     projectId: string | null = null,
+    stack = false,
   ) =>
     request<SourceImportResponse>("POST", "/sources/import", {
       path,
       tables,
       options,
       ...(projectId ? { project_id: projectId } : {}),
+      ...(stack ? { stack: true } : {}),
     }),
+  /** S1 (C1): the tables of a workbook that share their columns (Advanced, on demand). */
+  stacks: (path: string) => request<TableStack[]>("POST", "/sources/stacks", { path }),
   origin: (datasetId: string) => request<Origin>("GET", `/datasets/${datasetId}/origin`),
   browse: (path: string | null) =>
     request<Listing>(

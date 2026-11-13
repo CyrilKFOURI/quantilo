@@ -1,8 +1,9 @@
 import type { Data } from "plotly.js-dist-min";
 
-import type { MlAle, MlExplanation, MlRun } from "../../api/client";
+import type { MlAle, MlAle2d, MlExplanation, MlRun } from "../../api/client";
 import type { Figure } from "../../charts/Plot";
 import { withAlpha } from "../../charts/figures";
+import { t } from "../../lib/i18n";
 
 type Regression = NonNullable<MlRun["regression"]>;
 type Classification = NonNullable<MlRun["classification"]>;
@@ -24,7 +25,7 @@ export function predictedFigure(result: Regression, target: string): Figure {
           x: result.actual,
           y: result.predicted,
           marker: { color: tokens.palette[0] ?? tokens.numeric, size: 5, opacity: 0.55 },
-          hovertemplate: "actual %{x:,.4g}<br>predicted %{y:,.4g}<extra></extra>",
+          hovertemplate: t("fig.ml.hoverActualPredicted"),
         } as Data,
         {
           type: "scatter",
@@ -35,7 +36,7 @@ export function predictedFigure(result: Regression, target: string): Figure {
           hoverinfo: "skip",
         } as Data,
       ],
-      layout: { showlegend: false, xaxis: title(`Actual ${target}`), yaxis: title(`Predicted ${target}`) },
+      layout: { showlegend: false, xaxis: title(t("fig.ml.actualOf", { target })), yaxis: title(t("fig.ml.predictedOf", { target })) },
     };
   };
 }
@@ -50,13 +51,13 @@ export function residualsFigure(result: Regression): Figure {
         x: result.predicted,
         y: result.actual.map((a, i) => a - (result.predicted[i] ?? 0)),
         marker: { color: tokens.palette[0] ?? tokens.numeric, size: 5, opacity: 0.55 },
-        hovertemplate: "predicted %{x:,.4g}<br>residual %{y:,.4g}<extra></extra>",
+        hovertemplate: t("fig.ml.hoverResidual"),
       } as Data,
     ],
     layout: {
       showlegend: false,
-      xaxis: title("Predicted"),
-      yaxis: { ...title("Actual − predicted"), zeroline: true, zerolinecolor: tokens.ink3 },
+      xaxis: title(t("fig.ml.predicted")),
+      yaxis: { ...title(t("fig.ml.actualMinusPredicted")), zeroline: true, zerolinecolor: tokens.ink3 },
     },
   });
 }
@@ -70,10 +71,10 @@ export function residualHistogram(result: Regression): Figure {
         y: result.residual_bins.map((b) => b.count),
         width: result.residual_bins.map((b) => (b.end ?? 0) - (b.start ?? 0)),
         marker: { color: withAlpha(tokens.ink3, 0.5), line: { color: tokens.surface, width: 1 } },
-        hovertemplate: "%{x:,.4g}: %{y} rows<extra></extra>",
+        hovertemplate: `%{x:,.4g}: %{y} ${t("fig.rows")}<extra></extra>`,
       } as Data,
     ],
-    layout: { showlegend: false, bargap: 0, xaxis: title("Residual"), yaxis: title("Rows") },
+    layout: { showlegend: false, bargap: 0, xaxis: title(t("fig.ml.residual")), yaxis: title(t("fig.Rows")) },
   });
 }
 
@@ -98,12 +99,12 @@ export function confusionFigure(labels: string[], matrix: number[][], percent: b
             [1, tokens.palette[0] ?? tokens.numeric],
           ],
           showscale: false,
-          hovertemplate: "actual %{y}<br>predicted %{x}<br>%{text}<extra></extra>",
+          hovertemplate: t("fig.ml.hoverConfusion"),
         } as Data,
       ],
       layout: {
-        xaxis: { ...title("Predicted"), type: "category" },
-        yaxis: { ...title("Actual"), type: "category", autorange: "reversed" },
+        xaxis: { ...title(t("fig.ml.predicted")), type: "category" },
+        yaxis: { ...title(t("fig.ml.actual")), type: "category", autorange: "reversed" },
       },
     };
   };
@@ -220,7 +221,7 @@ export function coefficientsFigure(coefficients: Coefficient[]): Figure {
           hovertemplate: "%{y}: %{x:,.4g}<extra></extra>",
         } as Data,
       ],
-      layout: { showlegend: false, margin: { l: 160 }, xaxis: { ...title("Coefficient"), zeroline: true, zerolinecolor: tokens.ink3 } },
+      layout: { showlegend: false, margin: { l: 160 }, xaxis: { ...title(t("fig.ml.coefficient")), zeroline: true, zerolinecolor: tokens.ink3 } },
     };
   };
 }
@@ -241,7 +242,7 @@ export function importancesFigure(importances: { feature: string; importance: nu
           hovertemplate: "%{y}: %{x:.1%}<extra></extra>",
         } as Data,
       ],
-      layout: { showlegend: false, margin: { l: 160 }, xaxis: { ...title("Share of importance"), tickformat: ".0%" } },
+      layout: { showlegend: false, margin: { l: 160 }, xaxis: { ...title(t("fig.ml.importanceShare")), tickformat: ".0%" } },
     };
   };
 }
@@ -270,7 +271,7 @@ export function permutationFigure(items: PermutationItem[], metric: string): Fig
       layout: {
         showlegend: false,
         margin: { l: 150 },
-        xaxis: { ...title(`Drop in ${metric} when shuffled`), zeroline: true, zerolinecolor: tokens.ink3 },
+        xaxis: { ...title(t("fig.ml.dropWhenShuffled", { metric })), zeroline: true, zerolinecolor: tokens.ink3 },
       },
     };
   };
@@ -306,9 +307,9 @@ export function beeswarmFigure(shap: Shap): Figure {
               cmax: 1,
               showscale: index === features.length - 1,
               colorbar: {
-                title: { text: "value", side: "right", font: { size: 10 } },
+                title: { text: t("fig.ml.value"), side: "right", font: { size: 10 } },
                 tickvals: [0, 1],
-                ticktext: ["low", "high"],
+                ticktext: [t("fig.ml.low"), t("fig.ml.high")],
                 thickness: 8,
                 len: 0.5,
               },
@@ -322,7 +323,7 @@ export function beeswarmFigure(shap: Shap): Figure {
       layout: {
         showlegend: false,
         margin: { l: 160 },
-        xaxis: { ...title(`SHAP value (${shap.scale})`), zeroline: true, zerolinecolor: tokens.ink3 },
+        xaxis: { ...title(t("fig.ml.shapValue", { scale: shap.scale })), zeroline: true, zerolinecolor: tokens.ink3 },
         yaxis: { tickvals: features.map((_, i) => i), ticktext: features.map((f) => f.column), range: [-0.6, features.length - 0.4] },
       },
     };
@@ -353,7 +354,7 @@ export function dependenceFigure(found: Dependence): Figure {
       y: found.counts,
       yaxis: "y2",
       marker: { color: tokens.line },
-      hovertemplate: "%{y} rows<extra>%{x}</extra>",
+      hovertemplate: `%{y} ${t("fig.rows")}<extra>%{x}</extra>`,
       showlegend: false,
     } as Data);
     return {
@@ -363,7 +364,7 @@ export function dependenceFigure(found: Dependence): Figure {
         barmode: "group",
         xaxis: { ...title(found.column), type: number ? "linear" : "category" },
         yaxis: { ...title(found.output), domain: [0.3, 1] },
-        yaxis2: { domain: [0, 0.2], showticklabels: false, title: { text: "rows", font: { size: 10 } } },
+        yaxis2: { domain: [0, 0.2], showticklabels: false, title: { text: t("fig.rows"), font: { size: 10 } } },
       },
     };
   };
@@ -397,7 +398,7 @@ export function aleFigure(found: MlAle): Figure {
       y: found.counts,
       yaxis: "y2",
       marker: { color: tokens.line },
-      hovertemplate: "%{y} rows<extra></extra>",
+      hovertemplate: `%{y} ${t("fig.rows")}<extra></extra>`,
       showlegend: false,
     } as Data);
     return {
@@ -405,8 +406,8 @@ export function aleFigure(found: MlAle): Figure {
       layout: {
         showlegend: curves.length > 1,
         xaxis: { ...title(found.column), type: number ? "linear" : "category" },
-        yaxis: { ...title(`Effect on ${found.output.toLowerCase()}`), domain: [0.3, 1], zeroline: true, zerolinecolor: tokens.ink3 },
-        yaxis2: { domain: [0, 0.2], showticklabels: false, title: { text: "rows", font: { size: 10 } } },
+        yaxis: { ...title(t("fig.ml.effectOn", { output: found.output.toLowerCase() })), domain: [0.3, 1], zeroline: true, zerolinecolor: tokens.ink3 },
+        yaxis2: { domain: [0, 0.2], showticklabels: false, title: { text: t("fig.rows"), font: { size: 10 } } },
       },
     };
   };
@@ -420,7 +421,7 @@ export function waterfallFigure(base: number, steps: { label: string; value: num
         type: "waterfall",
         orientation: "h",
         measure: ["absolute", ...steps.map(() => "relative"), "total"],
-        y: ["average", ...steps.map((s) => s.label), "this row"],
+        y: [t("fig.ml.average"), ...steps.map((s) => s.label), t("fig.ml.thisRow")],
         x: [base, ...steps.map((s) => s.value), 0],
         increasing: { marker: { color: tokens.palette[1] ?? tokens.categorical } },
         decreasing: { marker: { color: tokens.palette[0] ?? tokens.numeric } },
@@ -433,7 +434,7 @@ export function waterfallFigure(base: number, steps: { label: string; value: num
       showlegend: false,
       margin: { l: 220 },
       yaxis: { autorange: "reversed" },
-      xaxis: title(scale === "prediction" ? "Prediction" : `Prediction (${scale})`),
+      xaxis: title(scale === "prediction" ? t("fig.ml.prediction") : t("fig.ml.predictionScale", { scale })),
     },
   });
 }
@@ -455,23 +456,23 @@ export function trialsFigure(trials: TrialPoint[], higher: boolean, metric: stri
         {
           type: "scatter",
           mode: "markers",
-          name: "trial",
+          name: t("fig.ml.trial"),
           x: done.map((t) => t.number),
           y: done.map((t) => t.value),
           marker: { color: done.map((t) => (t.state === "complete" ? (tokens.palette[0] ?? tokens.numeric) : tokens.ink3)), size: 6 },
-          hovertemplate: "trial %{x}: %{y:.4g}<extra></extra>",
+          hovertemplate: t("fig.ml.hoverTrial"),
         } as Data,
         {
           type: "scatter",
           mode: "lines",
-          name: "best so far",
+          name: t("fig.ml.bestSoFar"),
           x: done.map((t) => t.number),
           y: running,
           line: { color: tokens.palette[1] ?? tokens.categorical, width: 2, shape: "hv" },
           hoverinfo: "skip",
         } as Data,
       ],
-      layout: { showlegend: true, xaxis: title("Trial"), yaxis: title(metric) },
+      layout: { showlegend: true, xaxis: title(t("fig.ml.trialAxis")), yaxis: title(metric) },
     };
   };
 }
@@ -491,7 +492,7 @@ export function importanceBars(importances: Record<string, number>, labels: Reco
           hovertemplate: "%{y}: %{x:.0%}<extra></extra>",
         } as Data,
       ],
-      layout: { showlegend: false, margin: { l: 160 }, xaxis: { ...title("Share of the score's variation"), tickformat: ".0%" } },
+      layout: { showlegend: false, margin: { l: 160 }, xaxis: { ...title(t("fig.ml.scoreVariation")), tickformat: ".0%" } },
     };
   };
 }
@@ -517,7 +518,7 @@ export function overlayPredictedFigure(runs: { name: string; run: MlRun }[]): Fi
         ),
         { type: "scatter", mode: "lines", x: [low, high], y: [low, high], line: { color: tokens.ink3, dash: "dash", width: 1 }, hoverinfo: "skip", showlegend: false } as Data,
       ],
-      layout: { showlegend: true, xaxis: title("Actual"), yaxis: title("Predicted") },
+      layout: { showlegend: true, xaxis: title(t("fig.ml.actual")), yaxis: title(t("fig.ml.predicted")) },
     };
   };
 }
@@ -539,7 +540,7 @@ export function overlayRocFigure(runs: { name: string; run: MlRun }[]): Figure {
       ),
       { type: "scatter", mode: "lines", x: [0, 1], y: [0, 1], line: { color: tokens.ink3, dash: "dash", width: 1 }, hoverinfo: "skip", showlegend: false } as Data,
     ],
-    layout: { showlegend: true, xaxis: title("False positive rate"), yaxis: title("True positive rate") },
+    layout: { showlegend: true, xaxis: title(t("fig.ml.fpr")), yaxis: title(t("fig.ml.tpr")) },
   });
 }
 
@@ -548,14 +549,14 @@ export function learningCurveFigure(curve: NonNullable<MlRun["learning_curve"]>)
   return (tokens) => {
     const data: Data[] = [];
     if (curve.train)
-      data.push({ type: "scatter", mode: "lines", name: "training", x: curve.iterations, y: curve.train, line: { color: tokens.palette[0] ?? tokens.numeric, width: 2 } } as Data);
+      data.push({ type: "scatter", mode: "lines", name: t("fig.ml.training"), x: curve.iterations, y: curve.train, line: { color: tokens.palette[0] ?? tokens.numeric, width: 2 } } as Data);
     if (curve.validation)
-      data.push({ type: "scatter", mode: "lines", name: "held out", x: curve.iterations, y: curve.validation, line: { color: tokens.palette[1] ?? tokens.categorical, width: 2 } } as Data);
+      data.push({ type: "scatter", mode: "lines", name: t("fig.ml.heldOut"), x: curve.iterations, y: curve.validation, line: { color: tokens.palette[1] ?? tokens.categorical, width: 2 } } as Data);
     const shapes =
       curve.best !== null
         ? [{ type: "line" as const, x0: curve.best, x1: curve.best, yref: "paper" as const, y0: 0, y1: 1, line: { color: tokens.ink3, dash: "dot" as const, width: 1 } }]
         : [];
-    return { data, layout: { showlegend: data.length > 1, shapes, xaxis: title("Iteration"), yaxis: title(curve.label) } };
+    return { data, layout: { showlegend: data.length > 1, shapes, xaxis: title(t("fig.ml.iteration")), yaxis: title(curve.label) } };
   };
 }
 
@@ -585,7 +586,7 @@ export function periodScoresFigure(panel: Pick<Panel, "periods" | "summary" | "p
           y: panel.periods.map((p) => p.score),
           customdata: panel.periods.map((p) => p.fold),
           marker: { color: panel.periods.map((p) => (goodPeriod(panel.summary, p.score) ? (tokens.palette[0] ?? tokens.numeric) : withAlpha(tokens.ink3, 0.55))) },
-          hovertemplate: "%{x}: %{y:,.4g} (fold %{customdata})<extra></extra>",
+          hovertemplate: t("fig.ml.hoverFold"),
         } as Data,
       ],
       layout: { showlegend: false, bargap: 0.15, shapes, xaxis: { ...title(panel.period_column), type: "category" }, yaxis: title(panel.summary.metric) },
@@ -609,7 +610,7 @@ export function cumulativeFigure(panel: Pick<Panel, "periods" | "summary" | "per
           hovertemplate: "%{x}: %{y:,.4g}<extra></extra>",
         } as Data,
       ],
-      layout: { showlegend: false, xaxis: { ...title(panel.period_column), type: "category" }, yaxis: { ...title(`Cumulative ${panel.summary.metric}`), zeroline: true } },
+      layout: { showlegend: false, xaxis: { ...title(panel.period_column), type: "category" }, yaxis: { ...title(t("fig.ml.cumulative", { metric: panel.summary.metric })), zeroline: true } },
     };
   };
 }
@@ -618,8 +619,8 @@ export function cumulativeFigure(panel: Pick<Panel, "periods" | "summary" | "per
 export function foldsFigure(panel: Panel): Figure {
   return (tokens) => {
     const folds = panel.folds;
-    const names = folds.map((f) => `Fold ${f.fold}`);
-    const plural = (n: number) => `${n} period${n === 1 ? "" : "s"}`;
+    const names = folds.map((f) => t("fig.ml.fold", { fold: String(f.fold) }));
+    const plural = (n: number) => (n === 1 ? t("fig.ml.onePeriod") : t("fig.ml.periods", { count: String(n) }));
     const bar = (name: string, color: string, base: number[], width: number[], text: string[]) =>
       ({
         type: "bar",
@@ -640,25 +641,25 @@ export function foldsFigure(panel: Panel): Figure {
     return {
       data: [
         bar(
-          "trained on",
+          t("fig.ml.trainedOn"),
           tokens.palette[0] ?? tokens.numeric,
           folds.map((f) => f.train_start),
           folds.map((f) => f.train_end - f.train_start + 1),
-          folds.map((f) => `${f.train_from} to ${f.train_to} · ${plural(f.train_periods)}, ${f.train_rows.toLocaleString("en-US")} rows`),
+          folds.map((f) => t("fig.ml.foldSpan", { from: f.train_from, to: f.train_to, periods: plural(f.train_periods), rows: f.train_rows.toLocaleString("en-US") })),
         ),
         bar(
-          "embargo",
+          t("fig.ml.embargo"),
           withAlpha(tokens.ink3, 0.35),
           folds.map((f) => f.train_end + 1),
           folds.map((f) => f.test_start - f.train_end - 1),
-          folds.map((f) => `${plural(f.test_start - f.train_end - 1)} left out`),
+          folds.map((f) => t("fig.ml.leftOut", { periods: plural(f.test_start - f.train_end - 1) })),
         ),
         bar(
-          "tested on",
+          t("fig.ml.testedOn"),
           tokens.palette[1] ?? tokens.categorical,
           folds.map((f) => f.test_start),
           folds.map((f) => f.test_end - f.test_start + 1),
-          folds.map((f) => `${f.test_from} to ${f.test_to} · ${plural(f.test_periods)}, ${f.test_rows.toLocaleString("en-US")} rows`),
+          folds.map((f) => t("fig.ml.foldSpan", { from: f.test_from, to: f.test_to, periods: plural(f.test_periods), rows: f.test_rows.toLocaleString("en-US") })),
         ),
       ],
       layout: {
@@ -667,6 +668,54 @@ export function foldsFigure(panel: Panel): Figure {
         legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom", entrywidth: 96, font: { size: 11, color: tokens.ink2 } },
         yaxis: { autorange: "reversed" },
         xaxis: { ...title(panel.period_column), tickvals: chosen, ticktext: chosen.map((r) => ticks.get(r) ?? String(r)) },
+      },
+    };
+  };
+}
+
+/** 125 bis (R-XAI-20): the two-column ALE as a heatmap, two hues around a neutral 0 (what the pair
+ *  adds on top of each column's own effect), at the middle of each cell. */
+export function ale2dFigure(found: MlAle2d): Figure {
+  return (tokens) => {
+    const middles = (edges: number[]) => edges.slice(1).map((high, i) => ((edges[i] ?? high) + high) / 2);
+    const corners = found.values;
+    // the value of a cell: the mean of its four corners
+    const z = found.counts.map((row, i) =>
+      row.map((_, j) => {
+        const a = corners[i]?.[j] ?? 0;
+        const b = corners[i + 1]?.[j] ?? 0;
+        const c = corners[i]?.[j + 1] ?? 0;
+        const d = corners[i + 1]?.[j + 1] ?? 0;
+        return (a + b + c + d) / 4;
+      }),
+    );
+    const extent = Math.max(1e-12, ...z.flat().map((v) => Math.abs(v)));
+    const [blue = tokens.ink2, orange = tokens.ink3] = tokens.palette;
+    return {
+      data: [
+        {
+          type: "heatmap",
+          x: middles(found.second_edges),
+          y: middles(found.first_edges),
+          z,
+          customdata: found.counts as unknown as string[],
+          colorscale: [
+            [0, orange],
+            [0.5, tokens.line],
+            [1, blue],
+          ],
+          zmid: 0,
+          zmin: -extent,
+          zmax: extent,
+          showscale: false,
+          xgap: 1,
+          ygap: 1,
+          hovertemplate: `${found.second} %{x:.4g} · ${found.first} %{y:.4g}: %{z:+.3g} (%{customdata} ${t("fig.rows")})<extra></extra>`,
+        } as Data,
+      ],
+      layout: {
+        xaxis: { ...title(found.second), type: "linear" },
+        yaxis: { ...title(found.first), type: "linear" },
       },
     };
   };

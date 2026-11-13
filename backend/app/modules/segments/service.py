@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -39,6 +39,7 @@ from quantilo.segments.engine import (
 )
 from quantilo.segments.export import with_columns
 from quantilo.segments.facade import SEGMENT_COLUMN, free_name
+from quantilo.segments.tree import SegmentTree
 from quantilo.text.distinctive import DistinctiveWords
 from quantilo.text.service import TextError, TextService
 from sklearn.metrics import adjusted_rand_score
@@ -49,6 +50,7 @@ from app.core.storage import Workspace
 from app.services.columns.service import ColumnChange, ColumnService
 
 KEPT_JOBS = 32
+KEPT_TREES = 16
 FORMULA_STARTS = ("=", "+", "-", "@", "\t", "\r")
 Mark = Literal["expected", "error"]
 # A job's body: given `stopped()` and `progress(stage, share, message)`, returns the run id.
@@ -58,7 +60,7 @@ Work = Callable[[Callable[[], bool], Progress], str]
 @dataclass
 class SegmentJob:
     id: str
-    kind: Literal["segments", "tsne", "unusual"]
+    kind: Literal["segments", "tsne", "map", "unusual"]
     status: Literal["running", "done", "failed", "cancelled"]
     stage: str
     progress: float | None = None
@@ -180,6 +182,7 @@ class SegmentsService(SegmentsEngine):
         self._stops: set[str] = set()
         self._lock = threading.Lock()
         self._pending: dict[str, list[ColumnChange]] = {}  # imported file → column types to set
+        self._trees: OrderedDict[tuple[object, ...], SegmentTree] = OrderedDict()  # 124
 
     @contextmanager
     def _db(self) -> Iterator[sqlite3.Connection]:
@@ -198,7 +201,7 @@ class SegmentsService(SegmentsEngine):
 
     # --- Jobs ----------------------------------------------------------------------------------
 
-    def _job(self, kind: Literal["segments", "tsne", "unusual"]) -> SegmentJob:
+    def _job(self, kind: Literal["segments", "tsne", "map", "unusual"]) -> SegmentJob:
         job = SegmentJob(uuid.uuid4().hex[:12], kind, "running", "loading")
         with self._lock:
             self._jobs[job.id] = job
@@ -407,6 +410,64 @@ class SegmentsService(SegmentsEngine):
 
         self._executor.submit(self._follow, job, work)
         return job
+
+    def start_map(self, dataset_id: str, run_id: str, method: str) -> SegmentJob:
+        """PaCMAP or TriMAP (122, extra `interpret`), in the background like t-SNE; refused at
+        once with its reason when the extra cannot run here (R-XAI-10)."""
+        from quantilo.interpret import extras
+
+        run = self.run(dataset_id, run_id)
+        job = self._job("map")
+        if method in run.result.maps:
+            job.status, job.run_id = "done", run_id
+            return job
+        found = extras.check(method)
+        if not found.available:
+            raise SegmentsError(
+                f"{found.reason} {found.install or ''}".strip(), "extra_missing", 409
+            )
+
+        def work(stopped: Callable[[], bool], progress: Progress) -> str:
+            progress("projecting", None, None)
+            drawn = np.load(self._folder(dataset_id, run_id) / "drawn.npy")
+            drawn_map = self.extra_map(run.result, drawn, method, run.request.seed)
+            if stopped():
+                raise Cancelled
+            current = self.run(dataset_id, run_id)
+            current.result.maps[method] = drawn_map
+            (self._folder(dataset_id, run_id) / "run.json").write_bytes(RUN.dump_json(current))
+            return run_id
+
+        self._executor.submit(self._follow, job, work)
+        return job
+
+    def tree(
+        self, dataset_id: str, run_id: str, depth: int | None, leaves: int | None
+    ) -> SegmentTree:
+        """124: the run's segments described by a sparse tree, on the rows (and filters) the
+        run segmented; kept in memory for the next opening."""
+        run = self.run(dataset_id, run_id)
+        names = tuple(s.name for s in run.result.segments)  # a renamed segment is described anew
+        key = (dataset_id, run_id, depth, leaves, names)
+        if key in self._trees:
+            self._trees.move_to_end(key)
+            return self._trees[key]
+        labels = self.labels(dataset_id, run_id)
+        found = self.describe_tree(
+            dataset_id, run.conditions, run.request, run.result, labels, depth, leaves
+        )
+        self._trees[key] = found
+        if len(self._trees) > KEPT_TREES:
+            self._trees.popitem(last=False)
+        return found
+
+    def optimal_tree(self, dataset_id: str, run_id: str, segment: int, depth: int) -> Any:
+        """124 bis (R-SGT-06): GOSDT's optimal tree for one segment against the others."""
+        run = self.run(dataset_id, run_id)
+        labels = self.labels(dataset_id, run_id)
+        return self.optimal_segment(
+            dataset_id, run.conditions, run.request, run.result, labels, segment, depth
+        )
 
     def words(self, dataset_id: str, run_id: str, column: str) -> DistinctiveWords:
         """059, R-WRD-07: the words over-represented in each segment's texts."""

@@ -422,6 +422,7 @@ def test_compare_and_tune_follow_the_panel_criterion(numerai_like: dx.Dataset) -
     for model in found:
         assert not isinstance(model, Failed) and model.panel is not None
         assert model.result.score == model.panel.summary.worst
+    pytest.importorskip("optuna", reason="tuning needs Optuna (quantilo[ml])")
     progress = ml.tune("decision_tree", budget_seconds=None, trials=4)
     assert progress.criterion == "worst" and progress.metric == "spearman"
     assert progress.best_value is not None and len(progress.trials) == 4

@@ -10,7 +10,7 @@ const providers = [
   { id: "gemini", label: "Google Gemini", configured: false, console: "aistudio.google.com", needs_key: true },
 ];
 
-const settings = (configured: boolean, vendor: "anthropic" | "gemini" = "anthropic") => ({
+const settings = (configured: boolean, vendor: "anthropic" | "gemini" = "anthropic", sharing = "never") => ({
   provider: "auto",
   active: vendor,
   active_label: vendor === "anthropic" ? "Anthropic (Claude)" : "Google Gemini",
@@ -25,6 +25,7 @@ const settings = (configured: boolean, vendor: "anthropic" | "gemini" = "anthrop
   sdk_installed: true,
   ready: configured,
   token_limit: 2_000_000,
+  rows_sharing: sharing,
 });
 
 const conversation = {
@@ -77,7 +78,7 @@ const saved = [
 
 let notes: { id: string; text: string; source: string; created_at: string }[] = [];
 
-function setup(configured = true, vendor: "anthropic" | "gemini" = "anthropic", events = turn) {
+function setup(configured = true, vendor: "anthropic" | "gemini" = "anthropic", events = turn, sharing = "never") {
   let answered = false;
   const calls = mockApi({
     "GET /health": health,
@@ -88,7 +89,12 @@ function setup(configured = true, vendor: "anthropic" | "gemini" = "anthropic", 
       column({ name: "Age", position: 1 }),
     ],
     "GET /column-roles": roles,
-    "GET /modules/agent/settings": settings(configured, vendor),
+    "GET /modules/agent/settings": settings(configured, vendor, sharing),
+    "PUT /modules/agent/settings": (body: unknown) => ({ ...settings(configured, vendor, sharing), ...(body as object) }),
+    "GET /modules/agent/datasets/d1/personal-columns": [{ name: "email", mask: "email", unmasked: false }],
+    "PUT /modules/agent/datasets/d1/personal-columns": (body: unknown) => [
+      { name: "email", mask: "email", unmasked: (body as { unmasked: string[] }).unmasked.includes("email") },
+    ],
     "GET /modules/agent/settings/models": { models: ["gemini-2.5-flash", "gemini-2.5-pro"], default: "gemini-2.5-pro" },
     "GET /modules/agent/datasets/d1/conversations": [],
     "GET /modules/agent/datasets/d1/notes": () => notes,
@@ -245,5 +251,85 @@ describe("Assistant confirmations", () => {
     await vi.waitFor(() => expect(calls.find((c) => c.key === "POST confirm")?.body).toEqual({ approved: true }));
     send({ type: "done", end: "answered", message: null, turn_usd: 0.01, conversation_usd: 0.01, conversation_tokens: 900, priced: true });
     close();
+  });
+});
+
+describe("Assistant and rows (R-AG-P2)", () => {
+  it("asks before sharing rows and sends the columns the user lets through unmasked", async () => {
+    const calls = setup(true, "anthropic", turn, "ask");
+    let push: ((event: object) => void) | null = null;
+    let close: () => void = () => {};
+    const json = globalThis.fetch;
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/conversations/c1/messages")) {
+        const encoder = new TextEncoder();
+        const body = new ReadableStream({
+          start(controller) {
+            push = (event) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+            close = () => controller.close();
+          },
+        });
+        return new Response(body, { headers: { "Content-Type": "text/event-stream" } });
+      }
+      if (url.endsWith("/conversations/c1/confirm/s1")) {
+        calls.push({ key: "POST confirm", body: JSON.parse(String(init?.body)), params: new URLSearchParams() });
+        return new Response(null, { status: 204 });
+      }
+      return json(input, init);
+    });
+    renderAt("/d/d1/columns");
+    fireEvent.click(await screen.findByRole("button", { name: "Ask the assistant" }));
+    const panel = await screen.findByRole("complementary", { name: "Assistant" });
+    // the empty conversation says rows can leave, on the user's card
+    expect(await within(panel).findByText(/also up to 20 rows at a time/)).toBeInTheDocument();
+    fireEvent.change(within(panel).getByRole("textbox", { name: "Message to the assistant" }), {
+      target: { value: "Show me some e-mails" },
+    });
+    fireEvent.click(within(panel).getByRole("button", { name: "Send" }));
+
+    await vi.waitFor(() => expect(push).not.toBeNull());
+    const send = (event: object) => push?.(event);
+    send({ type: "step_started", id: "s1", tool: "sample_rows", label: "Reading 5 rows", input: {} });
+    send({
+      type: "confirm",
+      id: "s1",
+      tool: "sample_rows",
+      text: "Share up to 5 rows of email, city with the assistant.",
+      rows: { count: 5, columns: ["email", "city"], masked: [{ name: "email", mask: "email" }], filtered: true },
+    });
+
+    const card = await within(panel).findByRole("group", { name: "The assistant asks to see rows" });
+    expect(within(card).getByText(/Up to 5 rows with these columns: email, city\. From the filtered rows only\./)).toBeInTheDocument();
+    fireEvent.click(within(card).getByRole("checkbox", { name: "email (e-mail)" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Allow once" }));
+
+    await vi.waitFor(() =>
+      expect(calls.find((c) => c.key === "POST confirm")?.body).toEqual({ approved: true, unmask: ["email"] }),
+    );
+    expect(within(panel).queryByRole("group", { name: "The assistant asks to see rows" })).not.toBeInTheDocument();
+    send({ type: "done", end: "answered", message: null, turn_usd: 0.01, conversation_usd: 0.01, conversation_tokens: 900, priced: true });
+    close();
+  });
+
+  it("sets the sharing level and the personal columns shared unmasked in the settings", async () => {
+    const calls = setup(true, "anthropic", turn, "ask");
+    renderAt("/d/d1/columns");
+    fireEvent.click(await screen.findByRole("button", { name: "Ask the assistant" }));
+    const panel = await screen.findByRole("complementary", { name: "Assistant" });
+    fireEvent.click(await within(panel).findByRole("button", { name: "Assistant settings" }));
+
+    expect(await within(panel).findByText(/With row sharing on/)).toBeInTheDocument();
+    expect(within(panel).getByText(/the assistant asks first/)).toBeInTheDocument();
+    fireEvent.click(await within(panel).findByRole("checkbox", { name: "email (e-mail)" }));
+    await vi.waitFor(() =>
+      expect(calls.find((c) => c.key === "PUT /modules/agent/datasets/d1/personal-columns")?.body).toEqual({ unmasked: ["email"] }),
+    );
+    fireEvent.change(within(panel).getByRole("combobox", { name: "Sharing rows" }), { target: { value: "never" } });
+    await vi.waitFor(() =>
+      expect(calls.find((c) => c.key === "PUT /modules/agent/settings")?.body).toEqual({ rows_sharing: "never" }),
+    );
+    expect(await within(panel).findByText(/never sees a row of your data/)).toBeInTheDocument();
+    expect(within(panel).getByText(/Never whole rows/)).toBeInTheDocument();
   });
 });

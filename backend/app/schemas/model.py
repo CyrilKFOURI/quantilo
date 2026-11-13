@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field, StringConstraints
 JoinType = Literal["left", "inner", "right", "full"]
 Recommended = Literal["left", "inner", "right", "full", "none"]
 Cardinality = Literal["1:1", "n:1", "n:m"]
-Columns = Annotated[list[str], Field(min_length=1, max_length=2)]
+Columns = Annotated[list[str], Field(min_length=1, max_length=4)]  # C1: keys of 3 and 4
+Match = Literal["exact", "normalized"]  # C1 (R-REL-14)
 DatasetName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 
 
@@ -63,6 +64,11 @@ class ExampleOut(BaseModel):
     rows: int
 
 
+class NearMissOut(BaseModel):
+    value: str
+    key: str
+
+
 class CheckOut(BaseModel):
     """Exact counts of one relation (R-JOIN-06)."""
 
@@ -82,6 +88,9 @@ class CheckOut(BaseModel):
     reasons: list[ReasonOut]
     # what the chosen (or recommended) join does that may surprise (R-JOIN-01, 05, 06)
     warnings: list[ReasonOut]
+    # C1: rows a normalized comparison finds more (R-REL-14); values one letter away from a key
+    normalized_gain: int = 0
+    near_misses: list[NearMissOut] = Field(default_factory=list)
 
 
 class RelationOut(BaseModel):
@@ -103,6 +112,8 @@ class RelationOut(BaseModel):
     check: CheckOut | None
     # set when the relation no longer fits the data (a column missing in the version used)
     problem: str | None = None
+    active: bool = True  # C1 (R-REL-13)
+    match: Match = "exact"  # C1 (R-REL-14)
 
 
 class PositionIn(BaseModel):
@@ -113,7 +124,7 @@ class PositionIn(BaseModel):
 class BuildOut(BaseModel):
     dataset_id: str
     name: str
-    kind: Literal["flat", "aggregate"]
+    kind: Literal["flat", "aggregate", "join", "dates"]
     status: Literal["importing", "ready", "error"]
     rows: int | None
     created_at: str
@@ -143,12 +154,16 @@ class RelationIn(BaseModel):
     join_type: JoinType | None = None  # None: the recommended one
     status: Literal["accepted", "rejected"] = "accepted"
     origin: Literal["detected", "user"] = "detected"
+    active: bool = True
+    match: Match = "exact"
 
 
 class RelationPatch(BaseModel):
     join_type: JoinType | None = None
     child_columns: Columns | None = None
     parent_columns: Columns | None = None
+    active: bool | None = None  # C1 (R-REL-13)
+    match: Match | None = None  # C1 (R-REL-14)
 
 
 class CheckIn(BaseModel):
@@ -157,6 +172,7 @@ class CheckIn(BaseModel):
     parent_id: str
     parent_columns: Columns
     join_type: JoinType | None = None
+    match: Match = "exact"
 
 
 class LayoutIn(BaseModel):
@@ -164,10 +180,30 @@ class LayoutIn(BaseModel):
     versions: dict[str, str] | None = None  # root id → dataset id; None: unchanged
 
 
+class FilterIn(BaseModel):
+    """C1 (R-BLD-07): a condition on a column of a table the build reaches."""
+
+    table_id: str
+    column: str = Field(min_length=1, max_length=500)
+    op: Literal["eq", "ne", "in", "not_in", "lt", "le", "gt", "ge", "empty", "not_empty"]
+    values: list[Annotated[str, Field(max_length=500)]] = Field(
+        default_factory=list, max_length=200
+    )
+
+
 class BuildIn(BaseModel):
     fact_id: str | None = None  # None: the primary fact (R-ROLE-02)
     # dimension (dataset id) → its columns to add; a table left out takes R-BLD-02's defaults
     picks: dict[str, list[str]] = Field(default_factory=dict)
+    name: DatasetName | None = None
+    filters: list[FilterIn] = Field(default_factory=list, max_length=20)  # C1 (R-BLD-07)
+
+
+class DatesIn(BaseModel):
+    """C1 (R-BLD-08): a date table generated from a date column of a table of the project."""
+
+    dataset_id: str
+    column: str = Field(min_length=1, max_length=500)
     name: DatasetName | None = None
 
 
@@ -196,6 +232,7 @@ class PreviewOut(BaseModel):
     refused: list[ReasonOut]
     skipped: list[ReasonOut]
     name: str  # the default name of the analysis dataset
+    filtered_out: int = 0  # C1 (R-BLD-07): fact rows the filters leave out
 
 
 class MeasureIn(BaseModel):

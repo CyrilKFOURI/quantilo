@@ -43,6 +43,16 @@ TurnEnd = Literal[
 Decision = Literal["allow", "deny"]
 
 
+@dataclass(frozen=True)
+class Verdict:
+    """A gate's answer when "allow" / "deny" is not enough: what the model is told on a refusal,
+    and which personal columns a `rows` tool may show unmasked (R-AG-P2)."""
+
+    allow: bool
+    message: str | None = None
+    unmasked: frozenset[str] = frozenset()
+
+
 @dataclass
 class StepStarted:
     call_id: str
@@ -111,7 +121,7 @@ class Turn:
     budget: Budget
     emit: Callable[[TurnEvent], None] = lambda event: None
     should_stop: Callable[[], bool] = lambda: False
-    gate: Callable[[Tool[Any], Block], Decision] = _deny_side_effects
+    gate: Callable[[Tool[Any], Block], Decision | Verdict] = _deny_side_effects
     effort: Any = "high"
     max_steps: int = MAX_STEPS
 
@@ -222,13 +232,16 @@ class Turn:
         except ToolError as error:
             return self._done(call_id, started, _error_output(str(error)), False)
         self.emit(StepStarted(call_id, tool.name, tool.label(args), call.input or {}))
-        if tool.kind not in ("read", "compute") and self.gate(tool, call) == "deny":
-            denied = f"The user did not allow {tool.name} here; continue without it."
-            return self._done(call_id, started, _error_output(denied), False)
+        verdict = Verdict(True)
+        if tool.kind not in ("read", "compute"):
+            verdict = _verdict(self.gate(tool, call), tool)
+            if not verdict.allow:
+                return self._done(call_id, started, _error_output(verdict.message or ""), False)
         try:
             context = replace(
                 self.context,
                 progress=lambda message, share: self.emit(StepProgress(call_id, message, share)),
+                unmasked=verdict.unmasked,
             )
             output = tool.run(context, args)
             ok = True
@@ -272,6 +285,16 @@ class Turn:
                 )
             )
         return Message("user", blocks)
+
+
+def _verdict(answer: Decision | Verdict, tool: Tool[Any]) -> Verdict:
+    if isinstance(answer, Verdict):
+        if answer.allow or answer.message:
+            return answer
+        answer = "deny"
+    if answer == "allow":
+        return Verdict(True)
+    return Verdict(False, f"The user did not allow {tool.name} here; continue without it.")
 
 
 TRUNCATED = "The response was cut off before the tool arguments were complete; call it again."

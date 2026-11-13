@@ -1,0 +1,3437 @@
+{
+ "ml": {
+  "families": [
+   "Linear models",
+   "Discriminant analysis",
+   "Nearest neighbours",
+   "Support vector machines",
+   "Naive Bayes",
+   "Trees",
+   "Bagging ensembles",
+   "Boosting ensembles",
+   "Neural networks",
+   "Kernel & probabilistic"
+  ],
+  "groups": [
+   "Regularization",
+   "Structure",
+   "Optimizer",
+   "Class balance",
+   "Stopping",
+   "Sampling"
+  ],
+  "recommended": [
+   "Small data: a simple model is hard to beat.",
+   "Small data: robust without tuning.",
+   "Many categories or empty cells: boosting handles them well.",
+   "Readable: every weight can be explained.",
+   "Robust without tuning.",
+   "Large data: boosting is accurate and fast.",
+   "Large data: a linear model fitted a few rows at a time."
+  ],
+  "models": {
+   "linear_regression": {
+    "label": "Linear regression",
+    "family": "Linear models",
+    "description": "A weighted sum of the features: fast, and every weight can be read.",
+    "settings": {
+     "regularization": {
+      "label": "Regularization",
+      "group": "Regularization",
+      "options": {
+       "none": "None",
+       "ridge": "Ridge (L2)",
+       "lasso": "Lasso (L1)",
+       "elasticnet": "Elastic net"
+      },
+      "whys": [
+       "None keeps the coefficients readable, with standard errors and p-values."
+      ]
+     },
+     "alpha": {
+      "label": "Strength",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "1 is a moderate penalty on standardised inputs."
+      ]
+     },
+     "l1_ratio": {
+      "label": "L1 share",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "Half L1, half L2."
+      ]
+     },
+     "fit_intercept": {
+      "label": "Intercept",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "A constant term, almost always wanted."
+      ]
+     },
+     "solver": {
+      "label": "Method",
+      "group": "Optimizer",
+      "options": {
+       "auto": "auto",
+       "svd": "svd",
+       "cholesky": "cholesky",
+       "lsqr": "lsqr",
+       "sparse_cg": "sparse_cg",
+       "sag": "sag",
+       "saga": "saga"
+      },
+      "whys": [
+       "Auto picks the exact method for the data."
+      ]
+     },
+     "max_iter": {
+      "label": "Max iterations",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Enough to converge on most data."
+      ]
+     },
+     "tol": {
+      "label": "Tolerance",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Stops when an iteration improves less than this."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "huber": {
+    "label": "Huber regression",
+    "family": "Linear models",
+    "description": "A linear model that gives less weight to extreme errors.",
+    "settings": {
+     "epsilon": {
+      "label": "Outlier threshold",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "1.35 keeps 95 % efficiency on normal errors while resisting outliers."
+      ]
+     },
+     "alpha": {
+      "label": "Strength",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "A tiny L2 penalty for stability."
+      ]
+     },
+     "max_iter": {
+      "label": "Max iterations",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Enough to converge on most data."
+      ]
+     },
+     "tol": {
+      "label": "Tolerance",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Stops when an iteration improves less than this."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "quantile": {
+    "label": "Quantile regression",
+    "family": "Linear models",
+    "description": "Predicts the median (or another percentile) instead of the mean.",
+    "settings": {
+     "quantile": {
+      "label": "Quantile predicted",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "0.5 predicts the median: robust to extreme values."
+      ]
+     },
+     "alpha": {
+      "label": "Strength",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "No penalty: the plain quantile regression."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "bayesian_ridge": {
+    "label": "Bayesian ridge",
+    "family": "Linear models",
+    "description": "A ridge regression whose penalty is learnt from the data, with uncertainty on the weights.",
+    "settings": {
+     "max_iter": {
+      "label": "Max iterations",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Enough to converge on most data."
+      ]
+     },
+     "tol": {
+      "label": "Tolerance",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Stops when an iteration improves less than this."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "ard": {
+    "label": "ARD regression",
+    "family": "Linear models",
+    "description": "Bayesian regression that switches off useless features by itself.",
+    "settings": {
+     "max_iter": {
+      "label": "Max iterations",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Enough to converge on most data."
+      ]
+     },
+     "tol": {
+      "label": "Tolerance",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Stops when an iteration improves less than this."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "glm_poisson": {
+    "label": "Poisson regression",
+    "family": "Linear models",
+    "description": "For counts (≥ 0): the log of the expected count is linear in the features.",
+    "settings": {
+     "alpha": {
+      "label": "Strength",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "1 is the library's moderate penalty."
+      ]
+     },
+     "solver": {
+      "label": "Solver",
+      "group": "Optimizer",
+      "options": {
+       "lbfgs": "lbfgs",
+       "newton-cholesky": "newton-cholesky"
+      },
+      "whys": [
+       "L-BFGS works everywhere."
+      ]
+     },
+     "max_iter": {
+      "label": "Max iterations",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Enough to converge on most data."
+      ]
+     },
+     "tol": {
+      "label": "Tolerance",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Stops when an iteration improves less than this."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "glm_gamma": {
+    "label": "Gamma regression",
+    "family": "Linear models",
+    "description": "For positive amounts whose spread grows with their size.",
+    "settings": {
+     "alpha": {
+      "label": "Strength",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "1 is the library's moderate penalty."
+      ]
+     },
+     "solver": {
+      "label": "Solver",
+      "group": "Optimizer",
+      "options": {
+       "lbfgs": "lbfgs",
+       "newton-cholesky": "newton-cholesky"
+      },
+      "whys": [
+       "L-BFGS works everywhere."
+      ]
+     },
+     "max_iter": {
+      "label": "Max iterations",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Enough to converge on most data."
+      ]
+     },
+     "tol": {
+      "label": "Tolerance",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Stops when an iteration improves less than this."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "glm_tweedie": {
+    "label": "Tweedie regression",
+    "family": "Linear models",
+    "description": "For amounts with many exact zeros (claims, sales).",
+    "settings": {
+     "alpha": {
+      "label": "Strength",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "1 is the library's moderate penalty."
+      ]
+     },
+     "power": {
+      "label": "Power",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "Between 1 (Poisson) and 2 (Gamma): amounts with exact zeros."
+      ]
+     },
+     "solver": {
+      "label": "Solver",
+      "group": "Optimizer",
+      "options": {
+       "lbfgs": "lbfgs",
+       "newton-cholesky": "newton-cholesky"
+      },
+      "whys": [
+       "L-BFGS works everywhere."
+      ]
+     },
+     "max_iter": {
+      "label": "Max iterations",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Enough to converge on most data."
+      ]
+     },
+     "tol": {
+      "label": "Tolerance",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Stops when an iteration improves less than this."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "logistic_regression": {
+    "label": "Logistic regression",
+    "family": "Linear models",
+    "description": "A weighted sum of the features turned into a probability: fast and interpretable.",
+    "settings": {
+     "C": {
+      "label": "Regularization strength C",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "C = 1 is the usual moderate penalty; lower C = simpler model."
+      ]
+     },
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     },
+     "penalty": {
+      "label": "Penalty",
+      "group": "Regularization",
+      "options": {
+       "l2": "L2",
+       "l1": "L1",
+       "elasticnet": "Elastic net",
+       "none": "None"
+      },
+      "whys": [
+       "L2 shrinks every weight a little and keeps them all."
+      ]
+     },
+     "l1_ratio": {
+      "label": "L1 share",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "Half L1, half L2."
+      ]
+     },
+     "multiclass": {
+      "label": "Multiclass strategy",
+      "group": "Structure",
+      "options": {
+       "multinomial": "Multinomial",
+       "ovr": "One-vs-rest"
+      },
+      "whys": [
+       "One model of all the classes together."
+      ]
+     },
+     "solver": {
+      "label": "Solver",
+      "group": "Optimizer",
+      "options": {
+       "lbfgs": "lbfgs",
+       "newton-cg": "newton-cg",
+       "newton-cholesky": "newton-cholesky",
+       "liblinear": "liblinear",
+       "sag": "sag",
+       "saga": "saga"
+      },
+      "whys": [
+       "L-BFGS: fast and exact for L2."
+      ]
+     },
+     "max_iter": {
+      "label": "Max iterations",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Enough to converge on most data."
+      ]
+     },
+     "tol": {
+      "label": "Tolerance",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Stops when an iteration improves less than this."
+      ]
+     },
+     "intercept_scaling": {
+      "label": "Intercept scaling",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Only used by liblinear."
+      ]
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     }
+    },
+    "rules": [
+     "L1 penalty needs the liblinear or saga solver.",
+     "Elastic net needs the saga solver.",
+     "liblinear always penalises: choose another solver."
+    ]
+   },
+   "ridge_classifier": {
+    "label": "Ridge classifier",
+    "family": "Linear models",
+    "description": "A ridge regression on the classes: very fast.",
+    "settings": {
+     "alpha": {
+      "label": "Strength",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "1 is a moderate penalty on standardised inputs."
+      ]
+     },
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "perceptron": {
+    "label": "Perceptron",
+    "family": "Linear models",
+    "description": "The simplest neural unit: a linear frontier learnt by corrections.",
+    "settings": {
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     },
+     "max_iter": {
+      "label": "Max iterations",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Enough to converge on most data."
+      ]
+     },
+     "tol": {
+      "label": "Tolerance",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Stops when an iteration improves less than this."
+      ]
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "passive_aggressive": {
+    "label": "Passive-aggressive",
+    "family": "Linear models",
+    "description": "Updates only when wrong, by just enough to be right: for large or streaming data.",
+    "settings": {
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     },
+     "max_iter": {
+      "label": "Max iterations",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Enough to converge on most data."
+      ]
+     },
+     "tol": {
+      "label": "Tolerance",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Stops when an iteration improves less than this."
+      ]
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "sgd": {
+    "label": "SGD (stochastic gradient descent)",
+    "family": "Linear models",
+    "description": "A linear model fitted a few rows at a time: made for large data.",
+    "settings": {
+     "loss": {
+      "label": "Loss",
+      "group": "Structure",
+      "options": {
+       "squared_error": "Squared error",
+       "huber": "Huber",
+       "epsilon_insensitive": "Epsilon-insensitive",
+       "log_loss": "Log loss (logistic)",
+       "hinge": "Hinge (linear SVM)",
+       "modified_huber": "Modified Huber"
+      },
+      "whys": [
+       "Squared error for numbers; log loss gives probabilities."
+      ]
+     },
+     "penalty": {
+      "label": "Penalty",
+      "group": "Regularization",
+      "options": {
+       "l2": "L2",
+       "l1": "L1",
+       "elasticnet": "Elastic net",
+       "none": "None"
+      },
+      "whys": [
+       "L2 shrinks every weight a little."
+      ]
+     },
+     "alpha": {
+      "label": "Strength",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "The library's default for stochastic gradient descent."
+      ]
+     },
+     "learning_rate": {
+      "label": "Learning-rate schedule",
+      "group": "Optimizer",
+      "options": {
+       "optimal": "optimal",
+       "constant": "constant",
+       "invscaling": "invscaling",
+       "adaptive": "adaptive"
+      },
+      "whys": [
+       "The library's default for the problem."
+      ]
+     },
+     "eta0": {
+      "label": "Initial rate",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Used by the constant, invscaling and adaptive schedules."
+      ]
+     },
+     "power_t": {
+      "label": "Power",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "How fast invscaling lowers the rate."
+      ]
+     },
+     "average": {
+      "label": "Averaging (ASGD)",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Averaging the weights smooths the noise of stochastic steps."
+      ]
+     },
+     "early_stopping": {
+      "label": "Early stopping",
+      "group": "Stopping",
+      "options": {},
+      "whys": [
+       "Stops on 10 % of the training rows held out (never the test rows)."
+      ]
+     },
+     "max_iter": {
+      "label": "Max iterations",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Enough to converge on most data."
+      ]
+     },
+     "tol": {
+      "label": "Tolerance",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Stops when an iteration improves less than this."
+      ]
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     },
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "lda": {
+    "label": "Linear discriminant analysis",
+    "family": "Discriminant analysis",
+    "description": "Each class as a bell shape with a shared spread: a linear frontier.",
+    "settings": {
+     "solver": {
+      "label": "Solver",
+      "group": "Structure",
+      "options": {
+       "svd": "svd",
+       "lsqr": "lsqr",
+       "eigen": "eigen"
+      },
+      "whys": [
+       "lsqr allows shrinkage."
+      ]
+     },
+     "shrinkage": {
+      "label": "Shrinkage",
+      "group": "Regularization",
+      "options": {
+       "auto": "Auto (Ledoit-Wolf)",
+       "none": "None"
+      },
+      "whys": [
+       "Stabilises the covariance estimate with many inputs."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "qda": {
+    "label": "Quadratic discriminant analysis",
+    "family": "Discriminant analysis",
+    "description": "Each class as a bell shape with its own spread: curved frontiers.",
+    "settings": {
+     "reg_param": {
+      "label": "Regularization",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "Shrinks each class covariance towards the identity: QDA overfits easily."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "knn": {
+    "label": "k-nearest neighbours",
+    "family": "Nearest neighbours",
+    "description": "Predicts like the k most similar rows.",
+    "settings": {
+     "n_neighbors": {
+      "label": "Neighbours k",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "√n bounded to 5 to 50: k = 14.",
+       "√n bounded to 5 to 50: k = 50.",
+       "√n bounded to 5 to 50, odd for two classes: k = 15.",
+       "√n bounded to 5 to 50, odd for two classes: k = 49."
+      ]
+     },
+     "weights": {
+      "label": "Weights",
+      "group": "Structure",
+      "options": {
+       "uniform": "Equal",
+       "distance": "Closer counts more"
+      },
+      "whys": [
+       "Closer neighbours are more alike."
+      ]
+     },
+     "metric": {
+      "label": "Distance",
+      "group": "Optimizer",
+      "options": {
+       "minkowski": "Euclidean / Minkowski",
+       "manhattan": "Manhattan",
+       "cosine": "Cosine"
+      },
+      "whys": [
+       "Straight-line distance on standardised inputs."
+      ]
+     },
+     "p": {
+      "label": "Minkowski p",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "2 = Euclidean, 1 = Manhattan."
+      ]
+     },
+     "algorithm": {
+      "label": "Search",
+      "group": "Optimizer",
+      "options": {
+       "auto": "auto",
+       "ball_tree": "ball_tree",
+       "kd_tree": "kd_tree",
+       "brute": "brute"
+      },
+      "whys": [
+       "Auto picks the fastest index for the data."
+      ]
+     }
+    },
+    "rules": [
+     "Cosine distance only works with brute-force search."
+    ]
+   },
+   "linear_svm": {
+    "label": "Linear SVM",
+    "family": "Support vector machines",
+    "description": "The widest straight frontier between classes (or a tube around the numbers).",
+    "settings": {
+     "C": {
+      "label": "C (penalty of errors)",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "1 balances a smooth frontier and few training errors."
+      ]
+     },
+     "loss": {
+      "label": "Loss",
+      "group": "Optimizer",
+      "options": {
+       "epsilon_insensitive": "epsilon_insensitive",
+       "squared_epsilon_insensitive": "squared_epsilon_insensitive",
+       "squared_hinge": "squared_hinge",
+       "hinge": "hinge"
+      },
+      "whys": [
+       "The library's default."
+      ]
+     },
+     "max_iter": {
+      "label": "Max iterations",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Enough to converge on standardised inputs."
+      ]
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     },
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "kernel_svm": {
+    "label": "Kernel SVM",
+    "family": "Support vector machines",
+    "description": "A frontier that bends through a kernel: powerful on small and medium data.",
+    "settings": {
+     "kernel": {
+      "label": "Kernel",
+      "group": "Structure",
+      "options": {
+       "rbf": "RBF (Gaussian)",
+       "poly": "Polynomial",
+       "sigmoid": "Sigmoid"
+      },
+      "whys": [
+       "RBF bends the frontier smoothly: the usual first choice."
+      ]
+     },
+     "C": {
+      "label": "C (penalty of errors)",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "1 balances a smooth frontier and few training errors."
+      ]
+     },
+     "epsilon": {
+      "label": "ε (tolerated error)",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "Errors smaller than ε cost nothing (on the target's scale)."
+      ]
+     },
+     "gamma": {
+      "label": "γ (reach of each point)",
+      "group": "Structure",
+      "options": {
+       "scale": "scale",
+       "auto": "auto"
+      },
+      "whys": [
+       "Scale: 1 / (inputs × variance)."
+      ]
+     },
+     "degree": {
+      "label": "Degree",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "Cubic."
+      ]
+     },
+     "coef0": {
+      "label": "Kernel offset",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "tol": {
+      "label": "Tolerance",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "cache_size": {
+      "label": "Cache (MB)",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "More memory for the kernel speeds training up."
+      ]
+     },
+     "shrinking": {
+      "label": "Shrinking heuristic",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "nu_svm": {
+    "label": "Nu-SVM",
+    "family": "Support vector machines",
+    "description": "A kernel SVM set by the share of support vectors instead of C.",
+    "settings": {
+     "kernel": {
+      "label": "Kernel",
+      "group": "Structure",
+      "options": {
+       "rbf": "RBF (Gaussian)",
+       "poly": "Polynomial",
+       "sigmoid": "Sigmoid"
+      },
+      "whys": [
+       "RBF bends the frontier smoothly: the usual first choice."
+      ]
+     },
+     "nu": {
+      "label": "ν (share of support vectors)",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "Upper bound on training errors, lower bound on support vectors."
+      ]
+     },
+     "gamma": {
+      "label": "γ (reach of each point)",
+      "group": "Structure",
+      "options": {
+       "scale": "scale",
+       "auto": "auto"
+      },
+      "whys": [
+       "Scale: 1 / (inputs × variance)."
+      ]
+     },
+     "degree": {
+      "label": "Degree",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "Cubic."
+      ]
+     },
+     "coef0": {
+      "label": "Kernel offset",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "tol": {
+      "label": "Tolerance",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "cache_size": {
+      "label": "Cache (MB)",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "More memory for the kernel speeds training up."
+      ]
+     },
+     "shrinking": {
+      "label": "Shrinking heuristic",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "radius_neighbours": {
+    "label": "Radius neighbours",
+    "family": "Nearest neighbours",
+    "description": "Predicts like every row within a given distance (not a fixed number of neighbours).",
+    "settings": {
+     "radius": {
+      "label": "Radius",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "√(inputs) on standardised inputs: 1.7.",
+       "√(inputs) on standardised inputs: 7.1."
+      ]
+     },
+     "weights": {
+      "label": "Weights",
+      "group": "Structure",
+      "options": {
+       "uniform": "Equal",
+       "distance": "Closer counts more"
+      },
+      "whys": [
+       "Closer neighbours are more alike."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "categorical_nb": {
+    "label": "Categorical Naive Bayes",
+    "family": "Naive Bayes",
+    "description": "Counts how often each category (numbers cut into bins) appears in each class.",
+    "settings": {
+     "alpha": {
+      "label": "Smoothing α",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "Laplace smoothing: a category never seen in a class is not impossible."
+      ]
+     },
+     "bins": {
+      "label": "Bins per number",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "Numbers are cut into 10 quantile bins: the model only counts categories."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "gaussian_nb": {
+    "label": "Gaussian Naive Bayes",
+    "family": "Naive Bayes",
+    "description": "Each feature a bell curve per class, taken as independent: very fast.",
+    "settings": {
+     "var_smoothing": {
+      "label": "Variance smoothing",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "A tiny share of the largest variance added for stability."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "multinomial_nb": {
+    "label": "Multinomial Naive Bayes",
+    "family": "Naive Bayes",
+    "description": "Counts per class, for non-negative inputs (inputs are scaled to [0, 1]).",
+    "settings": {
+     "alpha": {
+      "label": "Smoothing α",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "Laplace smoothing: a category never seen in a class is not impossible."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "complement_nb": {
+    "label": "Complement Naive Bayes",
+    "family": "Naive Bayes",
+    "description": "Multinomial Naive Bayes made robust to imbalanced classes.",
+    "settings": {
+     "alpha": {
+      "label": "Smoothing α",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "Laplace smoothing: a category never seen in a class is not impossible."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "bernoulli_nb": {
+    "label": "Bernoulli Naive Bayes",
+    "family": "Naive Bayes",
+    "description": "Yes / no features per class (numbers are cut at 0 after standardising).",
+    "settings": {
+     "alpha": {
+      "label": "Smoothing α",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "Laplace smoothing: a category never seen in a class is not impossible."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "mlp": {
+    "label": "Neural network (MLP)",
+    "family": "Neural networks",
+    "description": "Layers of neurons that learn curved relations between the features.",
+    "settings": {
+     "hidden_layer_sizes": {
+      "label": "Hidden layers",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "Two layers, wide then narrow: enough for most tabular data."
+      ]
+     },
+     "alpha": {
+      "label": "Regularization",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "A light L2 penalty on the weights."
+      ]
+     },
+     "activation": {
+      "label": "Activation",
+      "group": "Structure",
+      "options": {
+       "relu": "relu",
+       "tanh": "tanh",
+       "logistic": "logistic",
+       "identity": "identity"
+      },
+      "whys": [
+       "ReLU trains fast and well."
+      ]
+     },
+     "early_stopping": {
+      "label": "Early stopping",
+      "group": "Stopping",
+      "options": {},
+      "whys": [
+       "Stops when 10 % of the training rows held out stop improving (not the test rows)."
+      ]
+     },
+     "validation_fraction": {
+      "label": "Held-out share",
+      "group": "Stopping",
+      "options": {},
+      "whys": []
+     },
+     "batch_size": {
+      "label": "Batch size",
+      "group": "Sampling",
+      "options": {},
+      "whys": [
+       "min(200, rows)."
+      ]
+     },
+     "solver": {
+      "label": "Optimizer",
+      "group": "Optimizer",
+      "options": {
+       "adam": "Adam",
+       "sgd": "SGD",
+       "lbfgs": "L-BFGS"
+      },
+      "whys": [
+       "Adam adapts the step of each weight: robust default."
+      ]
+     },
+     "learning_rate_init": {
+      "label": "Initial learning rate",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "learning_rate": {
+      "label": "Schedule",
+      "group": "Optimizer",
+      "options": {
+       "constant": "constant",
+       "invscaling": "invscaling",
+       "adaptive": "adaptive"
+      },
+      "whys": []
+     },
+     "momentum": {
+      "label": "Momentum",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "nesterovs_momentum": {
+      "label": "Nesterov",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "beta_1": {
+      "label": "β1",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "beta_2": {
+      "label": "β2",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "epsilon": {
+      "label": "ε",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "max_iter": {
+      "label": "Max epochs",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "tol": {
+      "label": "Tolerance",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "n_iter_no_change": {
+      "label": "Patience (epochs)",
+      "group": "Stopping",
+      "options": {},
+      "whys": []
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     }
+    },
+    "rules": [
+     "L-BFGS has no early stopping: it uses all the training rows at once."
+    ]
+   },
+   "kernel_ridge": {
+    "label": "Kernel ridge",
+    "family": "Kernel & probabilistic",
+    "description": "A ridge regression through a kernel: smooth curves on small data.",
+    "settings": {
+     "alpha": {
+      "label": "Strength",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "1 is a moderate penalty."
+      ]
+     },
+     "kernel": {
+      "label": "Kernel",
+      "group": "Structure",
+      "options": {
+       "rbf": "rbf",
+       "linear": "linear",
+       "poly": "poly",
+       "laplacian": "laplacian"
+      },
+      "whys": [
+       "RBF: smooth curves."
+      ]
+     },
+     "degree": {
+      "label": "Degree",
+      "group": "Structure",
+      "options": {},
+      "whys": []
+     }
+    },
+    "rules": []
+   },
+   "gaussian_process": {
+    "label": "Gaussian process",
+    "family": "Kernel & probabilistic",
+    "description": "A distribution over smooth functions, with honest uncertainty: small data only.",
+    "settings": {
+     "n_restarts_optimizer": {
+      "label": "Restarts of the kernel optimizer",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "L-BFGS-B fits the kernel; restarts avoid local optima at a cost."
+      ]
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "decision_tree": {
+    "label": "Decision tree",
+    "family": "Trees",
+    "description": "Questions on one feature at a time, drawn as a tree: easy to read.",
+    "settings": {
+     "max_depth": {
+      "label": "Tree depth",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "5 levels stay readable (0 = unlimited)"
+      ]
+     },
+     "min_samples_leaf": {
+      "label": "Min. rows per leaf",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "20 avoids leaves built on a handful of rows."
+      ]
+     },
+     "criterion": {
+      "label": "Split quality",
+      "group": "Optimizer",
+      "options": {
+       "squared_error": "Squared error",
+       "absolute_error": "Absolute error",
+       "poisson": "Poisson",
+       "gini": "Gini",
+       "entropy": "Entropy",
+       "log_loss": "Log loss"
+      },
+      "whys": [
+       "The library's default."
+      ]
+     },
+     "splitter": {
+      "label": "Splitter",
+      "group": "Optimizer",
+      "options": {
+       "best": "best",
+       "random": "random"
+      },
+      "whys": []
+     },
+     "ccp_alpha": {
+      "label": "Pruning (ccp α)",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "0: no cost-complexity pruning."
+      ]
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     },
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "extra_tree": {
+    "label": "Extra tree",
+    "family": "Trees",
+    "description": "A single tree with random cut points: rarely used alone.",
+    "settings": {
+     "max_depth": {
+      "label": "Tree depth",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "5 levels stay readable (0 = unlimited)"
+      ]
+     },
+     "min_samples_leaf": {
+      "label": "Min. rows per leaf",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "20 avoids leaves built on a handful of rows."
+      ]
+     },
+     "criterion": {
+      "label": "Split quality",
+      "group": "Optimizer",
+      "options": {
+       "squared_error": "Squared error",
+       "absolute_error": "Absolute error",
+       "poisson": "Poisson",
+       "gini": "Gini",
+       "entropy": "Entropy",
+       "log_loss": "Log loss"
+      },
+      "whys": [
+       "The library's default."
+      ]
+     },
+     "splitter": {
+      "label": "Splitter",
+      "group": "Optimizer",
+      "options": {
+       "best": "best",
+       "random": "random"
+      },
+      "whys": []
+     },
+     "ccp_alpha": {
+      "label": "Pruning (ccp α)",
+      "group": "Regularization",
+      "options": {},
+      "whys": [
+       "0: no cost-complexity pruning."
+      ]
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     },
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "random_forest": {
+    "label": "Random forest",
+    "family": "Bagging ensembles",
+    "description": "Hundreds of trees on random rows and features, averaged: robust and accurate.",
+    "settings": {
+     "n_estimators": {
+      "label": "Number of trees",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "300 trees: more rarely helps, it only costs time.",
+       "100 trees in the browser version, on one core (R-WEB-02); 300 in the desktop app."
+      ]
+     },
+     "max_depth": {
+      "label": "Tree depth",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "Unlimited: each tree grows until its leaves are small (0 = unlimited)"
+      ]
+     },
+     "min_samples_leaf": {
+      "label": "Min. rows per leaf",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "1.",
+       "5 (more than 100 000 rows: steadier leaves)."
+      ]
+     },
+     "max_features": {
+      "label": "Features tried per split",
+      "group": "Sampling",
+      "options": {
+       "sqrt": "√ features",
+       "log2": "log₂ features",
+       "0.5": "Half",
+       "1.0": "All"
+      },
+      "whys": [
+       "The library's default for the problem."
+      ]
+     },
+     "criterion": {
+      "label": "Split quality",
+      "group": "Optimizer",
+      "options": {
+       "squared_error": "Squared error",
+       "absolute_error": "Absolute error",
+       "poisson": "Poisson",
+       "gini": "Gini",
+       "entropy": "Entropy",
+       "log_loss": "Log loss"
+      },
+      "whys": [
+       "The library's default."
+      ]
+     },
+     "bootstrap": {
+      "label": "Bootstrap rows",
+      "group": "Sampling",
+      "options": {},
+      "whys": [
+       "Each tree sees a random draw of the rows."
+      ]
+     },
+     "max_samples": {
+      "label": "Rows per tree",
+      "group": "Sampling",
+      "options": {},
+      "whys": []
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     },
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "extra_trees": {
+    "label": "Extra trees",
+    "family": "Bagging ensembles",
+    "description": "A random forest with random cut points: faster, often as accurate.",
+    "settings": {
+     "n_estimators": {
+      "label": "Number of trees",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "300 trees: more rarely helps, it only costs time.",
+       "100 trees in the browser version, on one core (R-WEB-02); 300 in the desktop app."
+      ]
+     },
+     "max_depth": {
+      "label": "Tree depth",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "Unlimited: each tree grows until its leaves are small (0 = unlimited)"
+      ]
+     },
+     "min_samples_leaf": {
+      "label": "Min. rows per leaf",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "1.",
+       "5 (more than 100 000 rows: steadier leaves)."
+      ]
+     },
+     "max_features": {
+      "label": "Features tried per split",
+      "group": "Sampling",
+      "options": {
+       "sqrt": "√ features",
+       "log2": "log₂ features",
+       "0.5": "Half",
+       "1.0": "All"
+      },
+      "whys": [
+       "The library's default for the problem."
+      ]
+     },
+     "criterion": {
+      "label": "Split quality",
+      "group": "Optimizer",
+      "options": {
+       "squared_error": "Squared error",
+       "absolute_error": "Absolute error",
+       "poisson": "Poisson",
+       "gini": "Gini",
+       "entropy": "Entropy",
+       "log_loss": "Log loss"
+      },
+      "whys": [
+       "The library's default."
+      ]
+     },
+     "bootstrap": {
+      "label": "Bootstrap rows",
+      "group": "Sampling",
+      "options": {},
+      "whys": [
+       "Each tree sees a random draw of the rows."
+      ]
+     },
+     "max_samples": {
+      "label": "Rows per tree",
+      "group": "Sampling",
+      "options": {},
+      "whys": []
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     },
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "bagging": {
+    "label": "Bagging",
+    "family": "Bagging ensembles",
+    "description": "Many full trees, each on a random draw of rows, averaged.",
+    "settings": {
+     "n_estimators": {
+      "label": "Number of models",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "50 full trees, each on a random draw of rows."
+      ]
+     },
+     "max_samples": {
+      "label": "Rows per model",
+      "group": "Sampling",
+      "options": {},
+      "whys": []
+     },
+     "max_features": {
+      "label": "Features per model",
+      "group": "Sampling",
+      "options": {},
+      "whys": []
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "hist_gradient_boosting": {
+    "label": "Histogram gradient boosting",
+    "family": "Boosting ensembles",
+    "description": "Many small trees, each correcting the previous ones, on binned features: fast on large data.",
+    "settings": {
+     "max_iter": {
+      "label": "Max iterations",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "300, cut short by early stopping on 10 % of the training rows."
+      ]
+     },
+     "learning_rate": {
+      "label": "Learning rate",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "0.1: the usual balance of speed and accuracy."
+      ]
+     },
+     "max_leaf_nodes": {
+      "label": "Max leaves per tree",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "31 leaves, like LightGBM."
+      ]
+     },
+     "l2_regularization": {
+      "label": "L2 penalty",
+      "group": "Regularization",
+      "options": {},
+      "whys": []
+     },
+     "min_samples_leaf": {
+      "label": "Min. rows per leaf",
+      "group": "Structure",
+      "options": {},
+      "whys": []
+     },
+     "early_stopping": {
+      "label": "Early stopping",
+      "group": "Stopping",
+      "options": {},
+      "whys": [
+       "Held-out 10 % of the training rows, never the test rows."
+      ]
+     },
+     "max_bins": {
+      "label": "Max bins",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "monotonic": {
+      "label": "Monotonic constraints",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "Optional, e.g. “size:+1, age:-1”: the prediction may only rise with size and only fall with age (business knowledge the model must respect)."
+      ]
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     },
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "gradient_boosting": {
+    "label": "Gradient boosting",
+    "family": "Boosting ensembles",
+    "description": "The classic boosting of shallow trees: accurate, slower than the histogram version.",
+    "settings": {
+     "n_estimators": {
+      "label": "Number of trees",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "200 small trees, cut short when 10 % held-out rows stop improving."
+      ]
+     },
+     "learning_rate": {
+      "label": "Learning rate",
+      "group": "Structure",
+      "options": {},
+      "whys": []
+     },
+     "max_depth": {
+      "label": "Tree depth",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "Shallow trees, each correcting the previous ones."
+      ]
+     },
+     "subsample": {
+      "label": "Rows per tree",
+      "group": "Sampling",
+      "options": {},
+      "whys": [
+       "Below 1: stochastic gradient boosting."
+      ]
+     },
+     "n_iter_no_change": {
+      "label": "Early stopping patience",
+      "group": "Stopping",
+      "options": {},
+      "whys": [
+       "Trees without improvement before stopping (0 = never)."
+      ]
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "adaboost": {
+    "label": "AdaBoost",
+    "family": "Boosting ensembles",
+    "description": "Each new tree focuses on the rows the previous ones got wrong.",
+    "settings": {
+     "n_estimators": {
+      "label": "Number of estimators",
+      "group": "Structure",
+      "options": {},
+      "whys": []
+     },
+     "learning_rate": {
+      "label": "Learning rate",
+      "group": "Structure",
+      "options": {},
+      "whys": []
+     },
+     "base_depth": {
+      "label": "Depth of each tree",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Stumps for classes, depth 3 for numbers."
+      ]
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "xgboost": {
+    "label": "XGBoost",
+    "family": "Boosting ensembles",
+    "description": "Many small trees correcting each other, with regularization: the reference on tabular data.",
+    "settings": {
+     "n_estimators": {
+      "label": "Number of trees",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "1 000, cut short by early stopping: it finds the right number."
+      ]
+     },
+     "max_depth": {
+      "label": "Tree depth",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "4 under 5 000 rows, 6 otherwise."
+      ]
+     },
+     "learning_rate": {
+      "label": "Learning rate",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "0.05 above 100 000 rows, 0.1 otherwise."
+      ]
+     },
+     "subsample": {
+      "label": "Rows per tree",
+      "group": "Sampling",
+      "options": {},
+      "whys": []
+     },
+     "colsample_bytree": {
+      "label": "Features per tree",
+      "group": "Sampling",
+      "options": {},
+      "whys": []
+     },
+     "min_child_weight": {
+      "label": "Min. weight per leaf",
+      "group": "Structure",
+      "options": {},
+      "whys": []
+     },
+     "gamma": {
+      "label": "Min. gain to split",
+      "group": "Regularization",
+      "options": {},
+      "whys": []
+     },
+     "reg_lambda": {
+      "label": "L2 penalty",
+      "group": "Regularization",
+      "options": {},
+      "whys": []
+     },
+     "reg_alpha": {
+      "label": "L1 penalty",
+      "group": "Regularization",
+      "options": {},
+      "whys": []
+     },
+     "patience": {
+      "label": "Early stopping patience",
+      "group": "Stopping",
+      "options": {},
+      "whys": []
+     },
+     "booster": {
+      "label": "Booster",
+      "group": "Optimizer",
+      "options": {
+       "gbtree": "gbtree",
+       "dart": "dart",
+       "gblinear": "gblinear"
+      },
+      "whys": []
+     },
+     "tree_method": {
+      "label": "Tree construction",
+      "group": "Optimizer",
+      "options": {
+       "hist": "hist",
+       "approx": "approx",
+       "exact": "exact"
+      },
+      "whys": []
+     },
+     "max_bin": {
+      "label": "Max bins",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "monotonic": {
+      "label": "Monotonic constraints",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "Optional, e.g. “size:+1, age:-1”: the prediction may only rise with size and only fall with age (business knowledge the model must respect)."
+      ]
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     },
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "lightgbm": {
+    "label": "LightGBM",
+    "family": "Boosting ensembles",
+    "description": "Boosting that grows trees leaf by leaf: very fast on large data.",
+    "settings": {
+     "num_leaves": {
+      "label": "Number of leaves",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "31: the library's balanced default."
+      ]
+     },
+     "learning_rate": {
+      "label": "Learning rate",
+      "group": "Structure",
+      "options": {},
+      "whys": []
+     },
+     "n_estimators": {
+      "label": "Number of trees",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "1 000, cut short by early stopping."
+      ]
+     },
+     "min_child_samples": {
+      "label": "Min. rows per leaf",
+      "group": "Structure",
+      "options": {},
+      "whys": []
+     },
+     "colsample_bytree": {
+      "label": "Features per tree",
+      "group": "Sampling",
+      "options": {},
+      "whys": []
+     },
+     "reg_lambda": {
+      "label": "L2 penalty",
+      "group": "Regularization",
+      "options": {},
+      "whys": []
+     },
+     "reg_alpha": {
+      "label": "L1 penalty",
+      "group": "Regularization",
+      "options": {},
+      "whys": []
+     },
+     "patience": {
+      "label": "Early stopping patience",
+      "group": "Stopping",
+      "options": {},
+      "whys": []
+     },
+     "boosting_type": {
+      "label": "Boosting",
+      "group": "Optimizer",
+      "options": {
+       "gbdt": "gbdt",
+       "dart": "dart",
+       "goss": "goss"
+      },
+      "whys": []
+     },
+     "monotonic": {
+      "label": "Monotonic constraints",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "Optional, e.g. “size:+1, age:-1”: the prediction may only rise with size and only fall with age (business knowledge the model must respect)."
+      ]
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     },
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     }
+    },
+    "rules": []
+   },
+   "catboost": {
+    "label": "CatBoost",
+    "family": "Boosting ensembles",
+    "description": "Boosting with symmetric trees, robust with little tuning.",
+    "settings": {
+     "iterations": {
+      "label": "Iterations",
+      "group": "Structure",
+      "options": {},
+      "whys": [
+       "1 000, cut short by early stopping."
+      ]
+     },
+     "depth": {
+      "label": "Depth",
+      "group": "Structure",
+      "options": {},
+      "whys": []
+     },
+     "l2_leaf_reg": {
+      "label": "L2 penalty",
+      "group": "Regularization",
+      "options": {},
+      "whys": []
+     },
+     "patience": {
+      "label": "Early stopping patience",
+      "group": "Stopping",
+      "options": {},
+      "whys": []
+     },
+     "border_count": {
+      "label": "Borders per feature",
+      "group": "Optimizer",
+      "options": {},
+      "whys": []
+     },
+     "random_state": {
+      "label": "Seed",
+      "group": "Optimizer",
+      "options": {},
+      "whys": [
+       "Fixed so that training again gives the same model."
+      ]
+     },
+     "class_weight": {
+      "label": "Balance classes",
+      "group": "Class balance",
+      "options": {
+       "none": "none",
+       "balanced": "balanced"
+      },
+      "whys": [
+       "Classes are balanced enough.",
+       "The rarest class is 5% of rows: weights balance it."
+      ]
+     }
+    },
+    "rules": []
+   }
+  },
+  "badges": [
+   "Fast",
+   "Interpretable",
+   "Robust",
+   "Slow on this data",
+   "Counts",
+   "Positive amounts",
+   "Amounts with zeros",
+   "Large data",
+   "No training",
+   "Slow to predict on this data",
+   "Slow on 30,000 rows",
+   "Slow on 200,000 rows",
+   "Needs lots of data",
+   "Small data",
+   "Uncertainty",
+   "Missing ok",
+   "Accurate"
+  ],
+  "limits": [
+   "Quantile regression needs ≤ 50,000 training rows.",
+   "Kernel SVMs need ≤ 50,000 training rows (their cost grows with the square of the rows).",
+   "Kernel ridge needs ≤ 10,000 training rows (its cost grows with the cube of the rows).",
+   "A Gaussian process needs ≤ 5,000 training rows (its cost grows with the cube of the rows)."
+  ],
+  "auto": {
+   "labels": {
+    "constant": "Constant",
+    "ensemble": "Ensemble"
+   },
+   "families": [
+    "Baseline",
+    "Ensemble"
+   ],
+   "tuned": " · tuned"
+  }
+ },
+ "kpi": {
+  "archetypes": {
+   "sales": "sales data",
+   "subscription": "subscription data",
+   "support": "support data",
+   "hr": "HR data",
+   "web": "web analytics data"
+  },
+  "message": "Looks like {} · {} KPIs",
+  "names": {
+   "R-SUG-01": "Rows",
+   "R-SUG-02": "",
+   "R-SUG-03": "",
+   "R-SUG-04": "",
+   "R-SUG-05": "",
+   "R-SUG-06": "",
+   "R-SUG-07": "",
+   "R-SUG-09": "",
+   "R-SUG-10": "",
+   "R-SUG-11": "",
+   "R-SUG-12": "Average basket",
+   "R-SUG-13": "Units per order",
+   "R-SUG-14": "Average unit price",
+   "R-SUG-15": "{} per customer",
+   "R-SUG-20": "Margin",
+   "R-SUG-21": "Profit margin",
+   "R-SUG-22": "",
+   "R-SUG-24": "",
+   "R-SUG-28": "",
+   "R-SUG-31": "{} vs {}",
+   "R-SUG-32": "{}"
+  },
+  "aggs": {
+   "count": "Rows",
+   "sum": "Total {}",
+   "mean": "Average {}",
+   "median": "Median {}",
+   "min": "Min {}",
+   "max": "Max {}",
+   "distinct": "Distinct {}",
+   "true_share": "% {}",
+   "share": "% {}",
+   "weighted_mean": "Weighted average {}"
+  },
+  "delays": {
+   "mean": "Average",
+   "median": "Median",
+   "min": "Min",
+   "max": "Max"
+  }
+ },
+ "reasons": {
+  "B-01": {
+   "template": "{count} values had extra spaces (at the ends, doubled, tabs or no-break spaces).",
+   "vars": [
+    "count"
+   ]
+  },
+  "B-01.free_text": {
+   "template": "{count} values had extra spaces (at the ends, doubled, tabs or no-break spaces). Line breaks are kept: a free text keeps its paragraphs (N29).",
+   "vars": [
+    "count"
+   ]
+  },
+  "B-02": {
+   "template": "Invisible characters (zero-width spaces, byte-order marks, control characters) found in {count} values.",
+   "vars": [
+    "count"
+   ]
+  },
+  "B-03": {
+   "template": "{others} → {value} (most frequent): same value up to case or accents. {cells} cells in {groups} groups.",
+   "vars": [
+    "cells",
+    "groups",
+    "others",
+    "value"
+   ]
+  },
+  "B-03.accented": {
+   "template": "{others} → {value} (the accented spelling, kept (CLN-5)): same value up to case or accents. {cells} cells in {groups} groups.",
+   "vars": [
+    "cells",
+    "groups",
+    "others",
+    "value"
+   ]
+  },
+  "B-03.person": {
+   "template": " Names of people: two spellings may be two people, so the merge is suggested, not applied (CLN-5).",
+   "vars": []
+  },
+  "B-04": {
+   "template": "{count} values are words for 'missing' ({values}): read as empty.",
+   "vars": [
+    "count",
+    "values"
+   ]
+  },
+  "B-04.blank": {
+   "template": "{count} blank strings read as missing.",
+   "vars": [
+    "count"
+   ]
+  },
+  "B-04.category": {
+   "template": " Check they are not a real category.",
+   "vars": []
+  },
+  "B-04.file": {
+   "template": "{value} stands for 'missing' in {columns} columns of this file ({rows} in {column}): read as empty everywhere (N08). Check your data.",
+   "vars": [
+    "column",
+    "columns",
+    "rows",
+    "value"
+   ]
+  },
+  "B-04.french": {
+   "template": " Words for 'not given' in French and in Excel's French error codes.",
+   "vars": []
+  },
+  "B-04.none": {
+   "template": "{value} sits on the {rows} rows where {partner} is {how}: it means 'no {subject}', not a missing value. Written '{written}' so it stays a category (N06). Check your data.",
+   "vars": [
+    "how",
+    "partner",
+    "rows",
+    "subject",
+    "value",
+    "written"
+   ]
+  },
+  "B-04.none_some": {
+   "template": "{value} sits on {rows} rows, {covered} of them where {partner} is {how}: it means 'no {subject}', not a missing value. Written '{written}' so it stays a category (N06). Check your data.",
+   "vars": [
+    "covered",
+    "how",
+    "partner",
+    "rows",
+    "subject",
+    "value",
+    "written"
+   ]
+  },
+  "B-04.real": {
+   "template": " {real} is the most frequent value of only {others} others: it may mean 'none' (nothing of the kind, as 'no pool'), a real category (CLN-4).",
+   "vars": [
+    "others",
+    "real"
+   ]
+  },
+  "B-04.suppressed": {
+   "template": " They sit in a column of numbers: likely suppressed or hidden values, which become empty so the numbers can be read.",
+   "vars": []
+  },
+  "B-05": {
+   "template": "{count} values were saved in one encoding and read in another: {before} → {after} (wrong encoding).",
+   "vars": [
+    "after",
+    "before",
+    "count"
+   ]
+  },
+  "B-05.unfixable": {
+   "template": " {damaged} more values look damaged but cannot be repaired safely.",
+   "vars": [
+    "damaged"
+   ]
+  },
+  "B-06": {
+   "template": "HTML codes such as '&amp;' decoded in {count} values.",
+   "vars": [
+    "count"
+   ]
+  },
+  "B-07": {
+   "template": "{count} values are numbers stored as text ({forms}).",
+   "vars": [
+    "count",
+    "forms"
+   ]
+  },
+  "B-07.bounds": {
+   "template": " Apply the bounds suggestion first to keep the values written in words.",
+   "vars": []
+  },
+  "B-07.currencies": {
+   "template": " It mixes {currencies} currencies: split them first.",
+   "vars": [
+    "currencies"
+   ]
+  },
+  "B-07.missing": {
+   "template": " {tokens} blank or 'missing' values become empty.",
+   "vars": [
+    "tokens"
+   ]
+  },
+  "B-07.negative": {
+   "template": " {value} becomes {number}.",
+   "vars": [
+    "number",
+    "value"
+   ]
+  },
+  "B-07.unreadable": {
+   "template": " {unreadable} values cannot be read and become empty: {unread}.",
+   "vars": [
+    "unread",
+    "unreadable"
+   ]
+  },
+  "B-09": {
+   "template": "{value} appears {count} times ({share}), ",
+   "vars": [
+    "count",
+    "share",
+    "value"
+   ]
+  },
+  "B-09.end": {
+   "template": " (middle half {q1} to {q3}): likely a code for 'missing'.",
+   "vars": [
+    "q1",
+    "q3"
+   ]
+  },
+  "B-09.far": {
+   "template": "far from the other values",
+   "vars": []
+  },
+  "B-09.frequent": {
+   "template": "{times} times as frequent as a typical value",
+   "vars": [
+    "times"
+   ]
+  },
+  "B-09.negatives": {
+   "template": "a round number beyond every other value, the only negatives of the column: the shape of a code for 'no measure' (CLN-1)",
+   "vars": []
+  },
+  "B-09.round": {
+   "template": "a round number beyond every other value and far from them: the shape of a code for 'no measure' (CLN-1)",
+   "vars": []
+  },
+  "B-10": {
+   "template": "{count} values are outside the plausible range of {label} ({span}): {values}.",
+   "vars": [
+    "count",
+    "label",
+    "span",
+    "values"
+   ]
+  },
+  "B-10.negative": {
+   "template": "{count} negative values ({share}): errors, or real values (net emissions, losses, balances)? Remove them only if they are errors (CLN-7).",
+   "vars": [
+    "count",
+    "share"
+   ]
+  },
+  "B-10.refunds": {
+   "template": "Refunds or cancellations? {count} negative quantities ({share}). Remove them only if they are errors.",
+   "vars": [
+    "count",
+    "share"
+   ]
+  },
+  "B-10.refunds_amounts": {
+   "template": "Refunds or cancellations? {count} negative amounts ({share}). Remove them only if they are errors.",
+   "vars": [
+    "count",
+    "share"
+   ]
+  },
+  "B-11": {
+   "template": "{count} dates stored as text",
+   "vars": [
+    "count"
+   ]
+  },
+  "B-11.century": {
+   "template": " {short} dates have a two-digit year and would read as the years 0 to 99: write their century first (A-14).",
+   "vars": [
+    "short"
+   ]
+  },
+  "B-11.end": {
+   "template": ".",
+   "vars": []
+  },
+  "B-11.excel": {
+   "template": ", {serials} as Excel day numbers",
+   "vars": [
+    "serials"
+   ]
+  },
+  "B-11.formats": {
+   "template": " in {formats} formats ({listed})",
+   "vars": [
+    "formats",
+    "listed"
+   ]
+  },
+  "B-11.milliseconds": {
+   "template": " with milliseconds",
+   "vars": []
+  },
+  "B-11.missing": {
+   "template": " {missing} values for 'missing' ({words}) become empty.",
+   "vars": [
+    "missing",
+    "words"
+   ]
+  },
+  "B-11.months": {
+   "template": " Month names are read in English and in French (janv., févr., août…).",
+   "vars": []
+  },
+  "B-11.swapped": {
+   "template": " Day and month could be swapped: check the order.",
+   "vars": []
+  },
+  "B-11.unread": {
+   "template": " {unread} values cannot be read and become empty.",
+   "vars": [
+    "unread"
+   ]
+  },
+  "B-12": {
+   "template": "An identifier stored as decimal numbers: all {count} values end in '.0' ({before} → {after}).",
+   "vars": [
+    "after",
+    "before",
+    "count"
+   ]
+  },
+  "B-13": {
+   "template": "{count} postal codes are shorter than the usual {digits} digits ({share} of values): they lost their leading zero.",
+   "vars": [
+    "count",
+    "digits",
+    "share"
+   ]
+  },
+  "B-13.codes": {
+   "template": "{count} codes are shorter than the usual {digits} digits ({share} of values): they lost their leading zero.",
+   "vars": [
+    "count",
+    "digits",
+    "share"
+   ]
+  },
+  "B-13.countries": {
+   "template": "{count} postal codes of {countries} rows are shorter than the usual {digits} digits: they lost their leading zero.",
+   "vars": [
+    "count",
+    "countries",
+    "digits"
+   ]
+  },
+  "B-13.natural": {
+   "template": " {rows} of {countries} have {length}-digit codes by nature: not padded.",
+   "vars": [
+    "countries",
+    "length",
+    "rows"
+   ]
+  },
+  "B-13.unknown": {
+   "template": " {rows} of {countries} are shorter too, with no known length for their country: padded if you tick it.",
+   "vars": [
+    "countries",
+    "rows"
+   ]
+  },
+  "B-14": {
+   "template": "{count} rows are exact copies of another row ({share}).",
+   "vars": [
+    "count",
+    "share"
+   ]
+  },
+  "B-14.identified": {
+   "template": " Even their identifier repeats: a row entered twice.",
+   "vars": []
+  },
+  "B-14.repeats": {
+   "template": " Without an identifier they may be real repeats (the same purchase twice).",
+   "vars": []
+  },
+  "B-15": {
+   "template": "{count} rows have no value at all.",
+   "vars": [
+    "count"
+   ]
+  },
+  "B-15#one": {
+   "template": "{count} row has no value at all.",
+   "vars": [
+    "count"
+   ]
+  },
+  "B-15.headers": {
+   "template": "{count} rows repeat the column names: files pasted one after the other.",
+   "vars": [
+    "count"
+   ]
+  },
+  "B-16": {
+   "template": "{day} is used {count} times ({share}): a placeholder meaning 'unknown date', not a real date.",
+   "vars": [
+    "count",
+    "day",
+    "share"
+   ]
+  },
+  "B-16.end": {
+   "template": "{day} is used {count} times ({share}): a placeholder meaning 'no end date', not a real date.",
+   "vars": [
+    "count",
+    "day",
+    "share"
+   ]
+  },
+  "B-18": {
+   "template": "Two values ({values}) mean yes and no: stored as true / false.",
+   "vars": [
+    "values"
+   ]
+  },
+  "B-18.marks": {
+   "template": " {marks} read as yes (a ticked box); blanks stay empty. Check your data.",
+   "vars": [
+    "marks"
+   ]
+  },
+  "B-18.mixed": {
+   "template": "{count} spellings of yes and no mixed ({values}): unified.",
+   "vars": [
+    "count",
+    "values"
+   ]
+  },
+  "B-19": {
+   "template": "Always {value}: no information.",
+   "vars": [
+    "value"
+   ]
+  },
+  "B-19.empty": {
+   "template": "It has no value at all.",
+   "vars": []
+  },
+  "B-19.kept": {
+   "template": " Kept unless you remove it: a filter or a KPI may name it.",
+   "vars": []
+  },
+  "B-22": {
+   "template": "{column} is 0 on {rows} ({share}), while every other row has {low} or more: a real 0, or a value not given and written 0? Not changed: look at these rows. Check your data.",
+   "vars": [
+    "column",
+    "low",
+    "rows",
+    "share"
+   ]
+  },
+  "CHECK": {
+   "template": " Check your data.",
+   "vars": []
+  },
+  "KPI.medians": {
+   "template": "Medians are approximate (≈) over 200,000 rows.",
+   "vars": []
+  },
+  "KPI.small_multiples": {
+   "template": "The first split keeps its {cap} largest groups: one small chart each.",
+   "vars": [
+    "cap"
+   ]
+  },
+  "R-SUG-01": {
+   "template": "R-SUG-01 · Counts the rows: the volume of records, always available",
+   "vars": []
+  },
+  "R-SUG-02": {
+   "template": "R-SUG-02 · {column} is an amount that adds up over rows: summed",
+   "vars": [
+    "column"
+   ]
+  },
+  "R-SUG-02.cost": {
+   "template": "R-SUG-02 · {column} is a cost: costs add up over rows, so it is summed",
+   "vars": [
+    "column"
+   ]
+  },
+  "R-SUG-03": {
+   "template": "R-SUG-03 · {column} is a quantity: units add up, so it is summed",
+   "vars": [
+    "column"
+   ]
+  },
+  "R-SUG-06": {
+   "template": "R-SUG-06 · {column} is yes or no: the share of yes",
+   "vars": [
+    "column"
+   ]
+  },
+  "R-SUG-06.outcome": {
+   "template": "R-SUG-06 · {column} is yes or no and its name says an outcome: the share of yes",
+   "vars": [
+    "column"
+   ]
+  },
+  "R-SUG-07": {
+   "template": "R-SUG-07 · {column} is {what}: averaged",
+   "vars": [
+    "column",
+    "what"
+   ]
+  },
+  "R-SUG-07.any": {
+   "template": "R-SUG-07 · {column}: averaged, as for any {role}",
+   "vars": [
+    "column",
+    "role"
+   ]
+  },
+  "R-SUG-09": {
+   "template": "R-SUG-09 · {column} is a price or level (its name says {word}): averaged, as a sum of prices means nothing",
+   "vars": [
+    "column",
+    "word"
+   ]
+  },
+  "R-SUG-09.percent": {
+   "template": "R-SUG-09 · {column} is a percentage (its name says {word}): averaged, as a sum of prices means nothing",
+   "vars": [
+    "column",
+    "word"
+   ]
+  },
+  "R-SUG-09.unit": {
+   "template": "R-SUG-09 · {column} is a unit price: averaged, as a sum of prices means nothing",
+   "vars": [
+    "column"
+   ]
+  },
+  "R-SUG-10": {
+   "template": "R-SUG-10 · {column} names the customer: {customers} distinct customers over {rows} rows",
+   "vars": [
+    "column",
+    "customers",
+    "rows"
+   ]
+  },
+  "R-SUG-11": {
+   "template": "R-SUG-11 · {column} names the order: {orders} orders over {rows} rows",
+   "vars": [
+    "column",
+    "orders",
+    "rows"
+   ]
+  },
+  "R-SUG-12": {
+   "template": "R-SUG-12 · {flow} ÷ distinct {order}: the average value of an order ({orders} orders)",
+   "vars": [
+    "flow",
+    "order",
+    "orders"
+   ]
+  },
+  "R-SUG-13": {
+   "template": "R-SUG-13 · {quantity} ÷ distinct {order}: how many units an order holds",
+   "vars": [
+    "order",
+    "quantity"
+   ]
+  },
+  "R-SUG-14": {
+   "template": "R-SUG-14 · Σ {flow} ÷ Σ {quantity}: the average price paid per unit, weighted by the units (a ratio of sums, not a mean of prices)",
+   "vars": [
+    "flow",
+    "quantity"
+   ]
+  },
+  "R-SUG-15": {
+   "template": "R-SUG-15 · {flow} ÷ distinct {customer}: what one customer brings ({customers} customers)",
+   "vars": [
+    "customer",
+    "customers",
+    "flow"
+   ]
+  },
+  "R-SUG-16": {
+   "template": "R-SUG-16 · Score {score}/100: ",
+   "vars": [
+    "score"
+   ]
+  },
+  "R-SUG-16.confidence": {
+   "template": "{confidence}-confidence type (x{factor})",
+   "vars": [
+    "confidence",
+    "factor"
+   ]
+  },
+  "R-SUG-16.filled": {
+   "template": "{share} of values filled",
+   "vars": [
+    "share"
+   ]
+  },
+  "R-SUG-16.no_date": {
+   "template": "no date column (x{penalty})",
+   "vars": [
+    "penalty"
+   ]
+  },
+  "R-SUG-16.twin": {
+   "template": "R-SUG-16 · Moves with {column} (r = {r}): score halved",
+   "vars": [
+    "column",
+    "r"
+   ]
+  },
+  "R-SUG-16.weight": {
+   "template": "weight {weight} for this kind of KPI",
+   "vars": [
+    "weight"
+   ]
+  },
+  "R-SUG-17": {
+   "template": "R-SUG-17 · Over {date}: ",
+   "vars": [
+    "date"
+   ]
+  },
+  "R-SUG-17.event": {
+   "template": "the date of the event itself, preferred to {dates}",
+   "vars": [
+    "dates"
+   ]
+  },
+  "R-SUG-17.filled": {
+   "template": "the best-filled date, before {dates}",
+   "vars": [
+    "dates"
+   ]
+  },
+  "R-SUG-17.later": {
+   "template": "preferred to {dates}, a later step",
+   "vars": [
+    "dates"
+   ]
+  },
+  "R-SUG-17.never": {
+   "template": "; {never} is never a time axis",
+   "vars": [
+    "never"
+   ]
+  },
+  "R-SUG-17.none": {
+   "template": "R-SUG-17 · No time axis: {never} is a birth date",
+   "vars": [
+    "never"
+   ]
+  },
+  "R-SUG-17.only": {
+   "template": "the only date column",
+   "vars": []
+  },
+  "R-SUG-19": {
+   "template": "R-SUG-19 · Split by {column}: amounts in {count} currencies are never added together",
+   "vars": [
+    "column",
+    "count"
+   ]
+  },
+  "R-SUG-20": {
+   "template": "R-SUG-20 · {revenue} and the cost {cost}: the margin (Σ {revenue} - Σ {cost}) ÷ Σ {revenue}, in percent",
+   "vars": [
+    "cost",
+    "revenue"
+   ]
+  },
+  "R-SUG-21": {
+   "template": "R-SUG-21 · {profit} is what is left of {revenue}: Σ {profit} ÷ Σ {revenue} is the margin, in percent",
+   "vars": [
+    "profit",
+    "revenue"
+   ]
+  },
+  "R-SUG-22": {
+   "template": "R-SUG-22 · {column} is a status ({tracked} against {opposite}): the share of rows that are {states}",
+   "vars": [
+    "column",
+    "opposite",
+    "states",
+    "tracked"
+   ]
+  },
+  "R-SUG-22.key": {
+   "template": "R-SUG-22 · {column} is a status ({tracked} against {opposite}): the share of distinct {key} that are {states}",
+   "vars": [
+    "column",
+    "key",
+    "opposite",
+    "states",
+    "tracked"
+   ]
+  },
+  "R-SUG-23": {
+   "template": "R-SUG-23 · Weighted by {weight}: Σ({column} x {weight}) ÷ Σ {weight}, so a value on 100 units counts 100 times (rows without a positive {weight} are left out)",
+   "vars": [
+    "column",
+    "weight"
+   ]
+  },
+  "R-SUG-24": {
+   "template": "R-SUG-24 · {start} then {end}: the average number of days between the two",
+   "vars": [
+    "end",
+    "start"
+   ]
+  },
+  "R-SUG-28": {
+   "template": "R-SUG-28 · {column} is a measure without a role (no amount, quantity or price): averaged, as its sum rarely means anything",
+   "vars": [
+    "column"
+   ]
+  },
+  "R-SUG-28.surface": {
+   "template": "R-SUG-28 · {column} is a surface: averaged, as its sum rarely means anything",
+   "vars": [
+    "column"
+   ]
+  },
+  "R-TIME-02": {
+   "template": "The dates come about once a {typical}: shown by {typical} instead of by {requested} (R-TIME-02).",
+   "vars": [
+    "requested",
+    "typical"
+   ]
+  },
+  "R-TIME-03": {
+   "template": "By {requested} would draw over {periods} periods: shown by {coarser} instead (R-TIME-03).",
+   "vars": [
+    "coarser",
+    "periods",
+    "requested"
+   ]
+  },
+  "R-TIME-04": {
+   "template": "R-TIME-04 · {total} left out of the time axis: ",
+   "vars": [
+    "total"
+   ]
+  },
+  "R-TIME-04.end": {
+   "template": ". Clean can read the placeholders as missing.",
+   "vars": []
+  },
+  "R-TIME-04.part_placeholder": {
+   "template": "{rows} dated {day} (a placeholder meaning {meaning}, not a real date)",
+   "vars": [
+    "day",
+    "meaning",
+    "rows"
+   ]
+  },
+  "R-TIME-04.part_undated": {
+   "template": "{rows} without a date",
+   "vars": [
+    "rows"
+   ]
+  },
+  "R-TIME-04.undated": {
+   "template": "{count} rows without a date are left out.",
+   "vars": [
+    "count"
+   ]
+  },
+  "R-TIME-04.undated#one": {
+   "template": "{count} row without a date is left out.",
+   "vars": [
+    "count"
+   ]
+  },
+  "R-TYP-01": {
+   "template": "{share} of values, such as {examples}, cannot be read as numbers: kept as text so that no value is lost (R-TYP-01)",
+   "vars": [
+    "examples",
+    "share"
+   ]
+  },
+  "R-TYP-02": {
+   "template": "words in place of numbers ({words}: {share} of values) read as missing (R-TYP-02)",
+   "vars": [
+    "share",
+    "words"
+   ]
+  },
+  "R-TYP-03": {
+   "template": "{share} of values start with 0 (e.g. {examples}): a code, kept as text so the zeros stay (R-TYP-03)",
+   "vars": [
+    "examples",
+    "share"
+   ]
+  },
+  "R-TYP-04.category": {
+   "template": "the name says a category ('{word}'): whole numbers read as category codes, not as a measure (R-TYP-04)",
+   "vars": [
+    "word"
+   ]
+  },
+  "R-TYP-04.code": {
+   "template": "the name says a code or a number ('{word}'): whole numbers read as codes, not as a measure (R-TYP-04)",
+   "vars": [
+    "word"
+   ]
+  },
+  "R-TYP-04.sign": {
+   "template": "the name says a code or a number (a number sign): whole numbers read as codes, not as a measure (R-TYP-04)",
+   "vars": []
+  },
+  "R-TYP-05.length": {
+   "template": "{share} of values have exactly {digits} digits: a code (a measure would vary in length) (R-TYP-05)",
+   "vars": [
+    "digits",
+    "share"
+   ]
+  },
+  "R-TYP-05.unique": {
+   "template": "all values are different whole numbers of {digits} digits: an identifier, not a measure (R-TYP-05)",
+   "vars": [
+    "digits"
+   ]
+  },
+  "R-TYP-06": {
+   "template": "{share} of values read as dates in two formats ({first} and {second}) (R-TYP-06)",
+   "vars": [
+    "first",
+    "second",
+    "share"
+   ]
+  },
+  "R-TYP-07": {
+   "template": "{share} of values are times of day ({format}, e.g. {examples}): read as hours since midnight (R-TYP-07)",
+   "vars": [
+    "examples",
+    "format",
+    "share"
+   ]
+  },
+  "R-TYP-07.stored": {
+   "template": "stored as a time of day: read as hours since midnight (07:40 → 7.67) (R-TYP-07)",
+   "vars": []
+  },
+  "R-TYP-09": {
+   "template": "{share} of values are lists separated by ';' of {count} choices (e.g. {examples}): a multiple-choice answer, not categories (R-TYP-09)",
+   "vars": [
+    "count",
+    "examples",
+    "share"
+   ]
+  },
+  "R-TYP-10": {
+   "template": "values are ranges ordered by their lower bound: {order} (R-TYP-10)",
+   "vars": [
+    "order"
+   ]
+  },
+  "R-TYP-11": {
+   "template": "the name says a count: 0 and 1 kept as numbers (R-TYP-11)",
+   "vars": []
+  },
+  "R-TYP-12": {
+   "template": "{columns} look like the parts of one date: Clean proposes to assemble them into a '{name}' column (B-20) (R-TYP-12)",
+   "vars": [
+    "columns",
+    "name"
+   ]
+  },
+  "R-TYP-13": {
+   "template": "'{note}' closing the name is a note, not the word it is about (R-TYP-13)",
+   "vars": [
+    "note"
+   ]
+  },
+  "R-TYP-14": {
+   "template": "the name says 'total' with no money word and the values are whole numbers: read as a count, not an amount (R-TYP-14)",
+   "vars": []
+  },
+  "R-TYP-15.ambiguous": {
+   "template": "'{either}' reads both as a decimal and as thousands, and no value tells: the dot is read as the decimal point, the comma as a thousands separator (ambiguous) (R-TYP-15)",
+   "vars": [
+    "either"
+   ]
+  },
+  "R-TYP-15.comma": {
+   "template": "comma read as the decimal separator: {only} values such as '{value}' read only this way ({both} such as '{either}' read both ways) (R-TYP-15)",
+   "vars": [
+    "both",
+    "either",
+    "only",
+    "value"
+   ]
+  },
+  "R-TYP-15.decimal_comma": {
+   "template": "the comma is read as the decimal separator: '{either}' could be thousands, but numbers up to {largest} are written without one (R-TYP-15)",
+   "vars": [
+    "either",
+    "largest"
+   ]
+  },
+  "R-TYP-15.decimal_dot": {
+   "template": "the dot is read as the decimal separator: '{either}' could be thousands, but numbers up to {largest} are written without one (R-TYP-15)",
+   "vars": [
+    "either",
+    "largest"
+   ]
+  },
+  "R-TYP-15.dot": {
+   "template": "dot read as the decimal point: {only} values such as '{value}' read only this way ({both} such as '{either}' read both ways) (R-TYP-15)",
+   "vars": [
+    "both",
+    "either",
+    "only",
+    "value"
+   ]
+  },
+  "R-TYP-15.thousands_comma": {
+   "template": "the comma is read as a thousands separator: the {both} values with one have groups of three digits (such as '{either}') and the {plain} numbers written without one are all below 1,000 (R-TYP-15)",
+   "vars": [
+    "both",
+    "either",
+    "plain"
+   ]
+  },
+  "R-TYP-15.thousands_dot": {
+   "template": "the dot is read as a thousands separator: the {both} values with one have groups of three digits (such as '{either}') and the {plain} numbers written without one are all below 1,000 (R-TYP-15)",
+   "vars": [
+    "both",
+    "either",
+    "plain"
+   ]
+  },
+  "SEP.comma": {
+   "template": ", ",
+   "vars": []
+  },
+  "SEP.semicolon": {
+   "template": "; ",
+   "vars": []
+  },
+  "TYP.addresses": {
+   "template": "{share} look like street addresses (a number and a street word)",
+   "vars": [
+    "share"
+   ]
+  },
+  "TYP.codes_kept": {
+   "template": "whole numbers kept as codes",
+   "vars": []
+  },
+  "TYP.comma": {
+   "template": "comma used as decimal separator",
+   "vars": []
+  },
+  "TYP.constant": {
+   "template": "a single value everywhere: {value}",
+   "vars": [
+    "value"
+   ]
+  },
+  "TYP.continuous": {
+   "template": "{count} distinct numeric values",
+   "vars": [
+    "count"
+   ]
+  },
+  "TYP.dates": {
+   "template": "{share} of values read as dates ({format})",
+   "vars": [
+    "format",
+    "share"
+   ]
+  },
+  "TYP.day_first": {
+   "template": "day/month order is ambiguous: day first assumed",
+   "vars": []
+  },
+  "TYP.discrete": {
+   "template": "only {count} distinct whole numbers: shown as categories",
+   "vars": [
+    "count"
+   ]
+  },
+  "TYP.distinct": {
+   "template": "{count} distinct values, e.g. {examples}",
+   "vars": [
+    "count",
+    "examples"
+   ]
+  },
+  "TYP.emails": {
+   "template": "values look like emails",
+   "vars": []
+  },
+  "TYP.empty": {
+   "template": "{share} of values are empty",
+   "vars": [
+    "share"
+   ]
+  },
+  "TYP.few_unique": {
+   "template": "only {share} unique values",
+   "vars": [
+    "share"
+   ]
+  },
+  "TYP.kept_text": {
+   "template": "kept as text to preserve leading zeros and formatting",
+   "vars": []
+  },
+  "TYP.labels": {
+   "template": "few stop words ({stopwords}) and little sentence punctuation ({punctuation}): short labels",
+   "vars": [
+    "punctuation",
+    "stopwords"
+   ]
+  },
+  "TYP.language": {
+   "template": "language: {language} ({share} of texts)",
+   "vars": [
+    "language",
+    "share"
+   ]
+  },
+  "TYP.languages": {
+   "template": "mixed languages: {shares}",
+   "vars": [
+    "shares"
+   ]
+  },
+  "TYP.long": {
+   "template": "long values (average {length} characters)",
+   "vars": [
+    "length"
+   ]
+  },
+  "TYP.name": {
+   "template": "name suggests {role}",
+   "vars": [
+    "role"
+   ]
+  },
+  "TYP.name_labels": {
+   "template": "name suggests {role}, but values are short labels",
+   "vars": [
+    "role"
+   ]
+  },
+  "TYP.numbers": {
+   "template": "{share} of values read as numbers (e.g. {examples})",
+   "vars": [
+    "examples",
+    "share"
+   ]
+  },
+  "TYP.order": {
+   "template": "values follow a known order: {order}",
+   "vars": [
+    "order"
+   ]
+  },
+  "TYP.postal": {
+   "template": "{share} with a postal code",
+   "vars": [
+    "share"
+   ]
+  },
+  "TYP.punctuation": {
+   "template": "{share} with sentence punctuation",
+   "vars": [
+    "share"
+   ]
+  },
+  "TYP.row_index": {
+   "template": "row numbers left by an export (pandas index)",
+   "vars": []
+  },
+  "TYP.shared_key": {
+   "template": "only {share} unique values: a reference shared by rows, used as categories",
+   "vars": [
+    "share"
+   ]
+  },
+  "TYP.stopwords": {
+   "template": "{share} stop words",
+   "vars": [
+    "share"
+   ]
+  },
+  "TYP.stored_boolean": {
+   "template": "stored as true/false",
+   "vars": []
+  },
+  "TYP.stored_date": {
+   "template": "stored as a date",
+   "vars": []
+  },
+  "TYP.top20": {
+   "template": "the 20 most frequent values cover {share} of rows",
+   "vars": [
+    "share"
+   ]
+  },
+  "TYP.two_values": {
+   "template": "two values: {values}",
+   "vars": [
+    "values"
+   ]
+  },
+  "TYP.unique": {
+   "template": "{share} unique values",
+   "vars": [
+    "share"
+   ]
+  },
+  "TYP.unique_examples": {
+   "template": "{share} unique values, e.g. {examples}",
+   "vars": [
+    "examples",
+    "share"
+   ]
+  },
+  "TYP.unique_share": {
+   "template": "{share} unique",
+   "vars": [
+    "share"
+   ]
+  },
+  "TYP.unsupported": {
+   "template": "unsupported storage type {dtype}",
+   "vars": [
+    "dtype"
+   ]
+  },
+  "TYP.urls": {
+   "template": "values look like URLs",
+   "vars": []
+  },
+  "TYP.uuids": {
+   "template": "values look like uuids",
+   "vars": []
+  },
+  "TYP.words": {
+   "template": "median {median} words (P90 {p90})",
+   "vars": [
+    "median",
+    "p90"
+   ]
+  },
+  "TYP.year_range": {
+   "template": "whole numbers between {low} and {high}",
+   "vars": [
+    "high",
+    "low"
+   ]
+  },
+  "TYP.zero_one": {
+   "template": "only the values 0 and 1",
+   "vars": []
+  }
+ }
+}

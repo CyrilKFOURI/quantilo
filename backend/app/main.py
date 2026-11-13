@@ -24,6 +24,7 @@ from app.api import (
     datasets,
     filters,
     health,
+    image_views,
     images,
     jobs,
     joins,
@@ -50,7 +51,9 @@ from app.services.columns.service import ColumnService
 from app.services.datasets.service import DatasetService
 from app.services.filters.saved import SavedFilterService
 from app.services.image_sets import ImageSetService
+from app.services.image_views import ImageViewService
 from app.services.joins import JoinService
+from app.services.model import clean_tables
 from app.services.model.service import ModelService
 from app.services.pins.service import PinService
 from app.services.projects.service import ProjectService
@@ -85,8 +88,10 @@ def create_app(settings: Settings | None = None, job_runner: JobRunner | None = 
     app.state.workspace = workspace
     app.state.datasets = dataset_service
     app.state.columns = column_service
-    app.state.projects = ProjectService(workspace, dataset_service)
+    app.state.projects = ProjectService(workspace, dataset_service, column_service)
     app.state.image_sets = ImageSetService(workspace, dataset_service)  # 106
+    # 109, 110: the map (built right after an import) and the preparation previews
+    app.state.image_views = ImageViewService(workspace, dataset_service, app.state.image_sets)
     # 088: types of the analysis datasets, right after the detection (before 031's snapshot)
     app.state.model = ModelService(workspace, dataset_service, column_service, app.state.projects)
     dataset_service.after_import.append(app.state.model.after_import)
@@ -154,12 +159,15 @@ def create_app(settings: Settings | None = None, job_runner: JobRunner | None = 
         text,
         joins,
         images,
+        image_views,
         pins,
     )
     for module in (*routers, *others):
         api.include_router(module.router)
     app.include_router(api)
     mount_modules(app, API_PREFIX)
+    # N32: Clean > Advanced also checks the project relations (T-01, T-02)
+    clean_tables.attach(getattr(app.state, "clean", None), app.state.model)
 
     if settings.static_dir and settings.static_dir.is_dir():
         serve_frontend(app, settings.static_dir)

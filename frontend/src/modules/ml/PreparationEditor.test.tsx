@@ -56,3 +56,30 @@ describe("Advanced › More: causal lags (063)", () => {
     expect(screen.getByLabelText("Past values — temp")).toBeDisabled();
   });
 });
+
+describe("Advanced › More: the target's own past (063 bis, R-LAG-03)", () => {
+  it("sets the target lag on ordered rows and says what it reads", () => {
+    const onTargetLag = vi.fn();
+    const ordered = {
+      ...preparation(),
+      order: { period: "era", entity: "id", shift: 1, window: 5, grain: "period" },
+      choices: { target_lag: "past_mean" },
+      warnings: ["R-LAG-03 · Adds the mean of the 5 previous periods of sales, per id, shifted by 1."],
+    } as unknown as MlPreparation;
+    render(<AdvancedEncodings preparation={ordered} onColumn={vi.fn()} onTargetLag={onTargetLag} target="sales" />);
+    const more = screen.getByText("More");
+    (more.parentElement as HTMLDetailsElement).open = true;
+    fireEvent(more.parentElement as HTMLDetailsElement, new Event("toggle"));
+    expect(screen.getByText(/R-LAG-03 · Adds the mean/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Past values of sales"), { target: { value: "past_ewm" } });
+    expect(onTargetLag).toHaveBeenCalledWith("past_ewm");
+  });
+
+  it("is greyed without ordered rows (R-LAG-02)", () => {
+    render(<AdvancedEncodings preparation={preparation()} onColumn={vi.fn()} onTargetLag={vi.fn()} target="sales" />);
+    const more = screen.getByText("More");
+    (more.parentElement as HTMLDetailsElement).open = true;
+    fireEvent(more.parentElement as HTMLDetailsElement, new Event("toggle"));
+    expect(screen.getByLabelText("Past values of sales")).toBeDisabled();
+  });
+});

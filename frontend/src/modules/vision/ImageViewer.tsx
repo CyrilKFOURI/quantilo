@@ -2,6 +2,7 @@ import { Layers, Maximize, Minus, Plus, ScanSearch } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type PointerEvent, type SyntheticEvent, type WheelEvent } from "react";
 
 import { t } from "../../lib/i18n";
+import { useApiSrc } from "../../lite/useApiSrc";
 
 const MAX_SCALE = 16;
 const SWIPE = 60; // px of horizontal travel that turns to the next image (not zoomed in)
@@ -39,6 +40,8 @@ export function ImageViewer({ src, maskSrc, alt, onSwipe, className = "" }: View
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [mask, setMask] = useState(true);
+  // a CSS url() skips the browser version's worker: its blob URL instead (119)
+  const maskHref = useApiSrc(maskSrc);
   const [inspect, setInspect] = useState(false);
 
   const apply = useCallback((next: View) => {
@@ -244,12 +247,12 @@ export function ImageViewer({ src, maskSrc, alt, onSwipe, className = "" }: View
               className="block max-w-none select-none [image-rendering:auto]"
               style={zoom.scale >= 4 ? { imageRendering: "pixelated" } : undefined}
             />
-            {maskSrc && mask && loaded && (
+            {maskHref && mask && loaded && (
               <span
                 aria-hidden
                 className="absolute inset-0 bg-bad opacity-55"
                 // the mask is a grey PNG (white = defect): read by its luminance, not its alpha
-                style={{ maskImage: `url("${maskSrc}")`, maskMode: "luminance", maskSize: "100% 100%", WebkitMaskImage: `url("${maskSrc}")`, WebkitMaskSize: "100% 100%" }}
+                style={{ maskImage: `url("${maskHref}")`, maskMode: "luminance", maskSize: "100% 100%", WebkitMaskImage: `url("${maskHref}")`, WebkitMaskSize: "100% 100%" }}
               />
             )}
           </div>

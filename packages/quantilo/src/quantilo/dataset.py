@@ -13,6 +13,7 @@ import os
 import shutil
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
+from html import escape
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -60,6 +61,7 @@ from quantilo.ingestion.normalize import copy_metadata, normalized_sql
 from quantilo.ingestion.options import CsvOptions, ImportOptions
 from quantilo.ingestion.sources import fingerprint, list_source_files
 from quantilo.ingestion.sql import lit
+from quantilo.interpret.matching import MatchedGroups, MatchingRequest
 from quantilo.kpi.cohort import CohortResult, FunnelResult
 from quantilo.kpi.compute import KpiResult
 from quantilo.kpi.definition import Definition
@@ -123,6 +125,18 @@ if TYPE_CHECKING:  # machine learning and synthetic data load on first use (scik
     from quantilo.synthetic.facade import Synthesizer
 
 DETECTION_VERSION = 3  # bump when detection changes, to ignore cached detections
+HTML_ROWS = 5  # Jupyter's view: first rows shown
+HTML_COLUMNS = 20  # … and columns
+
+
+def _cell(value: object) -> str:
+    """A typed value as Jupyter shows it: empty for a missing value, the raw text of an invalid
+    one."""
+    if value is None:
+        return ""
+    if isinstance(value, dict) and "invalid" in value:
+        return str(value["invalid"])
+    return str(value)
 
 
 def default_cache_dir() -> Path:
@@ -222,6 +236,43 @@ class Dataset:
         info = self._state.info
         return (
             f"<Dataset {info.name!r}: {info.row_count} rows × {len(self.columns)} columns{filters}>"
+        )
+
+    def _repr_html_(self) -> str:
+        """Jupyter's view (027): the name and size, the columns with their type and role, and
+        the first rows, read as typed. Plain HTML: the notebook's own styles apply."""
+        info = self._state.info
+        views = [view for view in self.types if not view.excluded]
+        filters = f" · {len(self._conditions)} filter(s)" if self._conditions else ""
+        head = (
+            f"<p><strong>{escape(info.name)}</strong>: {len(self):,} rows × {len(views)} columns"
+            f"{filters}</p>"
+        )
+        types = "".join(
+            f"<tr><td><code>{escape(v.name)}</code></td><td>{escape(str(v.type))}</td>"
+            f"<td>{escape(v.role or '')}</td></tr>"
+            for v in views[:HTML_COLUMNS]
+        )
+        more = (
+            f"<p>… and {len(views) - HTML_COLUMNS} more columns.</p>"
+            if len(views) > HTML_COLUMNS
+            else ""
+        )
+        page = self.rows(0, HTML_ROWS)
+        names = [c.name for c in page.columns][:HTML_COLUMNS]
+        cells = "".join(
+            "<tr>"
+            + "".join(f"<td>{escape(_cell(value))}</td>" for value in row[1 : len(names) + 1])
+            + "</tr>"
+            for row in page.rows
+        )
+        return (
+            f"<div>{head}"
+            "<table><thead><tr><th>Column</th><th>Type</th><th>Role</th></tr></thead>"
+            f"<tbody>{types}</tbody></table>{more}"
+            f"<p>First {len(page.rows)} rows:</p><table><thead><tr>"
+            + "".join(f"<th>{escape(name)}</th>" for name in names)
+            + f"</tr></thead><tbody>{cells}</tbody></table></div>"
         )
 
     # --- Correcting the types ---------------------------------------------------------------
@@ -714,6 +765,11 @@ class Dataset:
         sigma_x: str | None = None,
         event: str | None = None,
         slope: str | None = None,
+        regimes: int | None = None,
+        strata: str | None = None,
+        start: str | None = None,
+        rho: str | None = None,
+        formula: str | None = None,
         weights: str | None = None,
         cluster: str | None = None,
         se: SeRequest = "auto",
@@ -722,11 +778,16 @@ class Dataset:
         """One method of Advanced › More: cross_section (074: Fama–MacBeth with Newey–West, IC
         and ICIR of each column), outputs (074: the same columns on several `outputs`, Wilks,
         Pillai, GRS), components (074: regression on principal components), measurement (075:
-        fit by 1/σ² of `sigma`, χ², pulls; Deming, York with `sigma_x`, TLS), curves (075:
-        exponential, power, logistic, Michaelis–Menten, Gaussian peak), survival (076: Cox model
-        until `event`, Schoenfeld test), tobit (076: target held at a bound), mixed (076: random
-        intercept by `cluster` or the panel's entity, random `slope`). `sigma=""` turns the
-        uncertainty off; None follows the rules."""
+        fit by 1/σ² of `sigma`, χ², pulls; Deming, York with `sigma_x` and the correlation
+        `rho` of the two errors, TLS), curves (075: exponential, power, logistic,
+        Michaelis–Menten, Gaussian peak, and a `formula` of x typed by the user), survival (076:
+        Cox model until `event`, Schoenfeld test, `strata` with their own baseline, `start` of
+        each interval, adjusted survival curves), tobit (076: target held at a bound), mixed
+        (076: random intercept by `cluster` or the panel's entity, random `slope`; a logistic or
+        count target by Gauss–Hermite), varying (073: each
+        coefficient drifting as a random walk, Kalman smoother), regimes (073: 2 or 3 `regimes`
+        of the coefficients, Markov switching). `sigma=""` turns the uncertainty off; None
+        follows the rules."""
         request = RegressionRequest(
             target,
             tuple(columns) if columns is not None else None,
@@ -735,7 +796,18 @@ class Dataset:
             se,
             terms=tuple(terms or ()),
         )
-        options = MethodOptions(tuple(outputs or ()), sigma, sigma_x, event, slope)
+        options = MethodOptions(
+            tuple(outputs or ()),
+            sigma,
+            sigma_x,
+            event,
+            slope,
+            regimes,
+            strata,
+            start,
+            rho,
+            formula,
+        )
         return self._regression_service().method(
             self._id, method, request, options, self.conditions
         )
@@ -941,6 +1013,38 @@ class Dataset:
         return self._state.service(ExperimentEngine).evaluate_policy(
             self._id, request, self.conditions, policies
         )
+
+    def matched_groups(
+        self,
+        treatment: str,
+        outcome: str,
+        *,
+        treated: str | None = None,
+        covariates: list[str] | None = None,
+        bins: int = 4,
+        alpha: float = 0.05,
+        control: str | None = None,
+        method: Literal["flame", "dame"] = "flame",
+    ) -> MatchedGroups:
+        """Matched groups (123, FLAME): on observational data with a two-valued `treatment`,
+        units matched exactly on their covariates (numbers cut into `bins`), dropping the least
+        predictive covariate level by level; the effect in each group, on average and on the
+        treated, and the balance before and after. Valid only if no hidden factor drove both
+        the treatment and the outcome. 123 bis: `method="dame"` searches the sets of covariates
+        (R-MAT-09); with more values, `treated` and `control` choose the pair (R-MAT-10)."""
+        for name in (treatment, outcome, *(covariates or [])):
+            self._record(name)
+        request = MatchingRequest(
+            treatment=treatment,
+            outcome=outcome,
+            treated=treated,
+            covariates=covariates,
+            bins=bins,
+            alpha=alpha,
+            control=control,
+            method=method,
+        )
+        return self._state.service(ExperimentEngine).matching(self._id, request, self.conditions)
 
     def ml_targets(self) -> Targets:
         """Every column as a possible target: the problem it makes (regression, binary,

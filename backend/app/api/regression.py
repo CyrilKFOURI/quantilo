@@ -28,6 +28,7 @@ from quantilo.regression.service import Request as RegressionRequest
 from quantilo.regression.stability import StabilityTable
 from quantilo.regression.survival import CoxTable, TobitTable
 from quantilo.regression.terms import Coding, PartialPlot
+from quantilo.regression.varying import RegimesTable, VaryingTable
 
 from app.api.filters import Filters
 
@@ -343,10 +344,14 @@ def measurement(
     asked: Asked,
     sigma: Sigma = None,
     sigma_x: SigmaX = None,
+    rho: Annotated[
+        str | None,
+        Query(description="075: the correlation of each row's errors on x and y (York)."),
+    ] = None,
 ) -> MeasurementTable:
     """Advanced > More > Uncertainties and errors on x (075): the fit by 1/sigma^2, chi^2, pulls;
-    Deming, York and total least squares."""
-    options = MethodOptions(sigma=sigma, sigma_x=sigma_x)
+    Deming, York (errors correlated by `rho`) and total least squares."""
+    options = MethodOptions(sigma=sigma, sigma_x=sigma_x, rho=rho)
     found = _method(service, dataset_id, "measurement", asked, filters, options)
     assert isinstance(found, MeasurementTable)
     return found
@@ -354,11 +359,20 @@ def measurement(
 
 @router.get("/datasets/{dataset_id}/regression/curves")
 def curves(
-    dataset_id: str, service: Service, filters: Filters, asked: Asked, sigma: Sigma = None
+    dataset_id: str,
+    service: Service,
+    filters: Filters,
+    asked: Asked,
+    sigma: Sigma = None,
+    formula: Annotated[
+        str | None,
+        Query(description="075: a curve of x typed by the user, e.g. a * exp(b * x) + c."),
+    ] = None,
 ) -> CurvesTable:
     """Advanced > More > Curve (075): exponential, power, logistic, Michaelis-Menten and Gaussian
-    peak, ranked by AIC with the straight line."""
-    found = _method(service, dataset_id, "curves", asked, filters, MethodOptions(sigma=sigma))
+    peak, ranked by AIC with the straight line, and the user's formula."""
+    options = MethodOptions(sigma=sigma, formula=formula or None)
+    found = _method(service, dataset_id, "curves", asked, filters, options)
     assert isinstance(found, CurvesTable)
     return found
 
@@ -372,10 +386,19 @@ def survival(
     event: Annotated[
         str | None, Query(description="076: the yes/no event column (absent: R-SRV-01).")
     ] = None,
+    strata: Annotated[
+        str | None, Query(description="076: a category whose levels get their own baseline.")
+    ] = None,
+    start: Annotated[
+        str | None,
+        Query(description="076: the start of each row's interval (absent: R-REG-SURV-04)."),
+    ] = None,
 ) -> CoxTable:
     """Advanced > More > Survival (076): the Cox model of the target as a time to the event,
-    hazard ratios, the Schoenfeld test of proportional hazards."""
-    found = _method(service, dataset_id, "survival", asked, filters, MethodOptions(event=event))
+    hazard ratios, the Schoenfeld test of proportional hazards, strata, intervals and adjusted
+    survival curves."""
+    options = MethodOptions(event=event, strata=strata, start=start)
+    found = _method(service, dataset_id, "survival", asked, filters, options)
     assert isinstance(found, CoxTable)
     return found
 
@@ -402,4 +425,28 @@ def mixed(
     panel), its share of the variance, the test against least squares."""
     found = _method(service, dataset_id, "mixed", asked, filters, MethodOptions(slope=slope))
     assert isinstance(found, MixedTable)
+    return found
+
+
+@router.get("/datasets/{dataset_id}/regression/varying")
+def varying(dataset_id: str, service: Service, filters: Filters, asked: Asked) -> VaryingTable:
+    """Advanced > More > Coefficients that drift (073): each coefficient a random walk, Kalman
+    smoother, tested against fixed coefficients."""
+    found = _method(service, dataset_id, "varying", asked, filters)
+    assert isinstance(found, VaryingTable)
+    return found
+
+
+@router.get("/datasets/{dataset_id}/regression/regimes")
+def regimes(
+    dataset_id: str,
+    service: Service,
+    filters: Filters,
+    asked: Asked,
+    regimes: Annotated[int, Query(ge=2, le=3, description="073: 2 or 3 regimes.")] = 2,
+) -> RegimesTable:
+    """Advanced > More > Regimes (073): Markov-switching regression, each regime its own
+    coefficients (and spread of the errors when the BIC says so)."""
+    found = _method(service, dataset_id, "regimes", asked, filters, MethodOptions(regimes=regimes))
+    assert isinstance(found, RegimesTable)
     return found

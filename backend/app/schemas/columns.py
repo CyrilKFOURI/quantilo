@@ -1,6 +1,7 @@
 from typing import Literal
 
 from pydantic import BaseModel
+from quantilo.reasons import ReasonText, details
 from quantilo.typing.knowledge_base import load
 from quantilo.typing.types import AnalysisType, Parser
 
@@ -62,6 +63,8 @@ class ColumnOut(BaseModel):
     detected_role: str | None
     confidence: Literal["high", "medium", "low"]
     reasons: list[str]
+    # M02: the same reasons with their code and vars, for the interface to translate
+    reason_details: list[ReasonText] = []
     overridden: bool
     excluded: bool
     summary: ColumnSummary | None
@@ -72,6 +75,7 @@ class ColumnOut(BaseModel):
         return cls(
             **{name: getattr(view, name) for name in cls.model_fields if hasattr(view, name)},
             role_label=role.label if role else None,
+            reason_details=details(view.reasons),
         )
 
 

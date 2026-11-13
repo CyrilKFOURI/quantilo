@@ -106,7 +106,7 @@ def test_the_grain_follows_the_span_of_the_data(tmp_path: Path) -> None:
 
 
 def test_too_few_periods_or_returning_customers_are_said(tmp_path: Path) -> None:
-    short = visits()[visits()["day"] < "2024-02-15"]
+    short = visits().loc[lambda f: f["day"] < "2024-02-15"]
     with pytest.raises(CohortError, match="R-COH-02"):
         cohorts(parquet(tmp_path, short))
     once = pd.DataFrame(
@@ -122,7 +122,7 @@ def test_too_few_periods_or_returning_customers_are_said(tmp_path: Path) -> None
 def test_an_incomplete_last_period_is_said(tmp_path: Path) -> None:
     frame = visits()
     frame.loc[frame["customer"] == "e", "day"] = pd.Timestamp("2024-03-12")
-    frame = frame[frame["day"] <= "2024-03-12"]
+    frame = frame.loc[frame["day"] <= "2024-03-12"]
     result = cohorts(parquet(tmp_path, frame))
     assert result.periods[-1].partial
     assert any("incomplete" in w for w in result.warnings)
@@ -250,15 +250,17 @@ def test_a_typed_target_and_a_mean_against_its_target(tmp_path: Path) -> None:
         measures=[{"id": "m1", "agg": "sum", "column": "sales"}],
         goal={"value": 1_000},
     )
-    assert typed.tiles[0].goal.attained == pytest.approx(1_260 / 1_000)
-    assert "R-GOAL-02" in typed.tiles[0].goal.reason
+    goal = typed.tiles[0].goal
+    assert goal is not None and goal.attained == pytest.approx(1_260 / 1_000)
+    assert "R-GOAL-02" in goal.reason
     mean = kpi(
         monthly(tmp_path),
         measures=[{"id": "m1", "agg": "mean", "column": "sales"}],
         goal={"column": "budget"},
     )
-    assert mean.tiles[0].goal.target == pytest.approx(100)  # averaged, never summed
-    assert "does not add up" in mean.tiles[0].goal.reason
+    goal = mean.tiles[0].goal
+    assert goal is not None and goal.target == pytest.approx(100)  # averaged, never summed
+    assert "does not add up" in goal.reason
 
 
 def test_a_target_is_a_column_or_a_value_and_a_number(tmp_path: Path) -> None:
@@ -283,7 +285,8 @@ def test_an_amount_beside_a_target_column_is_suggested_against_it() -> None:
     ]
     found = {s.rule: s for s in suggest(columns)}
     assert "R-SUG-31" in found
-    assert found["R-SUG-31"].definition.goal.column == "budget"
+    goal = found["R-SUG-31"].definition.goal
+    assert goal is not None and goal.column == "budget"
     assert found["R-SUG-31"].name == "Sales vs budget"
     # a 0/1 machine-learning target is no business target
     binary = Col("target", "numeric_discrete", "target", summary=summary(2))

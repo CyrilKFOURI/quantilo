@@ -7,6 +7,9 @@ signatures: the rules read these kinds, never the raw cells).
 import datetime as dt
 import functools
 import re
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Literal
 
 Kind = Literal["e", "n", "d", "b", "t", "z", "s"]
@@ -38,6 +41,13 @@ STRONG_NULLS = frozenset(
     }
 )
 WEAK_NULLS = frozenset({"-", "–", "x", "*", ":", "..", "(b)", "///", "ns", "nc"})
+
+# T2u (b2, Advanced > More of the import): tokens the user adds (read as empty in any column) and
+# tokens the user keeps as text (never empty). Set for one read by `user_null_tokens`; where the
+# tables are found does not change, only how their values are read.
+_USER_TOKENS: ContextVar[tuple[frozenset[str], frozenset[str]]] = ContextVar(
+    "user_null_tokens", default=(frozenset(), frozenset())
+)
 
 TOTAL_START = re.compile(
     r"^(grand\s+total|totals?\b|sum\b|sub-?totals?\b|sous-total|total\s|ensemble\b|all\b|"
@@ -136,8 +146,35 @@ def parse_number(text: str, decimal: str | None = None) -> float | None:
     return -number if negative else number
 
 
+def token_set(values: Iterable[str] | None) -> frozenset[str]:
+    """Tokens as `null_token` compares them: trimmed, spaces folded, lower case; blanks left out."""
+    return frozenset(t for t in (clean_text(v).lower() for v in values or ()) if t)
+
+
+@contextmanager
+def user_null_tokens(
+    empty: Iterable[str] | None = None, text: Iterable[str] | None = None
+) -> Iterator[None]:
+    """T2u: inside the block, `empty` tokens are null in any column, `text` tokens never are."""
+    token = _USER_TOKENS.set((token_set(empty), token_set(text)))
+    try:
+        yield
+    finally:
+        _USER_TOKENS.reset(token)
+
+
+def user_tokens_active() -> bool:
+    empty, text = _USER_TOKENS.get()
+    return bool(empty or text)
+
+
 def null_token(text: str) -> Literal["strong", "weak"] | None:
     s = clean_text(text).lower()
+    empty, kept = _USER_TOKENS.get()
+    if s in kept:
+        return None
+    if s in empty:
+        return "strong"
     if s in STRONG_NULLS:
         return "strong"
     if s in WEAK_NULLS:
@@ -154,6 +191,8 @@ def kind(value: object) -> Kind:
         return "n"
     if isinstance(value, dt.date | dt.datetime | dt.time):
         return "d"
+    if user_tokens_active():  # never through the cache: the user's tokens change the answer
+        return _text_kind.__wrapped__(str(value))
     return _text_kind(str(value))
 
 

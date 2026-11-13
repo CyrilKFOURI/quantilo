@@ -2,6 +2,7 @@ import type { Data, Layout } from "plotly.js-dist-min";
 
 import type { AssociationMatrix } from "../../api/client";
 import type { ChartTokens } from "../../charts/theme";
+import { t } from "../../lib/i18n";
 
 type Built = { data: Data[]; layout?: Partial<Layout> };
 
@@ -9,7 +10,9 @@ export const METRIC_LABELS: Record<string, string> = {
   pearson: "Pearson r",
   spearman: "Spearman ρ",
   cramers_v: "Cramér's V",
-  eta: "η (correlation ratio)",
+  get eta() {
+    return t("fig.corr.eta");
+  },
 };
 
 /** Diverging scale: red for negative, neutral grey at 0, blue for positive (validated pair). */

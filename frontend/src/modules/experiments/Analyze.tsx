@@ -15,6 +15,7 @@ import {
   type ExperimentDesign,
   type ExperimentMetric,
 } from "./api";
+import { Matching } from "./Matching";
 import { PolicySection } from "./Policy";
 import { BanditSection, CumulativeSection, MetricSection, SegmentsSection } from "./Results";
 import type { ExperimentsSearch } from "./search";
@@ -564,8 +565,29 @@ export function Analyze({
             />
           )}
           {result.cumulative && <CumulativeSection cumulative={result.cumulative} />}
+          <AnalyzeMatching key={`${design.variant}-${result.metrics.find((m) => m.primary)?.label ?? ""}`} datasetId={datasetId} design={design} levels={levels} />
         </div>
       )}
     </div>
+  );
+}
+
+/** 123 bis: Advanced · Matched groups in Analyze, for a variant that was observed rather than
+ *  drawn at random (R-EXP-01): the same FLAME / DAME route, on the primary metric. Folded, and
+ *  nothing is matched before its button. */
+function AnalyzeMatching({ datasetId, design, levels }: { datasetId: string; design: ExperimentDesign; levels: string[] }) {
+  const [open, setOpen] = useState(false);
+  const outcome = design.primary ?? design.metrics[0]?.column;
+  if (!outcome) return null;
+  const available = levels.length >= 2 && levels.length <= 10;
+  const offer = {
+    available,
+    reason: available ? t("experiments.matching.analyzeReason", { variant: design.variant, outcome }) : t("experiments.matching.analyzeNo", { count: String(levels.length) }),
+  };
+  return (
+    <details className="border-t border-line pt-3 text-xs" onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className="cursor-pointer text-[13px] text-accent select-none hover:underline">{t("experiments.matching.analyzeAdvanced")}</summary>
+      {open && <Matching datasetId={datasetId} request={{ action: design.variant, reward: outcome, covariates: null }} offer={offer} actions={levels} />}
+    </details>
   );
 }

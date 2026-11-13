@@ -20,6 +20,10 @@ export type BuildPreview = Schemas["PreviewOut"];
 export type AnalysisBuild = Schemas["BuildOut"];
 export type Position = { x: number; y: number };
 export type Columns = { child_id: string; child_columns: string[]; parent_id: string; parent_columns: string[] };
+/** C1 (R-REL-14): keys compared as written, or without case, accents and punctuation. */
+export type Match = "exact" | "normalized";
+/** C1 (R-BLD-07): a condition on a column of a table the build reaches. */
+export type BuildFilter = Schemas["FilterIn"];
 
 export const modelKeys = {
   model: (projectId: string) => ["model", projectId] as const,
@@ -30,12 +34,15 @@ const base = (projectId: string) => `/projects/${encodeURIComponent(projectId)}/
 
 export const modelApi = {
   get: (projectId: string) => request<Model>("GET", base(projectId)),
-  save: (projectId: string, body: Columns & { join_type?: JoinType | null; status?: "accepted" | "rejected"; origin?: "detected" | "user" }) =>
+  save: (projectId: string, body: Columns & { join_type?: JoinType | null; status?: "accepted" | "rejected"; origin?: "detected" | "user"; match?: Match; active?: boolean }) =>
     request<Model>("POST", `${base(projectId)}/relations`, body),
-  update: (projectId: string, id: string, body: { join_type?: JoinType; child_columns?: string[]; parent_columns?: string[] }) =>
+  update: (projectId: string, id: string, body: { join_type?: JoinType; child_columns?: string[]; parent_columns?: string[]; match?: Match; active?: boolean }) =>
     request<Model>("PATCH", `${base(projectId)}/relations/${encodeURIComponent(id)}`, body),
   remove: (projectId: string, id: string) => request<Model>("DELETE", `${base(projectId)}/relations/${encodeURIComponent(id)}`),
-  check: (projectId: string, body: Columns & { join_type?: JoinType }) => request<RelationCheck>("POST", `${base(projectId)}/check`, body),
+  check: (projectId: string, body: Columns & { join_type?: JoinType; match?: Match }) => request<RelationCheck>("POST", `${base(projectId)}/check`, body),
+  /** C1 (R-BLD-08): a date table, one row per day of a date column, related to its table. */
+  dates: (projectId: string, body: { dataset_id: string; column: string; name?: string | null }) =>
+    request<{ dataset_id: string }>("POST", `${base(projectId)}/dates`, body),
   layout: (projectId: string, body: { positions: Record<string, Position>; versions?: Record<string, string> }) =>
     request<Model>("PUT", `${base(projectId)}/layout`, body),
   preview: (projectId: string, body: BuildBody) => request<BuildPreview>("POST", `${base(projectId)}/preview`, body),
@@ -46,7 +53,7 @@ export const modelApi = {
     request<{ dataset_id: string }>("POST", `${base(projectId)}/aggregate`, body),
 };
 
-export type BuildBody = { fact_id?: string | null; picks?: Record<string, string[]>; name?: string | null };
+export type BuildBody = { fact_id?: string | null; picks?: Record<string, string[]>; name?: string | null; filters?: BuildFilter[] };
 
 /** The model: detected when it opens (bounded on the server, R-REL-10), then kept. */
 export function useModel(projectId: string) {
@@ -121,6 +128,10 @@ export function useBuild(projectId: string) {
 
 export function useRebuild(projectId: string) {
   return useCreating(projectId, (datasetId: string) => modelApi.rebuild(projectId, datasetId));
+}
+
+export function useDateTable(projectId: string) {
+  return useCreating(projectId, (body: Parameters<typeof modelApi.dates>[1]) => modelApi.dates(projectId, body));
 }
 
 export function useAggregate(projectId: string) {

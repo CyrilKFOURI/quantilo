@@ -17,9 +17,20 @@ import { ALPHAS, FACTORY_DEFAULTS, PAGE_SIZES, TOP_NS, useAnalysisDefaults } fro
 import { formatBytes } from "../../lib/format";
 import { t, type MessageKey } from "../../lib/i18n";
 import { DEFAULT_PALETTE, palettePreference } from "../../lib/palettes";
-import { densityPreference, motionPreference, usePreference } from "../../lib/preferences";
+import { densityPreference, languagePreference, motionPreference, usePreference } from "../../lib/preferences";
 import { useCleanSettings, useUpdateCleanSettings, type CleanMode } from "../../modules/clean/api";
 import { CLEAN_ENABLED } from "../../modules/clean/flag";
+import {
+  aiTitle,
+  useAiModels,
+  useDeleteModel,
+  useDownloadModel,
+  useNeverDownload,
+  useStopDownload,
+  type AiModel,
+} from "../../modules/timeseries/forecastAi";
+import { DownloadDialog, DownloadProgress } from "../../modules/timeseries/ModelDownload";
+import { LITE } from "../../lite/flag";
 import { LegalLinks } from "../../features/legal/LegalLinks";
 import { Button } from "../../ui/Button";
 import { ErrorNote, Select, TextInput } from "../../ui/fields";
@@ -38,6 +49,12 @@ export function SettingsPage() {
   const [density, setDensity] = usePreference(densityPreference);
   const [motion, setMotion] = usePreference(motionPreference);
   const [palette, setPalette] = usePreference(palettePreference);
+  const [language, saveLanguage] = usePreference(languagePreference);
+  // Texts are read once at start-up (127): a new language takes effect by reloading the page.
+  const setLanguage = (value: typeof language) => {
+    saveLanguage(value);
+    window.location.reload();
+  };
   const [defaults, setDefaults] = useAnalysisDefaults();
 
   return (
@@ -76,6 +93,22 @@ export function SettingsPage() {
               { value: "system", label: t("settings.motionSystem") },
               { value: "reduce", label: t("settings.motionReduce") },
               { value: "full", label: t("settings.motionFull") },
+            ]}
+          />
+        </SettingRow>
+        <SettingRow
+          label={t("settings.language")}
+          hint={t("settings.languageHint")}
+          onReset={language !== languagePreference.defaultValue ? () => setLanguage(languagePreference.defaultValue) : undefined}
+        >
+          <SegmentedControl
+            label={t("settings.language")}
+            value={language}
+            onChange={setLanguage}
+            options={[
+              { value: "auto", label: t("settings.languageAuto") },
+              { value: "en", label: t("settings.languageEnglish") },
+              { value: "fr", label: t("settings.languageFrench") },
             ]}
           />
         </SettingRow>
@@ -135,6 +168,7 @@ export function SettingsPage() {
       <DetectionSection />
       {CLEAN_ENABLED && <CleaningSection />}
       <ComputeSection />
+      <ModelsSection />
       <StorageSection />
       <AboutSection />
     </div>
@@ -208,24 +242,26 @@ function DetectionSection() {
 }
 
 const CLEAN_MODES: { value: CleanMode; label: MessageKey }[] = [
+  { value: "apply", label: "clean.settings.apply" },
   { value: "suggest", label: "clean.settings.suggest" },
   { value: "auto", label: "clean.settings.auto" },
   { value: "off", label: "clean.settings.off" },
 ];
 
-/** Cleaning (065): what Clean does with a new dataset. Default "Suggest only" until the precision
- *  of the automatic rules is measured (M4). */
+/** Cleaning (065): what Clean does with a new dataset. Default "Apply the reliable fixes" (N03):
+ *  the fixes measured right on 99 % or more are applied in the draft, shown and undoable; Suggest
+ *  only (or Off) turns that off. */
 function CleaningSection() {
   const settings = useCleanSettings();
   const save = useUpdateCleanSettings();
-  const mode = settings.data?.mode ?? "suggest";
+  const mode = settings.data?.mode ?? "apply";
   if (settings.isError) return null; // the server's Clean module is off (QUANTILO_CLEAN_ENABLED)
   return (
     <Section title={t("clean.settings.title")} intro={t("clean.settings.intro")}>
       <SettingRow
         label={t("clean.settings.mode")}
-        hint={t("clean.settings.modeHint")}
-        onReset={mode !== "suggest" ? () => save.mutate("suggest") : undefined}
+        hint={t("clean.settings.reliableHint")}
+        onReset={mode !== "apply" ? () => save.mutate("apply") : undefined}
       >
         <Select
           aria-label={t("clean.settings.mode")}
@@ -274,6 +310,80 @@ function ComputeSection() {
           ]}
         />
       </SettingRow>
+    </Section>
+  );
+}
+
+/** 028 B1: the AI forecasting models, their weights on this computer, "Never download". */
+function ModelsSection() {
+  const list = useAiModels();
+  const download = useDownloadModel();
+  const stop = useStopDownload();
+  const remove = useDeleteModel();
+  const never = useNeverDownload();
+  const [asking, setAsking] = useState<AiModel | null>(null);
+  if (LITE)
+    return (
+      <Section title={t("settings.models")}>
+        <p className="py-3 text-xs text-ink-3">{t("settings.models.browser")}</p>
+      </Section>
+    );
+  const data = list.data;
+  const action = (model: AiModel) => {
+    if (!model.pretrained) return <span className="text-xs text-ink-3">{t("settings.models.trained")}</span>;
+    if (model.state === "ready")
+      return (
+        <Button onClick={() => remove.mutate(model.key)} disabled={remove.isPending}>
+          {t("settings.models.delete")}
+        </Button>
+      );
+    if (model.state === "needs_download" && model.download !== "running")
+      return <Button onClick={() => setAsking(model)}>{t("fcai.badge.download", { size: model.size_text })}</Button>;
+    return null;
+  };
+  const hint = (model: AiModel) => {
+    if (model.state === "ready") return t("settings.models.ready", { size: model.size_text });
+    if (model.state === "needs_extra") return t("fcai.state.needs_extra", { install: model.install ?? "" });
+    if (model.state === "offline") return t("fcai.state.offline", { folder: model.folder });
+    return `${model.parameters} · ${model.licence}${model.size_text ? ` · ${model.size_text}` : ""}`;
+  };
+  return (
+    <Section title={t("settings.models")} intro={t("settings.modelsIntro")}>
+      {!data ? (
+        <Loading label={t("loading.default")} className="h-24 rounded-md" />
+      ) : (
+        <>
+          {data.models.map((model) => (
+            <SettingRow key={model.key} label={aiTitle(model.key)} hint={hint(model)}>
+              {action(model)}
+            </SettingRow>
+          ))}
+          <DownloadProgress models={data.models} onStop={(key) => stop.mutate(key)} />
+          <SettingRow label={t("settings.models.folder")} hint={t("settings.models.folderHint")}>
+            <code className="max-w-80 truncate rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs text-ink-1" title={data.folder}>
+              {data.folder}
+            </code>
+          </SettingRow>
+          <SettingRow
+            label={t("settings.models.never")}
+            hint={data.offline_forced ? t("settings.models.neverForced") : t("settings.models.neverHint")}
+          >
+            <SegmentedControl
+              label={t("settings.models.never")}
+              value={data.offline ? "on" : "off"}
+              onChange={(value) => !data.offline_forced && never.mutate(value === "on")}
+              options={[
+                { value: "on", label: t("settings.on") },
+                { value: "off", label: t("settings.off") },
+              ]}
+            />
+          </SettingRow>
+          {(download.isError || remove.isError || never.isError) && (
+            <ErrorNote>{(download.error ?? remove.error ?? never.error)?.message}</ErrorNote>
+          )}
+        </>
+      )}
+      {asking && <DownloadDialog model={asking} onClose={() => setAsking(null)} onConfirm={(key) => download.mutate(key)} />}
     </Section>
   );
 }

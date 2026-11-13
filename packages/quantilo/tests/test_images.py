@@ -371,10 +371,49 @@ def test_heic_and_avif_take_the_largest_ispe() -> None:
     info = look(heif(b"heic", (b"mif1", b"heic"), ((512, 384), (4032, 3024))), "IMG_1.HEIC")
     assert (info.format, info.mime) == ("heic", "image/heic")
     assert (info.width, info.height, info.bit_depth, info.channels) == (4032, 3024, 10, 3)
-    assert any("EXIF in HEIF" in note for note in info.notes)
+    assert not any("EXIF" in note for note in info.notes)  # C1: no EXIF item, nothing to say
     avif = look(heif(b"avif", (b"mif1", b"avif"), ((64, 64),)))
     assert (avif.format, avif.width, avif.animated) == ("avif", 64, False)
     assert look(heif(b"avis", (b"avif", b"msf1"), ((64, 64),))).animated
+
+
+def heif_with_exif(exif: bytes, version: int = 0, prefix: bytes = b"\0\0\0\x06Exif\0\0") -> bytes:
+    """C1: a HEIC whose `meta` lists an `Exif` item (iinf) stored in `mdat` (iloc)."""
+    ftyp = box(b"ftyp", b"heic" + b"\0\0\0\0" + b"mif1heic")
+    infe = box(b"infe", bytes([2, 0, 0, 0]) + struct.pack(">HH", 1, 0) + b"Exif", full=False)
+    iinf = box(b"iinf", struct.pack(">H", 1) + infe, full=True)
+    payload = prefix + exif
+    props = box(b"ipco", box(b"ispe", struct.pack(">II", 4032, 3024), full=True))
+
+    def meta(offset: int) -> bytes:
+        if version == 0:
+            entry = struct.pack(">HHHII", 1, 0, 1, offset, len(payload))
+            iloc = box(b"iloc", bytes([0, 0, 0, 0, 0x44, 0x00]) + struct.pack(">H", 1) + entry)
+        else:
+            entry = struct.pack(">HHHHII", 1, 0, 0, 1, offset, len(payload))
+            iloc = box(b"iloc", bytes([1, 0, 0, 0, 0x44, 0x00]) + struct.pack(">H", 1) + entry)
+        return box(
+            b"meta",
+            box(b"hdlr", bytes(20), full=True) + iinf + iloc + box(b"iprp", props),
+            full=True,
+        )
+
+    head = ftyp + meta(0)
+    return ftyp + meta(len(head) + 8) + box(b"mdat", payload)
+
+
+@pytest.mark.parametrize("version", [0, 1])
+def test_heic_exif_item_is_read_without_a_decoder(version: int) -> None:
+    exif = tiff(
+        [(271, 2, "Apple"), (272, 2, "iPhone 15 Pro"), (306, 2, "2024:05:01 09:30:00")], gps=GPS
+    )
+    info = look(heif_with_exif(exif, version), "IMG_2.HEIC")
+    assert (
+        info.exif is not None and info.exif.model == "iPhone 15 Pro" and info.exif.make == "Apple"
+    )
+    assert info.exif.date_taken and info.exif.date_taken.startswith("2024-05-01")
+    assert info.exif.has_location  # the GPS block is there, never read (R-IMG-05)
+    assert (info.width, info.height) == (4032, 3024)
 
 
 def test_video_ftyp_is_named_not_an_image() -> None:

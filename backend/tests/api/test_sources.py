@@ -153,3 +153,26 @@ def test_tables_go_in_the_open_project(client: TestClient, tmp_path: Path) -> No
     assert sorted(next(p for p in projects if p["id"] == project["id"])["dataset_ids"]) == sorted(
         ids
     )
+
+
+def test_sheets_with_the_same_columns_are_stacked(client: TestClient, tmp_path: Path) -> None:
+    """S1 (C1): three monthly sheets with the same columns found on demand, imported as one."""
+    sheets = {
+        month: [["Product", "Units"], *[[f"P{i}", i + n] for i in range(4)]]
+        for n, month in enumerate(("Jan", "Feb", "Mar"))
+    }
+    path = write_excel(tmp_path / "months.xlsx", sheets)
+    stacks = client.post("/api/v1/sources/stacks", json={"path": str(path)}).json()
+    assert len(stacks) == 1 and stacks[0]["rule"] == "S1" and stacks[0]["rows"] == 12
+    tables = [{"id": table} for table in stacks[0]["tables"]]
+    response = client.post(
+        "/api/v1/sources/import", json={"path": str(path), "tables": tables, "stack": True}
+    )
+    assert response.status_code == 201, response.text
+    [item] = response.json()["imports"]
+    assert (item["dataset"]["row_count"], item["dataset"]["col_count"]) == (12, 3)
+    refused = client.post(
+        "/api/v1/sources/import",
+        json={"path": str(path), "tables": tables[:1], "stack": True},
+    )
+    assert refused.status_code == 422 and refused.json()["error"]["code"] == "not_stackable"

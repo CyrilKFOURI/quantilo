@@ -11,7 +11,7 @@ Le **vrai backend** (FastAPI + le moteur `cyfouri-data-explorer`) tourne dans un
 | Pièce | Rôle |
 |---|---|
 | `lite/boot.py` | Crée l'app FastAPI dans Pyodide et répond aux requêtes par appel ASGI direct. Pas de threads en WebAssembly : routes synchrones, tâches de fond (`ThreadPoolExecutor`) et fichiers (`anyio.to_thread`) exécutés sur place. |
-| `lite/bundle.py` | Emballe le moteur, `backend/app` et les exemples dans `python.zip`, et télécharge les 4 roues pures Python absentes de Pyodide (openpyxl, et-xmlfile, pydantic-settings, python-dotenv) : aucune visite n'appelle PyPI. |
+| `lite/bundle.py` | Emballe le moteur, `backend/app` et les exemples dans `python.zip`, et télécharge les 5 roues pures Python absentes de Pyodide (openpyxl, et-xmlfile, pydantic-settings, python-dotenv, holidays depuis 028 A5) : aucune visite n'appelle PyPI. |
 | `frontend/src/lite/worker.ts` | Charge Pyodide (CDN jsDelivr, version figée) et les bibliothèques, décompresse `python.zip`, monte l'espace de travail en IndexedDB (persistant entre visites), sert les requêtes une par une. |
 | `frontend/src/lite/bridge.ts` | Redirige `fetch("/api/…")` et les liens de téléchargement vers le worker. |
 | `frontend/src/lite/EngineGate.tsx` | Écran de chargement avec progression. |

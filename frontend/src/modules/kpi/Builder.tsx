@@ -1,7 +1,7 @@
 import { ChevronDown, Plus, Save, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
-import type { Column, KpiDefinition, KpiResult } from "../../api/client";
+import type { Column, DateChoice, KpiDefinition, KpiResult } from "../../api/client";
 import { ColumnOptions } from "../../features/derived/ColumnOptions";
 import { t, type MessageKey } from "../../lib/i18n";
 import { PHONE, useMedia } from "../../lib/useMedia";
@@ -14,6 +14,7 @@ import {
   AGGS,
   columnsFor,
   dateColumns,
+  rankedDates,
   defaultMeasure,
   DELAY_AGGS,
   GRAINS,
@@ -175,6 +176,7 @@ function AddRatio({ onPick }: { onPick: (kind: RatioKind) => void }) {
 export function Builder({
   definition,
   columns,
+  dateOrder,
   result,
   invalid,
   dirty,
@@ -187,6 +189,8 @@ export function Builder({
 }: {
   definition: KpiDefinition;
   columns: Column[];
+  /** 048 bis: the date columns in the order R-SUG-17 prefers, each with its reason. */
+  dateOrder?: DateChoice[];
   result: KpiResult | undefined;
   invalid: string | null; // the field the server asked to fix
   dirty: boolean;
@@ -199,7 +203,8 @@ export function Builder({
 }) {
   const phone = useMedia(PHONE);
   const measures = definition.measures;
-  const dates = dateColumns(columns);
+  const dates = rankedDates(dateColumns(columns), dateOrder);
+  const dateReason = new Map((dateOrder ?? []).map((d) => [d.name, d]));
   const splits = splitColumns(columns);
   const time = definition.time ?? null;
   const groups = definition.groups ?? [];
@@ -396,11 +401,15 @@ export function Builder({
               className={`${small} max-w-36 ${mark("time.column")}`}
             >
               <option value="">{t("kpi.noTime")}</option>
-              {dates.map((c) => (
-                <option key={c.name} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
+              {dates.map((c, index) => {
+                const choice = dateReason.get(c.name);
+                const note = choice?.tier === null ? t("kpi.date.birth") : index === 0 && choice ? t("kpi.date.preferred") : null;
+                return (
+                  <option key={c.name} value={c.name} title={choice?.reason}>
+                    {note ? `${c.name} · ${note}` : c.name}
+                  </option>
+                );
+              })}
             </Select>
             {time && (
               <>

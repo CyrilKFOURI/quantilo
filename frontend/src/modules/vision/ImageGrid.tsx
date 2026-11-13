@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Ban, Check, FileWarning, TriangleAlert } from "lucide-react";
+import { Ban, Check, FileWarning, Pin, TriangleAlert } from "lucide-react";
 import {
   memo,
   useCallback,
@@ -13,12 +13,14 @@ import {
 } from "react";
 
 import { imageUrl } from "../../features/import/imageSetApi";
+import type { EditPatch } from "./api";
 import { t } from "../../lib/i18n";
 import { PHONE, TOUCH, useMedia } from "../../lib/useMedia";
 import {
   clickSelection,
   exclusionCause,
   isExcluded,
+  labelPatch,
   positionsInRect,
   type Decision,
   type Draft,
@@ -43,6 +45,9 @@ type GridProps = {
   onSelectedChange: (next: Set<string>) => void;
   onOpen: (row: ImageRow) => void;
   onDecide: (keys: string[], decision: Decision | null) => void;
+  /** c3: keys 1 to 9 label the selection with these, 0 gives back the import's, p pins. */
+  labelChoices?: readonly string[];
+  onEdit?: (patch: EditPatch) => void;
 };
 
 export function gridLayout(width: number, density: Density, phone: boolean) {
@@ -59,7 +64,7 @@ export function gridLayout(width: number, density: Density, phone: boolean) {
  * Ctrl/⌘+click, a rectangle dragged with the mouse, the arrows with Shift, Ctrl+A; Enter or a
  * double click opens the image; e / k / r decide on the selection (108).
  */
-export function ImageGrid({ datasetId, rows, density, draft, selected, onSelectedChange, onOpen, onDecide }: GridProps) {
+export function ImageGrid({ datasetId, rows, density, draft, selected, onSelectedChange, onOpen, onDecide, labelChoices = [], onEdit }: GridProps) {
   const id = useId();
   const phone = useMedia(PHONE);
   const touch = useMedia(TOUCH);
@@ -207,6 +212,21 @@ export function ImageGrid({ datasetId, rows, density, draft, selected, onSelecte
       event.preventDefault();
       const letter = event.key.toLowerCase();
       onDecide(keys, letter === "e" ? "exclude" : letter === "k" ? "keep" : null);
+    } else if (onEdit && !toggle && !event.altKey && /^[0-9]$/.test(event.key)) {
+      // R-VED-01: the n-th label, 0 back to the import's
+      const keys = keysOfSelection();
+      const labels = labelPatch(keys, Number(event.key), labelChoices);
+      if (keys.length === 0 || labels === null) return;
+      event.preventDefault();
+      onEdit({ labels });
+    } else if (onEdit && !toggle && !event.altKey && event.key.toLowerCase() === "p") {
+      // R-VED-03: pin, or unpin when every image of the selection is pinned
+      const keys = keysOfSelection();
+      if (keys.length === 0) return;
+      event.preventDefault();
+      const chosen = new Set(keys);
+      const all = rows.every((row) => !chosen.has(row.key) || row.pinned);
+      onEdit({ pins: Object.fromEntries(keys.map((key) => [key, !all])) });
     }
   };
 
@@ -367,7 +387,8 @@ type TileProps = {
 
 /** The words of an image for a screen reader and a tooltip: name, label, problems (R-107-07). */
 export function describeImage(row: ImageRow): string {
-  return [row.name, row.label, row.issues.length > 0 ? row.issues.join(", ") : null].filter(Boolean).join(", ");
+  const was = row.label !== row.labelOriginal ? t("vision.edits.was", { label: row.labelOriginal ?? "—" }) : null;
+  return [row.name, row.label, was, row.pinned ? t("vision.edits.pinned") : null, row.issues.length > 0 ? row.issues.join(", ") : null].filter(Boolean).join(", ");
 }
 
 const Tile = memo(function Tile({
@@ -459,9 +480,15 @@ const Tile = memo(function Tile({
             <Check size={12} strokeWidth={2.25} aria-hidden />
           </span>
         </button>
+        {row.pinned && (
+          <span className="absolute right-1.5 bottom-1.5 inline-flex size-5 items-center justify-center rounded-[4px] border border-line bg-surface-1/95 text-ink-1" title={t("vision.edits.pinned")}>
+            <Pin size={11} strokeWidth={1.75} aria-hidden />
+            <span className="sr-only">{t("vision.edits.pinned")}</span>
+          </span>
+        )}
         {(excluded || cause.kind === "kept") && (
           <span
-            className={`absolute right-1.5 bottom-1.5 left-1.5 inline-flex min-w-0 items-center gap-1 truncate rounded-[4px] border border-line bg-surface-1/95 px-1.5 py-px text-[10px] leading-4 ${
+            className={`absolute bottom-1.5 left-1.5 inline-flex min-w-0 ${row.pinned ? "right-8" : "right-1.5"} items-center gap-1 truncate rounded-[4px] border border-line bg-surface-1/95 px-1.5 py-px text-[10px] leading-4 ${
               excluded ? "text-ink-1" : "text-ok"
             }`}
           >
@@ -479,7 +506,12 @@ const Tile = memo(function Tile({
       {/* the label first; the file name only when the tile is wide enough to read it (container query) */}
       <div className="@container/caption flex h-[36px] min-w-0 items-center gap-1.5 pt-1" title={row.key}>
         {row.label !== null && (
-          <span className="max-w-full min-w-0 shrink-0 truncate rounded-[4px] bg-surface-2 px-1.5 text-[11px] leading-5 text-ink-1">{row.label}</span>
+          <span
+            className={`max-w-full min-w-0 shrink-0 truncate rounded-[4px] px-1.5 text-[11px] leading-5 text-ink-1 ${row.label !== row.labelOriginal ? "bg-accent-soft" : "bg-surface-2"}`}
+            title={row.label !== row.labelOriginal ? t("vision.edits.was", { label: row.labelOriginal ?? "—" }) : undefined}
+          >
+            {row.label}
+          </span>
         )}
         <span
           className={`min-w-0 flex-1 truncate font-mono text-[11px] text-ink-2 ${row.label !== null ? "hidden @[200px]/caption:block" : ""} ${compact && row.label !== null ? "!hidden" : ""}`}

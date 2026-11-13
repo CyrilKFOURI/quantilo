@@ -1,0 +1,7 @@
+{
+  "cleanMisc.where.open": "Open these rows in Data",
+  "cleanMisc.where.hint": "{count} values: look at the rows there, or pin them",
+  "cleanMisc.model.orphans": "These {count} rows stay in {child}. Clean › Advanced of {child} lists them (T-01) and proposes a fix for keys one letter away from a {parent} key.",
+  "cleanMisc.model.duplicates": "Clean › Advanced of {parent} lists the repeated keys (T-02).",
+  "cleanMisc.model.open": "Open Clean of {name}"
+}

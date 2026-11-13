@@ -150,7 +150,7 @@ export function PreparationEditor({
         ) : (
           <Tabs label={t("ml.prep.title")} value={tab} items={tabs} onChange={setTab}>
             <div className={preview.isFetching ? "opacity-70 transition-opacity" : undefined}>
-              {tab === "columns" && <ColumnsTab preparation={preview.data.preparation} target={target} onColumn={setColumn} />}
+              {tab === "columns" && <ColumnsTab preparation={preview.data.preparation} target={target} onColumn={setColumn} onGlobal={setGlobal} />}
               {tab === "selection" && <SelectionTab preparation={preview.data.preparation} choices={choices} onChoices={onChoices} />}
               {tab === "missing" && <MissingTab preparation={preview.data.preparation} onGlobal={setGlobal} />}
               {tab === "imbalance" && <ImbalanceTab preparation={preview.data.preparation} onGlobal={setGlobal} />}
@@ -167,7 +167,17 @@ export function PreparationEditor({
 
 type OnColumn = (column: string, key: keyof MlColumnChoice, value: string | boolean | undefined) => void;
 
-function ColumnsTab({ preparation, target, onColumn }: { preparation: MlPreparation; target: string; onColumn: OnColumn }) {
+function ColumnsTab({
+  preparation,
+  target,
+  onColumn,
+  onGlobal,
+}: {
+  preparation: MlPreparation;
+  target: string;
+  onColumn: OnColumn;
+  onGlobal: (key: Global, value: unknown) => void;
+}) {
   const rows = preparation.decisions.filter((d) => d.column !== target);
   const used = rows.filter((d) => d.use);
   const excluded = rows.filter((d) => !d.use);
@@ -197,14 +207,25 @@ function ColumnsTab({ preparation, target, onColumn }: { preparation: MlPreparat
           ))}
         </tbody>
       </table>
-      <AdvancedEncodings preparation={preparation} onColumn={onColumn} />
+      <AdvancedEncodings preparation={preparation} onColumn={onColumn} onTargetLag={(value) => onGlobal("target_lag", value)} target={target} />
     </div>
   );
 }
 
 /** Causal smoothed lags (063, R-LAG-01): niche and rarely worth it, so they live in
  * Advanced › More, folded twice and not rendered before the user opens them. */
-export function AdvancedEncodings({ preparation, onColumn }: { preparation: MlPreparation; onColumn: OnColumn }) {
+export function AdvancedEncodings({
+  preparation,
+  onColumn,
+  onTargetLag,
+  target,
+}: {
+  preparation: MlPreparation;
+  onColumn: OnColumn;
+  /** 063 bis (R-LAG-03): the target's own past as an input, ordered rows only. */
+  onTargetLag?: (value: "none" | "past_mean" | "past_ewm") => void;
+  target?: string;
+}) {
   const [more, setMore] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   return (
@@ -215,6 +236,7 @@ export function AdvancedEncodings({ preparation, onColumn }: { preparation: MlPr
       <details className="mt-2" onToggle={(event) => setMore(event.currentTarget.open)}>
         <summary className="cursor-pointer text-[13px] text-accent select-none hover:underline">{t("ml.prep.more")}</summary>
         {more && <LagChoices preparation={preparation} onColumn={onColumn} />}
+        {more && onTargetLag && <TargetLag preparation={preparation} target={target ?? ""} onChange={onTargetLag} />}
       </details>
     </details>
   );
@@ -252,6 +274,39 @@ function LagChoices({ preparation, onColumn }: { preparation: MlPreparation; onC
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/** 063 bis (R-LAG-03): the target's mean (or EWMA) over its previous periods, shifted by one
+ *  period plus the embargo; refused without ordered rows (R-LAG-02), with the reason. */
+function TargetLag({ preparation, target, onChange }: { preparation: MlPreparation; target: string; onChange: (value: "none" | "past_mean" | "past_ewm") => void }) {
+  const value = preparation.choices?.target_lag ?? "none";
+  const said = (preparation.warnings ?? []).find((w) => w.startsWith("R-LAG-03") || w.startsWith("R-LAG-02 · Past values of the target"));
+  const ordered = Boolean(preparation.order);
+  return (
+    <div className="mt-3 space-y-1">
+      <p className="max-w-prose text-ink-2">{t("ml.prep.targetLag.intro", { target })}</p>
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-ink-1">{target}</span>
+        <Select
+          aria-label={t("ml.prep.targetLag.label", { target })}
+          value={value}
+          disabled={!ordered && value === "none"}
+          title={!ordered ? t("ml.prep.targetLag.needsOrder") : undefined}
+          onChange={(event) => onChange(event.target.value as "none" | "past_mean" | "past_ewm")}
+          className="h-7 max-w-40 text-xs"
+        >
+          <option value="none">{t("ml.prep.lags.off")}</option>
+          {LAGS.map((lag) => (
+            <option key={lag} value={lag}>
+              {label("transform", lag)}
+            </option>
+          ))}
+        </Select>
+      </div>
+      {!ordered && <p className="max-w-prose text-ink-3">{t("ml.prep.targetLag.needsOrder")}</p>}
+      {said && <p className="max-w-prose text-ink-2">{said}</p>}
     </div>
   );
 }

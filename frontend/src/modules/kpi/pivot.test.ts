@@ -62,6 +62,7 @@ const result: KpiResult = {
   },
   warnings: [],
   signals: [],
+  warning_details: [],
 };
 
 const options = (patch: Partial<TableOptions> = {}): TableOptions => ({

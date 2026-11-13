@@ -14,8 +14,10 @@ from typing import Any, Literal
 
 import numpy as np
 
+from quantilo.timeseries import ai
 from quantilo.timeseries import drivers as dv
 from quantilo.timeseries import forecast as fc
+from quantilo.timeseries import prophet_like as pl
 from quantilo.timeseries import series as ts
 from quantilo.timeseries.seasonality import period_end, starts
 
@@ -36,6 +38,12 @@ class SeriesForecast:
     demand: fc.DemandPattern | None = None  # set when the series has zeros
     drivers: list[dv.DriverInfo] = field(default_factory=list)  # 028 A4
     driver_notes: list[str] = field(default_factory=list)  # assumptions about future values
+    # Seasonal cycles the history covers at least twice ("weekly", "yearly"): with two or more,
+    # models with several seasons (Prophet-like, STLF) are suggested (028 A6).
+    cycles: list[str] = field(default_factory=list)
+    # Coded rules on the length of the series (028 B2, B4): a pretrained model for a short one,
+    # a trained network for a long one, each with its reason.
+    suggestions: list[ai.ModelSuggestion] = field(default_factory=list)
 
 
 @dataclass
@@ -89,6 +97,7 @@ class ForecastJobs:
         horizon: int,
         models: dict[str, fc.Model],
         drivers: dv.DriverSet | None = None,
+        limit: float | None = None,
     ) -> ForecastJob:
         with self._lock:
             known = self._by_key.get(key)
@@ -105,7 +114,7 @@ class ForecastJobs:
                 self._cancels.pop(old_id, None)
                 self._by_key = {k: v for k, v in self._by_key.items() if v != old_id}
         self._executor.submit(
-            self._run, job, values, periods, period, season, horizon, models, drivers
+            self._run, job, values, periods, period, season, horizon, models, drivers, limit
         )
         return job
 
@@ -119,6 +128,7 @@ class ForecastJobs:
         horizon: int,
         models: dict[str, fc.Model],
         drivers: dv.DriverSet | None = None,
+        limit: float | None = None,
     ) -> None:
         cancelled = self._cancels[job.id].is_set
 
@@ -135,12 +145,17 @@ class ForecastJobs:
                     job.status = "cancelled"
                     return
                 job.current = key
-                if drivers is not None and drivers.infos and key in fc.DRIVER_MODELS:
+                refused = ai.refusal(key, len(series))
+                if refused:  # 028 B1, B4: extra or weights missing, a network on a short series
+                    results.append(fc.ModelResult(key, None, None, None, error=refused))
+                    if drivers is not None and drivers.infos and key in fc.DRIVER_MODELS:
+                        job.done += dv.extra_runs(drivers)  # its comparisons will not run
+                elif drivers is not None and drivers.infos and key in fc.DRIVER_MODELS:
                     results.append(
-                        dv.run(key, model, series, horizon, season, drivers, cancelled, step)
+                        dv.run(key, model, series, horizon, season, drivers, cancelled, step, limit)
                     )
                 else:
-                    results.append(fc.run_model(key, model, series, horizon, season))
+                    results.append(fc.run_model(key, model, series, horizon, season, limit))
                 job.done += 1
             if "combination" in models:
                 job.current = "combination"
@@ -168,6 +183,8 @@ class ForecastJobs:
                 fc.demand_pattern(series),
                 drivers.infos if drivers else [],
                 drivers.notes if drivers else [],
+                [cycle.name for cycle in pl.cycles(period, season, len(series))[0]],
+                ai.suggestions(len(series), season, list(models)),
             )
             job.status = "done"
         except Exception as error:

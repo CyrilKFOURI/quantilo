@@ -14,6 +14,7 @@ from quantilo.experiments.service import (
     PolicyModel,
 )
 from quantilo.filters.model import Condition, parse_filters
+from quantilo.interpret.matching import MatchedGroups, MatchingRequest
 
 router = APIRouter(tags=["module:experiments"])
 
@@ -122,3 +123,13 @@ def evaluate_policy(
     DR for the logged decisions, each constant policy, the learnt rule and the saved models."""
     models = policy_models(request.app, dataset_id, body.models)
     return service.evaluate_policy(dataset_id, body, filters, models)
+
+
+@router.post("/datasets/{dataset_id}/matching")
+def matching(
+    dataset_id: str, body: MatchingRequest, service: Service, filters: Filters
+) -> MatchedGroups:
+    """Matched groups (123, FLAME): units matched exactly on their covariates, the least
+    predictive covariate dropped level by level; the effect in each group, on average and on
+    the treated, and the balance before and after (Policies > Advanced, asked when opened)."""
+    return service.matching(dataset_id, body, filters)

@@ -4,6 +4,7 @@ import type { Structure } from "../../api/client";
 import { withAlpha } from "../../charts/figures";
 import type { Figure } from "../../charts/Plot";
 import { divergingScale } from "./figures";
+import { t } from "../../lib/i18n";
 
 const title = (text: string) => ({ title: { text, font: { size: 11 } } });
 const percent = (share: number) => `${Math.round(share * 100)}%`;
@@ -18,39 +19,39 @@ export function screeFigure(structure: Structure): Figure {
       data: [
         {
           type: "bar",
-          name: "Eigenvalue",
+          name: t("fig.structure.eigenvalue"),
           x: names,
           y: structure.components.map((c) => c.eigenvalue),
           marker: { color: structure.components.map((c) => (c.retained ? kept : withAlpha(tokens.ink3, 0.45))) },
-          customdata: structure.components.map((c) => [percent(c.explained), c.retained ? "kept" : "not kept"]),
-          hovertemplate: "%{x}: eigenvalue %{y:.2f}<br>%{customdata[0]} of the variance · %{customdata[1]}<extra></extra>",
+          customdata: structure.components.map((c) => [percent(c.explained), c.retained ? t("fig.structure.kept") : t("fig.structure.notKept")]),
+          hovertemplate: t("fig.structure.hoverEigenvalue"),
         } as Data,
         {
           type: "scatter",
           mode: "lines",
-          name: "Parallel analysis (95th percentile of shuffled data)",
+          name: t("fig.structure.parallel"),
           x: names,
           y: structure.components.map((c) => c.threshold),
           line: { color: tokens.ink2, dash: "dash", width: 1.5 },
-          hovertemplate: "%{x}: chance level %{y:.2f}<extra></extra>",
+          hovertemplate: t("fig.structure.hoverChance"),
         } as Data,
         {
           type: "scatter",
           mode: "lines+markers",
-          name: "Cumulative share",
+          name: t("fig.structure.cumulative"),
           x: names,
           y: structure.components.map((c) => c.cumulative * 100),
           yaxis: "y2",
           line: { color: tokens.palette[1] ?? tokens.ink1, width: 1.5 },
           marker: { size: 5 },
-          hovertemplate: "%{x}: %{y:.0f}% of the variance so far<extra></extra>",
+          hovertemplate: t("fig.structure.hoverCumulative"),
         } as Data,
       ],
       layout: {
         showlegend: true,
         legend: { orientation: "h", x: 0, y: -0.18, font: { size: 10 } },
         xaxis: { type: "category" },
-        yaxis: { ...title("Eigenvalue"), rangemode: "tozero" },
+        yaxis: { ...title(t("fig.structure.eigenvalue")), rangemode: "tozero" },
         yaxis2: {
           overlaying: "y",
           side: "right",
@@ -87,7 +88,7 @@ export function loadingsFigure(structure: Structure): Figure {
           xgap: 1,
           ygap: 1,
           colorbar: { thickness: 10, outlinewidth: 0, tickfont: { size: 10, color: tokens.ink3 }, len: 0.8 },
-          hovertemplate: "%{y} on %{x}: %{z:.2f}<extra></extra>",
+          hovertemplate: t("fig.structure.hoverLoading"),
         } as unknown as Data,
       ],
       layout: {
@@ -126,7 +127,7 @@ export function biplotFigure(structure: Structure): Figure {
       textfont: { size: 10, color: tokens.ink1 },
       marker: { color: arrowColor, size: 5 },
       customdata: biplot.arrows.map((a) => [a.x, a.y]),
-      hovertemplate: "%{text}<br>loading %{customdata[0]:.2f} on PC1, %{customdata[1]:.2f} on PC2<extra></extra>",
+      hovertemplate: t("fig.structure.hoverBiplot"),
     } as Data;
     return {
       data: [

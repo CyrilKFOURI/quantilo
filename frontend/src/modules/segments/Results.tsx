@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatNumber } from "../../charts/figures";
 import { Plot } from "../../charts/Plot";
-import { useColumns } from "../../api/hooks";
+import { useColumns, useInterpretAvailable } from "../../api/hooks";
 import { TextWords, wordColumns } from "../../features/text/TextWords";
 import { formatCount } from "../../lib/format";
 import { t } from "../../lib/i18n";
@@ -23,9 +23,11 @@ import {
   type SegmentProfileRow,
   type SegmentRun,
   type Segmentation,
+  type ExtraMap,
 } from "./api";
 import { dendrogramFigure, mapFigure, namesOf, scoreFigure, shownScores, stabilityFigure } from "./figures";
 import { JobStatus } from "./SegmentsPage";
+import { TreeSection } from "./TreeSection";
 import { Loading } from "../../ui/Loading";
 
 const pct = (share: number | null | undefined) => (share === null || share === undefined ? "—" : `${Math.round(share * 100)} %`);
@@ -73,6 +75,7 @@ export function Results({ datasetId, run }: { datasetId: string; run: SegmentRun
         </section>
       )}
       <Portraits datasetId={datasetId} run={run} />
+      <TreeSection datasetId={datasetId} run={run} />
       <MapSection datasetId={datasetId} run={run} names={names} />
       <ProfileTable result={result} profiles={result.profiles} />
       <SegmentWords datasetId={datasetId} runId={run.id} />
@@ -214,8 +217,20 @@ function Portrait({ segment, color, onRename }: { segment: SegmentPortrait; colo
   );
 }
 
+type Projection = "pca" | "tsne" | ExtraMap;
+const EXTRA_MAPS: { value: ExtraMap; label: string }[] = [
+  { value: "pacmap", label: "PaCMAP" },
+  { value: "trimap", label: "TriMAP" },
+];
+const HELP = {
+  pca: "segments.mapPcaHelp",
+  tsne: "segments.mapTsneHelp",
+  pacmap: "segments.mapPacmapHelp",
+  trimap: "segments.mapTrimapHelp",
+} as const;
+
 function MapSection({ datasetId, run, names }: { datasetId: string; run: SegmentRun; names: Record<number, string> }) {
-  const [projection, setProjection] = useState<"pca" | "tsne">("pca");
+  const [projection, setProjection] = useState<Projection>("pca");
   const actions = useSegmentActions(datasetId);
   const [jobId, setJobId] = useState<string | null>(null);
   const job = useSegmentJob(jobId);
@@ -230,29 +245,40 @@ function MapSection({ datasetId, run, names }: { datasetId: string; run: Segment
       actions.refresh(finished);
     }
   }, [finished, jobId, actions]);
-  const shown = projection === "tsne" && tsne ? tsne : run.result.map;
+  const extra: Partial<Record<ExtraMap, SegmentRun["result"]["map"]>> = run.result.maps ?? {};
+  const drawn = projection === "tsne" ? tsne : projection === "pca" ? null : extra[projection];
+  const shown = drawn ?? run.result.map;
+  const options: { value: Projection; label: string }[] = [
+    { value: "pca", label: "PCA" },
+    ...(tsne ? [{ value: "tsne" as const, label: "t-SNE" }] : []),
+    ...EXTRA_MAPS.filter((m) => extra[m.value]),
+  ];
+  const busy = job.data?.status === "running";
+  const start = (method: ExtraMap) =>
+    actions.map.mutate(
+      { runId: run.id, method },
+      {
+        onSuccess: (created) => {
+          setJobId(created.id);
+          setProjection(method);
+          if (created.status === "done") actions.refresh(run.id);
+        },
+      },
+    );
   return (
     <section aria-labelledby="segments-map" className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 id="segments-map" className="flex items-center gap-1 text-sm font-medium">
           {t("segments.map")}
-          <InfoTip label={t("segments.map")} text={t(projection === "pca" ? "segments.mapPcaHelp" : "segments.mapTsneHelp")} />
+          <InfoTip label={t("segments.map")} text={t(HELP[drawn ? projection : "pca"])} />
         </h3>
         <span className="flex items-center gap-2">
           {LITE ? (
             <span className="inline-flex items-center gap-1 text-xs text-ink-3" title={t("segments.tsneLocked")}>
               <Lock size={13} strokeWidth={1.5} aria-hidden /> {t("segments.tsneLocked")}
             </span>
-          ) : tsne ? (
-            <SegmentedControl
-              label={t("segments.projection")}
-              value={projection}
-              options={[
-                { value: "pca", label: "PCA" },
-                { value: "tsne", label: "t-SNE" },
-              ]}
-              onChange={setProjection}
-            />
+          ) : tsne || options.length > 1 ? (
+            <SegmentedControl label={t("segments.projection")} value={drawn ? projection : "pca"} options={options} onChange={setProjection} />
           ) : (
             <Button
               variant="ghost"
@@ -274,11 +300,54 @@ function MapSection({ datasetId, run, names }: { datasetId: string; run: Segment
       </div>
       {job.data?.status === "running" && jobId && <JobStatus job={job.data} onCancel={() => cancel.mutate(jobId)} />}
       {job.data?.status === "failed" && <ErrorNote>{job.data.error}</ErrorNote>}
+      {actions.map.error && <ErrorNote>{actions.map.error.message}</ErrorNote>}
       <p className="text-xs text-ink-3">
         {shown.points < shown.of ? t("segments.mapSample", { points: formatCount(shown.points), of: formatCount(shown.of) }) : t("segments.mapAll", { points: formatCount(shown.points) })}
       </p>
       <Plot figure={mapFigure(shown, names)} height={420} label={t("segments.map")} />
+      <MoreMaps drawn={extra} busy={busy || actions.map.isPending} onDraw={start} />
     </section>
+  );
+}
+
+/** The map's More (122): PaCMAP and TriMAP, greyed with their reason when the optional
+ *  `interpret` extra cannot run here (R-XAI-10); nothing is asked for before it is open. */
+function MoreMaps({ drawn, busy, onDraw }: { drawn: Partial<Record<ExtraMap, unknown>>; busy: boolean; onDraw: (method: ExtraMap) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details className="text-xs" onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className="cursor-pointer text-[13px] text-accent select-none hover:underline">{t("segments.mapMore")}</summary>
+      {open && <MoreMapsBody drawn={drawn} busy={busy} onDraw={onDraw} />}
+    </details>
+  );
+}
+
+function MoreMapsBody({ drawn, busy, onDraw }: { drawn: Partial<Record<ExtraMap, unknown>>; busy: boolean; onDraw: (method: ExtraMap) => void }) {
+  const available = useInterpretAvailable(true);
+  if (available.isError) return <ErrorNote>{available.error.message}</ErrorNote>;
+  if (!available.data) return <Loading label={t("segments.mapChecking")} compact className="mt-2 h-12 rounded-md" />;
+  const by = new Map(available.data.map((a) => [a.key, a]));
+  return (
+    <div className="mt-2 space-y-3">
+      <p className="max-w-prose text-xs text-ink-2">{t("segments.mapMoreHint")}</p>
+      {EXTRA_MAPS.map((m) => {
+        const found = by.get(m.value);
+        const usable = Boolean(found?.available);
+        return (
+          <div key={m.value} className="space-y-1">
+            <Button variant="ghost" disabled={!usable || busy || Boolean(drawn[m.value])} title={found?.reason ?? undefined} onClick={() => onDraw(m.value)}>
+              {t("segments.mapDraw", { method: m.label })}
+            </Button>
+            {!usable && found?.reason && <p className="max-w-prose text-xs text-ink-2">{found.reason}</p>}
+            {!usable && found?.install && (
+              <p className="text-xs text-ink-3">
+                {t("ml.scorecard.install")} <code className="font-mono text-ink-2">{found.install}</code>
+              </p>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

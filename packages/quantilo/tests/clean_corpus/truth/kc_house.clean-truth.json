@@ -1,0 +1,13 @@
+{
+ "label": "kc_house",
+ "corpus": "kaggle-data",
+ "path": "housesalesprediction/kc_house_data.csv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-11:date", "verdict": "correct", "why": "day / month order checked on dates after the 12th", "op": "change_type"},
+  {"id": "B-22:yr_renovated", "verdict": "correct", "why": "N10: 0 means never renovated (the data's documentation), 20,699 rows", "op": "null_values"},
+  {"id": "B-22:bedrooms:rare", "verdict": "correct", "why": "N10: 13 houses with 0 bedrooms, worth a look (shown, not changed)"},
+  {"id": "B-22:bathrooms:rare", "verdict": "correct", "why": "N10: 10 houses with 0 bathrooms, worth a look (shown, not changed)"}
+ ]
+}

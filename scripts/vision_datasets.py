@@ -13,6 +13,8 @@ Usage:
     python scripts/vision_datasets.py list
     python scripts/vision_datasets.py get beans
     python scripts/vision_datasets.py get mvtec-bottle --accept-noncommercial
+    python scripts/vision_datasets.py get mvtec-metal_nut --accept-noncommercial
+    python scripts/vision_datasets.py get cifar10-600
     python scripts/vision_datasets.py verify beans mvtec-bottle
 Options: --dest DIR (outside the repository).
 """
@@ -69,6 +71,8 @@ class Dataset:
     noncommercial: bool = False
     licence_marker: str | None = None  # text the downloaded licence file must contain
     notes: tuple[str, ...] = field(default_factory=tuple)
+    # c3: a seeded subset written next to the downloaded file (CIFAR-10: 60 images per class)
+    subset: tuple[str, int] | None = None  # (file to draw from, images per class)
 
 
 BEANS = Dataset(
@@ -136,7 +140,52 @@ MVTEC_BOTTLE = Dataset(
     licence_marker="Attribution-NonCommercial-ShareAlike 4.0",
 )
 
-DATASETS = {d.name: d for d in (BEANS, MVTEC_BOTTLE)}
+MVTEC_METAL_NUT = Dataset(
+    name="mvtec-metal_nut",
+    repo="foersben/mvtec-ad",
+    revision="c75b39616f84db43677bcc8228caaafaf5096d7f",
+    licence="cc-by-nc-sa-4.0",
+    licence_name="CC BY-NC-SA 4.0",
+    task="anomaly detection, one class (metal_nut): 220 normal training images, 115 test images "
+    "(good, bent, color, flip, scratch), pixel masks",
+    citation=MVTEC_BOTTLE.citation,
+    use=MVTEC_BOTTLE.use,
+    prefix="metal_nut",
+    expected_files=430,
+    expected_bytes=165_862_477,
+    noncommercial=True,
+    licence_marker="Attribution-NonCommercial-ShareAlike 4.0",
+)
+
+CIFAR10 = Dataset(
+    name="cifar10-600",
+    repo="uoft-cs/cifar10",
+    revision="0b2714987fa478483af9968de7c934580d0bb9a2",
+    licence="unknown",
+    licence_name="No licence stated on the card (CIFAR-10, Krizhevsky 2009)",
+    task="classification, 10 classes of 32 x 32 images: a seeded subset of 600 test images "
+    "(60 per class), for R-VQ-02 (tiny images) and a small classification run",
+    citation=(
+        "Alex Krizhevsky: Learning Multiple Layers of Features from Tiny Images. Technical "
+        "report, University of Toronto, 2009. https://www.cs.toronto.edu/~kriz/cifar.html"
+    ),
+    use=(
+        "The Hugging Face card states no licence ('unknown') and the authors' page asks for the "
+        "citation of the technical report. Used here locally, for tests only, with the citation; "
+        "never committed, never redistributed."
+    ),
+    files=(
+        FileSpec(
+            "plain_text/test-00000-of-00001.parquet",
+            23_940_850,
+            "841389e6f2d64f28bf17310e430aebac20ec3ba611a3c5e231dc93c645ce84de",
+        ),
+    ),
+    subset=("plain_text/test-00000-of-00001.parquet", 60),
+)
+
+DATASETS = {d.name: d for d in (BEANS, MVTEC_BOTTLE, MVTEC_METAL_NUT, CIFAR10)}
+SUBSET_SEED = 120
 
 
 class DatasetError(RuntimeError):
@@ -363,6 +412,8 @@ def get(dataset: Dataset, dest: Path, accept_noncommercial: bool = False) -> Pat
         ]
         if not any(dataset.licence_marker in text for text in texts):
             raise DatasetError(f"No licence file mentions {dataset.licence_marker!r}.")
+    if dataset.subset is not None:
+        write_subset(dataset, folder)
     manifest = {
         "name": dataset.name,
         "repo": dataset.repo,
@@ -376,6 +427,29 @@ def get(dataset: Dataset, dest: Path, accept_noncommercial: bool = False) -> Pat
         f"{dataset.name}: {done['downloaded']} downloaded, {done['kept']} already there -> {folder}"
     )
     return folder
+
+
+def write_subset(dataset: Dataset, folder: Path) -> Path:
+    """c3: `subset.parquet`, the same columns, `per_class` rows of each label drawn with a fixed
+    seed; the Hugging Face metadata (class names) is kept, so the import reads the labels."""
+    import numpy as np
+    import pyarrow.parquet as pq
+
+    assert dataset.subset is not None
+    source, per_class = dataset.subset
+    table = pq.read_table(folder / source)
+    label = next(n for n in table.column_names if "label" in n)
+    rng = np.random.default_rng(SUBSET_SEED)
+    rows: list[int] = []
+    values = table[label].to_numpy()
+    for value in sorted(set(values.tolist())):
+        found = np.flatnonzero(values == value)
+        rows += sorted(rng.choice(found, min(per_class, len(found)), replace=False).tolist())
+    subset = table.take(sorted(rows))
+    target = folder / "subset.parquet"
+    pq.write_table(subset.replace_schema_metadata(table.schema.metadata), target)
+    print(f"  {dataset.name}: subset of {subset.num_rows} images -> {target}")
+    return target
 
 
 def verify(dataset: Dataset, dest: Path) -> bool:

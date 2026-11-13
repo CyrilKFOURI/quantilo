@@ -379,3 +379,40 @@ def test_at_the_year_grain_the_previous_period_is_last_year(tmp_path: Path) -> N
     assert (
         to_date.previous == to_date.last_year == pytest.approx(315)
     )  # Jan 1 - Nov 10 2024, a leap year
+
+
+# --- 054 bis: signals per group --------------------------------------------------------------
+
+
+def by_group(groups: list[str]) -> pd.DataFrame:
+    """One row a day for each group, the same seasonal level in each (little noise)."""
+    frames = [
+        daily("2023-01-01", "2025-12-31", seasonal, seed=i, noise=0.05).assign(group=g)
+        for i, g in enumerate(groups)
+    ]
+    return pd.concat(frames, ignore_index=True)
+
+
+def test_the_last_month_unusual_in_one_group_while_the_total_is_not(tmp_path: Path) -> None:
+    """R-SIG-09: B jumps in the last complete month, A dips: the total barely moves."""
+    frame = by_group(["A", "B", "C"])
+    last = (frame.day.dt.year == 2025) & (frame.day.dt.month == 12)
+    frame.loc[last & (frame.group == "B"), "value"] *= 1.6
+    frame.loc[last & (frame.group == "A"), "value"] *= 0.4
+    split = {**MONTHLY_SUM, "groups": [{"column": "group"}]}
+    result = run(source(tmp_path, frame), **split)
+    (grouped,) = [s for s in result.signals if s.rule == "R-SIG-09"]
+    assert grouped.scope == "cells" and grouped.kind == "anomaly" and grouped.measure == "m1"
+    assert {c.g1 for c in grouped.cells} == {"A", "B"}
+    assert all(c.period == "2025-12-01" for c in grouped.cells)
+    assert "Dec 2025: unusual in 2 groups of group while the total is not" in grouped.message
+    assert "B high" in grouped.message and "A low" in grouped.message
+    # without a split, nothing per group; an earlier unusual month in a group is never judged
+    assert not [
+        s for s in run(source(tmp_path, frame), **MONTHLY_SUM).signals if s.rule == "R-SIG-09"
+    ]
+    early = by_group(["A", "B", "C"])
+    march = (early.day.dt.year == 2024) & (early.day.dt.month == 3) & (early.group == "B")
+    early.loc[march, "value"] *= 1.8
+    quiet = run(source(tmp_path, early, "early"), **split)
+    assert not [s for s in quiet.signals if s.rule == "R-SIG-09"]

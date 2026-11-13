@@ -32,6 +32,7 @@ from quantilo.filters.model import Condition
 from quantilo.ingestion.images import ImageInfo, inspect_image
 from quantilo.results import to_dict, to_pandas
 from quantilo.timeseries.drivers import Driver, ScenarioChange
+from quantilo.timeseries.forecast import Tuning
 from quantilo.typing.engine import DEFAULT_THRESHOLDS, Thresholds
 from quantilo.version import __version__
 
@@ -168,6 +169,7 @@ __all__ = [
     "Recipe",
     "ScenarioChange",
     "Thresholds",
+    "Tuning",
     "__version__",
     "bandit_simulation",
     "detect_tables",

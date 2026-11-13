@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from app.schemas.model import CheckOut, DatasetName, JoinType, ReasonOut
 
 Mode = Literal["lookup", "expand", "summarise"]
-Columns = Annotated[list[str], Field(min_length=1, max_length=2)]
+Columns = Annotated[list[str], Field(min_length=1, max_length=4)]  # C1: keys of 3 and 4
 
 
 class JoinSuggestIn(BaseModel):
@@ -50,6 +50,27 @@ class JoinIn(BaseModel):
     columns: list[str] | None = None  # the other dataset's columns to add; None = R-BLD-02
     measures: list[MeasureIn] | None = None  # summarise; None = sum and mean (R-BLD-06)
     name: DatasetName | None = None
+
+
+class JoinSourceOut(BaseModel):
+    id: str
+    name: str
+    exists: bool
+
+
+class JoinLineageOut(BaseModel):
+    """C1 (R-JN-06): a joined dataset's sources, and why it is out of date."""
+
+    dataset_id: str
+    left_id: str
+    other_id: str
+    left_columns: list[str]
+    right_columns: list[str]
+    mode: Mode | None
+    sources: list[JoinSourceOut]
+    out_of_date: list[str]  # empty: current
+    can_rebuild: bool
+    updated_at: str
 
 
 class ModeOut(BaseModel):

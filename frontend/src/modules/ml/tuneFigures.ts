@@ -1,6 +1,7 @@
 import type { Data } from "plotly.js-dist-min";
 
 import type { Figure } from "../../charts/Plot";
+import { t } from "../../lib/i18n";
 
 type ParetoTrial = { number: number; value: number | null; state: string; seconds: number; pareto: boolean };
 
@@ -18,26 +19,26 @@ export function paretoFigure(trials: ParetoTrial[], metric: string): Figure {
         {
           type: "scatter",
           mode: "markers",
-          name: "trial",
+          name: t("fig.ml.trial"),
           x: others.map((t) => t.seconds),
           y: others.map((t) => t.value),
           text: others.map((t) => String(t.number)),
           marker: { color: tokens.ink3, size: 6 },
-          hovertemplate: "trial %{text}: %{y:.4g} in %{x:.2f} s<extra></extra>",
+          hovertemplate: t("fig.ml.hoverTrialSeconds"),
         } as Data,
         {
           type: "scatter",
           mode: "lines+markers",
-          name: "Pareto front",
+          name: t("fig.ml.paretoFront"),
           x: front.map((t) => t.seconds),
           y: front.map((t) => t.value),
           text: front.map((t) => String(t.number)),
           line: { color: tokens.palette[1] ?? tokens.categorical, width: 2, shape: "hv" },
           marker: { color: tokens.palette[0] ?? tokens.numeric, size: 9 },
-          hovertemplate: "trial %{text}: %{y:.4g} in %{x:.2f} s<extra></extra>",
+          hovertemplate: t("fig.ml.hoverTrialSeconds"),
         } as Data,
       ],
-      layout: { showlegend: true, xaxis: title("Seconds per trial"), yaxis: title(metric) },
+      layout: { showlegend: true, xaxis: title(t("fig.ml.secondsPerTrial")), yaxis: title(metric) },
     };
   };
 }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import type { MlCounterfactual, MlRun } from "../../api/client";
-import { useMlCounterfactual } from "../../api/hooks";
+import { useMlCounterfactual, useMlPredictionRowCounterfactual } from "../../api/hooks";
 import { formatNumber } from "../../charts/figures";
 import { t } from "../../lib/i18n";
 import { Checkbox, ErrorNote, Select, TextInput } from "../../ui/fields";
@@ -12,28 +12,36 @@ const MAX_CHANGES = 3;
 
 /** “What would change it?” under one row's waterfall (125, Advanced): folded, and not computed
  * before the user opens it. */
-export function WhatWouldChange({ datasetId, run, row }: { datasetId: string; run: MlRun; row: number }) {
+export function WhatWouldChange({
+  datasetId,
+  run,
+  row,
+  predictionId,
+}: {
+  datasetId: string;
+  run: Pick<MlRun, "id" | "task">;
+  row: number;
+  /** 125 bis: a row of new data (Predict on new data), judged against that data (R-XAI-21). */
+  predictionId?: string;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <details className="border-t border-line pt-2 text-xs" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="cursor-pointer text-[13px] text-accent select-none hover:underline">{t("ml.whatif.open")}</summary>
-      {open && <Search datasetId={datasetId} run={run} row={row} />}
+      {open && <Search datasetId={datasetId} run={run} row={row} predictionId={predictionId} />}
     </details>
   );
 }
 
-function Search({ datasetId, run, row }: { datasetId: string; run: MlRun; row: number }) {
+function Search({ datasetId, run, row, predictionId }: { datasetId: string; run: Pick<MlRun, "id" | "task">; row: number; predictionId?: string }) {
   const [editable, setEditable] = useState<string[] | null>(null);
   const [maxChanges, setMaxChanges] = useState(MAX_CHANGES);
   const [targetClass, setTargetClass] = useState<string | null>(null);
   const [targetValue, setTargetValue] = useState<number | null>(null);
-  const found = useMlCounterfactual(datasetId, run.id, {
-    row,
-    editable,
-    target_class: targetClass,
-    target_value: targetValue,
-    max_changes: maxChanges,
-  });
+  const body = { editable, target_class: targetClass, target_value: targetValue, max_changes: maxChanges };
+  const onRun = useMlCounterfactual(datasetId, run.id, predictionId ? null : { row, ...body });
+  const onNew = useMlPredictionRowCounterfactual(datasetId, predictionId ?? "", row, predictionId ? body : null);
+  const found = predictionId ? onNew : onRun;
   const data = found.data;
   const allowed = editable ?? data?.columns.filter((c) => c.editable).map((c) => c.column) ?? [];
   const toggle = (column: string, on: boolean) =>

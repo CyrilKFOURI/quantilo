@@ -3,12 +3,15 @@ and a colour, kept in SQLite under the row's key (R-PIN-01), found again after a
 (R-PIN-02), and compared with the other rows on request (R-PIN-05)."""
 
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
+import duckdb
 from pydantic import BaseModel, Field, field_validator
+from quantilo.ingestion.sql import lit
 from quantilo.segments.engine import SegmentsEngine
 from quantilo.segments.pinned import PinnedComparison
 
@@ -65,6 +68,7 @@ class Pin:
     color: int
     created_at: str
     found: bool  # False: the row is no longer in the dataset (R-PIN-02)
+    inherited: bool = False  # 099 bis: pinned on the parent, followed through the cleaning
 
 
 @dataclass
@@ -80,6 +84,9 @@ class PinnedRows:
     labels: list[PinLabel]  # in the order they were first used
     missing: int  # pins whose row was not found
     limit: int = MAX_PINS
+    # R-PIN-16 (099 bis): what was taken from the parent dataset of a cleaned version, said
+    parent: str | None = None
+    inherited: int = 0  # the parent's pins whose row is in this version
 
 
 def _now() -> str:
@@ -91,6 +98,8 @@ class PinService:
         self.workspace = workspace
         self.columns = columns
         self.engine = SegmentsEngine(columns)
+        # 099 bis: dataset id → its parent and rowmap (a cleaned version), set by the clean module
+        self.lineages: list[Callable[[str], Any]] = []
 
     @contextmanager
     def _db(self) -> Iterator[sqlite3.Connection]:
@@ -108,8 +117,66 @@ class PinService:
                 (dataset_id,),
             ).fetchall()
 
-    def pins(self, dataset_id: str) -> PinnedRows:
-        """Every pin, each row checked against its key and found again when it moved."""
+    def pins(self, dataset_id: str, depth: int = 0) -> PinnedRows:
+        """Every pin, each row checked against its key and found again when it moved; for a
+        cleaned version, the parent's pins too, followed through its rowmap (R-PIN-16)."""
+        own = self._own(dataset_id)
+        inherited, said = self._inherited(dataset_id, {p.row for p in own.pins}, depth)
+        if not inherited and said is None:
+            return own
+        pins = sorted([*own.pins, *inherited], key=lambda p: (not p.found, p.row))
+        labels = {item.label: item for item in own.labels}
+        for pin in inherited:
+            item = labels.setdefault(pin.label, PinLabel(pin.label, pin.color, 0))
+            item.rows += 1
+        return PinnedRows(pins, list(labels.values()), own.missing, MAX_PINS, said, len(inherited))
+
+    def _inherited(
+        self, dataset_id: str, taken: set[int], depth: int
+    ) -> tuple[list[Pin], str | None]:
+        """R-PIN-16: a cleaned version shows its parent's pins on the rows it kept (child row from
+        the rowmap); a row the cleaning removed is counted, never silently dropped; a parent
+        re-imported since the version was made is not followed (its rows may have changed)."""
+        link = next((found for get in self.lineages if (found := get(dataset_id))), None)
+        if link is None or depth > 3:
+            return [], None
+        try:
+            parent = self.columns.datasets.get(link.parent_id)
+        except AppError:
+            return [], None
+        if link.stale:
+            return [], (
+                f"R-PIN-16 · {parent.name} was re-imported since this version was made: its pins "
+                "are not followed here."
+            )
+        found = self.pins(link.parent_id, depth + 1)
+        wanted = {p.row: p for p in found.pins if p.found}
+        if not wanted or not link.rowmap:
+            return [], None
+        connection = duckdb.connect()
+        try:
+            rows = connection.execute(
+                f"SELECT parent_row, child_row FROM read_parquet({lit(str(link.rowmap))}) "
+                f"WHERE parent_row IN ({', '.join(str(int(r)) for r in wanted)})"
+            ).fetchall()
+        finally:
+            connection.close()
+        kept = {int(p): int(c) for p, c in rows if c is not None}
+        inherited = [
+            Pin(pin.key, kept[row], pin.label, pin.color, pin.created_at, True, inherited=True)
+            for row, pin in wanted.items()
+            if row in kept and kept[row] not in taken
+        ]
+        removed = len(wanted) - len(kept)
+        gone = f"; {removed:,} were on rows the cleaning removed" if removed else ""
+        said = (
+            f"R-PIN-16 · {len(inherited):,} pin{'s' if len(inherited) != 1 else ''} of "
+            f"{parent.name}, followed through the cleaning{gone}. Pin them again here to change "
+            "them."
+        )
+        return inherited, said
+
+    def _own(self, dataset_id: str) -> PinnedRows:
         self.columns.datasets.get(dataset_id)
         stored = self._stored(dataset_id)
         if not stored:
@@ -152,7 +219,7 @@ class PinService:
         if absent:
             raise PinError(f"Row {absent[0] + 1} is not in this dataset.", "unknown_row")
         stored = {r["row_key"] for r in self._stored(dataset_id)}
-        new = {keys[r] for r in rows} - stored
+        new = {keys[r] for r in rows} - stored  # inherited pins never count (R-PIN-16)
         if len(stored) + len(new) > MAX_PINS:
             raise PinError(
                 f"At most {MAX_PINS:,} pinned rows per dataset ({len(stored):,} already).",

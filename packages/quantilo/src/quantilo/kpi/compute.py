@@ -28,6 +28,7 @@ from quantilo.kpi.definition import (
     Grain,
     Measure,
 )
+from quantilo.reasons import ReasonText, details, say, say_count
 from quantilo.typing.types import AnalysisType, Parser
 
 NUMBERS = {"numeric_continuous", "numeric_discrete"}
@@ -164,6 +165,8 @@ class KpiResult:
     resolved: Resolved
     warnings: list[str]
     signals: list[sig.Signal] = field(default_factory=list)  # 054: anomalies, quality, mix
+    # M02: the warnings with their code and vars, for the interface to translate
+    warning_details: list[ReasonText] = field(default_factory=list)
 
     @property
     def value(self) -> float | None:
@@ -323,16 +326,74 @@ class _Window:
     gap: float
 
 
+# R-TIME-04: days that stand for "no date" in exports (Clean's B-16 reads them as missing).
+PLACEHOLDER_DAYS = {"0001-01-01": "an unknown date", "1900-01-01": "an unknown date",
+                    "9999-12-31": "no end date"}  # fmt: skip
+
+
+def _drop_placeholder_dates(connection: duckdb.DuckDBPyConnection) -> list[tuple[str, str, int]]:
+    """R-TIME-04: 9999-12-31 on a contract with no end would stretch the time axis over eight
+    thousand years; such rows leave the axis like undated rows. Returns (day, meaning, rows)."""
+    found = []
+    for day, meaning in PLACEHOLDER_DAYS.items():
+        where = f"CAST(t AS DATE) = DATE '{day}'"
+        (count,) = q.one(connection, f"SELECT count(*) FROM {q.TABLE} WHERE {where}")
+        if count:
+            connection.execute(f"UPDATE {q.TABLE} SET t = NULL WHERE {where}")
+            found.append((day, meaning, int(count)))
+    return found
+
+
+def _rows(count: int) -> str:
+    return f"{count:,} row{'' if count == 1 else 's'}"
+
+
+def _left_out(undated: int, placeholders: list[tuple[str, str, int]]) -> str | None:
+    """One warning for every row off the time axis, whatever the reason (R-TIME-04)."""
+    if not placeholders:
+        if not undated:
+            return None
+        return say_count(
+            "R-TIME-04.undated",
+            undated,
+            "{count} row without a date is left out.",
+            "{count} rows without a date are left out.",
+        )
+    parts = [say("R-TIME-04.part_undated", "{rows} without a date", rows=_rows(undated))]
+    parts = parts if undated else []
+    parts += [
+        say(
+            "R-TIME-04.part_placeholder",
+            "{rows} dated {day} (a placeholder meaning {meaning}, not a real date)",
+            rows=_rows(count),
+            day=day,
+            meaning=meaning,
+        )
+        for day, meaning, count in placeholders
+    ]
+    total = undated + sum(count for _, _, count in placeholders)
+    said: str = say(
+        "R-TIME-04", "R-TIME-04 · {total} left out of the time axis: ", total=_rows(total)
+    )
+    for index, part in enumerate(parts):
+        if index:
+            said += say("SEP.semicolon", "; ")
+        said += part
+    return said + say("R-TIME-04.end", ". Clean can read the placeholders as missing.")
+
+
 def _window(
     connection: duckdb.DuckDBPyConnection, definition: Definition, warnings: list[str]
 ) -> _Window:
     assert definition.time is not None
+    placeholders = _drop_placeholder_dates(connection)
     data_first, data_last = q.one(connection, f"SELECT min(t), max(t) FROM {q.TABLE}")
     if data_first is None:
         raise KpiError("No row has a date here.", "no_rows")
     (undated,) = q.one(connection, f"SELECT count(*) FROM {q.TABLE} WHERE t IS NULL")
-    if undated:
-        warnings.append(f"{undated:,} rows without a date are left out.")
+    left_out = _left_out(int(undated) - sum(count for _, _, count in placeholders), placeholders)
+    if left_out:
+        warnings.append(left_out)
     gap = q.median_gap(connection, "t IS NOT NULL") or rules.GRAIN_SECONDS["day"]
     typical = rules.typical_grain(gap)
     period = definition.time.period
@@ -453,7 +514,7 @@ def compute(
         for i, m in enumerate(measures, start=1)
     ]
     if approximate and any(m.agg == "median" for m in measures):
-        warnings.append("Medians are approximate (≈) over 200,000 rows.")
+        warnings.append(say("KPI.medians", "Medians are approximate (≈) over 200,000 rows."))
     reads = _Counts(measures, len(aggregates))
 
     # Splits: top N by the main measure, the rest folded into "Other" before aggregating.
@@ -471,7 +532,11 @@ def compute(
             cap = SMALL_MULTIPLES
             if len(levels) > cap:
                 warnings.append(
-                    f"The first split keeps its {cap} largest groups: one small chart each."
+                    say(
+                        "KPI.small_multiples",
+                        "The first split keeps its {cap} largest groups: one small chart each.",
+                        cap=cap,
+                    )
                 )
         kept = [level.label for level in levels[:cap]]
         others = len(levels) - len(kept)
@@ -662,6 +727,7 @@ def compute(
         ),
         warnings=warnings,
         signals=sig.ordered(found),
+        warning_details=details(warnings),
     )
 
 
@@ -973,6 +1039,24 @@ def _signals(
                 over_time.grain,
                 totals[out.id].rows if out.additive else None,
             )
+            # 054 bis: the last complete period unusual in a group of a single split
+            if len(context.splits) == 1:
+                groups = [
+                    sig.GroupSeries(s.g1, s.values, s.rows)
+                    for s in series
+                    if s.measure == out.id and s.g1 is not None and s.g1 != q.OTHER and s.g2 is None
+                ]
+                grouped = sig.group_signals(
+                    out.id,
+                    label,
+                    context.splits[0].column,
+                    totals[out.id].values,
+                    groups,
+                    periods,
+                    over_time.grain,
+                )
+                if grouped:
+                    found.append(grouped)
             # P14: the rate split by the first group, between the two last complete periods
             if context.splits:
                 change = _mix(context, counts, out, timed, over_time)

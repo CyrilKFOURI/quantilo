@@ -204,6 +204,41 @@ def test_forecast_with_drivers_is_the_same(client: TestClient, tmp_path: Path) -
     )
 
 
+def test_forecast_with_holidays_and_tuning_is_the_same(client: TestClient, tmp_path: Path) -> None:
+    """028 A5 / A7: `series.forecast(..., holidays="FR", tuning={...})` equals the app."""
+    import datetime as dt
+
+    start = dt.date(2024, 1, 1)
+    lines = ["day,visits"] + [
+        f"{start + dt.timedelta(days=i):%Y-%m-%d},{100 + (i % 7) * 5 + i * 0.1:.1f}"
+        for i in range(200)
+    ]
+    path = tmp_path / "visits.csv"
+    path.write_text("\n".join(lines), encoding="utf-8")
+    dataset_id = import_path(client, path)
+    ds = dx.open(path, cache_dir=tmp_path / "cache")
+    params = {"time": "day", "value": "visits", "period": "day", "horizon": 7}
+    tuning = {"changepoint_scale": 0.1, "time_limit": 120}
+    started = client.post(
+        f"/api/v1/modules/timeseries/datasets/{dataset_id}/forecast",
+        params={**params, "methods": "naive,prophet_like"},
+        json={"drivers": [{"column": "FR", "kind": "holidays", "known": True}], "tuning": tuning},
+    ).json()
+    job = started
+    for _ in range(1200):
+        job = client.get(f"/api/v1/modules/timeseries/forecast-jobs/{started['id']}").json()
+        if job["status"] != "running":
+            break
+        time.sleep(0.1)
+    assert job["status"] == "done", job
+
+    library = ds.timeseries(time="day", value="visits", period="day").forecast(
+        horizon=7, models=["naive", "prophet_like"], holidays="FR", tuning=tuning
+    )
+
+    same(_without_timings(job["result"]), _without_timings(dx.to_dict(library)), "forecast")
+
+
 def test_forecast_every_group_is_the_same(client: TestClient, tmp_path: Path) -> None:
     """039: the app's forecast of every group with MinT equals
     `ds.timeseries("date", "montant", group="magasin").forecast_groups(horizon=3,

@@ -1,0 +1,17 @@
+{
+  "clean.settings.apply": "Appliquer les corrections fiables",
+  "clean.settings.reliableHint": "Appliquer les corrections fiables (par défaut) : à l'ouverture de Nettoyer, les corrections justes sur 99 % ou plus des cas mesurés sont déjà appliquées dans le brouillon, listées en tête sous Appliquées automatiquement, et chacune se défait d'un clic. Rien n'est enregistré tant que vous n'enregistrez pas de version ; l'original ne change jamais. Suggérer seulement : les corrections sont listées, aucune n'est appliquée. Créer une version nettoyée : de même, et Nettoyé v1 est aussi enregistrée après chaque nouvel import quand une correction fiable modifie une cellule. Désactivé : rien n'est calculé tant que vous ne le demandez pas.",
+  "clean.summary.auto": "{count} appliquées automatiquement",
+  "clean.group.auto": "Appliquées automatiquement",
+  "clean.group.auto.hint": "Des corrections fiables, appliquées pour vous dans le brouillon. Défaites celles dont vous ne voulez pas ; rien n'est enregistré tant que vous n'enregistrez pas.",
+  "clean.group.auto.applied": "{applied} sur {count} appliquées",
+  "clean.auto.undo": "Défaire",
+  "clean.auto.redo": "Réappliquer",
+  "clean.auto.undone": "Défaite",
+  "clean.auto.undoAll": "Défaire toutes les corrections automatiques",
+  "clean.auto.redoAll": "Toutes les réappliquer",
+  "clean.auto.measured": "Une correction fiable : juste sur 99 % ou plus des cas mesurés (n = {n}).",
+  "clean.auto.lossless": "Une correction fiable : elle ne retire que des caractères invisibles.",
+  "clean.versions.autoSteps": "{count} automatiques",
+  "clean.changes.automatic": "Les étapes dites automatiques sont les corrections fiables que Nettoyer a appliquées par défaut."
+}

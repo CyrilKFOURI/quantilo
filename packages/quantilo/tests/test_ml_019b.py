@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from quantilo.ml import evaluate
+from quantilo.ml import catalog, evaluate
 from quantilo.ml.catalog.other import RadiusRegressor
 from quantilo.ml.train import TrainingCancelled, TrainingError, estimate, train
 from tests.test_ml import FIELDS, FRAME, by_name
@@ -13,6 +13,13 @@ from tests.test_ml import FIELDS, FRAME, by_name
 PRICE, EXPENSIVE = by_name["price"], by_name["expensive"]
 FEATURES = [f for f in FIELDS if f.name not in ("price_copy", "expensive")]
 CLASS_FIELDS = [f for f in FIELDS if f.name not in ("price_copy", "price")]
+
+
+def library(model: str, *rest: object) -> object:
+    """A parameter skipped with its reason when the model's library (extra `ml`) is absent."""
+    absent = not catalog.CATALOGUE[model].installed
+    reason = f"{model} is not installed (quantilo[ml])"
+    return pytest.param(model, *rest, marks=pytest.mark.skipif(absent, reason=reason))
 
 
 def test_a_training_stops_at_the_next_checkpoint() -> None:
@@ -30,7 +37,9 @@ def test_a_training_stops_at_the_next_checkpoint() -> None:
         )
 
 
-@pytest.mark.parametrize("model", ["hist_gradient_boosting", "xgboost", "lightgbm"])
+@pytest.mark.parametrize(
+    "model", ["hist_gradient_boosting", library("xgboost"), library("lightgbm")]
+)
 def test_monotonic_constraints_hold(model: str) -> None:
     result = train(
         FRAME, FEATURES, PRICE, "regression", model, {"monotonic": "size:+1, skewed:-1"}, 1, False
@@ -112,7 +121,7 @@ def test_the_decision_threshold_is_chosen_on_training_rows() -> None:
         ("hist_gradient_boosting", True),
         ("mlp", True),
         ("gradient_boosting", False),
-        ("xgboost", True),
+        library("xgboost", True),
     ],
 )
 def test_iterative_models_keep_their_learning_curve(model: str, has_validation: bool) -> None:

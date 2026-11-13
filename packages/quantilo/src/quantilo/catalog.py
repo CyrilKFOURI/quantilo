@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from quantilo.errors import ExplorerError
 from quantilo.ingestion.sql import lit
+from quantilo.reasons import restored, stored
 from quantilo.typing.conversion import parser_for
 from quantilo.typing.summary import summarize
 from quantilo.typing.types import AnalysisType, ColumnDetection, Confidence, Parser
@@ -131,7 +132,7 @@ def to_view(record: ColumnRecord) -> ColumnView:
         detected_type=cast(AnalysisType, record.detected_type),
         detected_role=record.detected_role,
         confidence=cast(Confidence, record.confidence),
-        reasons=json.loads(record.reasons),
+        reasons=restored(json.loads(record.reasons)),
         overridden=any(
             value is not None for value in (record.user_type, record.user_role, record.user_order)
         ),
@@ -154,7 +155,7 @@ def detection_record(dataset_id: str, detection: ColumnDetection) -> ColumnRecor
             {kind: parser.model_dump() for kind, parser in detection.candidates.items()}
         ),
         confidence=detection.confidence,
-        reasons=json.dumps(detection.reasons),
+        reasons=json.dumps(stored(detection.reasons)),  # M02: with their codes
     )
 
 

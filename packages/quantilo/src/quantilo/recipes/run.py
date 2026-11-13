@@ -58,6 +58,9 @@ class KeyFigure:
     value: float | None
     detail: str | None = None  # the metric, the forecast period…
     higher_is_better: bool | None = None
+    # 061 bis: a KPI with a target, its last complete period's tile against it (actual ÷ target)
+    attained: float | None = None
+    period: str | None = None  # the tile's period ("Dec 2025"), None for the whole range
 
 
 @dataclass
@@ -71,6 +74,11 @@ class FigureChange:
     change_pct: float | None  # relative, 0.05 = +5 %
     detail: str | None = None
     higher_is_better: bool | None = None
+    attained: float | None = None  # 061 bis: actual ÷ target at this run
+    previous_attained: float | None = None
+    # R-GOAL-04: "reached" or "missed" when the target was crossed since the previous run
+    crossed: Literal["reached", "missed"] | None = None
+    goal: str | None = None  # the sentence, with its rule
 
 
 @dataclass
@@ -170,7 +178,31 @@ def unreadable_share(summary: dict[str, Any]) -> float:
 
 def kpi_figure(step: KpiStep, result: KpiResult) -> KeyFigure:
     measure = kpi_value(step.name, result).measure
-    return KeyFigure(step.id, step.id, "kpi", step.name, result.value, measure or None)
+    figure = KeyFigure(step.id, step.id, "kpi", step.name, result.value, measure or None)
+    tile = next((t for t in result.tiles if t.goal is not None), None)
+    if tile is not None and tile.goal is not None:
+        figure.attained, figure.period = tile.goal.attained, tile.period
+    return figure
+
+
+def goal_crossing(
+    label: str, attained: float | None, previous: float | None, period: str | None
+) -> tuple[Literal["reached", "missed"] | None, str | None]:
+    """R-GOAL-04 (061 bis): the replay of a recipe says when a KPI crossed its target since the
+    previous run, the one fact worth an alert; otherwise where it stands. The target is the
+    tile's (R-GOAL-01, 02): the last complete period, or the whole range."""
+    if attained is None:
+        return None, None
+    at = f" in {period}" if period else ""
+    now = f"{attained:.0%} of target{at}"
+    if previous is None:
+        return None, f"◎ {label}: {now} (R-GOAL-04)"
+    before = f"{previous:.0%} at the previous run"
+    if previous < 1 <= attained:
+        return "reached", f"◎ {label} reached its target: {now}, {before} (R-GOAL-04)"
+    if attained < 1 <= previous:
+        return "missed", f"◎ {label} fell below its target: {now}, {before} (R-GOAL-04)"
+    return None, f"◎ {label}: {now}, {before} (R-GOAL-04)"
 
 
 def forecast_figure(step: TimeSeriesStep, forecast: SeriesForecast) -> KeyFigure | None:
@@ -211,6 +243,8 @@ def compare_figures(
         value, past = figure.value, old.value if old else None
         change = None if value is None or past is None else value - past
         pct = None if change is None or not past else change / abs(past)
+        was = old.attained if old else None
+        crossed, goal = goal_crossing(figure.label, figure.attained, was, figure.period)
         found.append(
             FigureChange(
                 figure.id,
@@ -222,6 +256,10 @@ def compare_figures(
                 pct,
                 figure.detail,
                 figure.higher_is_better,
+                figure.attained,
+                was,
+                crossed,
+                goal,
             )
         )
     return found

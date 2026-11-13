@@ -26,9 +26,14 @@ const ale = {
   rule: "R-XAI-01: …",
   monotonic: null,
 };
-const calls = { ale: [] as (string | null)[], counterfactual: 0 };
+const calls = { ale: [] as (string | null)[], counterfactual: 0, ale2d: [] as (string | null)[] };
 
 vi.mock("../../api/hooks", () => ({
+  useMlAle2d: (_id: string, _run: string, _first: string | null, second: string | null) => {
+    calls.ale2d.push(second);
+    return { data: undefined, isError: false };
+  },
+  useMlPredictionRowCounterfactual: () => ({ data: undefined, isError: false }),
   useMlAle: (_id: string, _run: string, column: string | null) => {
     calls.ale.push(column);
     return { data: ale, isError: false };
@@ -119,6 +124,15 @@ describe("Explain › Advanced (125)", () => {
     expect(screen.getByText(/R-XAI-03/)).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /age/ })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: /tenure/ })).toBeChecked();
+  });
+
+  it("asks for the two-column ALE only once a second number is chosen (R-XAI-20)", () => {
+    calls.ale2d = [];
+    render(<ExplainAdvanced datasetId="d" run={run} found={explanation} column={null} onColumn={() => {}} />);
+    expect(calls.ale2d.every((second) => second === null)).toBe(true);
+    fireEvent.change(screen.getByRole("combobox", { name: "With a second number" }), { target: { value: "age" } });
+    expect(calls.ale2d.at(-1)).toBe("age");
+    expect(screen.getByText("Drawing the two-column ALE…")).toBeInTheDocument();
   });
 
   it("draws one bar per interval under the curve", () => {

@@ -9,7 +9,7 @@
 id = "identifier"
 label = "Identifier"
 names = ["id", "uuid", "guid", "identifier", "identifiant", "ref", "reference", "matricule",
-         "siret", "siren", "sku", "ean", "isbn"]
+         "siret", "siren", "sku", "ean", "isbn", "iban", "gtin", "upc"]
 type = "identifier"
 
 [[role]]
@@ -115,7 +115,8 @@ type = "categorical_nominal"
 [[role]]
 id = "postal_code"
 label = "Postal code"
-names = ["zip", "zipcode", "zip code", "postcode", "postal code", "code postal", "cp", "postal"]
+names = ["zip", "zipcode", "zip code", "postcode", "postal code", "code postal", "cp", "postal",
+         "area code"]
 type = "categorical_nominal"
 
 [[role]]
@@ -299,5 +300,26 @@ label = "Uncertainty"
 names = ["uncertainty", "uncertainties", "incertitude", "incertitudes", "sigma", "err", "yerr",
          "xerr", "error bar", "errorbar", "std error", "standard error", "measurement error",
          "stderr", "std err", "erreur type", "erreur standard"]
+type = "numeric_continuous"
+min = 0
+
+# --- C1: a column naming the images of the same project (R-PRJ-11, the `image_ref` of 091) -------
+
+[[role]]
+id = "image_ref"
+label = "Image reference"
+# its values name the images of an image set filed in the same project (a path, a file name):
+# set from the values only, when the project page finds them (never from the name)
+names = []
+# --- 093 bis: a surface, the denominator of a price per square foot (R-SUG-32) -------------------
+
+[[role]]
+id = "surface"
+label = "Surface"
+# a floor or land area ("Gr Liv Area", "sqft_living", "surface_reelle_bati"): averaged or put under
+# a price, never summed into a basket. "Area" alone is often a region: only numbers get the role.
+names = ["surface", "surfaces", "superficie", "area", "sqft", "sq ft", "square feet", "square foot",
+         "square footage", "sf", "m2", "sqm", "sq m", "square meters", "square metres",
+         "living area", "floor area", "lot area", "land area", "surface habitable", "surface terrain"]
 type = "numeric_continuous"
 min = 0

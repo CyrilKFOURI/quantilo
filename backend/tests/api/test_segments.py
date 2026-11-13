@@ -251,3 +251,43 @@ def test_the_agent_tools(client: TestClient, blobs: str) -> None:
     unusual = registry.get("find_unusual_rows")
     odd = unusual.run(ToolContext(blobs), unusual.parse({}))
     assert odd.content["most_unusual"] and odd.link.params["section"] == "unusual"
+
+
+def test_pacmap_and_trimap_are_refused_with_their_reason_without_the_extra(
+    client: TestClient, blobs: str
+) -> None:
+    """122, R-XAI-10: the optional maps say why they cannot run here."""
+    from quantilo.interpret import extras
+
+    run = segment(client, blobs)
+    for method in ("pacmap", "trimap"):
+        if extras.check(method).available:
+            continue
+        refused = client.post(f"{BASE}/datasets/{blobs}/runs/{run['id']}/map/{method}")
+        assert refused.status_code == 409 and "R-XAI-10" in refused.json()["error"]["message"]
+    assert client.post(f"{BASE}/datasets/{blobs}/runs/{run['id']}/map/umap").status_code == 422
+
+
+def test_describe_segments_with_a_tree(client: TestClient, blobs: str) -> None:
+    """124: a sparse tree predicts each row's segment; its fidelity and each segment's rules."""
+    run = segment(client, blobs)
+    url = f"{BASE}/datasets/{blobs}/runs/{run['id']}/tree"
+    found = client.post(url, json={})
+    assert found.status_code == 200, found.text
+    tree = found.json()
+    assert tree["fidelity"] > 0.9 and tree["depth"] == 3 and tree["max_leaves"] == 8
+    names = {s["name"] for s in run["result"]["segments"]}
+    assert {s["name"] for s in tree["segments"]} == names
+    assert all(s["rules"] for s in tree["segments"])
+    assert tree["nodes"][0]["left_rule"].split()[0] in NUMBERS
+    small = client.post(url, json={"depth": 1, "leaves": 2}).json()
+    assert small["found_depth"] <= 1 and small["leaves"] <= 2 and small["warning"]
+    assert client.post(url, json={"depth": 9}).status_code == 422
+    # 124 bis: each rule as filter conditions (R-SGT-05); the optimal tree needs the extra
+    first = tree["segments"][0]["filters"][0]
+    assert first["rule"] and first["conditions"][0]["op"] in ("lte", "gt", "in")
+    from quantilo.interpret import extras
+
+    optimal = client.post(f"{url}/optimal", json={"segment": tree["segments"][0]["segment"]})
+    if not extras.check("gosdt").available:
+        assert optimal.status_code == 409 and "R-XAI-10" in optimal.json()["error"]["message"]

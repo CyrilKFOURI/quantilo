@@ -339,6 +339,16 @@ const modelResult = (
           },
         ]
       : [],
+  components:
+    key === "prophet_like"
+      ? [
+          { name: "Trend", kind: "trend", values: Array(15).fill(100) },
+          { name: "yearly", kind: "season", values: Array(15).fill(5) },
+          { name: "Public holidays (FR)", kind: "holidays", values: Array(15).fill(-3) },
+        ]
+      : [],
+  components_start: 0,
+  timed_out: false,
 });
 const forecastJob = {
   id: "job1",
@@ -371,6 +381,7 @@ const forecastJob = {
     driver_notes: [
       "visits: its last value (1200) is repeated over the forecast, which assumes it stays flat.",
     ],
+    cycles: ["weekly", "yearly"],
   },
 };
 const drivers = {
@@ -677,6 +688,22 @@ describe("Time series page", () => {
       within(section).getByRole("button", { name: "Add Croston-type models" }),
     );
     expect(within(section).getByText("Croston")).toBeInTheDocument();
+    // 028 A6: two seasonal cycles suggest the models with several seasons
+    expect(
+      within(section).getByText(
+        "The history covers 2 seasonal cycles (weekly, yearly). Models with several seasons can use them all.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Add Prophet-like and STLF" }),
+    );
+    expect(
+      within(section).getByText("Prophet-like (trend + Fourier)"),
+    ).toBeInTheDocument();
+    expect(within(section).getByText("STLF (STL + ETS)")).toBeInTheDocument();
+    expect(
+      within(section).queryByRole("button", { name: "Add Prophet-like and STLF" }),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       within(section).getByRole("button", {
         name: "How the models were scored",
@@ -758,6 +785,113 @@ describe("Time series page", () => {
     expect(card).toHaveAttribute("href", "/d/d1/timeseries");
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     expect(within(nav).queryByRole("link", { name: "Time series" })).not.toBeInTheDocument();
+  });
+});
+
+describe("Public holidays, model options and components (028 A5, A7)", () => {
+  const holidays = {
+    usable: true,
+    reason: null,
+    weekly: false,
+    countries: [
+      { code: "FR", name: "France", subdivisions: [{ code: "57", name: "Moselle" }] },
+      { code: "US", name: "United States", subdivisions: [] },
+    ],
+    guess: {
+      code: "FR",
+      rule: "column",
+      reason: "The column country holds a single value, France: the public holidays of France (FR).",
+      column: "country",
+      value: "France",
+    },
+  };
+  const timedOut = {
+    ...modelResult("gbm_lags", 0, null, null),
+    scores: null,
+    error: "Stopped at the time limit (30 s) after 3 of 5 rolling origins.",
+    timed_out: true,
+  };
+  const done = {
+    ...forecastJob,
+    result: {
+      ...forecastJob.result,
+      results: [modelResult("prophet_like", 0.6, 40, "Piecewise trend (1 changepoint) + yearly (K=6) + 1 driver"), timedOut],
+      best: "prophet_like",
+    },
+  };
+
+  it("proposes a country with its reason, sends the holidays and the options, draws the components", async () => {
+    const calls = mockApi({
+      "GET /health": health,
+      "GET /datasets": [dataset()],
+      "GET /datasets/d1": dataset(),
+      "GET /datasets/d1/columns": columns,
+      "GET /column-roles": roles,
+      "GET /modules/timeseries/datasets/d1/overview": overview,
+      "GET /modules/timeseries/datasets/d1/smoothing": smoothing([]),
+      "GET /modules/timeseries/datasets/d1/drivers": { ...drivers, holidays },
+      "POST /modules/timeseries/datasets/d1/forecast": { ...done, status: "running", result: null },
+      "GET /modules/timeseries/forecast-jobs/job1": done,
+    });
+    localStorage.setItem("de.ts.open", JSON.stringify(["forecast"]));
+    renderAt(`${SERIES}&arima_ic=bic&fc_limit=30`);
+    const section = await screen.findByRole("region", { name: "Forecast" });
+    fireEvent.click(within(section).getByRole("button", { name: "Drivers" }));
+
+    // never guessed silently: the rule's reason is shown, and nothing is added before a click
+    expect(
+      await within(section).findByText(
+        "Proposed: France (FR), because the column country holds a single value, France.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(section).getByRole("button", { name: "Public holidays" }));
+    expect(within(section).getByLabelText("Country of the public holidays")).toHaveValue("FR");
+    fireEvent.change(within(section).getByLabelText("Subdivision (state, region)"), {
+      target: { value: "57" },
+    });
+    expect(within(section).getByText(/Prophet-like gives each holiday its own effect/)).toBeInTheDocument();
+    // ⚙ Options: the URL's choices, the defaults of the others
+    fireEvent.click(within(section).getByRole("button", { name: /Options/ }));
+    expect(screen.getByLabelText("Time limit per model")).toHaveValue("30");
+    expect(screen.getByRole("option", { name: "Default · No limit" })).toBeInTheDocument();
+
+    fireEvent.click(within(section).getByRole("button", { name: "Run forecast" }));
+
+    await within(section).findByText(/Stopped at the time limit \(30 s\)/);
+    const sent = calls.find((c) => c.key.endsWith("/forecast"));
+    expect(sent?.body).toEqual({
+      drivers: [
+        { column: "FR", kind: "holidays", known: true, future: "file", value: null, subdiv: "57" },
+      ],
+      tuning: { criterion: "bic", time_limit: 30 },
+    });
+    expect(within(section).getByText("Time limit ·", { exact: false })).toBeInTheDocument();
+    fireEvent.click(within(section).getByRole("button", { name: "Show the components" }));
+    expect(within(section).getByText(/adds up: its trend, each season, the holidays/)).toBeInTheDocument();
+    expect(within(section).getByRole("img", { name: "Show the components" })).toBeInTheDocument();
+  });
+
+  it("greys the holidays with the reason when the period does not allow them", async () => {
+    mockApi({
+      "GET /health": health,
+      "GET /datasets": [dataset()],
+      "GET /datasets/d1": dataset(),
+      "GET /datasets/d1/columns": columns,
+      "GET /column-roles": roles,
+      "GET /modules/timeseries/datasets/d1/overview": overview,
+      "GET /modules/timeseries/datasets/d1/smoothing": smoothing([]),
+      "GET /modules/timeseries/datasets/d1/drivers": {
+        ...drivers,
+        holidays: { ...holidays, usable: false, reason: "monthly", guess: { ...holidays.guess, code: null, rule: "none" } },
+      },
+    });
+    localStorage.setItem("de.ts.open", JSON.stringify(["forecast"]));
+    renderAt(SERIES);
+    const section = await screen.findByRole("region", { name: "Forecast" });
+    fireEvent.click(within(section).getByRole("button", { name: "Drivers" }));
+
+    expect(await within(section).findByRole("button", { name: "Public holidays" })).toBeDisabled();
+    expect(within(section).getByText(/Needs hourly, daily or weekly periods/)).toBeInTheDocument();
   });
 });
 

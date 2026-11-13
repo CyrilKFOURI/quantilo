@@ -74,6 +74,11 @@ words = ["hour", "hr", "hh", "heure", "hora", "stunde", "ora", "uur"]
 part = "minute"
 words = ["minute", "minutes", "mi", "mn", "minuto", "minuta"]
 
+# C1 (fix1): one column with the time of day ("hrmn" = 07:40 in the French road-accident files)
+[[date_part]]
+part = "time"
+words = ["hrmn", "hhmm", "hourminute", "time", "horaire", "zeit", "orario"]
+
 # fix1 (B-21, R-SUG-30): rows that sum up other rows (OWID's "World", "Europe", "High-income
 # countries"; a "Total" row). `code_prefixes`: codes given to such rows ("OWID_WRL"). `words`:
 # whole words of a label that say "every row" on their own. `group_words`: words of a group of
@@ -237,3 +242,34 @@ stages = [["applied", "application", "applicant"], ["screened", "screening", "ph
 
 [[funnel]]
 stages = [["new", "open", "opened"], ["assigned", "triaged"], ["in progress", "working"], ["resolved", "solved"], ["closed"]]
+
+# B-13 (N12, audit 2026-11-12): the length of the postal codes of a country, when they are digits
+# only. A postal code shorter than the column's usual length lost its leading zero only in a country
+# whose codes have that usual length; Belgian or Swiss codes have 4 digits by nature. Country names
+# are compared lowercased and trimmed: ISO alpha-2 and alpha-3 codes, English, French, local names.
+[[postal_length]]
+length = 5
+countries = [
+  "us", "usa", "united states", "united states of america", "etats-unis", "états-unis", "u.s.",
+  "u.s.a.", "fr", "fra", "france", "de", "deu", "germany", "allemagne", "deutschland", "it",
+  "ita", "italy", "italie", "italia", "es", "esp", "spain", "espagne", "españa", "espana", "mx",
+  "mex", "mexico", "mexique", "méxico",
+]
+
+[[postal_length]]
+length = 4
+countries = [
+  "be", "bel", "belgium", "belgique", "belgië", "belgie", "ch", "che", "switzerland", "suisse",
+  "schweiz", "svizzera", "at", "aut", "austria", "autriche", "österreich", "osterreich", "dk",
+  "dnk", "denmark", "danemark", "danmark", "no", "nor", "norway", "norvège", "norvege", "norge",
+  "au", "aus", "australia", "australie", "nz", "nzl", "new zealand", "nouvelle-zélande", "hu",
+  "hun", "hungary", "hongrie", "lu", "lux", "luxembourg", "za", "zaf", "south africa",
+  "afrique du sud",
+]
+
+[[postal_length]]
+length = 6
+countries = [
+  "in", "ind", "india", "inde", "cn", "chn", "china", "chine", "ru", "rus", "russia", "russie",
+  "sg", "sgp", "singapore", "singapour",
+]

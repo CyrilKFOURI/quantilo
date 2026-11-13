@@ -12,6 +12,33 @@ const SHORTCUTS: { keys: string[]; label: MessageKey }[] = [
   { keys: ["Esc"], label: "shortcuts.close" },
 ];
 
+/** N42: the review of Clean › Suggestions (modules/clean/keys.ts), listed under their page. */
+const CLEAN_SHORTCUTS: { keys: string[]; label: MessageKey }[] = [
+  { keys: ["J", "K"], label: "shortcuts.clean.move" },
+  { keys: ["Space"], label: "shortcuts.clean.tick" },
+  { keys: ["Enter"], label: "shortcuts.clean.open" },
+  { keys: ["U"], label: "shortcuts.clean.undo" },
+];
+
+function ShortcutList({ items }: { items: { keys: string[]; label: MessageKey }[] }) {
+  return (
+    <dl className="divide-y divide-line">
+      {items.map((shortcut) => (
+        <div key={shortcut.label} className="flex items-center justify-between gap-4 py-2">
+          <dt className="text-ink-2">{t(shortcut.label)}</dt>
+          <dd className="flex gap-1">
+            {shortcut.keys.map((key) => (
+              <kbd key={key} className="min-w-6 rounded border border-line bg-surface-2 px-1.5 py-0.5 text-center font-mono text-xs text-ink-1">
+                {key}
+              </kbd>
+            ))}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 /** Dispatched on window (by the top bar's search button) to open the palette. */
 export const OPEN_PALETTE_EVENT = "de:open-palette";
 
@@ -46,20 +73,9 @@ export function KeyboardLayer({ modules = [] }: { modules?: PaletteModule[] }) {
     <>
       <CommandPalette open={palette} onOpenChange={setPalette} onShortcuts={() => setHelp(true)} modules={modules} />
       <Dialog open={help} onOpenChange={setHelp} title={t("shortcuts.title")} size="sm">
-        <dl className="divide-y divide-line">
-          {SHORTCUTS.map((shortcut) => (
-            <div key={shortcut.label} className="flex items-center justify-between gap-4 py-2">
-              <dt className="text-ink-2">{t(shortcut.label)}</dt>
-              <dd className="flex gap-1">
-                {shortcut.keys.map((key) => (
-                  <kbd key={key} className="min-w-6 rounded border border-line bg-surface-2 px-1.5 py-0.5 text-center font-mono text-xs text-ink-1">
-                    {key}
-                  </kbd>
-                ))}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <ShortcutList items={SHORTCUTS} />
+        <h3 className="mt-4 mb-1 text-xs font-medium text-ink-3">{t("shortcuts.clean.title")}</h3>
+        <ShortcutList items={CLEAN_SHORTCUTS} />
       </Dialog>
     </>
   );

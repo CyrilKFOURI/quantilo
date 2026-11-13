@@ -1,9 +1,11 @@
+import { COLOUR_BY, type ColourBy } from "./mapModel";
 import { MEASURES, SORTS, type Filters, type Measure, type QualityFilter, type Range, type SizeBucket, type SortKey } from "./model";
+import { STEP_IDS, type StepId } from "./prepModel";
 
 export const TABS = ["gallery", "quality", "map", "prepare", "model", "results", "explain"] as const;
 export type VisionTab = (typeof TABS)[number];
-/** The tabs that work today (107, 108); the others are shown, disabled, with what they will do. */
-export const READY_TABS: ReadonlySet<VisionTab> = new Set(["gallery", "quality"]);
+/** The tabs that work today (107 to 110, 113, 117). */
+export const READY_TABS: ReadonlySet<VisionTab> = new Set(["gallery", "quality", "map", "prepare", "model", "results", "explain"]);
 
 export type Density = "s" | "m" | "l";
 
@@ -21,6 +23,20 @@ export type VisionSearch = {
   density?: Density;
   image?: string; // rel_path of the image whose sheet is open
   stats?: boolean; // false: the Dataset stats are folded
+  // Map (109)
+  color?: ColourBy;
+  method?: string; // "dinov2_s14"... (classic by default)
+  proj?: "tsne" | "pacmap" | "trimap"; // c3, R-VMAP-12: PaCMAP and TriMAP from Advanced › More
+  groups?: "hdbscan";
+  k?: number;
+  // Prepare (110)
+  step?: StepId;
+  run?: string; // 113: the run shown in Results (default: the latest)
+  model?: string; // 113: the model shown (default: the run's default)
+  threshold?: number; // 113: a threshold moved by the user (R-VTH-03)
+  job?: string; // 113: the training job followed (kept across a reload or a remount)
+  // 117: the image whose "Why?" is open (it explains the run and model above)
+  why?: string;
 };
 
 const text = (value: unknown, max = 400) =>
@@ -46,7 +62,7 @@ export function formatRange(range: Range): string {
   return `${range.measure}:${round(range.low)}:${round(range.high)}`;
 }
 
-const QUALITY = /^(any|none|excluded|decided|R-VQ-\d{2})$/;
+const QUALITY = /^(any|none|excluded|decided|pinned|R-VQ-\d{2})$/;
 
 export function validateVisionSearch(search: Record<string, unknown>): VisionSearch {
   const tab = TABS.find((value) => value === search.tab);
@@ -64,6 +80,17 @@ export function validateVisionSearch(search: Record<string, unknown>): VisionSea
     density: search.density === "s" || search.density === "l" ? search.density : undefined,
     image: text(search.image, 1000),
     stats: search.stats === false ? false : undefined,
+    color: COLOUR_BY.find((value) => value === search.color),
+    method: typeof search.method === "string" && /^[a-z0-9_]{1,32}$/.test(search.method) && search.method !== "classic" ? search.method : undefined,
+    proj: search.proj === "tsne" || search.proj === "pacmap" || search.proj === "trimap" ? search.proj : undefined,
+    groups: search.groups === "hdbscan" ? "hdbscan" : undefined,
+    k: typeof search.k === "number" && Number.isInteger(search.k) && search.k >= 2 && search.k <= 12 ? search.k : undefined,
+    step: STEP_IDS.find((value) => value === search.step && value !== "resize"),
+    run: typeof search.run === "string" && /^[0-9a-f]{12}$/.test(search.run) ? search.run : undefined,
+    model: typeof search.model === "string" && /^[a-z][a-z0-9_]{0,31}$/.test(search.model) ? search.model : undefined,
+    threshold: typeof search.threshold === "number" && Number.isFinite(search.threshold) ? search.threshold : undefined,
+    job: typeof search.job === "string" && /^[0-9a-f]{12}$/.test(search.job) ? search.job : undefined,
+    why: text(search.why, 1000),
   };
 }
 

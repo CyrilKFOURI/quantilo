@@ -222,6 +222,14 @@ def test_stability_resampling_and_selection(client: TestClient, traps: str, tmp_
     assert body["chow"]["at"].startswith("201") and body["factor"]["periods"] == 12
     resampled = client.get(url(dataset_id, "/resampling"), params=params).json()
     assert resampled["scheme"] == "block" and resampled["terms"][1]["boot_low"] is not None
+    drifting = client.get(url(dataset_id, "/varying"), params=params)
+    assert drifting.status_code == 200, drifting.text
+    assert drifting.json()["drifts"] and drifting.json()["curves"][0]["term"] == "Mkt"
+    regimes = client.get(url(dataset_id, "/regimes"), params={**params, "regimes": 2}).json()
+    assert regimes["available"] and len(regimes["regimes"]) == 2
+    assert (
+        client.get(url(dataset_id, "/regimes"), params={**params, "regimes": 5}).status_code == 422
+    )
     plain = {"target": "price_eur", "columns": "age,income", "focus": "age"}
     flat = client.get(url(traps, "/stability"), params=plain).json()
     assert not flat["available"] and "R-REG-STAB-01" in flat["reason"]

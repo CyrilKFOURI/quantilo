@@ -16,14 +16,14 @@ export function EngineGate({ children }: { children: ReactNode }) {
         </h1>
         {state.status === "failed" ? (
           <p className="mt-3 text-[13px] text-bad">
-            {t("lite.failed", { error: state.error })}
+            {t("lite.failed", { error: state.reason ? t(state.reason.key, state.reason.vars) : state.error })}
           </p>
         ) : (
           <>
             <p className="mt-1 text-[13px] text-ink-2">{t("lite.loadingBody")}</p>
             <div className="mt-5">
-              <ProgressBar value={state.fraction} label={state.step} />
-              <p className="mt-1.5 text-xs text-ink-3">{state.step}…</p>
+              <ProgressBar value={state.fraction} label={t(state.step)} />
+              <p className="mt-1.5 text-xs text-ink-3">{t(state.step)}…</p>
             </div>
           </>
         )}

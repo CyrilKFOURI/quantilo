@@ -19,6 +19,7 @@ from quantilo.kpi.definition import (
     Ratio,
     RatioKind,
 )
+from quantilo.reasons import say
 
 GRAIN_SECONDS: dict[Grain, float] = {
     "day": 86_400,
@@ -126,9 +127,12 @@ def resolve_grain(
         if requested in allowed:
             return Decision(requested, "user", "Chosen by you.", options=options), None
         if GRAINS.index(requested) < GRAINS.index(typical):  # type: ignore[arg-type]
-            warning = (
-                f"The dates come about once a {typical}: shown by {typical} instead of "
-                f"by {requested} (R-TIME-02)."
+            warning = say(
+                "R-TIME-02",
+                "The dates come about once a {typical}: shown by {typical} instead of by "
+                "{requested} (R-TIME-02).",
+                typical=typical,
+                requested=requested,
             )
             return Decision(typical, "R-TIME-02", warning, False, options), warning
         coarser = allowed[0]
@@ -136,9 +140,13 @@ def resolve_grain(
             if grain in allowed:
                 coarser = grain
                 break
-        warning = (
-            f"By {requested} would draw over {FORCED_MAX_PERIODS:,} periods: shown by "
-            f"{coarser} instead (R-TIME-03)."
+        warning = say(
+            "R-TIME-03",
+            "By {requested} would draw over {periods} periods: shown by {coarser} instead "
+            "(R-TIME-03).",
+            requested=requested,
+            periods=f"{FORCED_MAX_PERIODS:,}",
+            coarser=coarser,
         )
         return Decision(coarser, "R-TIME-03", warning, False, options), warning
     for grain in GRAINS[GRAINS.index(typical) :]:

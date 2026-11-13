@@ -36,6 +36,7 @@ from quantilo.experiments.bandit import BanditSimulation, simulate
 from quantilo.experiments.plan import SampleSize, SampleSizeRequest, sample_size
 from quantilo.filters.model import Condition, filters_key
 from quantilo.filters.scope import scoped_source, where_for
+from quantilo.interpret import matching as mt
 from quantilo.ml import data as ml_data
 from quantilo.ml.data import CATEGORICAL, NUMERIC
 from quantilo.ml.data import Field as DataField
@@ -650,7 +651,101 @@ class ExperimentEngine:
         )
         if isinstance(evaluated, op.EvaluationUnavailable):
             raise ExperimentError(evaluated.reason, "action")
+        counts = frame[dec.ACTION].astype(str).value_counts()
+        evaluated.matching = mt.offer(
+            evaluated.actions, chosen, {str(k): int(v) for k, v in counts.items()}
+        )
         return evaluated
+
+    # --- Matched groups (123, FLAME) -----------------------------------------------------------
+
+    def matching(
+        self, dataset_id: str, request: mt.MatchingRequest, conditions: list[Condition]
+    ) -> mt.MatchedGroups:
+        """R-MAT-01 to R-MAT-07: the units matched exactly on their covariates (FLAME), the
+        effect of the treatment in each group, on average and on the treated, the balance."""
+        dataset = self.columns.ready(dataset_id)
+        views = self._views(dataset_id)
+        treatment = self._view(views, request.treatment)
+        outcome = self._view(views, request.outcome)
+        if request.treatment == request.outcome:
+            raise ExperimentError("The treatment and the outcome must be two columns.", "outcome")
+        candidates = self._covariate_candidates(
+            list(views.values()), {request.treatment, request.outcome}
+        )
+        chosen = list(request.covariates) if request.covariates is not None else candidates
+        unknown = [name for name in chosen if name not in candidates]
+        if unknown:
+            raise ExperimentError(
+                f"{', '.join(unknown)} cannot describe the units here.", "covariates"
+            )
+        fields = [self._field(self._view(views, name)) for name in chosen]
+        selected = [
+            f"{level_sql(treatment)} AS {dec.ACTION}",
+            f"{value_sql(outcome)} AS {mt.OUTCOME}",
+            *(f"{ml_data._expression(f)} AS c{i}" for i, f in enumerate(fields)),
+        ]
+        connection = duckdb.connect()
+        try:
+            source = scoped_source(
+                dataset.storage_path, where_for(list(views.values()), conditions), numbered=True
+            )
+            frame = connection.execute(
+                f"SELECT * FROM (SELECT {', '.join(selected)}, file_row_number AS {mt.ROW} "
+                f"FROM {source}) WHERE {dec.ACTION} IS NOT NULL AND {mt.OUTCOME} IS NOT NULL "
+                f"ORDER BY {mt.ROW}"
+            ).df()
+        finally:
+            connection.close()
+        frame = _typed(
+            frame.rename(columns={f"c{i}": f.name for i, f in enumerate(fields)}), fields
+        )
+        counts = frame[dec.ACTION].astype(str).value_counts()
+        levels = sorted(str(level) for level in counts.index)
+        found = mt.offer(levels, chosen, {str(k): int(v) for k, v in counts.items()})
+        if not found.available:
+            raise ExperimentError(found.reason, "treatment")
+        for given, what in ((request.treated, "treated"), (request.control, "control")):
+            if given is not None and given not in levels:
+                raise ExperimentError(
+                    f"{given} is not a value of {request.treatment} ({', '.join(levels)}).", what
+                )
+        # R-MAT-10 (123 bis): the control is given, or guessed; the treated value is the other one
+        # of two, or the given one, or the largest arm besides the control
+        sizes = [int(counts[level]) for level in levels]
+        if request.control is not None:
+            control = request.control
+        elif request.treated is not None and len(levels) == 2:
+            control = next(level for level in levels if level != request.treated)
+        else:
+            control = guess_control(levels, sizes)
+            if control == request.treated:
+                control = max((lv for lv in levels if lv != request.treated), key=counts.get)
+        others = [level for level in levels if level != control]
+        treated = request.treated or max(others, key=lambda level: int(counts[level]))
+        if treated == control:
+            raise ExperimentError("The treated value and the control must differ.", "treated")
+        frame = frame[frame[dec.ACTION].astype(str).isin([treated, control])].reset_index(drop=True)
+        frame[mt.TREATED] = (frame[dec.ACTION].astype(str) == treated).astype(int)
+        sampled = len(frame) > mt.MAX_UNITS  # R-MAT-03: a reproducible sample beyond
+        if sampled:
+            keep = np.random.default_rng(mt.SEED).choice(len(frame), mt.MAX_UNITS, replace=False)
+            frame = frame.iloc[np.sort(keep)].reset_index(drop=True)
+        result = mt.flame(
+            frame,
+            chosen,
+            request.treatment,
+            treated,
+            control,
+            request.outcome,
+            request.bins,
+            request.alpha,
+            sampled,
+            request.method,
+        )
+        if isinstance(result, mt.MatchingUnavailable):
+            raise ExperimentError(result.reason, "treatment")
+        return result
 
 
 def _model_policies(

@@ -13,7 +13,8 @@ Every automatic reading is a written rule with a code, announced in `rules` with
 import shows and its reason: R-VIS-LAY (layout), R-VIS-LAB (a labels file), R-VIS-HF (a Parquet
 image column), R-VIS-ZIP (archives), R-VIS-ING (what was left out), R-VIS-DEC (decoding). Naming a
 code in `ignore_rules` undoes it. Files that are not taken are listed in `skipped`, each with its
-code and reason. Nothing runs in a thread or a subprocess: the same code runs in Pyodide.
+code and reason. On a computer, a large set is read by a few processes (R-VIS-ING-07,
+`parallel.py`); in Pyodide everything runs in the page, one image after the other.
 """
 
 from __future__ import annotations
@@ -21,7 +22,6 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
-import re
 import uuid
 import zipfile
 from collections import Counter
@@ -36,6 +36,8 @@ import pyarrow.parquet as pq
 
 from quantilo.ingestion.errors import IngestionError
 from quantilo.ingestion.images import SVG_REASON, ImageInfo, inspect_image, sniff_image
+from quantilo.vision import browser as web
+from quantilo.vision import parallel
 from quantilo.vision.decode import (
     EXTENSIONS,
     FAILURE_CODE,
@@ -44,17 +46,19 @@ from quantilo.vision.decode import (
     try_decode,
 )
 from quantilo.vision.descriptors import classic_descriptor
+from quantilo.vision.edits import save_descriptors
 from quantilo.vision.hashes import dhash, phash, pixel_sha
 from quantilo.vision.layout import (
     CHECK,
-    SPLIT_NAMES,
     FileLayout,
     Layout,
     RuleNote,
     normal_flags,
+    parquet_folder_note,
     read_layout,
+    split_of_file,
 )
-from quantilo.vision.measures import MEASURE_SIDE, measure, working_copy
+from quantilo.vision.measures import measure, working_copy
 from quantilo.vision.quality import QualityReport, QualityThresholds, assess
 from quantilo.vision.store import ImageStore, check_dataset_id, image_id, sha256
 from quantilo.vision.zipsafe import Member, check_zip, is_zip, read_member
@@ -157,7 +161,8 @@ _DECODE_RULES: dict[str, tuple[str, str]] = {
     ),
     "R-VIS-DEC-05": (
         "{n} JPEG images decoded at a reduced scale",
-        "The measures are taken at 512 pixels: decoding every megapixel for them only costs time.",
+        "The measures are taken at 512 pixels (256 in the browser version, R-VIS-WEB-02): "
+        "decoding every megapixel for them only costs time.",
     ),
     "R-VIS-DEC-06": (
         "{n} images in CMYK or another colour mode converted to RGB",
@@ -197,6 +202,7 @@ class ImageSet:
     skipped: list[Skipped] = field(default_factory=list)
     conflicts: list[LabelConflict] = field(default_factory=list)
     quality: QualityReport | None = None  # 105: the R-VQ rules, run at the import
+    parquet_files: int = 1  # R-VIS-LAY-06: a folder of Parquet files
 
     @property
     def root(self) -> Path:
@@ -231,7 +237,9 @@ class ImageSet:
             "image": "image file",
             "folder": "folder",
             "zip": "ZIP archive",
-            "parquet": "Parquet file",
+            "parquet": "Parquet file"
+            if self.parquet_files == 1
+            else f"folder of {self.parquet_files} Parquet files",
         }[self.source_kind]
         details = []
         if labels := self.labels:
@@ -281,6 +289,7 @@ class _Collected:
     label_files: list[Path] = field(default_factory=list)
     meta: pa.Table | None = None  # HF: the other columns, one row per candidate
     resources: list[zipfile.ZipFile] = field(default_factory=list)  # closed after the build
+    parquet_files: int = 1  # R-VIS-LAY-06: how many Parquet files were read
 
 
 def _not_image(head: bytes, rel: str, collected: _Collected, others: Counter[str]) -> None:
@@ -485,11 +494,7 @@ def _class_names(pf: pq.ParquetFile) -> dict[str, list[str]]:
 
 
 def _split_from_name(path: Path) -> str | None:
-    for text in (path.stem, path.parent.name):
-        for token in re.split(r"[-_.\s]+", text.lower()):
-            if token in SPLIT_NAMES:
-                return SPLIT_NAMES[token]
-    return None
+    return split_of_file(path.as_posix())
 
 
 def _collect_parquet(path: Path, max_images: int, label_column: str | None) -> _Collected:
@@ -613,6 +618,94 @@ def _collect_parquet(path: Path, max_images: int, label_column: str | None) -> _
             _Candidate(rel, len(data), fmt, read, FileLayout(rel, label=labels[i], split=split))
         )
     collected.meta = table.take(pa.array(keep, pa.int64())) if table.num_columns else None
+    return collected
+
+
+def _image_parquets(root: Path) -> list[Path]:
+    """R-VIS-LAY-06: the Parquet files under `root` (6 levels at most, hidden ones and links left
+    out) that hold an image column, in the order of their relative paths."""
+    found: list[Path] = []
+    stack: list[tuple[Path, int]] = [(root, 0)]
+    while stack:
+        folder, depth = stack.pop()
+        try:
+            entries = sorted(os.scandir(folder), key=lambda e: e.name)
+        except OSError:
+            continue
+        for entry in entries:
+            path = Path(entry.path)
+            if _hidden_name(entry.name) or entry.is_symlink() or path.is_junction():
+                continue
+            if entry.is_dir(follow_symlinks=False):
+                if depth + 1 <= MAX_DEPTH:
+                    stack.append((path, depth + 1))
+            elif entry.is_file(follow_symlinks=False) and (
+                entry.name.lower().endswith((".parquet", ".pq")) or _head(path, 4) == b"PAR1"
+            ):
+                try:
+                    holds = _image_column(pq.ParquetFile(path)) is not None
+                except (pa.ArrowInvalid, OSError):
+                    holds = False
+                if holds:
+                    found.append(path)
+    return sorted(found, key=lambda p: p.relative_to(root).as_posix())
+
+
+def _merged_notes(notes: list[RuleNote]) -> list[RuleNote]:
+    """The same note from several files once, with the files' counts added up."""
+    merged: dict[tuple[str, str], RuleNote] = {}
+    for note in notes:
+        key = (note.code, note.message)
+        known = merged.get(key)
+        if known is not None and note.count is not None:
+            merged[key] = replace(known, count=(known.count or 0) + note.count)
+        elif known is None:
+            merged[key] = note
+    return list(merged.values())
+
+
+def _collect_parquets(
+    root: Path, files: list[Path], max_images: int, label_column: str | None
+) -> _Collected:
+    """R-VIS-LAY-06: every Parquet file of the folder read as one set, its split from its name. A
+    path in the set is `<file>/<image name>`: it says which file each image came from, and two
+    shards cannot give two images the same path."""
+    collected = _Collected(parquet_files=len(files))
+    notes: list[RuleNote] = []
+    metas: list[pa.Table] = []
+    per_file: list[tuple[str, str | None, int]] = []
+    for path in files:
+        rel = path.relative_to(root).as_posix()
+        remaining = max_images - len(collected.candidates)
+        if remaining <= 0:
+            notes.append(
+                RuleNote(
+                    "R-VIS-ING-01",
+                    f"Only the first {max_images:,} images were taken (limit).",
+                    "Beyond this an import takes hours: split the set.",
+                    max_images,
+                )
+            )
+            break
+        one = _collect_parquet(path, remaining, label_column)
+        prefix = str(PurePosixPath(rel).with_suffix(""))
+        for c in one.candidates:
+            moved = f"{prefix}/{c.rel_path}"
+            preset = replace(c.preset, rel_path=moved) if c.preset else FileLayout(moved)
+            collected.candidates.append(replace(c, rel_path=moved, preset=preset))
+        collected.skipped.extend(replace(s, rel_path=f"{rel}: {s.rel_path}") for s in one.skipped)
+        # the folder's note replaces each file's own split note (R-VIS-HF-03)
+        notes.extend(n for n in one.rules if n.code != "R-VIS-HF-03")
+        per_file.append((PurePosixPath(rel).name, split_of_file(rel), len(one.candidates)))
+        marker = pa.array([rel] * len(one.candidates), pa.string())
+        meta = one.meta if one.meta is not None else pa.table({"__parquet_file": marker})
+        if "__parquet_file" not in meta.column_names:
+            meta = meta.append_column("__parquet_file", marker)
+        metas.append(meta)
+    collected.rules = [parquet_folder_note(per_file), *_merged_notes(notes)]
+    if metas:
+        table = pa.concat_tables(metas, promote_options="default").drop_columns(["__parquet_file"])
+        collected.meta = table if table.num_columns else None
     return collected
 
 
@@ -813,33 +906,33 @@ class _Build:
     descriptors: list[np.ndarray | None] | None = None  # 105, R-VQ-15: projected, one per row
 
 
-def _row(c: _Candidate, entry: FileLayout, b: _Build, mask: _Candidate | None) -> dict[str, Any]:
-    data = c.read()
-    digest = sha256(data)
-    _, stored = b.store.put_file(data, EXTENSIONS[c.fmt], digest)
-    name = PurePosixPath(c.rel_path).name
-    result = try_decode(data, name=name, reduce_to=b.side)
-    row: dict[str, Any] = dict.fromkeys(COLUMNS)
-    row.update(
-        image_id=image_id(digest),
-        file_name=name,
-        rel_path=c.rel_path,
-        label=entry.label,
-        split=entry.split,
-        is_normal=entry.is_normal,
-        sha256=digest,
-        stored_path=stored,
-    )
+def analyse(
+    data: bytes,
+    name: str,
+    side: int,
+    thumbnails: bool,
+    describe: bool,
+    mask: bytes | None = None,
+    mask_name: str | None = None,
+) -> dict[str, Any]:
+    """Decode, measure, hash, thumbnail and describe one image: everything an import does with its
+    pixels, nothing written. A top-level function, so that a reading process (R-VIS-ING-07) runs
+    it; the import writes what it returns."""
+    from quantilo.vision.store import mask_bytes, thumbnail_bytes
+
+    out: dict[str, Any] = {"fields": {}, "notes": [], "thumb": None, "descriptor": None,
+                           "decoded": False, "mask": None, "mask_error": None}  # fmt: skip
+    result = try_decode(data, name=name, reduce_to=side)
     if isinstance(result, DecodedImage):
         decoded = result
-        for note in decoded.notes:
-            b.decode_notes[note[:12]] += 1
-        row.update(_file_fields(decoded.info, data, decoded.width, decoded.height))
-        row["bit_depth"] = decoded.bit_depth
-        row["frames"] = decoded.frames
-        copy = working_copy(decoded.image, b.side)
-        m = measure(copy, side=b.side, prepared=True)
-        row.update(
+        out["decoded"] = True
+        out["notes"] = [note[:12] for note in decoded.notes]
+        fields = _file_fields(decoded.info, data, decoded.width, decoded.height)
+        fields["bit_depth"] = decoded.bit_depth
+        fields["frames"] = decoded.frames
+        copy = working_copy(decoded.image, side)
+        m = measure(copy, side=side, prepared=True)
+        fields.update(
             brightness=m.brightness,
             luma_p05=m.luma_p05,
             luma_p95=m.luma_p95,
@@ -859,24 +952,61 @@ def _row(c: _Candidate, entry: FileLayout, b: _Build, mask: _Candidate | None) -
             issues=[],
             excluded=False,
         )
-        if b.thumbnails:
-            row["thumb_path"] = b.store.put_thumbnail(digest, decoded.image)
-        if b.descriptors is not None:
-            b.descriptors.append(_projected(copy))
+        out["fields"] = fields
+        if thumbnails:
+            out["thumb"] = thumbnail_bytes(decoded.image)
+        if describe:
+            out["descriptor"] = _projected(copy)
     else:
         info = inspect_image(data, name=name)
-        row.update(_file_fields(info, data, info.display_width, info.display_height))
-        row.update(
+        fields = _file_fields(info, data, info.display_width, info.display_height)
+        fields.update(
             decode_ok=False, decode_error=result.reason, issues=[FAILURE_CODE], excluded=True
         )
-        if b.descriptors is not None:
-            b.descriptors.append(None)
+        out["fields"] = fields
     if mask is not None:
-        decoded_mask = try_decode(mask.read(), name=PurePosixPath(mask.rel_path).name)
+        decoded_mask = try_decode(mask, name=mask_name or "mask")
         if isinstance(decoded_mask, DecodedImage):
-            row["mask_path"] = b.store.put_mask(digest, decoded_mask.image)
+            out["mask"] = mask_bytes(decoded_mask.image)
         else:
-            b.skipped.append(Skipped(mask.rel_path, "R-VIS-LAY-04", decoded_mask.reason))
+            out["mask_error"] = decoded_mask.reason
+    return out
+
+
+def _row(
+    c: _Candidate,
+    entry: FileLayout,
+    b: _Build,
+    mask: _Candidate | None,
+    data: bytes,
+    found: dict[str, Any],
+) -> dict[str, Any]:
+    """The table row of an analysed image (`analyse`), and its files written to the store."""
+    digest = sha256(data)
+    _, stored = b.store.put_file(data, EXTENSIONS[c.fmt], digest)
+    row: dict[str, Any] = dict.fromkeys(COLUMNS)
+    row.update(
+        image_id=image_id(digest),
+        file_name=PurePosixPath(c.rel_path).name,
+        rel_path=c.rel_path,
+        label=entry.label,
+        split=entry.split,
+        is_normal=entry.is_normal,
+        sha256=digest,
+        stored_path=stored,
+    )
+    row.update(found["fields"])
+    for note in found["notes"]:
+        b.decode_notes[note] += 1
+    if found["thumb"] is not None:
+        row["thumb_path"] = b.store.put_thumbnail_bytes(digest, found["thumb"])
+    if b.descriptors is not None:
+        b.descriptors.append(found["descriptor"] if found["decoded"] else None)
+    if mask is not None:
+        if found["mask"] is not None:
+            row["mask_path"] = b.store.put_mask_bytes(digest, found["mask"])
+        else:
+            b.skipped.append(Skipped(mask.rel_path, "R-VIS-LAY-04", found["mask_error"] or ""))
     return row
 
 
@@ -936,6 +1066,10 @@ def _plan(
         layout = read_layout(list(by_path), ignore=ignore)
     else:
         layout = Layout(files=[c.preset or FileLayout(c.rel_path) for c in collected.candidates])
+        if "R-VIS-LAY-06" in ignore and any(r.code == "R-VIS-LAY-06" for r in rules):
+            # undone: the file names say nothing about the split
+            rules = [r for r in rules if r.code != "R-VIS-LAY-06"]
+            layout = Layout(files=[replace(f, split=None) for f in layout.files])
     rules.extend(layout.rules)
     skipped.extend(
         Skipped(p, "R-VIS-LAY-04", "A mask without a matching image.") for p in layout.orphan_masks
@@ -991,6 +1125,68 @@ def _plan(
     return _Plan(entries, rules, skipped, conflicts, matched, layout)
 
 
+def _read_rows(
+    entries: Sequence[FileLayout],
+    by_path: dict[str, _Candidate],
+    b: _Build,
+    workers: parallel.Workers,
+    progress: Progress | None,
+) -> list[dict[str, Any]]:
+    """Every row, in the order of `entries`: read in this process, or analysed by `workers.count`
+    processes (R-VIS-ING-07) with at most `IN_FLIGHT` images each in memory. The files are read and
+    written here; only `analyse` runs elsewhere. An exception raised by `progress` (an import
+    stopped) cancels what was not started."""
+    total = len(entries)
+    how = "" if workers.count == 1 else f" ({workers.count} processes)"
+    rows: list[dict[str, Any]] = []
+
+    def job(e: FileLayout) -> tuple[_Candidate, _Candidate | None, bytes, tuple[Any, ...]]:
+        c = by_path[e.rel_path]
+        mask = by_path.get(e.mask) if e.mask else None
+        data = c.read()
+        name = PurePosixPath(c.rel_path).name
+        mask_data = mask.read() if mask is not None else None
+        mask_name = PurePosixPath(mask.rel_path).name if mask is not None else None
+        args = (data, name, b.side, b.thumbnails, b.descriptors is not None, mask_data, mask_name)
+        return c, mask, data, args
+
+    def done(i: int) -> None:
+        if progress is not None and (i % 25 == 0 or i + 1 == total):
+            progress(0.9 * (i + 1) / max(1, total), f"Reading images{how}: {i + 1:,} of {total:,}")
+
+    if workers.count <= 1:
+        for i, e in enumerate(entries):
+            c, mask, data, args = job(e)
+            rows.append(_row(c, e, b, mask, data, analyse(*args)))
+            done(i)
+        return rows
+
+    from collections import deque
+    from concurrent.futures import ProcessPoolExecutor
+
+    pool = ProcessPoolExecutor(workers.count)
+    waiting: deque[tuple[FileLayout, _Candidate, _Candidate | None, bytes, Any]] = deque()
+
+    def collect() -> None:
+        e, c, mask, data, future = waiting.popleft()
+        rows.append(_row(c, e, b, mask, data, future.result()))
+        done(len(rows) - 1)
+
+    try:
+        for e in entries:
+            c, mask, data, args = job(e)
+            waiting.append((e, c, mask, data, pool.submit(analyse, *args)))
+            while len(waiting) >= workers.count * parallel.IN_FLIGHT:
+                collect()
+        while waiting:
+            collect()
+    except BaseException:
+        pool.shutdown(wait=False, cancel_futures=True)
+        raise
+    pool.shutdown(wait=True)
+    return rows
+
+
 def _build(
     kind: SourceKind,
     collected: _Collected,
@@ -1004,29 +1200,38 @@ def _build(
     quality: bool = True,
     thresholds: QualityThresholds | None = None,
     progress: Progress | None = None,
+    workers: int | None = None,
 ) -> ImageSet:
     plan = _plan(kind, collected, labels=labels, label_column=label_column, ignore=ignore)
     entries, rules, skipped = plan.entries, plan.rules, plan.skipped
     conflicts, matched = plan.conflicts, plan.matched
     by_path = {c.rel_path: c for c in collected.candidates}
     b = _Build(store, side, thumbnails, descriptors=[] if quality else None)
-    rows = []
-    total = max(1, len(entries))
-    for i, e in enumerate(entries):
-        rows.append(_row(by_path[e.rel_path], e, b, by_path.get(e.mask) if e.mask else None))
-        if progress is not None and (i % 25 == 0 or i + 1 == len(entries)):
-            progress(0.9 * (i + 1) / total, f"Reading images: {i + 1:,} of {len(entries):,}")
+    found_workers = parallel.import_workers(len(entries), requested=workers)
+    rows = _read_rows(entries, by_path, b, found_workers, progress)
+    if found_workers.count > 1:
+        rules.append(
+            RuleNote(
+                "R-VIS-ING-07",
+                found_workers.reason,
+                "Decoding and measuring is the slow part of an import; memory bounds it.",
+            )
+        )
     skipped.extend(b.skipped)
     rules.extend(_decode_rules(b.decode_notes))
+    measured_small = web.measure_note(side)  # R-VIS-WEB-02
+    if measured_small is not None:
+        rules.append(measured_small)
     table = pa.Table.from_pylist(rows, schema=SCHEMA)
     report: QualityReport | None = None
     if quality:
         if progress is not None:
             progress(0.92, "Checking quality (R-VQ rules)")
-        report = assess(
-            table, thresholds=thresholds, ignore=ignore, descriptors=_matrix(b.descriptors)
-        )
+        matrix = _matrix(b.descriptors)
+        report = assess(table, thresholds=thresholds, ignore=ignore, descriptors=matrix)
         table = report.apply(table)
+        if matrix is not None:  # R-VQT-03: kept for the rules run again from the Quality tab
+            save_descriptors(store.root, [e.rel_path for e in entries], matrix)
     extra = []
     if matched is not None and matched.meta is not None:
         extra.append(matched.meta)
@@ -1049,6 +1254,7 @@ def _build(
         skipped=skipped,
         conflicts=conflicts,
         quality=report,
+        parquet_files=collected.parquet_files,
     )
 
 
@@ -1068,8 +1274,29 @@ def _matrix(vectors: list[np.ndarray | None] | None) -> np.ndarray | None:
 def _collect(
     path: Path, max_images: int, label_column: str | None
 ) -> tuple[SourceKind, _Collected]:
+    kind, collected = _collect_any(path, max_images, label_column)
+    return kind, _within_browser(collected)
+
+
+def _within_browser(collected: _Collected) -> _Collected:
+    """R-VIS-WEB-01: in the browser, the first files within 2,000 images and 300 MB, said."""
+    found = web.budget([c.size for c in collected.candidates])
+    if found.note is not None:
+        collected.candidates = collected.candidates[: found.kept]
+        if collected.meta is not None:
+            collected.meta = collected.meta.slice(0, found.kept)
+        collected.rules.append(found.note)
+    return collected
+
+
+def _collect_any(
+    path: Path, max_images: int, label_column: str | None
+) -> tuple[SourceKind, _Collected]:
     if path.is_dir():
-        return "folder", _collect_folder(path, max_images)
+        collected = _collect_folder(path, max_images)
+        if not collected.candidates and (parquets := _image_parquets(path)):
+            return "parquet", _collect_parquets(path, parquets, max_images, label_column)
+        return "folder", collected
     if is_zip(path):
         return "zip", _collect_zip(path, max_images)
     if path.suffix.lower() == ".parquet" or _head(path, 4) == b"PAR1":
@@ -1108,12 +1335,13 @@ def image_set(
     label_column: str | None = None,
     ignore_rules: Collection[str] = (),
     thumbnails: bool = True,
-    measure_side: int = MEASURE_SIDE,
+    measure_side: int | None = None,
     max_images: int = MAX_IMAGES,
     quality: bool = True,
     quality_thresholds: QualityThresholds | None = None,
     table_path: str | os.PathLike[str] | None = None,
     progress: Progress | None = None,
+    workers: int | None = None,
 ) -> ImageSet:
     """Import an image set (see the module) from a folder, a ZIP, a Parquet file with an image
     column (Hugging Face `datasets`) or a single image.
@@ -1122,9 +1350,10 @@ def image_set(
     `label_column` picks its label column. `ignore_rules` undoes reading rules by code (for example
     `{"R-VIS-LAY-01"}`: ignore folder labels) and quality rules (`{"R-VQ-08"}`). Files go to
     `workspace/images/<dataset_id>/`, the table to `workspace/datasets/<dataset_id>.parquet` (or
-    `table_path`). `quality` runs the R-VQ rules (105) with `quality_thresholds`;
+    `table_path`). `measure_side`: 512 pixels, 256 in the browser version (R-VIS-WEB-02, which
+    also moves the blur threshold). `quality` runs the R-VQ rules (105) with `quality_thresholds`;
     `progress(fraction, message)` is called while images are read (an exception raised in it
-    stops the import)."""
+    stops the import). `workers`: reading processes (None: R-VIS-ING-07 decides; 1: none)."""
     path = Path(source)
     if not path.exists():
         from quantilo.errors import NotFoundError
@@ -1141,6 +1370,7 @@ def image_set(
         from quantilo.errors import NotFoundError
 
         raise NotFoundError(f"File {label_path.name!r}")
+    side = web.measure_side(measure_side)
     kind, collected = _collect(path, max_images, label_column)
     try:
         return _build(
@@ -1150,11 +1380,12 @@ def image_set(
             labels=label_path,
             label_column=label_column,
             ignore=ignore,
-            side=measure_side,
+            side=side,
             thumbnails=thumbnails,
             quality=quality,
-            thresholds=quality_thresholds,
+            thresholds=web.quality_thresholds(quality_thresholds, side),
             progress=progress,
+            workers=workers,
         )
     finally:
         for resource in collected.resources:

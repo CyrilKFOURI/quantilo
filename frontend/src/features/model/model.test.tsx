@@ -53,6 +53,8 @@ const check = (orphans = 0) => ({
   recommended: "left" as const,
   reasons: [{ code: "R-JOIN-01", text: "LEFT JOIN keeps all 2 155 sales rows" }],
   warnings: [],
+  normalized_gain: 0,
+  near_misses: [],
 });
 
 const relation = (id: string, parent: string, columns: [string, string], status: Relation["status"], orphans = 0): Relation => ({
@@ -72,6 +74,8 @@ const relation = (id: string, parent: string, columns: [string, string], status:
   reasons: [{ code: "R-REL-02", text: `${columns[0]} and ${columns[1]} name the same thing` }],
   check: check(orphans),
   problem: null,
+  active: true,
+  match: "exact",
 });
 
 function makeModel(relations: Relation[]): Model {

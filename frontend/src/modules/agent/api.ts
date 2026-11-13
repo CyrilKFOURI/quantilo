@@ -11,6 +11,18 @@ export type AgentMessage = Schemas["AgentMessage"];
 export type AgentStep = Schemas["AgentStep"];
 export type AgentLink = Schemas["AgentLink"];
 export type AgentNote = Schemas["AgentNote"];
+export type AgentPersonalColumn = Schemas["AgentPersonalColumn"];
+export type RowsSharing = AgentSettings["rows_sharing"];
+export type Mask = AgentPersonalColumn["mask"];
+
+/** What a `sample_rows` call would share, on the card that asks the user (R-AG-P2). */
+export type RowsRequest = {
+  count: number;
+  columns: string[];
+  /** Personal columns masked unless the user ticks them, this request only. */
+  masked: { name: string; mask: Mask }[];
+  filtered: boolean;
+};
 
 /** One event of a turn, as the backend streams it (modules/agent/service.py). */
 export type TurnEvent =
@@ -18,7 +30,7 @@ export type TurnEvent =
   | { type: "thinking"; text: string }
   | { type: "step_started"; id: string; tool: string; label: string; input: Record<string, unknown> }
   | { type: "step_progress"; id: string; message: string; share: number | null }
-  | { type: "confirm"; id: string; tool: string; text: string }
+  | { type: "confirm"; id: string; tool: string; text: string; rows?: RowsRequest }
   | { type: "step_done"; id: string; ok: boolean; summary: string; link: AgentLink | null; ms: number }
   | {
       type: "spent";
@@ -60,8 +72,12 @@ export const agentApi = {
     request<AgentNote>("POST", `${BASE}/datasets/${datasetId}/notes`, { text }),
   deleteNote: (datasetId: string, noteId: string) =>
     request<void>("DELETE", `${BASE}/datasets/${datasetId}/notes/${noteId}`),
-  confirm: (id: string, callId: string, approved: boolean) =>
-    request<void>("POST", `${BASE}/conversations/${id}/confirm/${callId}`, { approved }),
+  confirm: (id: string, callId: string, approved: boolean, unmask?: string[]) =>
+    request<void>("POST", `${BASE}/conversations/${id}/confirm/${callId}`, { approved, unmask }),
+  personalColumns: (datasetId: string) =>
+    request<AgentPersonalColumn[]>("GET", `${BASE}/datasets/${datasetId}/personal-columns`),
+  setUnmasked: (datasetId: string, unmasked: string[]) =>
+    request<AgentPersonalColumn[]>("PUT", `${BASE}/datasets/${datasetId}/personal-columns`, { unmasked }),
 };
 
 /** Sends a message and calls `onEvent` for each streamed event until the turn ends. */

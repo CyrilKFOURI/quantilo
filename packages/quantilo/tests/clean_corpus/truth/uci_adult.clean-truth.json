@@ -1,0 +1,21 @@
+{
+ "label": "uci_adult",
+ "corpus": "data-corpus",
+ "path": "hr/uci_adult/adult.data.csv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-01:column01", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-01:column03", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-01:column05", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-01:column06", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-01:column07", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-01:column08", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-01:column09", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-01:column13", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-01:column14", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-04:column01:maybe", "verdict": "correct", "why": "'?' is the file's code for 'missing' (3 columns) (mode S)", "op": "null_values"},
+  {"id": "B-04:column06:maybe", "verdict": "correct", "why": "'?' is the file's code for 'missing' (3 columns) (mode S)", "op": "null_values"},
+  {"id": "B-04:column13:maybe", "verdict": "correct", "why": "'?' is the file's code for 'missing' (3 columns) (mode S)", "op": "null_values"}
+ ]
+}

@@ -10,6 +10,7 @@ from app.schemas.model import (
     CheckIn,
     CheckOut,
     CreatedOut,
+    DatesIn,
     LayoutIn,
     ModelOut,
     PreviewOut,
@@ -80,6 +81,12 @@ def build(project_id: str, body: BuildIn, service: Service) -> CreatedOut:
 @router.post("/builds/{dataset_id}/rebuild")
 def rebuild(project_id: str, dataset_id: str, service: Service) -> CreatedOut:
     return service.rebuild(project_id, dataset_id)
+
+
+@router.post("/dates", status_code=201)
+def dates(project_id: str, body: DatesIn, service: Service) -> CreatedOut:
+    """C1 (R-BLD-08): a date table, one row per day of a date column, related to its table."""
+    return service.dates(project_id, body)
 
 
 @router.post("/aggregate", status_code=201)

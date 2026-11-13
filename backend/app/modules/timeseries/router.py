@@ -235,9 +235,12 @@ def _orders(text: str, name: str) -> tuple[int, int, int]:
 
 
 class ForecastOptions(BaseModel):
-    """What does not fit in the query string: the drivers (028 A4)."""
+    """What does not fit in the query string: the drivers (028 A4, public holidays A5) and the
+    tuning options (028 A7: ARIMA bounds and criterion, gradient-boosting grid, Prophet-like
+    changepoints, a time limit per model)."""
 
     drivers: list[dv.Driver] = Field(default_factory=list, max_length=dv.MAX_DRIVERS)
+    tuning: fc.Tuning = Field(default_factory=fc.Tuning)
 
 
 @router.post("/datasets/{dataset_id}/forecast", status_code=202)
@@ -253,7 +256,8 @@ def start_forecast(
     options: Annotated[ForecastOptions | None, Body()] = None,
 ) -> ForecastJob:
     """Start (or reuse) a forecast job: models scored by rolling origin, then refitted. The
-    body's drivers are used by SARIMAX, the linear regression and gradient boosting."""
+    body's drivers are used by SARIMAX, the linear regression, gradient boosting and the
+    Prophet-like model; its tuning sets the options of the models and the time limit."""
     keys = chosen_methods(methods_, fc.MODELS)
     return service.start_forecast(
         dataset_id,
@@ -264,6 +268,7 @@ def start_forecast(
         _orders(order, "order"),
         _orders(sorder, "seasonal order"),
         options.drivers if options else None,
+        options.tuning if options else None,
     )
 
 
@@ -276,7 +281,8 @@ def drivers(
     horizon: Annotated[int | None, Query(ge=1, le=500)] = None,
 ) -> SeriesDrivers:
     """Columns that could drive the series (correlation of their changes, future values in the
-    file) and the calendar variables that make sense for the period."""
+    file), the calendar variables that make sense for the period, and the public holiday
+    calendar (countries, the one proposed by rule and why)."""
     return service.drivers(dataset_id, request, filters, horizon)
 
 
@@ -395,6 +401,7 @@ class ScenarioOptions(BaseModel):
     drivers: list[dv.Driver] = Field(min_length=1, max_length=dv.MAX_DRIVERS)
     future: dict[str, list[float]] | None = None
     changes: list[dv.ScenarioChange] = Field(default_factory=list, max_length=20)
+    tuning: fc.Tuning = Field(default_factory=fc.Tuning)
 
 
 @router.post("/datasets/{dataset_id}/scenario")
@@ -419,4 +426,5 @@ def scenario(
         model,
         horizon,
         options.changes or None,
+        options.tuning,
     )

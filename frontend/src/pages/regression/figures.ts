@@ -1,8 +1,20 @@
 import type { Data, Layout } from "plotly.js-dist-min";
 
-import type { Regression, RegressionCurve, RegressionCurves, RegressionCusum, RegressionPartial, RegressionQuantileCurve, RegressionRolling } from "../../api/client";
+import type {
+  Regression,
+  RegressionCurve,
+  RegressionCurves,
+  RegressionCusum,
+  RegressionDriftCurve,
+  RegressionPartial,
+  RegressionQuantileCurve,
+  RegressionRegimes,
+  RegressionRolling,
+  RegressionSurvivalCurve,
+} from "../../api/client";
 import { withAlpha } from "../../charts/figures";
 import type { ChartTokens } from "../../charts/theme";
+import { t } from "../../lib/i18n";
 
 type Built = { data: Data[]; layout?: Partial<Layout> };
 type Plots = NonNullable<Regression["plots"]>;
@@ -32,10 +44,10 @@ export function residualsFigure(plots: Plots): (tokens: ChartTokens) => Built {
           y: plots.residuals,
           customdata: plots.rows,
           marker: { color: tokens.numeric, size: 4, opacity: 0.45 },
-          hovertemplate: "row %{customdata}<br>fitted %{x:,.4g}<br>residual %{y:,.4g}<extra></extra>",
+          hovertemplate: t("fig.reg.hoverFitted"),
         } as Data,
       ],
-      layout: { showlegend: false, xaxis: axis("Fitted values"), yaxis: axis("Residuals") },
+      layout: { showlegend: false, xaxis: axis(t("fig.reg.fittedValues")), yaxis: axis(t("fig.ts.residuals")) },
     };
   };
 }
@@ -66,13 +78,13 @@ export function influenceFigure(plots: Plots): (tokens: ChartTokens) => Built {
             size: 5,
             opacity: 0.55,
           },
-          hovertemplate: "row %{customdata}<br>leverage %{x:.3g}<br>Cook %{y:.3g}<extra></extra>",
+          hovertemplate: t("fig.reg.hoverLeverage"),
         } as Data,
       ],
       layout: {
         showlegend: false,
-        xaxis: axis("Leverage"),
-        yaxis: axis("Cook's distance"),
+        xaxis: axis(t("fig.reg.leverage")),
+        yaxis: axis(t("fig.reg.cook")),
         annotations: [
           {
             x: high,
@@ -120,7 +132,7 @@ export function effectCurveFigure(curve: RegressionCurve): (tokens: ChartTokens)
           y: line.y,
           line: { color, width: 2 },
           showlegend: several,
-          hovertemplate: `${plain(curve.column)} %{x:,.4g}<br>fitted %{y:,.4g}<extra>${plain(line.label)}</extra>`,
+          hovertemplate: `${plain(curve.column)} %{x:,.4g}<br>${t("fig.reg.fitted")} %{y:,.4g}<extra>${plain(line.label)}</extra>`,
         } as Data,
       );
     });
@@ -128,7 +140,7 @@ export function effectCurveFigure(curve: RegressionCurve): (tokens: ChartTokens)
       data,
       layout: {
         xaxis: axis(plain(curve.column)),
-        yaxis: axis(`Fitted ${plain(curve.scale)}`),
+        yaxis: axis(t("fig.reg.fittedScale", { scale: plain(curve.scale) })),
         showlegend: several,
         legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom", font: { size: 11 } },
       },
@@ -152,11 +164,11 @@ export function addedVariableFigure(plot: RegressionPartial): (tokens: ChartToke
           y: plot.y_resid,
           customdata: plot.rows,
           marker: { color: tokens.numeric, size: 4, opacity: 0.4 },
-          hovertemplate: "row %{customdata}<br>%{x:,.4g} ; %{y:,.4g}<extra></extra>",
+          hovertemplate: t("fig.reg.hoverRowPoint"),
         } as Data,
         { type: "scatter", mode: "lines", x: [low, high], y: [slope * low, slope * high], line: { color: tokens.accent, width: 2 }, hoverinfo: "skip" } as Data,
       ],
-      layout: { showlegend: false, xaxis: axis(`${plain(plot.column)} | other terms`), yaxis: axis("Target | other terms") },
+      layout: { showlegend: false, xaxis: axis(t("fig.reg.otherTerms", { column: plain(plot.column) })), yaxis: axis(t("fig.reg.targetOtherTerms")) },
     };
   };
 }
@@ -172,11 +184,11 @@ export function componentFigure(plot: RegressionPartial): (tokens: ChartTokens) 
         y: plot.component_resid,
         customdata: plot.rows,
         marker: { color: tokens.numeric, size: 4, opacity: 0.4 },
-        hovertemplate: "row %{customdata}<br>%{x:,.4g} ; %{y:,.4g}<extra></extra>",
+        hovertemplate: t("fig.reg.hoverRowPoint"),
       } as Data,
       { type: "scatter", mode: "lines", x: plot.line_x, y: plot.line_y, line: { color: tokens.accent, width: 2 }, hoverinfo: "skip" } as Data,
     ],
-    layout: { showlegend: false, xaxis: axis(plain(plot.column)), yaxis: axis("Component + residual") },
+    layout: { showlegend: false, xaxis: axis(plain(plot.column)), yaxis: axis(t("fig.reg.componentResidual")) },
   });
 }
 
@@ -210,10 +222,10 @@ export function quantileFigure(curve: RegressionQuantileCurve): (tokens: ChartTo
         x: [curve.taus[0], curve.taus[curve.taus.length - 1]],
         y: [curve.ols, curve.ols],
         line: { color: tokens.ink3, width: 1.5, dash: "dash" },
-        hovertemplate: "least squares %{y:,.4g}<extra></extra>",
+        hovertemplate: t("fig.reg.hoverLeastSquares"),
       } as Data,
     ],
-    layout: { showlegend: false, xaxis: { ...axis("Quantile τ"), range: [0.05, 0.95] }, yaxis: axis("Effect") },
+    layout: { showlegend: false, xaxis: { ...axis(t("fig.reg.quantile")), range: [0.05, 0.95] }, yaxis: axis(t("fig.reg.effect")) },
   });
 }
 
@@ -237,7 +249,7 @@ export function cusumFigure(path: RegressionCusum, label: string): (tokens: Char
 }
 
 /** 073: one coefficient over rolling windows, its 95 % band, and the whole-series value. */
-export function rollingFigure(curve: RegressionRolling): (tokens: ChartTokens) => Built {
+export function rollingFigure(curve: Pick<RegressionRolling, "dates" | "estimates" | "low" | "high" | "full">, reference = t("fig.reg.wholeSeries")): (tokens: ChartTokens) => Built {
   return (tokens) => ({
     data: [
       { type: "scatter", mode: "lines", x: curve.dates, y: curve.high, line: { width: 0, color: tokens.numeric }, hoverinfo: "skip" } as Data,
@@ -265,7 +277,7 @@ export function rollingFigure(curve: RegressionRolling): (tokens: ChartTokens) =
         x: [curve.dates[0], curve.dates[curve.dates.length - 1]],
         y: [curve.full, curve.full],
         line: { color: tokens.ink3, width: 1.5, dash: "dash" },
-        hovertemplate: "whole series %{y:,.4g}<extra></extra>",
+        hovertemplate: `${reference} %{y:,.4g}<extra></extra>`,
       } as Data,
     ],
     layout: { showlegend: false, xaxis: { type: "date", zeroline: false }, yaxis: axis("Effect") },
@@ -287,7 +299,7 @@ export function curvesFigure(table: RegressionCurves, shown: number, xLabel: str
           x: table.data_x,
           y: table.data_y,
           marker: { color: withAlpha(tokens.ink3, 0.5), size: 5 },
-          name: "Rows",
+          name: t("fig.Rows"),
           hovertemplate: "%{x:,.4g}, %{y:,.4g}<extra></extra>",
         } as Data,
         ...(line
@@ -319,4 +331,48 @@ export function curvesFigure(table: RegressionCurves, shown: number, xLabel: str
       layout: { showlegend: true, legend: { orientation: "h", y: -0.25 }, xaxis: axis(xLabel), yaxis: axis(yLabel) },
     };
   };
+}
+
+/** 073: one coefficient let free to drift (Kalman smoother), its 95 % band, and the fixed value. */
+export function driftFigure(curve: RegressionDriftCurve): (tokens: ChartTokens) => Built {
+  return rollingFigure({ ...curve, full: curve.fixed }, t("fig.reg.fixed"));
+}
+
+/** 073: the smoothed probability of each regime along the rows, stacked to 1. */
+export function regimesFigure(table: RegressionRegimes): (tokens: ChartTokens) => Built {
+  return (tokens) => ({
+    data: table.regimes.map(
+      (regime, i) =>
+        ({
+          type: "scatter",
+          mode: "lines",
+          x: table.dates,
+          y: table.probabilities[i] ?? [],
+          name: regime.name,
+          stackgroup: "regimes",
+          line: { width: 0.5, color: tokens.palette[i % tokens.palette.length] ?? tokens.numeric },
+          hovertemplate: `${regime.name}<br>%{x}<br>%{y:.0%}<extra></extra>`,
+        }) as Data,
+    ),
+    layout: { showlegend: true, legend: { orientation: "h", y: -0.25 }, xaxis: { type: "date", zeroline: false }, yaxis: { ...axis("Probability"), range: [0, 1], tickformat: ".0%" } },
+  });
+}
+
+/** 076: adjusted survival curves (steps), one per profile or stratum. */
+export function survivalFigure(curves: RegressionSurvivalCurve[], timeLabel: string): (tokens: ChartTokens) => Built {
+  return (tokens) => ({
+    data: curves.map(
+      (curve, i) =>
+        ({
+          type: "scatter",
+          mode: "lines",
+          x: curve.times,
+          y: curve.survival,
+          name: curve.label,
+          line: { shape: "hv", width: 2, color: tokens.palette[i % tokens.palette.length] ?? tokens.numeric },
+          hovertemplate: `${curve.label}<br>%{x:,.4g}: %{y:.0%}<extra></extra>`,
+        }) as Data,
+    ),
+    layout: { showlegend: true, legend: { orientation: "h", y: -0.25 }, xaxis: axis(timeLabel), yaxis: { ...axis(t("fig.reg.stillWithout")), range: [0, 1.02], tickformat: ".0%" } },
+  });
 }

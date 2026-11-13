@@ -40,6 +40,7 @@ from quantilo.segments.portrait import (
     SegmentTrait,
 )
 from quantilo.segments.projection import SegmentDendrogram, SegmentMap
+from quantilo.segments.tree import SegmentTree
 from quantilo.segments.unusual import (
     UnusualCurve,
     UnusualMethod,
@@ -170,6 +171,8 @@ class Segmentation:
     seconds: float
     warnings: list[str] = field(default_factory=list)
     tsne: SegmentMap | None = None
+    # PaCMAP / TriMAP maps drawn on demand (122, extra `interpret`)
+    maps: dict[str, SegmentMap] = field(default_factory=dict)
 
 
 @dataclass
@@ -522,6 +525,106 @@ class SegmentsEngine:
         for segment, unique in zip(segments, names, strict=True):
             segment.name = unique
         return segments
+
+    def extra_map(
+        self, fitted: Segmentation, drawn: np.ndarray, method: str, seed: int = 42
+    ) -> SegmentMap:
+        """PaCMAP or TriMAP of the map's points (122): refused with its reason when the optional
+        `interpret` extra cannot run here (R-XAI-10)."""
+        from quantilo.interpret import extras, maps
+
+        if method not in maps.METHODS:
+            raise SegmentsError(f"Unknown map: {method}.")
+        shown = fitted.map
+        try:
+            return projection.extra_map(
+                drawn, np.asarray(shown.segments), np.asarray(shown.rows), shown.of, seed, method
+            )
+        except extras.ExtraMissing as error:
+            raise SegmentsError(str(error), "extra_missing", 409) from None
+
+    def describe_tree(
+        self,
+        dataset_id: str,
+        conditions: list[Condition],
+        request: SegmentRequest,
+        result: Segmentation,
+        labels: pd.DataFrame,
+        depth: int | None = None,
+        leaves: int | None = None,
+    ) -> SegmentTree:
+        """Describe segments with a tree (124, R-SGT-01 to 04): a sparse tree that predicts
+        each row's segment from the columns the segmentation used, in their units."""
+        from quantilo.interpret.sparse_tree import SparseTreeError
+        from quantilo.segments import tree
+
+        frame, found, names, columns = self._tree_rows(
+            dataset_id, conditions, request, result, labels
+        )
+        try:
+            return tree.describe(frame, found, names, columns, depth, leaves, request.seed)
+        except SparseTreeError as error:
+            raise SegmentsError(str(error), "tree") from None
+
+    def _tree_rows(
+        self,
+        dataset_id: str,
+        conditions: list[Condition],
+        request: SegmentRequest,
+        result: Segmentation,
+        labels: pd.DataFrame,
+    ) -> tuple[pd.DataFrame, np.ndarray, dict[int, str], list[str]]:
+        """The rows a segment tree reads (R-SGT-01), their segment, the names and the columns."""
+        from quantilo.ml.data import CATEGORICAL, NUMERIC
+        from quantilo.segments import tree
+
+        fields, source = self._fields(dataset_id, conditions, request)
+        used = {d.column for d in result.preparation.used}
+        wanted = [
+            f for f in fields if f.name in used and (f.type in NUMERIC or f.type in CATEGORICAL)
+        ]
+        if not wanted:
+            raise SegmentsError(
+                "No number or category to describe the segments with.", "no_columns"
+            )
+        connection = duckdb.connect()
+        try:
+            rows = preparing.load(connection, source, wanted, tree.TREE_ROWS)
+        finally:
+            connection.close()
+        data = rows.data
+        segment = labels.set_index("row")["segment"]
+        found = segment.reindex(data["__row"].to_numpy(dtype=np.int64)).to_numpy(dtype=float)
+        kept = ~np.isnan(found)
+        names = {s.id: s.name for s in result.segments}
+        frame = cast(pd.DataFrame, data[kept]).reset_index(drop=True)
+        return frame, found[kept].astype(int), names, [f.name for f in wanted]
+
+    def optimal_segment(
+        self,
+        dataset_id: str,
+        conditions: list[Condition],
+        request: SegmentRequest,
+        result: Segmentation,
+        labels: pd.DataFrame,
+        segment: int,
+        depth: int = 3,
+    ) -> Any:
+        """124 bis (R-SGT-06): GOSDT's optimal tree for one segment against the others; refused
+        with R-XAI-10 when the `interpret` extra cannot run here."""
+        from quantilo.interpret import extras
+        from quantilo.interpret.sparse_tree import SparseTreeError
+        from quantilo.segments import tree
+
+        frame, found, names, columns = self._tree_rows(
+            dataset_id, conditions, request, result, labels
+        )
+        try:
+            return tree.optimal_segment(frame, found, names, columns, segment, depth, request.seed)
+        except extras.ExtraMissing as error:
+            raise SegmentsError(str(error), "extra_missing", status_code=409) from None
+        except SparseTreeError as error:
+            raise SegmentsError(str(error), "tree") from None
 
     def tsne(self, fitted: Segmentation, drawn: np.ndarray, seed: int = 42) -> SegmentMap:
         """t-SNE of the map's points (refused in the browser version: too slow there)."""

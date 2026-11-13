@@ -10,7 +10,7 @@ import { t } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
 import { Select, TextInput } from "../../ui/fields";
 import { SegmentedControl } from "../../ui/SegmentedControl";
-import { choiceOf, choicesWith, daysBefore, PARTS, pastedValues, upgraded, type Choice } from "./conditions";
+import { choiceOf, choicesWith, daysBefore, parts, pastedValues, upgraded, type Choice } from "./conditions";
 
 type ConditionEditorProps = {
   datasetId: string;
@@ -631,11 +631,12 @@ function PartPicker({
   selected: string[];
   onChange: (part: string, values: string[]) => void;
 }) {
-  const spec = PARTS[part] ?? PARTS.day_of_week;
+  const all = parts();
+  const spec = all[part] ?? all.day_of_week;
   return (
     <div className="space-y-2">
       <Select aria-label={t("filters.part")} value={part} onChange={(event) => onChange(event.target.value, [])} className="w-full">
-        {Object.entries(PARTS).map(([id, item]) => (
+        {Object.entries(all).map(([id, item]) => (
           <option key={id} value={id}>
             {item.label}
           </option>

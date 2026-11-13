@@ -25,10 +25,11 @@ export function imageUrl(datasetId: string, imageId: string, kind: "thumb" | "fi
   return `/api/v1/datasets/${encodeURIComponent(datasetId)}/images/${encodeURIComponent(imageId)}/${kind}`;
 }
 
-export function useImagePreview(path: string, ignoreRules: string[]) {
+/** The preview of an import; c3 (R-VIS-LAB-05): with a labels file and its label column, when given. */
+export function useImagePreview(path: string, ignoreRules: string[], labels: string | null = null, labelColumn: string | null = null) {
   return useQuery({
-    queryKey: ["image-preview", path, ignoreRules] as const,
-    queryFn: () => imageSetApi.preview(path, { ignore_rules: ignoreRules }),
+    queryKey: ["image-preview", path, ignoreRules, labels, labelColumn] as const,
+    queryFn: () => imageSetApi.preview(path, { ignore_rules: ignoreRules, labels, label_column: labelColumn }),
     retry: false,
     staleTime: Infinity,
     placeholderData: (previous) => previous,

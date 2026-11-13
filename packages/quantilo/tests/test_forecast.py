@@ -12,7 +12,8 @@ for t in range(1, 300):
 AR1 += 50
 
 
-@pytest.mark.parametrize("key", [k for k in fc.MODELS if k != "sarima"])
+# The AI models (028 phase B) need the forecast-ai extra: tests/test_forecast_ai.py.
+@pytest.mark.parametrize("key", [k for k in fc.MODELS if k != "sarima" and k not in fc.AI_MODELS])
 def test_every_model_forecasts_with_ordered_intervals(key: str) -> None:
     prediction = fc.MODELS[key](SEASONAL, 12, 12)
 

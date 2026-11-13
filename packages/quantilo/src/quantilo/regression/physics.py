@@ -15,6 +15,7 @@ import numpy as np
 from scipy import optimize, stats
 
 from quantilo.regression import analyze as an
+from quantilo.regression import formula as fx
 from quantilo.regression.design import INTERCEPT
 
 LEAST_SQUARES = ("ols", "wls")
@@ -266,19 +267,26 @@ def deming_jackknife(x: np.ndarray, y: np.ndarray, ratio: float) -> tuple[float,
 
 
 def york(
-    x: np.ndarray, y: np.ndarray, sx: np.ndarray, sy: np.ndarray
+    x: np.ndarray,
+    y: np.ndarray,
+    sx: np.ndarray,
+    sy: np.ndarray,
+    r: np.ndarray | None = None,
 ) -> tuple[float, float, float, float]:
-    """York's straight line with an error on each x and y (York et al. 2004, uncorrelated):
-    slope, intercept and their standard errors."""
+    """York's straight line with an error on each x and y (York et al. 2004), `r` the
+    correlation of each point's two errors (R-REG-PHY-06; None: uncorrelated): slope,
+    intercept and their standard errors."""
     wx, wy = 1 / sx**2, 1 / sy**2
+    rho = np.zeros_like(x) if r is None else np.clip(r, -0.999999, 0.999999)
+    alpha = np.sqrt(wx * wy)
     b = float(np.polyfit(x, y, 1)[0])
     w = xbar = ybar = beta = None
     for _ in range(YORK_STEPS):
-        w = wx * wy / (wx + b * b * wy)
+        w = wx * wy / (wx + b * b * wy - 2 * b * rho * alpha)
         xbar = float((w * x).sum() / w.sum())
         ybar = float((w * y).sum() / w.sum())
         u, v = x - xbar, y - ybar
-        beta = w * (u / wy + b * v / wx)
+        beta = w * (u / wy + b * v / wx - (b * u + v) * rho / alpha)
         new = float((w * beta * v).sum() / (w * beta * u).sum())
         if abs(new - b) <= 1e-12 * max(1.0, abs(b)):
             b = new
@@ -320,6 +328,8 @@ def errors_in_x(
     fit: an.Fitted,
     sigma_y: np.ndarray | None,
     sigma_x: np.ndarray | None,
+    rho: np.ndarray | None = None,
+    rho_name: str | None = None,
 ) -> ErrorsInX | str:
     """Advanced › More › Errors on x (R-REG-PHY-04); the σ over the used rows."""
     if fit.model not in LEAST_SQUARES or fit.ls is None:
@@ -399,8 +409,18 @@ def errors_in_x(
     if both:
         assert sigma_y is not None and sigma_x is not None
         ok = np.isfinite(sigma_y) & np.isfinite(sigma_x) & (sigma_y > 0) & (sigma_x > 0)
+        if rho is not None:
+            outside = ok & ~(np.isfinite(rho) & (np.abs(rho) <= 1))
+            if outside.any():
+                notes.append(
+                    f"R-REG-PHY-06: {int(outside.sum()):,} rows with `{rho_name}` outside "
+                    "[−1 ; 1] or empty are left out of York."
+                )
+            ok &= np.isfinite(rho) & (np.abs(rho) <= 1)
         if ok.sum() >= 3:
-            b, a, sb, sa = york(x[ok], y[ok], sigma_x[ok], sigma_y[ok])
+            b, a, sb, sa = york(
+                x[ok], y[ok], sigma_x[ok], sigma_y[ok], rho[ok] if rho is not None else None
+            )
             lines.append(
                 LineFit(
                     "york",
@@ -409,7 +429,12 @@ def errors_in_x(
                     a,
                     sb,
                     sa,
-                    "Each point's own σx and σy (York et al. 2004, errors uncorrelated).",
+                    (
+                        f"Each point's own σx and σy, their errors correlated by `{rho_name}` "
+                        "(York et al. 2004, R-REG-PHY-06)."
+                        if rho is not None
+                        else "Each point's own σx and σy (York et al. 2004, errors uncorrelated)."
+                    ),
                 )
             )
             if int((~ok).sum()):
@@ -478,6 +503,8 @@ class CurvesTable:
     data_y: list[float] = field(default_factory=list)
     best: str | None = None
     sentence: str = ""
+    formula: str | None = None  # R-REG-PHY-07: the user's formula, as typed
+    formula_error: str | None = None  # why it could not be read or fitted
 
 
 def _line(x: np.ndarray, p: np.ndarray) -> np.ndarray:
@@ -563,10 +590,20 @@ def fit_curve(
 ) -> tuple[np.ndarray, np.ndarray, float, bool]:
     """Parameters, their covariance (scaled by the residual variance, as `curve_fit`), the
     (weighted) sum of squares, and whether the fit converged."""
-    function = SHAPES[kind][3]
+    return fit_function(SHAPES[kind][3], _starts(kind, x, y), x, y, sigma)
+
+
+def fit_function(
+    function: Shape,
+    starting: list[np.ndarray],
+    x: np.ndarray,
+    y: np.ndarray,
+    sigma: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray, float, bool]:
+    """`fit_curve` for any function (x, p) → y and its starting points (R-REG-PHY-05, 07)."""
     weight = 1 / sigma if sigma is not None else np.ones_like(y)
     best: tuple[np.ndarray, np.ndarray, float, bool] | None = None
-    for start in _starts(kind, x, y):
+    for start in starting:
 
         def residuals(p: np.ndarray, fn: Shape = function) -> np.ndarray:
             return (fn(x, p) - y) * weight
@@ -596,8 +633,14 @@ def fit_curve(
     return best
 
 
-def curves(fit: an.Fitted, sigma: np.ndarray | None, sigma_name: str | None) -> CurvesTable:
-    """Advanced › More › Curve (R-REG-PHY-05): one numeric column, the shapes ranked by AIC."""
+def curves(
+    fit: an.Fitted,
+    sigma: np.ndarray | None,
+    sigma_name: str | None,
+    formula: str | None = None,
+) -> CurvesTable:
+    """Advanced › More › Curve (R-REG-PHY-05): one numeric column, the shapes ranked by AIC; a
+    `formula` of x typed by the user joins them (R-REG-PHY-07)."""
     if fit.model not in LEAST_SQUARES or fit.ls is None:
         return CurvesTable(False, "Curves are fitted to the target as it is.")
     columns = _numeric_only(fit)
@@ -619,16 +662,42 @@ def curves(fit: an.Fitted, sigma: np.ndarray | None, sigma_name: str | None) -> 
     table = CurvesTable(True, "", fit.design.terms[j], len(y), n > MAX_CURVE_ROWS, sigma_name)
     grid = np.linspace(float(x.min()), float(x.max()), CURVE_POINTS)
     tss = float(((y - np.average(y, weights=None if s is None else 1 / s**2)) ** 2).sum())
-    for kind, (label, formula, names, function) in SHAPES.items():
-        refused = _admitted(kind, x, y)
+    shapes: list[tuple[str, str, str, list[str], Shape, list[np.ndarray] | None]] = [
+        (kind, label, text, names, function, None)
+        for kind, (label, text, names, function) in SHAPES.items()
+    ]
+    if formula:
+        try:
+            typed = fx.parse(formula)
+        except fx.FormulaError as error:
+            table.formula_error = str(error)
+        else:
+            table.formula = typed.text
+            shapes.append(
+                (
+                    "formula",
+                    "Your formula",
+                    typed.text,
+                    typed.names,
+                    typed.function,
+                    fx.starts(len(typed.names)),
+                )
+            )
+    for kind, label, written, names, function, starting in shapes:
+        refused = _admitted(kind, x, y) if starting is None else None
         if refused is not None:
             table.skipped.append(refused)
             continue
         try:
-            params, covariance, ssr, converged = fit_curve(kind, x, y, s)
+            if starting is None:
+                params, covariance, ssr, converged = fit_curve(kind, x, y, s)
+            else:
+                params, covariance, ssr, converged = fit_function(function, starting, x, y, s)
         except PhysicsError as error:
-            table.fits.append(CurveFit(kind, label, formula, False, [], None, None, None, [], [],
+            table.fits.append(CurveFit(kind, label, written, False, [], None, None, None, [], [],
                                        str(error)))  # fmt: skip
+            if kind == "formula":
+                table.formula_error = str(error)
             continue
         k = len(params)
         df = max(len(y) - k, 1)
@@ -654,7 +723,7 @@ def curves(fit: an.Fitted, sigma: np.ndarray | None, sigma_name: str | None) -> 
             CurveFit(
                 kind,
                 label,
-                formula,
+                written,
                 converged,
                 parameters,
                 r2,
@@ -710,6 +779,7 @@ class MeasurementTable:
     errors_reason: str = ""
     sigma_x: str | None = None
     sigma_x_reason: str = ""
+    rho: str | None = None  # R-REG-PHY-06: the correlation of each point's two errors
 
 
 def measurement(
@@ -720,11 +790,15 @@ def measurement(
     sigma_x: np.ndarray | None,
     sigma_x_name: str | None,
     sigma_x_reason: str,
+    rho: np.ndarray | None = None,
+    rho_name: str | None = None,
 ) -> MeasurementTable:
     """Advanced › More › Uncertainties and errors on x (075): the σ over the used rows."""
     if fit.model not in LEAST_SQUARES or fit.ls is None:
         return MeasurementTable(False, "Read on least squares of the target as it is.")
-    table = MeasurementTable(True, "", sigma_x=sigma_x_name, sigma_x_reason=sigma_x_reason)
+    table = MeasurementTable(
+        True, "", sigma_x=sigma_x_name, sigma_x_reason=sigma_x_reason, rho=rho_name
+    )
     if sigma is not None and sigma_name is not None:
         found = uncertainty_fit(fit, sigma, sigma_name, sigma_reason)
         if isinstance(found, str):
@@ -736,7 +810,7 @@ def measurement(
             "No column of role uncertainty names the target: pick the column of its σ to fit by "
             "1/σ² (R-REG-PHY-01)."
         )
-    errors = errors_in_x(fit, sigma, sigma_x)
+    errors = errors_in_x(fit, sigma, sigma_x, rho, rho_name)
     if isinstance(errors, str):
         table.errors_reason = errors
     else:

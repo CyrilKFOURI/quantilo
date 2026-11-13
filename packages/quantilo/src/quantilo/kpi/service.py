@@ -19,16 +19,19 @@ from quantilo.kpi.compute import KpiResult, compute
 from quantilo.kpi.definition import Definition
 from quantilo.kpi.probe import measure
 from quantilo.kpi.suggest import (
+    DateChoice,
     Hierarchy,
     choose_date,
     hierarchies,
     notes,
     probe_keys,
     probe_targets,
+    rank_dates,
     split_candidates,
     suggest,
 )
 from quantilo.profiling import aggregates
+from quantilo.reasons import ReasonText, details
 from quantilo.typing.derived import names_in, with_derived
 
 CACHE_SIZE = 16
@@ -57,6 +60,8 @@ class SuggestedKpi:
     definition: Definition
     score: int  # out of 100, the list is sorted by it (048, R-SUG-16)
     reasons: list[str]  # "R-SUG-xx · why", the first one says what the KPI is
+    # M02: the reasons with their code and vars, for the interface to translate
+    reason_details: list[ReasonText] = field(default_factory=list)
 
 
 @dataclass
@@ -71,6 +76,8 @@ class Suggestions:
     analyses: list[Analysis] = field(default_factory=list)
     # 061: the kind of dataset and its pack of KPIs (R-ARC-01, 02), always confirmed by the user
     archetype: Archetype | None = None
+    # 048 bis: the date columns in the order R-SUG-17 prefers, for the Builder's Over time list
+    dates: list[DateChoice] = field(default_factory=list)
 
 
 class KpiEngine:
@@ -120,12 +127,16 @@ class KpiEngine:
         found = suggest(views, facts)
         date, _ = choose_date(views)
         result = Suggestions(
-            [SuggestedKpi(s.rule, s.name, s.definition, s.score, s.reasons) for s in found],
+            [
+                SuggestedKpi(s.rule, s.name, s.definition, s.score, s.reasons, details(s.reasons))
+                for s in found
+            ],
             split_candidates(views, facts),
             hierarchies(views, facts),
             [*notes(views), *aggregate_notes(summed_up)],
             kpi_cohort.propose(views, date),
             classify(views, found),
+            rank_dates(views),
         )
         self._suggested[key] = result
         if len(self._suggested) > CACHE_SIZE:

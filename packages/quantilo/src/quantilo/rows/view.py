@@ -53,6 +53,7 @@ class View:
     search: str = ""
     sort: str | None = None
     desc: bool = False
+    rows: tuple[int, ...] | None = None  # 099 bis (R-PIN-17): only these file rows
 
 
 class UnknownColumnError(ExplorerError):
@@ -80,6 +81,9 @@ def view_relation(source: str, columns: list[RowColumn], view: View) -> tuple[st
     """
     relation = source
     conditions: list[str] = []
+    if view.rows is not None:
+        listed = ", ".join(str(int(r)) for r in view.rows)
+        conditions.append(f"{ROW} IN ({listed})" if listed else "false")
     if view.search.strip():
         conditions.append(_search_sql(columns, view.search.strip()))
     if view.mode == "missing":

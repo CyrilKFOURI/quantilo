@@ -1,0 +1,8 @@
+{
+  "clean.title.B-01": "Supprimer les espaces en trop dans {column}",
+  "clean.title.B-02": "Supprimer les caractères invisibles de {column}",
+  "clean.title.B-05": "Réparer l'encodage de {column}",
+  "clean.title.B-06": "Décoder les codes HTML de {column}",
+  "clean.title.B-18": "Enregistrer {column} en vrai / faux",
+  "clean.title.B-20": "Assembler une date à partir de {column}"
+}

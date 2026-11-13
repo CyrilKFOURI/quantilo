@@ -32,6 +32,7 @@ from quantilo.experiments.decisions import (  # noqa: F401 (the module's public 
     LoggedDecisions,
     detect,
 )
+from quantilo.interpret.matching import MatchingOffer
 from quantilo.ml.data import Field as DataField
 from quantilo.typing.types import Parser
 
@@ -115,6 +116,8 @@ class PolicyEvaluation:
     skipped: list[str]  # models that cannot act as a policy, with why
     method: str
     draws: int
+    # 123: whether matched groups (FLAME, "Advanced") can compare the two actions (R-MAT-01)
+    matching: MatchingOffer | None = None
 
 
 @dataclass

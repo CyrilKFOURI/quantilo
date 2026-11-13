@@ -203,5 +203,9 @@ describe("Data page", () => {
     await waitFor(() => expect(calls.some((c) => c.key === "PUT /datasets/d1/pins")).toBe(true));
     const sent = calls.find((c) => c.key === "PUT /datasets/d1/pins")?.body;
     expect(sent).toEqual({ rows: [2, 9, 10], label: "big", color: 1 }); // colour 2 is taken by "test"
+
+    // 099 bis (R-PIN-17): the table narrowed to the pinned rows
+    fireEvent.click(screen.getByRole("checkbox", { name: "Pinned rows only" }));
+    await waitFor(() => expect(rowCalls(calls).some((c) => c.params?.get("pinned") === "true")).toBe(true));
   });
 });

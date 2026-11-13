@@ -2,6 +2,7 @@ import type { Layout } from "plotly.js-dist-min";
 
 import type { KpiResult } from "../../api/client";
 import type { ChartTokens } from "../../charts/theme";
+import { t } from "../../lib/i18n";
 
 /** 054: what the engine signals, placed by its scope; never shown by colour alone. */
 export type KpiSignal = KpiResult["signals"][number];
@@ -94,7 +95,7 @@ export function signalMarks(
         yref: "paper",
         yanchor: "top",
         xanchor: "left",
-        text: "level shift",
+        text: t("fig.kpi.levelShift"),
         showarrow: false,
         font: { size: 10, color: tokens.ink3 },
         hovertext: signal.message,

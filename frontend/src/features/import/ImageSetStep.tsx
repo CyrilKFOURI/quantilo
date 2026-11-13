@@ -1,7 +1,8 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Info, Undo2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { FileSpreadsheet, Info, Undo2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
+import { api } from "../../api/client";
 import { useJob } from "../../api/hooks";
 import { formatBytes, formatCount } from "../../lib/format";
 import { t } from "../../lib/i18n";
@@ -32,7 +33,9 @@ export function ImageSetStep({ path, preview: tablePreview, onClose, onImported,
   const [intoProject, setIntoProject] = useState(true);
   const [jobId, setJobId] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-  const preview = useImagePreview(path, ignored);
+  // c3, R-VIS-LAB-05: a labels file chosen here (a path, or a file sent with the upload of 085)
+  const [labels, setLabels] = useState<{ path: string; column: string | null } | null>(null);
+  const preview = useImagePreview(path, ignored, labels?.path ?? null, labels?.column ?? null);
   const importSet = useImportImageSet();
   const job = useJob(jobId);
   const data = preview.data;
@@ -60,7 +63,7 @@ export function ImageSetStep({ path, preview: tablePreview, onClose, onImported,
       {
         path,
         name: name ?? null,
-        options: { ignore_rules: ignored },
+        options: { ignore_rules: ignored, labels: labels?.path ?? null, label_column: labels?.column ?? null },
         projectId: project && intoProject ? project.id : null,
       },
       {
@@ -109,6 +112,11 @@ export function ImageSetStep({ path, preview: tablePreview, onClose, onImported,
       <div className="space-y-4">
         {error && <ErrorNote>{error}</ErrorNote>}
         {preview.isError && <ErrorNote>{preview.error.message}</ErrorNote>}
+        {preview.isError && labels && (
+          <Button variant="ghost" icon={X} onClick={() => setLabels(null)}>
+            {t("vision.import.labelsDrop")}
+          </Button>
+        )}
         {preview.isPending && <Loading label={t("vision.import.reading")} compact />}
         {data && (
           <>
@@ -130,6 +138,7 @@ export function ImageSetStep({ path, preview: tablePreview, onClose, onImported,
                 </div>
               )}
             </fieldset>
+            <LabelsFile value={labels} onChange={setLabels} found={data.label_file} disabled={running} />
             <Summary data={data} />
             <Rules data={data} ignored={ignored} onChange={setIgnored} disabled={running} />
             <LabelCounts data={data} />
@@ -282,6 +291,91 @@ function Skipped({ data }: { data: ImagePreview }) {
           </li>
         ))}
       </ul>
+    </details>
+  );
+}
+
+/** c3, R-VIS-LAB-05: the labels file of the set (CSV or Parquet; a column names the images,
+ *  R-VIS-LAB-01) and, if wanted, its label column (R-VIS-LAB-02). The preview reads it at once. */
+function LabelsFile({
+  value,
+  onChange,
+  found,
+  disabled,
+}: {
+  value: { path: string; column: string | null } | null;
+  onChange: (next: { path: string; column: string | null } | null) => void;
+  found: string | null;
+  disabled: boolean;
+}) {
+  const [path, setPath] = useState(value?.path ?? "");
+  const [column, setColumn] = useState(value?.column ?? "");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const read = (next: string) => onChange(next.trim() ? { path: next.trim(), column: column.trim() || null } : null);
+  return (
+    <details className="group rounded-md border border-line bg-surface-1" open={value !== null}>
+      <summary className="flex min-h-9 cursor-pointer list-none items-center gap-1.5 px-3 text-[13px] text-ink-1 pointer-coarse:min-h-11">
+        <FileSpreadsheet size={14} strokeWidth={1.5} aria-hidden className="text-ink-3" />
+        {t("vision.import.labelsFile")}
+        <span className="text-xs text-ink-3">{found ? t("vision.import.labelsRead", { name: found }) : t("vision.import.labelsNone")}</span>
+      </summary>
+      <fieldset disabled={disabled || sending} className="space-y-2 border-t border-line px-3 py-3">
+        <p className="max-w-prose text-xs text-ink-2">{t("vision.import.labelsHelp")}</p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_12rem_auto]">
+          <Field label={t("vision.import.labelsPath")}>
+            <TextInput className="min-w-0 font-mono" value={path} placeholder={"C:\\data\\labels.csv"} onChange={(event) => setPath(event.target.value)} />
+          </Field>
+          <div className="flex items-end">
+            <Button variant="ghost" onClick={() => picker.current?.click()}>
+              {sending ? t("vision.import.labelsSending") : t("vision.import.labelsChoose")}
+            </Button>
+          </div>
+          <Field label={t("vision.import.labelsColumn")}>
+            <TextInput value={column} placeholder={t("vision.import.labelsColumnAuto")} onChange={(event) => setColumn(event.target.value)} />
+          </Field>
+          <div className="flex items-end gap-1">
+            <Button variant="secondary" disabled={!path.trim()} onClick={() => read(path)}>
+              {t("vision.import.labelsApply")}
+            </Button>
+            {value && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setPath("");
+                  setColumn("");
+                  onChange(null);
+                }}
+              >
+                {t("vision.import.labelsClear")}
+              </Button>
+            )}
+          </div>
+        </div>
+        <input
+          ref={picker}
+          type="file"
+          accept=".csv,.tsv,.txt,.parquet"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (!file) return;
+            setSending(true);
+            setError(null);
+            api
+              .upload(file)
+              .then((sent) => {
+                setPath(sent.path);
+                read(sent.path);
+              })
+              .catch((failure: Error) => setError(failure.message))
+              .finally(() => setSending(false));
+          }}
+        />
+        {error && <ErrorNote>{error}</ErrorNote>}
+      </fieldset>
     </details>
   );
 }

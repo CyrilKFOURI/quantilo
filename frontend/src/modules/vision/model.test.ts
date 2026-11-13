@@ -103,7 +103,7 @@ describe("statistics", () => {
   it("writes the conclusion above the charts", () => {
     expect(balanceSentence([["cat", 30], ["dog", 6]])).toBe("Imbalanced: cat has 5.0× the images of dog (R-VQ-13).");
     expect(balanceSentence([["cat", 4], ["dog", 3]])).toMatch(/^Classes are balanced/);
-    expect(measureSentence("sharpness", [20, 300, 500])).toBe("Median 300; 1 images under 100, the usual blur threshold.");
+    expect(measureSentence("sharpness", [20, 300, 500])).toBe("Median 300; 1 image under 100, the usual blur threshold.");
   });
 
   it("groups the copies", () => {
@@ -153,5 +153,25 @@ describe("the page's URL (R-107-11)", () => {
       expect.objectContaining({ tab: undefined, sort: undefined, quality: undefined, range: undefined }),
     );
     expect(formatRange({ measure: "sharpness", low: 12.345678, high: 99.99999 })).toBe("sharpness:12.35:100");
+  });
+});
+
+describe("c3 edits (R-VED-01, R-VED-03)", () => {
+  it("shows the draft's labels and pins, and goes back to the import's label", async () => {
+    const { withEdits, labelChoices, labelPatch, toRows } = await import("./model");
+    const { imageIndex } = await import("./testData");
+    const rows = toRows(imageIndex());
+    const edited = withEdits(rows, { labels: { "cat/blur.png": "bird" }, pins: { "dog/0.png": true } });
+    expect(edited[2]?.label).toBe("bird");
+    expect(edited[2]?.labelOriginal).toBe("cat");
+    expect(edited[4]?.pinned).toBe(true);
+    expect(edited[0]).toBe(rows[0]); // untouched rows stay the same objects
+    expect(labelChoices(edited)).toEqual(["bird", "cat", "dog"]);
+    expect(labelPatch(["a"], 2, ["bird", "cat"])).toEqual({ a: "cat" });
+    expect(labelPatch(["a"], 0, ["bird"])).toEqual({ a: null });
+    expect(labelPatch(["a"], 5, ["bird"])).toBeNull();
+    // saved as "bird", taken back in the draft: the import's label shows again
+    const saved = rows.map((row) => (row.key === "cat/blur.png" ? { ...row, label: "bird" } : row));
+    expect(withEdits(saved, { labels: {}, pins: {} })[2]?.label).toBe("cat");
   });
 });

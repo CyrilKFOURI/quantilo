@@ -14,6 +14,7 @@ import {
   type CompareParams,
   type DurationParams,
   type DriverSpec,
+  type ForecastTuning,
   type ScenarioChange,
   type SeriesParams,
   type SeriesSectionKey,
@@ -30,12 +31,15 @@ import {
   type VersionSettings,
   type SyntheticRequest,
   type MlChoicesInput,
+  type MlOptimalTree,
+  type MlRashomonSet,
   type MlClasses,
   type MlContext,
   type MlValidation,
   type MlTuneRequest,
   type MlAutoRequest,
   type MlCounterfactualRequest,
+  type MlRowCounterfactualRequest,
   type OutlierMethod,
   type DetectionSettings,
   type RegressionMethodKind,
@@ -234,7 +238,8 @@ export function useImportTables() {
       tables: { id: string; name: string | null }[];
       options: ImportOptions;
       projectId?: string | null;
-    }) => api.importTables(input.path, input.tables, input.options, input.projectId ?? null),
+      stack?: boolean;
+    }) => api.importTables(input.path, input.tables, input.options, input.projectId ?? null, input.stack ?? false),
     onSettled: (_data, _error, input) => {
       void client.invalidateQueries({ queryKey: queryKeys.datasets });
       if (input.projectId) void client.invalidateQueries({ queryKey: ["projects"] });
@@ -672,11 +677,13 @@ export function useStartForecast(id: string) {
       params,
       extra,
       drivers,
+      tuning,
     }: {
       params: SeriesParams;
       extra: Record<string, string>;
       drivers?: DriverSpec[];
-    }) => api.startForecast(id, params, extra, filters, drivers),
+      tuning?: ForecastTuning;
+    }) => api.startForecast(id, params, extra, filters, drivers, tuning),
   });
 }
 
@@ -736,12 +743,13 @@ export function useScenarios(
   drivers: DriverSpec[],
   scenarios: ScenarioChange[][],
   enabled = true,
+  tuning?: ForecastTuning,
 ) {
   const filters = useActiveFilters(id);
   return useQueries({
     queries: scenarios.map((changes) => ({
-      queryKey: ["datasets", id, "timeseries", "scenario", params, extra, filters, drivers, changes],
-      queryFn: () => api.scenario(id, params, extra, filters, drivers, changes),
+      queryKey: ["datasets", id, "timeseries", "scenario", params, extra, filters, drivers, changes, tuning],
+      queryFn: () => api.scenario(id, params, extra, filters, drivers, changes, tuning),
       enabled,
       staleTime: 60_000,
       retry: false,
@@ -898,6 +906,130 @@ export function useMlSurrogate(id: string, runId: string, depth: number, enabled
   });
 }
 
+/** SHAP by permutations for any model (126, R-XAI-12), asked for by its button. */
+export function useMlPermutationShap(id: string, runId: string, pairs: number, background: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "permutation-shap", runId, pairs, background],
+    queryFn: () => api.mlPermutationShap(id, runId, pairs, background),
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** Friedman's H on the most important columns (126, R-XAI-13). */
+export function useMlInteractions(id: string, runId: string, columns: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "interactions", runId, columns],
+    queryFn: () => api.mlInteractions(id, runId, columns),
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** One row's anchor (126, R-XAI-14). */
+export function useMlAnchor(id: string, runId: string, row: number | null, threshold: number, conditions: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "anchor", runId, row, threshold, conditions],
+    queryFn: () => api.mlAnchor(id, runId, row ?? 0, threshold, conditions),
+    enabled: enabled && row !== null,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** Prototypes and criticisms of each class (126, R-XAI-15). */
+export function useMlPrototypes(id: string, runId: string, prototypes: number, criticisms: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "prototypes", runId, prototypes, criticisms],
+    queryFn: () => api.mlPrototypes(id, runId, prototypes, criticisms),
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** FasterRisk's scorecard against the run's model (121), asked for when the tab opens. */
+export function useMlScorecard(id: string, runId: string, conditions: number, points: number, enabled: boolean, monotone = false) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "scorecard", runId, conditions, points, monotone],
+    queryFn: () => api.mlScorecard(id, runId, conditions, points, monotone),
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** One card per class (121 bis, R-XAI-17), asked for by its button. */
+export function useMlClassCards(id: string, runId: string, conditions: number, points: number, monotone: boolean, enabled: boolean) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "class-cards", runId, conditions, points, monotone],
+    queryFn: () => api.mlClassCards(id, runId, conditions, points, monotone),
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** The two-column ALE (125 bis, R-XAI-20), asked for once a second column is chosen. */
+export function useMlAle2d(id: string, runId: string, first: string | null, second: string | null) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "ale-2d", runId, first ?? "", second ?? ""],
+    queryFn: () => api.mlAle2d(id, runId, first ?? "", second ?? ""),
+    enabled: Boolean(first && second),
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** The run's scorecard read on one predicted row (121 bis, R-XAI-18), on request. */
+export function useMlPredictionRowCard(id: string, predictionId: string, row: number | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "prediction-card", predictionId, row],
+    queryFn: () => api.mlPredictionRowCard(id, predictionId, row ?? 0),
+    enabled: enabled && row !== null,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** The sparse CART tree (122), asked for once Scorecard › Advanced is open. */
+export function useMlSparseTree(id: string, runId: string, depth: number, leaves: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "sparse-tree", runId, depth, leaves],
+    queryFn: () => api.mlSparseTree(id, runId, depth, leaves),
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** GOSDT's optimal tree or TreeFARMS's Rashomon set (122, extra `interpret`), on request. */
+export function useMlOptimal(id: string, runId: string, kind: "gosdt" | "treefarms", depth: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", kind, runId, depth],
+    queryFn: (): Promise<MlOptimalTree | MlRashomonSet> => (kind === "gosdt" ? api.mlOptimalTree(id, runId, depth) : api.mlRashomon(id, runId, depth)),
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** Which optional methods of the `interpret` extra can run here, and why not (R-XAI-10). */
+export function useInterpretAvailable(enabled: boolean) {
+  return useQuery({
+    queryKey: ["interpret", "available"],
+    queryFn: () => api.interpretAvailable(),
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
 /** The run's monotonic constraints, checked row by row (125). */
 export function useMlMonotonic(id: string, runId: string, enabled: boolean) {
   return useQuery({
@@ -914,6 +1046,18 @@ export function useMlCounterfactual(id: string, runId: string, request: MlCounte
   return useQuery({
     queryKey: ["datasets", id, "ml", "counterfactual", runId, request],
     queryFn: () => api.mlCounterfactual(id, runId, request as MlCounterfactualRequest),
+    enabled: request !== null,
+    placeholderData: keepPreviousData,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** What would change one predicted row of new data (125 bis, R-XAI-21). */
+export function useMlPredictionRowCounterfactual(id: string, predictionId: string, row: number, request: MlRowCounterfactualRequest | null) {
+  return useQuery({
+    queryKey: ["datasets", id, "ml", "prediction-counterfactual", predictionId, row, request],
+    queryFn: () => api.mlPredictionRowCounterfactual(id, predictionId, row, request as MlRowCounterfactualRequest),
     enabled: request !== null,
     placeholderData: keepPreviousData,
     staleTime: Infinity,

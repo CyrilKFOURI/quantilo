@@ -177,16 +177,31 @@ class SourceReader:
         self.connection.register(view, table)
         return f"SELECT * FROM {view}"
 
+    def stack_sql(self, file: SourceFile, table_ids: list[str]) -> str:
+        """S1 (C1): tables of a workbook stacked, columns matched by name, each row with the sheet
+        it comes from (`source_sheet`, as for several sheets read whole)."""
+        parts = []
+        rows = 0
+        for table_id in table_ids:
+            sql = self.table_sql(file, table_id)
+            rows += self.excel_rows[file.path]
+            sheet = table_id.rpartition("!")[0] or table_id
+            parts.append(f"SELECT *, {lit(sheet)} AS source_sheet FROM ({sql})")
+        self.excel_rows[file.path] = rows
+        return " UNION ALL BY NAME ".join(parts)
+
     def table_sql(self, file: SourceFile, table_id: str) -> str:
         """080b: one detected table of a sheet, read with its plan (or a range typed by hand)."""
         from quantilo.ingestion.layout import find_table
+        from quantilo.ingestion.layout.cells import user_null_tokens
         from quantilo.ingestion.layout.read import read_table
 
         try:
             table = find_table(file.path, table_id)
         except (KeyError, ValueError) as error:
             raise IngestionError(str(error).strip("'\"")) from error
-        data = read_table(file.path, table, reshape=bool(self.options.reshape))
+        with user_null_tokens(self.options.null_tokens, self.options.text_tokens):  # T2u
+            data = read_table(file.path, table, reshape=bool(self.options.reshape))
         self.excel_rows[file.path] = data.num_rows
         return self.register("excel_table", data)
 
@@ -204,6 +219,8 @@ class SourceReader:
         return self.register("document_table", data)
 
     def excel_sql(self, file: SourceFile, sheets: list[str] | None) -> str:
+        if self.options.stack:
+            return self.stack_sql(file, self.options.stack)
         if self.options.table:
             return self.table_sql(file, self.options.table)
         names = sheets or excel_sheets(file.path)[:1]
@@ -229,7 +246,9 @@ class SourceReader:
 
             self._views += 1
             view = f"log_file_{self._views}"
-            table, reading = read_log(file.path, limit=self.npy_limit)
+            table, reading = read_log(
+                file.path, limit=self.npy_limit, pattern=self.options.log_pattern
+            )
             self.log_notes[file.path] = reading.notes
             self.connection.register(view, table)
             return f"SELECT * FROM {view}"

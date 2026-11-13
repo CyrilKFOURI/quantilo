@@ -4,7 +4,7 @@ import { dataset } from "../../test/mockApi";
 import type { Dataset } from "../../api/client";
 import type { LineageItem, Step, Suggestion } from "./api";
 import { familyOf, groupFamilies, samePageOf } from "./lineage";
-import { describeStep, historyOf, move, newStep, nextId, push, redo, undo, withPinnedLabels, withSuggestion, withoutSuggestion } from "./steps";
+import { CATALOG, describeStep, historyOf, move, newStep, nextId, push, quoted, redo, undo, withPinnedLabels, withSuggestion, withoutSuggestion } from "./steps";
 
 const item = (dataset_id: string, parent_id: string, seq: number): LineageItem => ({
   dataset_id,
@@ -19,7 +19,7 @@ const item = (dataset_id: string, parent_id: string, seq: number): LineageItem =
 });
 
 const suggestion = (id: string, order: number, mode: "A" | "S", step: Step): Suggestion =>
-  ({ id, order, mode, impact: "values", risk: mode === "A" ? "safe" : "review", rule: id.slice(0, 4), layer: "basic", title: id, reason: "why", columns: [], cells: 1, rows: 0, examples: [], step: { ...step, suggestion: id } }) as Suggestion;
+  ({ id, order, mode, impact: "values", risk: mode === "A" ? "safe" : "review", rule: id.slice(0, 4), layer: "basic", title: id, reason: "why", reason_code: null, reason_vars: {}, columns: [], cells: 1, rows: 0, examples: [], step: { ...step, suggestion: id }, catalogue: null, auto: false, measured: null, clusters: [], where: [] }) as Suggestion;
 
 describe("home families (065)", () => {
   const datasets = [dataset({ id: "v2" }), dataset({ id: "other" }), dataset({ id: "orig" }), dataset({ id: "v1" })] as unknown as Dataset[];
@@ -99,5 +99,25 @@ describe("labels of pinned rows as a column (099)", () => {
     const updated = withPinnedLabels(added, { "3": "big", "8": "test" }, ["city"]);
     expect(updated).toHaveLength(2);
     expect((updated[1] as typeof step).labels).toEqual({ "3": "big", "8": "test" });
+  });
+});
+
+describe("M5 steps and the conditional step (B1)", () => {
+  it("makes a ready step for every op of the catalogue, described in one line", () => {
+    for (const { op } of CATALOG) {
+      const step = newStep(op, "s1", "unit price");
+      expect(step.op).toBe(op);
+      expect(describeStep(step)).not.toBe("");
+    }
+    const swap = newStep("swap_values", "s1", "unit price");
+    expect(swap.op === "swap_values" && swap.when).toBe('"unit price" > "unit price"');
+    const where = newStep("set_where", "s2", "city");
+    expect(where.op === "set_where" && where.cases[0]!.conditions[0]!.column).toBe("city");
+  });
+
+  it("writes a column name as a formula reads it", () => {
+    expect(quoted("quantity")).toBe("quantity");
+    expect(quoted("unit price")).toBe('"unit price"');
+    expect(quoted("end")).toBe('"end"'); // a word of the formulas
   });
 });

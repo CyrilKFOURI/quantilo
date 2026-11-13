@@ -1,0 +1,13 @@
+{
+ "label": "nw_orders",
+ "corpus": "data-corpus",
+ "path": "star-schema/northwind/orders.csv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-01:shipAddress", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-04:shippedDate", "verdict": "correct", "why": "a word for 'missing' in this file", "op": "null_values"},
+  {"id": "B-04:shipRegion", "verdict": "correct", "why": "a word for 'missing' in this file", "op": "null_values"},
+  {"id": "B-04:shipPostalCode", "verdict": "correct", "why": "a word for 'missing' in this file", "op": "null_values"}
+ ]
+}

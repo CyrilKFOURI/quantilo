@@ -8,18 +8,19 @@ down (C12), a combined first column is split (V3). `reshape=True` also applies t
 K3, K3c, K4); derived columns (K1) are left out of a long format.
 """
 
+import copy
 import warnings
 from pathlib import Path
 
 import pyarrow as pa
 
-from quantilo.ingestion.layout.cells import clean_text, is_blank
+from quantilo.ingestion.layout.cells import clean_text, is_blank, user_tokens_active
 from quantilo.ingestion.layout.csv import read_csv_rows
 from quantilo.ingestion.layout.detect import CSV_EXTENSIONS
 from quantilo.ingestion.layout.header import unique_names
 from quantilo.ingestion.layout.hierarchy import ancestors, clean_label, has_parents
 from quantilo.ingestion.layout.model import DetectedTable, Transform
-from quantilo.ingestion.layout.types import convert
+from quantilo.ingestion.layout.types import convert, infer
 from quantilo.ingestion.workbook import load_workbook
 
 Row = tuple[int, list[object], str | None]
@@ -102,8 +103,12 @@ def clean_columns(table: DetectedTable, rows: list[Row]) -> dict[str, list[objec
                 data[unique_names([*names, f"Level_{level + 1}"])[-1]] = [
                     parents[n][level] for n in numbers
                 ]
+    retype = user_tokens_active()
     for plan in table.columns:
         index = plan.source_col - table.left
+        if retype and plan.role in ("key", "value"):  # T2u: the tokens can change a column type
+            plan = copy.copy(plan)
+            infer([row[index] for _, row, _ in rows], plan)
         values, flags = [], []
         for _, row, _ in rows:
             raw = row[index]

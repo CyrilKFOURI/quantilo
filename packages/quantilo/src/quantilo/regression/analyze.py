@@ -731,11 +731,8 @@ def _sentence(
             text += f" Not clear after correcting for {tests} tests (adj. p = {term.q_value:.2g})."
         return text
     if term.term == INTERCEPT:
-        where = (
-            "every number at its mean" if fit.design.centres else "every column at 0"
-        )  # R-REG-TERM-05
         return (
-            f"With {where} (and categories at their reference), `{target}` is "
+            f"With {_origin(fit)} (and categories at their reference), `{target}` is "
             f"{fmt(term.estimate)} {ci}."
         )
     level = term.level
@@ -843,8 +840,9 @@ def _term_sentence(
         plus = term.column.startswith("log(1 +")
         what = f"1 + `{source}`" if plus else f"`{source}`"
         if reads == "ratio":
+            way = "raises" if term.estimate >= 0 else "lowers"
             return (
-                f"A 1 % rise in {what} raises `{target}` by about {fmt(term.estimate)} % "
+                f"A 1 % rise in {what} {way} `{target}` by about {fmt(abs(term.estimate))} % "
                 f"{ci} (an elasticity), other columns held fixed."
             ) + _main_suffix(term, fit, references)
         if reads == "units":
@@ -857,6 +855,21 @@ def _term_sentence(
                 f"[{fmt(low)} ; {fmt(high)}], other columns held fixed."
             ) + _main_suffix(term, fit, references)
     return None
+
+
+def _origin(fit: Fitted) -> str:
+    """Where the intercept is read (R-REG-TERM-05, 08): at 0, at the means once centred, and a
+    date's trend at its round first year, the origin it is counted from (fix3: `yr_built` read
+    "at 0" was read at 1900)."""
+    design = fit.design
+    if design.centres:
+        return "every number at its mean"
+    starts = [
+        f"`{r.variables[0]}` at {r.centre:.0f}"
+        for r in design.recipes
+        if r.kind == "num" and r.centre and r.variables
+    ]
+    return "every column at 0" + (f" but {', '.join(starts)}" if starts else "")
 
 
 def _main_suffix(term: RegressionCoefficient, fit: Fitted, references: dict[str, str]) -> str:
@@ -911,7 +924,7 @@ def _family_sentence(term: RegressionCoefficient, fit: Fitted, references: dict[
     b, low, high = term.estimate, term.ci_low, term.ci_high
     lam = fit.transform.lam if fit.transform is not None else None
     if term.column == INTERCEPT:
-        start = "With every column at 0 (and categories at their reference), "
+        start = f"With {_origin(fit)} (and categories at their reference), "
         if kind in ("poisson", "negbin", "gamma"):
             return (
                 f"{start}the expected `{target}`{rate} is {fmt(_exp(b))} "

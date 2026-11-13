@@ -1,6 +1,7 @@
 import type { KpiResult, KpiSeries } from "../../api/client";
 import type { ShowAs } from "./definition";
 import { cellFlags, type CellFlag } from "./signals";
+import { t } from "../../lib/i18n";
 
 /** "Show as" modes that only mean something for a measure that adds up (spec R-TAB-11). */
 export const ADDITIVE_MODES = new Set<ShowAs>(["share_total", "share_row", "share_column", "running"]);
@@ -166,14 +167,14 @@ export function buildTable(result: KpiResult, options: TableOptions): Table {
       return { value, measure: measure.id, mode, partial: Boolean(periods[p]?.partial), total: false, shade: null, flag: null };
     });
   };
-  const compareHead = options.compare.map((kind) => (kind === "previous" ? "Δ vs previous" : "Δ% vs last year"));
+  const compareHead = options.compare.map((kind) => (kind === "previous" ? t("fig.pivot.vsPrevious") : t("fig.pivot.vsLastYear")));
   const multi = measures.length > 1;
   let table: Table;
 
   if (options.layout === "single") {
     table = {
-      corner: "Measure",
-      head: [[{ label: "Value", span: 1 }]],
+      corner: t("fig.pivot.measure"),
+      head: [[{ label: t("fig.pivot.value"), span: 1 }]],
       rows: measures.map((m) => ({ key: m.id, label: m.label, indent: 0, kind: "data", partial: false, cells: [cell(m, null, null, null, false)] })),
       note: null,
       sortable: false,
@@ -181,10 +182,10 @@ export function buildTable(result: KpiResult, options: TableOptions): Table {
   } else if (options.layout === "groups_rows") {
     const main = measures[0];
     const share = result.measures[0]?.additive;
-    const head = [[...measures.map((m) => ({ label: m.label, span: 1 })), ...(share ? [{ label: `% of total`, span: 1 }] : [])]];
+    const head = [[...measures.map((m) => ({ label: m.label, span: 1 })), ...(share ? [{ label: t("fig.pivot.ofTotal"), span: 1 }] : [])]];
     const row = (g1: Key, kind: TableRow["kind"]): TableRow => ({
       key: g1 ?? "total",
-      label: g1 ?? "Total",
+      label: g1 ?? t("fig.pivot.total"),
       indent: 0,
       kind,
       partial: false,
@@ -204,10 +205,10 @@ export function buildTable(result: KpiResult, options: TableOptions): Table {
     const columns = [...second, ...(options.totals ? [null] : [])];
     const head: HeadCell[][] = [];
     if (multi) head.push(measures.map((m) => ({ label: m.label, span: columns.length })));
-    head.push(measures.flatMap(() => columns.map((g2) => ({ label: g2 ?? "Total", span: 1 }))));
+    head.push(measures.flatMap(() => columns.map((g2) => ({ label: g2 ?? t("fig.pivot.total"), span: 1 }))));
     const row = (g1: Key, kind: TableRow["kind"]): TableRow => ({
       key: g1 ?? "total",
-      label: g1 ?? "Total",
+      label: g1 ?? t("fig.pivot.total"),
       indent: 0,
       kind,
       partial: false,
@@ -226,7 +227,7 @@ export function buildTable(result: KpiResult, options: TableOptions): Table {
     const last = shown.findLast((i) => !periods[i]?.partial) ?? shown[shown.length - 1];
     const head = [[
       ...shown.map((i) => ({ label: (periods[i]?.label ?? "") + (periods[i]?.partial ? " †" : ""), span: 1 })),
-      ...(options.totals ? [{ label: "Total", span: 1 }] : []),
+      ...(options.totals ? [{ label: t("fig.pivot.total"), span: 1 }] : []),
       ...compareHead.map((label) => ({ label: `${label} (${last === undefined ? "" : periods[last]?.label ?? ""})`, span: 1 })),
     ]];
     const line = (m: (typeof measures)[number], g1: Key, g2: Key, label: string, indent: number, kind: TableRow["kind"]): TableRow => ({
@@ -244,23 +245,23 @@ export function buildTable(result: KpiResult, options: TableOptions): Table {
     const rows: TableRow[] = [];
     for (const m of measures) {
       if (multi) rows.push({ key: `section-${m.id}`, label: m.label, indent: 0, kind: "section", partial: false, cells: [] });
-      if (result.splits.length === 0) rows.push(line(m, null, null, multi ? "Value" : m.label, 0, "data"));
+      if (result.splits.length === 0) rows.push(line(m, null, null, multi ? t("fig.pivot.value") : m.label, 0, "data"));
       else if (result.splits.length === 1) {
         for (const g1 of first) rows.push(line(m, g1, null, g1, 0, "data"));
-        if (options.totals) rows.push(line(m, null, null, "Total", 0, "total"));
+        if (options.totals) rows.push(line(m, null, null, t("fig.pivot.total"), 0, "total"));
       } else {
         for (const g1 of first) {
           rows.push(line(m, g1, null, g1, 0, "subtotal"));
           for (const g2 of second) rows.push(line(m, g1, g2, g2, 1, "data"));
         }
-        if (options.totals) rows.push(line(m, null, null, "Total", 0, "total"));
+        if (options.totals) rows.push(line(m, null, null, t("fig.pivot.total"), 0, "total"));
       }
     }
     table = {
-      corner: result.splits.map((s) => s.column).join(" › ") || "Measure",
+      corner: result.splits.map((s) => s.column).join(" › ") || t("fig.pivot.measure"),
       head,
       rows,
-      note: limit ? `Showing the last ${COLUMNS_MAX_PERIODS} of ${periods.length} periods: switch to periods in rows to see them all.` : null,
+      note: limit ? t("fig.pivot.limitNote", { shown: String(COLUMNS_MAX_PERIODS), total: String(periods.length) }) : null,
       sortable: !multi && result.splits.length === 1,
     };
   } else {
@@ -280,14 +281,14 @@ export function buildTable(result: KpiResult, options: TableOptions): Table {
     if (result.splits.length === 2) {
       head.push(measures.flatMap(() => [
         ...first.map((g1) => ({ label: g1, span: (second.length + 1) * (1 + options.compare.length) })),
-        ...(options.totals ? [{ label: "Total", span: 1 + options.compare.length }] : []),
+        ...(options.totals ? [{ label: t("fig.pivot.total"), span: 1 + options.compare.length }] : []),
       ]));
     }
     head.push(
       measures.flatMap((m) =>
         groups.flatMap(([g1, g2]) => [
           {
-            label: result.splits.length === 0 ? m.label : result.splits.length === 1 ? g1 ?? "Total" : g2 ?? (g1 ? `${g1} total` : "Total"),
+            label: result.splits.length === 0 ? m.label : result.splits.length === 1 ? g1 ?? t("fig.pivot.total") : g2 ?? (g1 ? t("fig.pivot.groupTotal", { group: g1 }) : t("fig.pivot.total")),
             span: 1,
           },
           ...compareHead.map((label) => ({ label, span: 1 })),
@@ -305,7 +306,7 @@ export function buildTable(result: KpiResult, options: TableOptions): Table {
     if (options.totals) {
       rows.push({
         key: "total",
-        label: "Total",
+        label: t("fig.pivot.total"),
         indent: 0,
         kind: "total",
         partial: false,
@@ -314,7 +315,7 @@ export function buildTable(result: KpiResult, options: TableOptions): Table {
         ),
       });
     }
-    table = { corner: "Period", head, rows, note: null, sortable: true };
+    table = { corner: t("fig.pivot.period"), head, rows, note: null, sortable: true };
   }
 
   if (options.showAs === "share_row" || options.showAs === "share_column") relativeToTotals(table, options.showAs);

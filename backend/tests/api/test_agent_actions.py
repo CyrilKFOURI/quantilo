@@ -50,7 +50,7 @@ def test_the_modules_tools_are_collected(client: TestClient) -> None:
     assert {"suggest_kpis", "compute_kpi", "save_kpi"} <= names
     assert {"plan_synthetic", "generate_synthetic", "save_synthetic_dataset"} <= names
     assert {"analyze_experiment", "bandit_view", "sample_size"} <= names
-    assert {"learn_policy", "evaluate_policy"} <= names
+    assert {"learn_policy", "evaluate_policy", "matched_groups"} <= names
     assert "export_report" in names
     kinds = {t.name: t.kind for t in agent(client).registry}
     assert kinds["save_kpi"] == kinds["save_synthetic_dataset"] == "write"
@@ -200,6 +200,7 @@ def _turn_with_confirmation(client: TestClient, dataset_id: str, approve: bool) 
         [calls(("save_kpi", {"name": "Units per week", "definition": definition})), answer("Done.")]
     )
     service.provider_factory = lambda *args: provider
+    service.sdk_available = lambda vendor: True  # the scripted provider stands in for the SDK
     service.store.save_key("sk-ant-test-1234abcd")
     cid = client.post(f"/api/v1/modules/agent/datasets/{dataset_id}/conversations").json()["id"]
 
@@ -294,6 +295,12 @@ def test_analyze_an_experiment_and_plan_the_next(client: TestClient) -> None:
             "evaluate_policy",
             {"action": "device", "reward": "converted", "covariates": ["user_id"]},
         )
+
+    matched = run_tool(
+        client, ab, "matched_groups", {"treatment": "variant", "outcome": "converted"}
+    )
+    assert matched.summary == matched.content["sentence"] and "matched exactly" in matched.summary
+    assert matched.content["warnings"][0].startswith("Observational")
 
     planned = run_tool(client, ab, "sample_size", {"baseline": 0.2, "effect": 0.1})
     assert planned.content["control"] > 1_000

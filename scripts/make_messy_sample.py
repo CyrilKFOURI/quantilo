@@ -9,6 +9,7 @@ Usage: python scripts/make_messy_sample.py
 
 import csv
 import random
+from collections import Counter
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -242,6 +243,53 @@ def plant(rng: random.Random, rows: list[dict[str, str]]) -> None:
         row["status"] = "delivered"
 
 
+def plant_b1(rng: random.Random, rows: list[dict[str, str]]) -> None:
+    """B1 (A-04, A-06, A-07, A-16, A-17), drawn after every other trap so that those keep their
+    rows and their counts. Only rows whose order number appears once are touched."""
+    seen = Counter(r["order_id"] for r in rows)
+    categories = {p[0]: p[1] for p in PRODUCTS}
+    countries = {c[0]: c[1] for c in CITIES}
+
+    def plain(row: dict[str, str]) -> bool:
+        """A row with no earlier trap (A-10's broken dependencies included)."""
+        return (
+            seen[row["order_id"]] == 1
+            and bool(row["order_id"])
+            and categories.get(row["product"]) == row["category"]
+            and countries.get(row["city"]) == row["country"]
+            and float(row["unit_price"]) < 1_000
+            and float(row["weight_kg"]) < 50
+            and row["rating"] != "99"
+        )
+
+    pool = [r for r in rows if plain(r)]
+    picked = rng.sample(pool, 15 + 5 + 25 + 10)
+    for row in picked[:15]:  # A-04: order numbers in small letters
+        row["order_id"] = row["order_id"].lower()
+    for row in picked[15:20]:  # A-06: lifetime values typed with two more zeros
+        value = float(row["lifetime_value"].strip("€").replace(",", "")) * 100
+        row["lifetime_value"] = f"€{value:,.2f}"
+    noisy = {"4.99": "4.990000000000001", "9.99": "9.990000000000002"}
+    for row in picked[20:45]:  # A-07: floating-point noise from a calculation
+        row["shipping"] = noisy.get(row["shipping"], row["shipping"])
+    for number, source in enumerate(picked[45:], start=3_101):  # A-16: typed again, one slip
+        name = source["customer_name"]
+        cut = rng.randrange(1, len(name) - 1)
+        if name[cut] == " ":
+            cut += 1
+        copy = dict(
+            source, order_id=f"ORD-{100_000 + number}", customer_name=name[:cut] + name[cut + 1 :]
+        )
+        rows.insert(rng.randrange(len(rows)), copy)
+    for number in range(3_201, 3_209):  # A-17: rows cut short, most cells empty
+        source = rng.choice(pool)
+        row = dict.fromkeys(COLUMNS, "")
+        kept = ("order_date", "customer_id", "customer_name", "channel", "payment_method",
+                "loyalty_points")  # fmt: skip
+        row.update({column: source[column] for column in kept}, order_id=f"ORD-{100_000 + number}")
+        rows.insert(rng.randrange(len(rows)), row)
+
+
 def main() -> None:
     rng = random.Random(SEED)
     people = customers(rng)
@@ -257,6 +305,7 @@ def main() -> None:
         rows.insert(rng.randrange(len(rows)), dict(source))
     for _ in range(6):
         rows.insert(rng.randrange(len(rows)), dict.fromkeys(COLUMNS, ""))
+    plant_b1(rng, rows)
     path = SAMPLES / "messy_orders.csv"
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=COLUMNS)

@@ -16,6 +16,8 @@ classifiers = [
 ]
 dependencies = [
     "duckdb>=1.5.6",
+    # Public holidays by country, a calendar driver of the forecast (028 A5); pure Python.
+    "holidays>=0.108",
     "numpy>=2.5.4",
     "openpyxl>=3.1.5",
     # Decoding, EXIF orientation, resizing and WebP thumbnails of image sets (103).
@@ -56,6 +58,25 @@ vision = [
     "timm>=1.0.20",
     "torch>=2.14",
     "torchvision>=0.29",
+]
+# AI forecasting models (028 phase B): Chronos-Bolt and Chronos-2 (chronos-forecasting, Apache-2.0;
+# transformers, accelerate, einops), TimesFM 2.5 (timesfm, Apache-2.0), N-HiTS / N-BEATS written
+# in torch. Weights are not in the packages: downloaded once on confirmation into <home>/models
+# (revisions, sizes and SHA-256 in quantilo/timeseries/ai.py). Not in the browser version.
+forecast-ai = [
+    "chronos-forecasting>=2.3.2",
+    "timesfm>=3.0.2",
+    "torch>=2.14",
+]
+# Models readable by construction (122), loaded lazily and greyed with their reason when absent
+# (quantilo/interpret/extras.py): GOSDT's optimal sparse trees (BSD-3, wheels for Python 3.9 to
+# 3.12 only), TreeFARMS's Rashomon set (BSD-3; gmpy2, timbertrek, matplotlib), PaCMAP (Apache-2.0;
+# numba, faiss-cpu, about 100 MB) and TriMAP (Apache-2.0; annoy, numba). Not in Pyodide.
+interpret = [
+    "gosdt>=1.0 ; python_version < '3.13'",
+    "pacmap>=0.7",
+    "treefarms>=0.2 ; sys_platform != 'win32'",  # its Windows wheel links python37.dll
+    "trimap>=1.1",
 ]
 
 [dependency-groups]
@@ -108,6 +129,12 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 # Statistical notation (×, ρ, η², en dashes) is intended in these messages.
 # Benjamini–Hochberg, Welch–Satterthwaite, α and σ in the inference texts (051).
 "src/quantilo/compare/*" = ["RUF001", "RUF002", "RUF003"]
+# Bands written 2–4, sizes 250 × 20,000 and Advanced › More in the Expert checks (101).
+"src/quantilo/cleaning/expert/*" = ["RUF001", "RUF002", "RUF003"]
+# Check-digit formulas written (12 + 3 × (SIREN mod 97)) mod 97 (audit 2026-11-12, N21).
+"src/quantilo/cleaning/rules/formats.py" = ["RUF001", "RUF002", "RUF003"]
+# Fellegi–Sunter in the entity clusters' reasons (audit 2026-11-12, N36).
+"src/quantilo/cleaning/rules/entities.py" = ["RUF001", "RUF002", "RUF003"]
 "tests/test_inference.py" = ["RUF001", "RUF003"]
 "tests/test_correlations.py" = ["RUF001"]
 "src/quantilo/changes/*" = ["RUF001", "RUF002", "RUF003"]
@@ -117,6 +144,11 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 "src/quantilo/dataset.py" = ["RUF001", "RUF002", "RUF003"]
 "src/quantilo/timeseries/forecast.py" = ["RUF001", "RUF002", "RUF003"]
 "src/quantilo/timeseries/facade.py" = ["RUF002"]
+# AI forecasting (028 phase B): Settings › Models, z(0.975) / z(0.9), 4 × h in texts and comments.
+"src/quantilo/timeseries/ai.py" = ["RUF001", "RUF002", "RUF003"]
+"src/quantilo/timeseries/pretrained.py" = ["RUF001", "RUF002", "RUF003"]
+"src/quantilo/timeseries/neural.py" = ["RUF001", "RUF002", "RUF003"]
+"tests/test_forecast_ai.py" = ["RUF001", "RUF002", "RUF003"]
 # Matrix notation (nodes × steps, S′W⁻¹S) in the reconciliation and group forecasts (039).
 "src/quantilo/timeseries/hierarchy.py" = ["RUF001", "RUF002", "RUF003"]
 "src/quantilo/timeseries/groups.py" = ["RUF001", "RUF002", "RUF003"]
@@ -148,8 +180,14 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 # Advanced cleaning reasons speak in formulas and ranges (total = a × b + c, ÷100, 0–1) (097).
 "src/quantilo/cleaning/rules/advanced.py" = ["RUF001", "RUF002", "RUF003"]
 "tests/test_cleaning_advanced.py" = ["RUF001", "RUF002", "RUF003"]
+# B1: the other Advanced rules speak the same way (3 × IQR, 40 – 120, Add step › Change type).
+"src/quantilo/cleaning/rules/distributions.py" = ["RUF001", "RUF002", "RUF003"]
+"src/quantilo/cleaning/rules/linkage.py" = ["RUF001", "RUF002", "RUF003"]
+"src/quantilo/cleaning/rules/shapes.py" = ["RUF001", "RUF002", "RUF003"]
 # Deep vision (114): ‖ (concatenation), ≈ (estimates), × (sizes) in docstrings and sentences.
 "src/quantilo/vision/deep/*" = ["RUF001", "RUF002", "RUF003"]
+# Readable models (121, 122): conditions and cards read "x ≤ t", "−5 to 5", "σ(a + b·total)".
+"src/quantilo/interpret/*" = ["RUF001", "RUF002", "RUF003"]
 
 [tool.pyright]
 pythonVersion = "3.12"
@@ -160,5 +198,8 @@ venv = ".venv"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["slow: performance checks on millions of rows (run with -m slow)"]
+markers = [
+  "slow: performance checks on millions of rows (run with -m slow)",
+  "clean_bench: the cleaning precision bench on the committed corpus (N01, -m clean_bench)",
+]
 addopts = "-m 'not slow'"

@@ -19,6 +19,8 @@ from quantilo.model import names
 from quantilo.model.keys import (
     KEY_ROLES,
     MAX_KEY_LENGTH,
+    Kind,
+    Match,
     Reason,
     TableInput,
     TableProfile,
@@ -55,6 +57,8 @@ class Link:
     parent_columns: list[str]
     join_type: JoinType = "left"
     id: str | None = None
+    active: bool = True  # C1 (R-REL-13): an inactive relation is kept but not built
+    match: Match = "exact"  # C1 (R-REL-14): "normalized" ignores case, accents, punctuation
 
 
 @dataclass
@@ -81,6 +85,10 @@ class LinkCheck:
     cardinality: Cardinality
     recommended: Recommended
     reasons: list[Reason] = field(default_factory=list)
+    # C1: child rows an exact match misses that a normalized one finds (R-REL-14), and orphan
+    # values one letter away from a key (R-REL-15: a slip to fix in Clean, never joined silently)
+    normalized_gain: int = 0
+    near_misses: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def matched_share(self) -> float:
@@ -93,14 +101,15 @@ def check(
     child_columns: list[str],
     parent: TableInput,
     parent_columns: list[str],
+    match: Match = "exact",
 ) -> LinkCheck:
     """Exact counts on every row; the recommendation and its reason (R-JOIN-01 to 04)."""
     kinds = link_kinds(child, child_columns, parent, parent_columns)
     if isinstance(kinds, Reason):
         raise ModelError(f"{kinds.text} ({kinds.code}).", code="incompatible")
     child_kinds, parent_kinds = kinds
-    child_value = key_expression(child, child_columns, child_kinds)
-    parent_value = key_expression(parent, parent_columns, parent_kinds)
+    child_value = key_expression(child, child_columns, child_kinds, match)
+    parent_value = key_expression(parent, parent_columns, parent_kinds, match)
     connection.execute(
         f"CREATE OR REPLACE TEMP TABLE check_c AS SELECT {child_value} AS v FROM {source(child)}"
     )
@@ -136,6 +145,14 @@ def check(
             f"ORDER BY n DESC, v LIMIT {EXAMPLES}"
         ).fetchall()
     ]
+    texts = any(kind == "text" for kind in child_kinds.values())
+    gain = 0
+    near: list[tuple[str, str]] = []
+    orphan_rows = child_rows - empty - matched
+    if texts and orphan_rows and match == "exact":
+        gain = _normalized_gain(connection, child, child_columns, parent, parent_columns, kinds)
+        if len(child_columns) == 1:
+            near = _near_misses(connection)
     connection.execute("DROP TABLE IF EXISTS check_c")
     connection.execute("DROP TABLE IF EXISTS check_p")
     child_unique = child_distinct == child_rows - empty
@@ -157,9 +174,70 @@ def check(
         unused_keys=unused,
         cardinality=cardinality,
         recommended="left",
+        normalized_gain=gain,
+        near_misses=near,
     )
     result.recommended, result.reasons = recommend(result, child.name, parent.name)
+    if gain:
+        result.reasons.append(
+            Reason(
+                "R-REL-14",
+                f"{_n(gain)} more {child.name} rows find their match when case, accents and "
+                "punctuation are ignored: choose that comparison if they mean the same thing",
+            )
+        )
+    if near:
+        shown = ", ".join(f"'{a}' → '{b}'" for a, b in near[:3])
+        result.reasons.append(
+            Reason(
+                "R-REL-15",
+                f"{len(near)} unmatched values are one letter away from a key ({shown}): fix them "
+                "in Clean (they are never joined by guess)",
+            )
+        )
     return result
+
+
+MAX_NEAR = 2_000  # R-REL-15: orphan values compared at most
+MAX_NEAR_KEYS = 20_000  # ...against at most this many keys
+
+
+def _normalized_gain(
+    connection: duckdb.DuckDBPyConnection,
+    child: TableInput,
+    child_columns: list[str],
+    parent: TableInput,
+    parent_columns: list[str],
+    kinds: tuple[dict[str, Kind], dict[str, Kind]],
+) -> int:
+    """R-REL-14: child rows found by a normalized comparison that the exact one misses."""
+    child_value = key_expression(child, child_columns, kinds[0], "normalized")
+    parent_value = key_expression(parent, parent_columns, kinds[1], "normalized")
+    exact_child = key_expression(child, child_columns, kinds[0])
+    row = connection.execute(
+        f"SELECT count(*) FROM (SELECT {child_value} AS n, {exact_child} AS v FROM "
+        f"{source(child)}) AS c WHERE c.v IS NOT NULL AND c.v NOT IN "
+        "(SELECT v FROM check_p WHERE v IS NOT NULL) AND c.n IN "
+        f"(SELECT {parent_value} FROM {source(parent)})"
+    ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def _near_misses(connection: duckdb.DuckDBPyConnection) -> list[tuple[str, str]]:
+    """R-REL-15: orphan values (5 characters or more) at Damerau-Levenshtein distance 1 of exactly
+    one key, bounded (2,000 orphans by 20,000 keys); shown, never applied."""
+    row = connection.execute("SELECT count(*) FROM check_p WHERE v IS NOT NULL").fetchone()
+    if not row or int(row[0]) > MAX_NEAR_KEYS:
+        return []
+    found = connection.execute(
+        "WITH o AS (SELECT DISTINCT v FROM check_c WHERE v IS NOT NULL AND length(v) >= 5 AND v "
+        f"NOT IN (SELECT v FROM check_p WHERE v IS NOT NULL) LIMIT {MAX_NEAR}), "
+        "pairs AS (SELECT o.v AS a, p.v AS b FROM o JOIN check_p AS p ON p.v IS NOT NULL AND "
+        "abs(length(o.v) - length(p.v)) <= 1 AND lower(o.v) <> lower(p.v) AND "
+        "damerau_levenshtein(o.v, p.v) = 1) "
+        "SELECT a, min(b) FROM pairs GROUP BY a HAVING count(*) = 1 ORDER BY a"
+    ).fetchall()
+    return [(str(a), str(b)) for a, b in found]
 
 
 def _n(value: int) -> str:
@@ -245,12 +323,24 @@ class OutputColumn:
 
 
 @dataclass
+class Filter:
+    """C1 (R-BLD-07): a condition on a column of one table of the build. On a dimension it keeps
+    the fact rows whose dimension row meets it (one → many, as Power BI's filter direction)."""
+
+    table_id: str
+    column: str
+    op: Literal["eq", "ne", "in", "not_in", "lt", "le", "gt", "ge", "empty", "not_empty"]
+    values: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Plan:
     fact: TableInput
     tables: dict[str, TableInput]
     steps: list[Step]
     columns: list[OutputColumn]
     skipped: list[Reason] = field(default_factory=list)
+    filters: list[Filter] = field(default_factory=list)
 
 
 # R-BLD-02: contact details describe a person, not the thing analysed
@@ -286,14 +376,28 @@ def plan(
     links: list[Link],
     picks: dict[str, list[str]] | None = None,
     profiles: dict[str, TableProfile] | None = None,
+    filters: list[Filter] | None = None,
 ) -> Plan:
-    """The joins out from the fact, breadth first (R-BLD-01). `picks`: parent id → columns."""
+    """The joins out from the fact, breadth first (R-BLD-01). `picks`: parent id → columns.
+    Inactive relations are left out (R-REL-13); `filters` restrict the rows (R-BLD-07)."""
     if fact_id not in tables:
         raise ModelError("The fact table is not in this project.", code="not_in_project")
     fact = tables[fact_id]
     by_child: dict[str, list[Link]] = {}
+    inactive: list[Reason] = []
     for link in links:
+        if not link.active:
+            parent = tables.get(link.parent_id)
+            inactive.append(
+                Reason(
+                    "R-REL-13",
+                    f"the inactive relation {'+'.join(link.child_columns)} → "
+                    f"{parent.name if parent else link.parent_id} is not used",
+                )
+            )
+            continue
         by_child.setdefault(link.child_id, []).append(link)
+    links = [link for link in links if link.active]
     reached: dict[str, int] = {}
     order: list[tuple[Link, str, int]] = []  # link, child alias, depth
     queue: deque[tuple[str, str, int]] = deque([(fact_id, "t0", 0)])
@@ -348,7 +452,19 @@ def plan(
             out_names.append(name)
             columns.append(OutputColumn(name, parent.id, column))
         steps.append(Step(link, chosen, label, child_alias, f"t{index}", depth, out_names))
-    return Plan(fact, tables, steps, columns, skipped)
+    reached_ids = {fact.id, *(step.link.parent_id for step in steps)}
+    kept_filters: list[Filter] = []
+    for item in filters or []:
+        table = tables.get(item.table_id)
+        if table is None or item.table_id not in reached_ids:
+            skipped.append(Reason("R-BLD-07", "a filter on a table the build does not reach"))
+            continue
+        if item.column not in {view.name for view in table.columns}:
+            raise ModelError(
+                f"`{item.column}` is not a column of {table.name}.", code="unknown_column"
+            )
+        kept_filters.append(item)
+    return Plan(fact, tables, steps, columns, skipped + inactive, kept_filters)
 
 
 def _free(name: str, taken: set[str]) -> str:
@@ -358,6 +474,33 @@ def _free(name: str, taken: set[str]) -> str:
     while f"{name} {number}" in taken:
         number += 1
     return f"{name} {number}"
+
+
+def filter_sql(table: TableInput, item: Filter) -> str:
+    """R-BLD-07: the condition on the column as the app reads it (its parser), numbers compared
+    as numbers when the values are numbers."""
+    view = next(v for v in table.columns if v.name == item.column)
+    typed = typed_sql(view.name, view.parser)
+    text = f"CAST({typed} AS VARCHAR)"
+    if item.op == "empty":
+        return f"({typed} IS NULL OR trim({text}) = '')"
+    if item.op == "not_empty":
+        return f"({typed} IS NOT NULL AND trim({text}) <> '')"
+    values = list(item.values) or [""]
+    if item.op in ("in", "not_in", "eq", "ne"):
+        listed = ", ".join(lit(value) for value in values)
+        test = f"{text} IN ({listed})"
+        return (
+            f"coalesce({test}, false)"
+            if item.op in ("in", "eq")
+            else f"NOT coalesce({test}, false)"
+        )
+    symbol = {"lt": "<", "le": "<=", "gt": ">", "ge": ">="}[item.op]
+    number = f"TRY_CAST({lit(values[0])} AS DOUBLE)"
+    return (
+        f"coalesce(CASE WHEN {number} IS NOT NULL THEN TRY_CAST({typed} AS DOUBLE) {symbol} "
+        f"{number} ELSE {text} {symbol} {lit(values[0])} END, false)"
+    )
 
 
 def flat_sql(plan_: Plan) -> str:
@@ -375,11 +518,12 @@ def flat_sql(plan_: Plan) -> str:
         if isinstance(kinds, Reason):
             raise ModelError(f"{kinds.text} ({kinds.code}).", code="incompatible")
         child_kinds, parent_kinds = kinds
+        match = step.link.match
         extras[step.child_alias].append(
-            f"{key_expression(child, step.link.child_columns, child_kinds)} AS __f{index}"
+            f"{key_expression(child, step.link.child_columns, child_kinds, match)} AS __f{index}"
         )
         extras[step.parent_alias].append(
-            f"{key_expression(parent, step.link.parent_columns, parent_kinds)} AS __k{index}"
+            f"{key_expression(parent, step.link.parent_columns, parent_kinds, match)} AS __k{index}"
         )
         joins.append(
             f"{_SQL_JOIN[step.link.join_type]} {{{step.parent_alias}}} AS {step.parent_alias} "
@@ -391,7 +535,17 @@ def flat_sql(plan_: Plan) -> str:
         added = ", ".join(extras[alias])
         numbered = ", file_row_number = true" if alias == "t0" else ""
         body = f"read_parquet({lit(table.storage_path)}{numbered})"
-        return f"(SELECT *{', ' + added if added else ''} FROM {body})"
+        tests = [filter_sql(table, item) for item in plan_.filters if item.table_id == table.id]
+        where = f" WHERE {' AND '.join(tests)}" if tests else ""
+        return f"(SELECT *{', ' + added if added else ''} FROM {body}{where})"
+
+    # R-BLD-07: a filtered dimension keeps the fact rows that reach one of its kept rows
+    filtered = {item.table_id for item in plan_.filters}
+    reach = [
+        f"{step.parent_alias}.__k{index} IS NOT NULL"
+        for index, step in enumerate(plan_.steps, start=1)
+        if step.link.parent_id in filtered
+    ]
 
     fact_extra = ["file_row_number"] + [
         f"__f{i}" for i, s in enumerate(plan_.steps, 1) if s.child_alias == "t0"
@@ -403,6 +557,8 @@ def flat_sql(plan_: Plan) -> str:
     body = f"SELECT {', '.join(selects)} FROM {subquery('t0')} AS t0"
     for join, step in zip(joins, plan_.steps, strict=True):
         body += " " + join.replace("{" + step.parent_alias + "}", subquery(step.parent_alias))
+    if reach:
+        body += f" WHERE {' AND '.join(reach)}"
     return body + " ORDER BY t0.file_row_number NULLS LAST"
 
 
@@ -422,6 +578,7 @@ class Preview:
     steps: list[StepPreview]
     refused: list[Reason]
     skipped: list[Reason]
+    filtered_out: int = 0  # C1 (R-BLD-07): fact rows the filters leave out
 
 
 def preview(connection: duckdb.DuckDBPyConnection, plan_: Plan) -> Preview:
@@ -431,7 +588,14 @@ def preview(connection: duckdb.DuckDBPyConnection, plan_: Plan) -> Preview:
     for step in plan_.steps:
         child = plan_.tables.get(step.link.child_id, plan_.fact)
         parent = plan_.tables[step.link.parent_id]
-        found = check(connection, child, step.link.child_columns, parent, step.link.parent_columns)
+        found = check(
+            connection,
+            child,
+            step.link.child_columns,
+            parent,
+            step.link.parent_columns,
+            step.link.match,
+        )
         steps.append(StepPreview(step.link, step.prefix, len(step.columns), found))
         if found.duplicate_keys:
             refused.append(
@@ -444,15 +608,21 @@ def preview(connection: duckdb.DuckDBPyConnection, plan_: Plan) -> Preview:
     row = connection.execute(f"SELECT count(*) FROM {source(plan_.fact)}").fetchone()
     before = int(row[0]) if row else 0
     after = before
+    filtered_out = 0
     if not refused:
         counted = connection.execute(f"SELECT count(*) FROM ({flat_sql(plan_)})").fetchone()
         after = int(counted[0]) if counted else 0
         widening = any(step.link.join_type in ("right", "full") for step in plan_.steps)
+        if plan_.filters and not widening:  # R-BLD-07: the rows the filters keep
+            unfiltered = Plan(plan_.fact, plan_.tables, plan_.steps, plan_.columns)
+            total = connection.execute(f"SELECT count(*) FROM ({flat_sql(unfiltered)})").fetchone()
+            filtered_out = (int(total[0]) if total else 0) - after
+            before = before - filtered_out
         if after > before and not widening:
             refused.append(
                 Reason("R-BLD-03", f"the join gives {_n(after)} rows for {_n(before)} fact rows")
             )
-    return Preview(before, after, plan_.columns, steps, refused, plan_.skipped)
+    return Preview(before, after, plan_.columns, steps, refused, plan_.skipped, filtered_out)
 
 
 def write_flat(connection: duckdb.DuckDBPyConnection, plan_: Plan, target: Path) -> Preview:

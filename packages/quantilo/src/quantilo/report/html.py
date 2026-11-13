@@ -234,18 +234,63 @@ footer {
   .vgrid { grid-template-columns: 1fr; }
   dl.methods { grid-template-columns: 1fr; }
 }
+/* R-REP-16: A4, the light theme, the charts' colours kept, a card never cut, each large section
+   on a new page, the navigation hidden, a running header and the page number. */
+@page { size: A4; margin: 14mm 12mm 16mm; }
+@page {
+  @bottom-right { content: counter(page) " / " counter(pages); font: 8pt system-ui, sans-serif;
+                  color: #71695f; }
+}
 @media print {
   :root {
+    color-scheme: light;
     --surface-0: #fff; --surface-1: #fff; --surface-2: #f2efea;
     --ink-1: #24201b; --ink-2: #5c544a; --ink-3: #71695f; --line: #e2dcd3;
     --accent: #ad4a27; --accent-soft: #f6e3da; --warn: #8f5b00; --warn-soft: #f7ecd6;
     --chart-1: #2a78d6; --chart-1-soft: #dfeaf8; --chart-2: #eb6834; --chart-8: #e34948;
   }
+  html { scroll-behavior: auto; }
+  body {
+    background: #fff; font-size: 10pt;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
   main { max-width: none; padding: 0; }
   nav.toc { display: none; }
-  .vgrid { grid-template-columns: 190px minmax(0, 1fr) 210px; gap: 18px; }
+  section { padding-top: 0; }
+  #variables, #relationships, #correlations, #missing, #methods { break-before: page; }
+  h1, h2, h3, .eyebrow, figcaption { break-after: avoid; }
+  .variable, .finding, .pair, .note, figure, svg, tr, dl.facts { break-inside: avoid; }
+  .masthead { padding-top: 0; }
+  .vgrid { grid-template-columns: 180px minmax(0, 1fr); gap: 16px; }
+  .vgrid .stand { grid-column: 1 / -1; }
+  td.num, .mini td { white-space: nowrap; }
+  .variable { padding: 14px 16px; }
+  .scroll { overflow: visible; }
+  a { color: inherit; }
+  footer { break-inside: avoid; }
 }
 """
+
+
+def _css_string(text: str) -> str:
+    """A CSS string literal (R-REP-12: the dataset's name is data, escaped like any text)."""
+    out = []
+    for char in text:
+        if char in '"\\' or ord(char) < 32 or char in "<>&":
+            out.append(f"\\{ord(char):x} ")
+        else:
+            out.append(char)
+    return '"' + "".join(out) + '"'
+
+
+def _running_header(title: str, generated: str) -> str:
+    """R-REP-16: the dataset's name and the date at the top of every printed page."""
+    text = _css_string(f"{title} · Data report · {generated}")
+    return (
+        "@page { @top-left { content: " + text + "; font: 8pt system-ui, sans-serif; "
+        "color: #71695f; } }"
+    )
+
 
 TYPE_COLORS = {
     "Continuous": "#3b6ea8",
@@ -560,7 +605,7 @@ def render(report: Report) -> str:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title} · Data report</title>
-<style>{CSS}</style>
+<style>{CSS}{_running_header(report.title, report.generated_at)}</style>
 </head>
 <body>
 <main>

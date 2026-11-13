@@ -1,6 +1,7 @@
-"""What the Experiments module lets the AI agent do (specs 034, 049, 055): analyze an A/B test of
-the dataset, read its bandit view, learn who should get which variant, evaluate a policy from
-logged decisions, and plan a test (sample size), through this module's own engine."""
+"""What the Experiments module lets the AI agent do (specs 034, 049, 055, 123): analyze an A/B
+test of the dataset, read its bandit view, learn who should get which variant, evaluate a policy
+from logged decisions, compare a treatment with its control on matched groups, and plan a test
+(sample size), through this module's own engine."""
 
 from typing import Any, ClassVar, Literal
 
@@ -14,6 +15,7 @@ from quantilo.experiments.analyze import (
 from quantilo.experiments.offpolicy import DecisionsRequest
 from quantilo.experiments.plan import SampleSizeRequest
 from quantilo.experiments.service import ExperimentEngine
+from quantilo.interpret.matching import MatchingRequest
 
 from app.core.errors import AppError
 from app.core.tools import AppLink, Tool, ToolContext, ToolError, ToolOutput, compact
@@ -387,6 +389,60 @@ class SampleSizeTool(Tool[SampleSizeInput]):
         )
 
 
+class MatchedGroupsTool(Tool[MatchingRequest]):
+    name: ClassVar[str] = "matched_groups"
+    description: ClassVar[str] = (
+        "Compare a treatment with its control on observational data (a column with exactly two "
+        "values, an outcome, columns describing the units): units are matched exactly on their "
+        "covariates (FLAME, numbers cut into bins), the covariate least useful to predict the "
+        "outcome dropped level by level. Gives the effect in each matched group, on average and "
+        "on the treated, against the naive gap, and the balance before and after. Always say it "
+        "is valid only if no hidden factor drove both the treatment and the outcome, and that "
+        "the covariates must be measured before the treatment."
+    )
+    Input: ClassVar[type[BaseModel]] = MatchingRequest
+
+    def __init__(self, engine: ExperimentEngine) -> None:
+        self.engine = engine
+
+    def label(self, args: MatchingRequest) -> str:
+        return f"Matching units on {args.treatment}"
+
+    def run(self, ctx: ToolContext, args: MatchingRequest) -> ToolOutput:
+        try:
+            result = self.engine.matching(ctx.dataset_id, args, ctx.conditions)
+        except AppError as error:
+            raise ToolError(f"These units can't be matched: {error.message}") from error
+        content = {
+            "sentence": result.sentence,
+            "effects": [
+                {"effect": e.label, "sentence": e.sentence, "value": [e.value, e.low, e.high]}
+                for e in result.effects
+            ],
+            "warnings": result.warnings,
+            "levels": [
+                {"level": lv.level, "matched_on": lv.covariates, "dropped": lv.dropped}
+                for lv in result.levels
+            ],
+            "groups": [
+                {
+                    "conditions": g.conditions,
+                    "treated": g.treated,
+                    "control": g.control,
+                    "effect": [g.effect, g.low, g.high],
+                }
+                for g in result.groups
+            ],
+            "unbalanced_after": [b.column for b in result.balance if not b.balanced],
+            "stopped": result.stopped,
+        }
+        return ToolOutput(
+            result.sentence,
+            compact(content, max_items=10),
+            AppLink("experiments", {"tab": "policies"}, "Open the Policies tab"),
+        )
+
+
 def agent_tools(app: FastAPI) -> list[Tool[Any]]:
     engine: ExperimentEngine = app.state.experiments
     return [
@@ -394,5 +450,6 @@ def agent_tools(app: FastAPI) -> list[Tool[Any]]:
         BanditView(engine),
         LearnPolicy(engine),
         EvaluatePolicy(engine, app),
+        MatchedGroupsTool(engine),
         SampleSizeTool(engine),
     ]

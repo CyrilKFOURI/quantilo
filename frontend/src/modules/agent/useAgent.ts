@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
 
 import type { Condition } from "../../api/filters";
-import { agentApi, streamTurn, type AgentLink, type AgentSettingsChange, type TurnEvent } from "./api";
+import { agentApi, streamTurn, type AgentLink, type AgentSettingsChange, type RowsRequest, type TurnEvent } from "./api";
 
 const keys = {
   settings: ["agent", "settings"] as const,
@@ -10,6 +10,7 @@ const keys = {
   conversations: (datasetId: string) => ["agent", "conversations", datasetId] as const,
   conversation: (id: string) => ["agent", "conversation", id] as const,
   notes: (datasetId: string) => ["agent", "notes", datasetId] as const,
+  personal: (datasetId: string) => ["agent", "personal", datasetId] as const,
 };
 
 export function useAgentSettings(enabled: boolean) {
@@ -85,6 +86,23 @@ export function useDeleteNote(datasetId: string) {
   });
 }
 
+/** The dataset's personal columns, masked before rows reach the assistant unless shared. */
+export function usePersonalColumns(datasetId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: keys.personal(datasetId),
+    queryFn: () => agentApi.personalColumns(datasetId),
+    enabled,
+  });
+}
+
+export function useSetUnmasked(datasetId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (unmasked: string[]) => agentApi.setUnmasked(datasetId, unmasked),
+    onSuccess: (columns) => client.setQueryData(keys.personal(datasetId), columns),
+  });
+}
+
 export type LiveStep = {
   id: string;
   tool: string;
@@ -96,6 +114,8 @@ export type LiveStep = {
   progress?: { message: string; share: number | null };
   /** A change waiting for the user's Confirm or Dismiss. */
   confirm?: string;
+  /** Rows the assistant asks to see (R-AG-P2): the card lists them and the masked columns. */
+  rows?: RowsRequest;
 };
 
 /** The turn being played: what the assistant has said and done so far. */
@@ -151,7 +171,10 @@ function apply(state: TurnState, event: TurnEvent): TurnState {
     case "confirm":
       return {
         ...state,
-        live: { ...live, steps: live.steps.map((s) => (s.id === event.id ? { ...s, confirm: event.text } : s)) },
+        live: {
+          ...live,
+          steps: live.steps.map((s) => (s.id === event.id ? { ...s, confirm: event.text, rows: event.rows } : s)),
+        },
       };
     case "step_done":
       return {
@@ -160,7 +183,16 @@ function apply(state: TurnState, event: TurnEvent): TurnState {
           ...live,
           steps: live.steps.map((s) =>
             s.id === event.id
-              ? { ...s, ok: event.ok, summary: event.summary, link: event.link, ms: event.ms, confirm: undefined, progress: undefined }
+              ? {
+                  ...s,
+                  ok: event.ok,
+                  summary: event.summary,
+                  link: event.link,
+                  ms: event.ms,
+                  confirm: undefined,
+                  rows: undefined,
+                  progress: undefined,
+                }
               : s,
           ),
         },
@@ -228,16 +260,23 @@ export function useTurn(datasetId: string) {
 
   const reset = useCallback(() => setState(IDLE), []);
 
-  /** The user's answer to a change the assistant asked to make. */
-  const decide = useCallback((callId: string, approved: boolean) => {
+  /** The user's answer to a change the assistant asked to make, or to rows it asked to see
+   *  (`unmask`: masked columns shown as they are, for this request only). */
+  const decide = useCallback((callId: string, approved: boolean, unmask?: string[]) => {
     const id = conversationRef.current;
     if (!id) return;
     setState((s) =>
       s.live
-        ? { ...s, live: { ...s.live, steps: s.live.steps.map((step) => (step.id === callId ? { ...step, confirm: undefined } : step)) } }
+        ? {
+            ...s,
+            live: {
+              ...s.live,
+              steps: s.live.steps.map((step) => (step.id === callId ? { ...step, confirm: undefined, rows: undefined } : step)),
+            },
+          }
         : s,
     );
-    void agentApi.confirm(id, callId, approved);
+    void agentApi.confirm(id, callId, approved, unmask);
   }, []);
 
   return { state, send, stop, reset, decide };

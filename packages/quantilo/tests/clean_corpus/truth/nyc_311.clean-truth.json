@@ -1,0 +1,25 @@
+{
+ "label": "nyc_311",
+ "corpus": "data-corpus",
+ "path": "public_admin/nyc_311/nyc_311_requests.csv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-01:incident_address", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-01:street_name", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-01:resolution_description", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-04:descriptor", "verdict": "correct", "why": "a word for 'missing' in this file", "op": "null_values"},
+  {"id": "B-04:descriptor_2", "verdict": "correct", "why": "a word for 'missing' in this file", "op": "null_values"},
+  {"id": "B-04:location_type", "verdict": "correct", "why": "a word for 'missing' in this file", "op": "null_values"},
+  {"id": "B-04:resolution_description", "verdict": "correct", "why": "a word for 'missing' in this file", "op": "null_values"},
+  {"id": "B-04:park_facility_name", "verdict": "correct", "why": "a word for 'missing' in this file", "op": "null_values"},
+  {"id": "B-04:road_ramp", "verdict": "correct", "why": "a word for 'missing' in this file", "op": "null_values"},
+  {"id": "B-04:bridge_highway_segment", "verdict": "correct", "why": "a word for 'missing' in this file", "op": "null_values"},
+  {"id": "B-03:complaint_type", "verdict": "correct", "why": "same value up to case or accents, each group read", "op": "map_values"},
+  {"id": "B-03:descriptor_2", "verdict": "correct", "why": "same value up to case or accents, each group read", "op": "map_values"},
+  {"id": "B-03:location_type", "verdict": "correct", "why": "same value up to case or accents, each group read", "op": "map_values"},
+  {"id": "B-03:city", "verdict": "correct", "why": "same value up to case or accents, each group read", "op": "map_values"},
+  {"id": "B-04:location_type:file", "verdict": "correct", "why": "'unknown' says only that the value is not known: empty says the same (judged 2026-11-13 for N01, on the proposal of N08)", "op": "null_values"},
+  {"id": "B-04:open_data_channel_type:file", "verdict": "correct", "why": "'unknown' says only that the value is not known: empty says the same (judged 2026-11-13 for N01, on the proposal of N08)", "op": "null_values"}
+ ]
+}

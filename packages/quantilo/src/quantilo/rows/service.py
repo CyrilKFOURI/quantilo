@@ -17,6 +17,7 @@ from quantilo.filters.scope import scoped_source, where_for
 from quantilo.rows.export import Format, write_summary, write_view
 from quantilo.rows.view import (
     MAX_LIMIT,
+    ROW,
     RowColumn,
     RowsColumn,
     RowsPage,
@@ -26,6 +27,7 @@ from quantilo.rows.view import (
     page,
     view_relation,
 )
+from quantilo.variable.source import SEED
 
 COUNT_CACHE = 64
 EXTENSIONS: dict[str, str] = {"csv": "csv", "parquet": "parquet", "xlsx": "xlsx", "summary": "csv"}
@@ -73,6 +75,7 @@ class RowService:
             filters_key(conditions),
             view.mode,
             view.search.strip().lower(),
+            view.rows,
         )
         connection = duckdb.connect()
         try:
@@ -91,6 +94,36 @@ class RowService:
         return RowsPage(
             [RowsColumn(c.name, c.type, c.excluded) for c in columns], rows, total, offset
         )
+
+    def sample(
+        self,
+        dataset_id: str,
+        names: list[str],
+        limit: int,
+        conditions: list[Condition] | None = None,
+        spread: bool = True,
+    ) -> RowsPage:
+        """A few filtered rows with only the columns named (the assistant's `sample_rows`, 026):
+        spread over the rows (a reproducible sample, the same for the same filters) or the first
+        ones, listed in file order."""
+        _, columns, source = self._scope(dataset_id, conditions or [])
+        by_name = {c.name: c for c in columns}
+        unknown = [name for name in names if name not in by_name]
+        if unknown:
+            raise UnknownColumnError(unknown[0])
+        chosen = [by_name[name] for name in names]
+        relation, order = view_relation(source, columns, View())
+        if spread:
+            order = f"hash({ROW} + {SEED}), {ROW}"
+        connection = duckdb.connect()
+        try:
+            total = count(connection, relation)
+            limit = max(0, min(limit, MAX_LIMIT))
+            rows = page(connection, relation, order, chosen, 0, limit) if limit else []
+        finally:
+            connection.close()
+        rows.sort(key=lambda row: row[0])
+        return RowsPage([RowsColumn(c.name, c.type, c.excluded) for c in chosen], rows, total, 0)
 
     def export(
         self,

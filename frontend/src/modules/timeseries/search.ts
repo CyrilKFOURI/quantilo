@@ -1,5 +1,5 @@
 import { parseWindows } from "./Windows";
-import type { SeriesParams } from "../../api/client";
+import type { ForecastTuning, SeriesParams } from "../../api/client";
 
 export const PERIODS = [
   "hour",
@@ -93,7 +93,81 @@ export type TimeSeriesSearch = SeriesParams & {
   savgol_order?: number;
   kalman_model?: (typeof KALMAN_FORMS)[number];
   hp_lambda?: number;
+  // Forecast ⚙ Options (028 A7): undefined = the default of each model
+  arima_p?: number;
+  arima_q?: number;
+  arima_sp?: number;
+  arima_sq?: number;
+  arima_d?: number;
+  arima_ic?: (typeof FORECAST_OPTIONS.arima_ic)[number];
+  gbm_grid?: (typeof FORECAST_OPTIONS.gbm_grid)[number];
+  cp_scale?: number;
+  cp_count?: number;
+  fc_limit?: number;
 };
+
+/** The forecast's ⚙ Options (028 A7): URL key and the values offered after the default. */
+export const FORECAST_OPTIONS = {
+  arima_p: [0, 1, 2, 3, 4, 5],
+  arima_q: [0, 1, 2, 3, 4, 5],
+  arima_sp: [0, 1, 2],
+  arima_sq: [0, 1, 2],
+  arima_d: [0, 1, 2],
+  arima_ic: ["aicc", "aic", "bic"],
+  gbm_grid: ["fixed", "small", "wide"],
+  cp_scale: [0.001, 0.01, 0.05, 0.1, 0.5],
+  cp_count: [0, 5, 10, 25, 50],
+  fc_limit: [10, 30, 60, 120, 300],
+} as const;
+export type ForecastOption = keyof typeof FORECAST_OPTIONS;
+/** Each option's default in the engine (`forecast.Tuning`); the time limit has none. */
+export const FORECAST_DEFAULTS: Record<ForecastOption, number | string | null> = {
+  arima_p: 3,
+  arima_q: 3,
+  arima_sp: 1,
+  arima_sq: 1,
+  arima_d: 2,
+  arima_ic: "aicc",
+  gbm_grid: "fixed",
+  cp_scale: 0.05,
+  cp_count: 25,
+  fc_limit: null,
+};
+/** The models each option tunes (the time limit: all of them). */
+export const FORECAST_OPTION_MODELS: Record<ForecastOption, string[] | null> = {
+  arima_p: ["arima_auto", "sarimax"],
+  arima_q: ["arima_auto", "sarimax"],
+  arima_sp: ["arima_auto", "sarimax"],
+  arima_sq: ["arima_auto", "sarimax"],
+  arima_d: ["arima_auto", "sarimax"],
+  arima_ic: ["arima_auto", "sarimax"],
+  gbm_grid: ["gbm_lags"],
+  cp_scale: ["prophet_like"],
+  cp_count: ["prophet_like"],
+  fc_limit: null,
+};
+const TUNING_KEYS = {
+  arima_p: "max_p",
+  arima_q: "max_q",
+  arima_sp: "max_seasonal_p",
+  arima_sq: "max_seasonal_q",
+  arima_d: "max_d",
+  arima_ic: "criterion",
+  gbm_grid: "gbm_grid",
+  cp_scale: "changepoint_scale",
+  cp_count: "changepoints",
+  fc_limit: "time_limit",
+} as const satisfies Record<ForecastOption, keyof ForecastTuning>;
+
+/** The options set in the URL, as the forecast's `tuning` (only the keys that were changed). */
+export function forecastTuning(search: TimeSeriesSearch): ForecastTuning {
+  const found: Record<string, number | string> = {};
+  for (const option of Object.keys(FORECAST_OPTIONS) as ForecastOption[]) {
+    const value = search[option];
+    if (value !== undefined) found[TUNING_KEYS[option]] = value;
+  }
+  return found as ForecastTuning;
+}
 
 export const KALMAN_FORMS = ["llevel", "lltrend", "llevel_seasonal", "lltrend_seasonal"] as const;
 /** The Smooth row's overridable parameters: URL key and the values offered after "Auto". */
@@ -158,13 +232,23 @@ export function validateTimeSeriesSearch(
       : undefined,
     all: search.all === true || search.all === "true" ? true : undefined,
     scen: parseScenarios(search.scen),
-    smodel: oneOf(search.smodel, ["sarimax", "tslm", "gbm_lags"] as const),
+    smodel: oneOf(search.smodel, ["sarimax", "tslm", "gbm_lags", "prophet_like"] as const),
     ewma_alpha: among(search.ewma_alpha, SMOOTH_OPTIONS.ewma_alpha),
     lowess_frac: among(search.lowess_frac, SMOOTH_OPTIONS.lowess_frac),
     savgol_window: among(search.savgol_window, SMOOTH_OPTIONS.savgol_window),
     savgol_order: among(search.savgol_order, SMOOTH_OPTIONS.savgol_order),
     kalman_model: oneOf(search.kalman_model, KALMAN_FORMS),
     hp_lambda: among(search.hp_lambda, SMOOTH_OPTIONS.hp_lambda),
+    arima_p: among(search.arima_p, FORECAST_OPTIONS.arima_p),
+    arima_q: among(search.arima_q, FORECAST_OPTIONS.arima_q),
+    arima_sp: among(search.arima_sp, FORECAST_OPTIONS.arima_sp),
+    arima_sq: among(search.arima_sq, FORECAST_OPTIONS.arima_sq),
+    arima_d: among(search.arima_d, FORECAST_OPTIONS.arima_d),
+    arima_ic: oneOf(search.arima_ic, FORECAST_OPTIONS.arima_ic),
+    gbm_grid: oneOf(search.gbm_grid, FORECAST_OPTIONS.gbm_grid),
+    cp_scale: among(search.cp_scale, FORECAST_OPTIONS.cp_scale),
+    cp_count: among(search.cp_count, FORECAST_OPTIONS.cp_count),
+    fc_limit: among(search.fc_limit, FORECAST_OPTIONS.fc_limit),
   };
 }
 
@@ -192,6 +276,7 @@ export function seriesParams(search: TimeSeriesSearch): SeriesParams {
   delete params.scen;
   delete params.smodel;
   for (const key of Object.keys(SMOOTH_OPTIONS) as SmoothOption[]) delete params[key];
+  for (const key of Object.keys(FORECAST_OPTIONS) as ForecastOption[]) delete params[key];
   return params;
 }
 

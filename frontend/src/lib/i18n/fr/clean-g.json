@@ -1,0 +1,5 @@
+{
+  "clean.keep.latest": "La plus récente (selon une date)",
+  "clean.field.orderBy": "Colonne de date",
+  "clean.field.why.orderBy": "La ligne dont la date est la plus récente dans cette colonne est gardée (une date de mise à jour) ; les lignes sans date passent en dernier."
+}

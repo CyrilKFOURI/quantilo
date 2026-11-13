@@ -1,0 +1,30 @@
+{
+ "label": "ames",
+ "corpus": "data-corpus",
+ "path": "real_estate/ames_housing/AmesHousing.tsv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-01:Sale Type", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-04:Bsmt Qual", "verdict": "wrong", "why": "'NA' means 'no garage' / 'no basement' (the data's documentation)", "op": "null_values"},
+  {"id": "B-04:Bsmt Cond", "verdict": "wrong", "why": "'NA' means 'no garage' / 'no basement' (the data's documentation)", "op": "null_values"},
+  {"id": "B-04:Bsmt Exposure", "verdict": "wrong", "why": "'NA' means 'no garage' / 'no basement' (the data's documentation)", "op": "null_values"},
+  {"id": "B-04:BsmtFin Type 1", "verdict": "wrong", "why": "'NA' means 'no garage' / 'no basement' (the data's documentation)", "op": "null_values"},
+  {"id": "B-04:BsmtFin Type 2", "verdict": "wrong", "why": "'NA' means 'no garage' / 'no basement' (the data's documentation)", "op": "null_values"},
+  {"id": "B-04:Garage Type", "verdict": "wrong", "why": "'NA' means 'no garage' / 'no basement' (the data's documentation)", "op": "null_values"},
+  {"id": "B-04:Garage Finish", "verdict": "wrong", "why": "'NA' means 'no garage' / 'no basement' (the data's documentation)", "op": "null_values"},
+  {"id": "B-04:Garage Qual", "verdict": "wrong", "why": "'NA' means 'no garage' / 'no basement' (the data's documentation)", "op": "null_values"},
+  {"id": "B-04:Garage Cond", "verdict": "wrong", "why": "'NA' means 'no garage' / 'no basement' (the data's documentation)", "op": "null_values"},
+  {"id": "B-18:Central Air", "verdict": "correct", "why": "'Y' / 'N' are yes and no (mode S)", "op": "change_type"},
+  {"id": "B-04:Bsmt Qual:none", "verdict": "correct", "why": "'NA' means 'none of it' (the data's documentation): written 'None', it stays a category (judged 2026-11-13 for N01, on the proposal of N06)", "op": "map_values"},
+  {"id": "B-04:Bsmt Cond:none", "verdict": "correct", "why": "'NA' means 'none of it' (the data's documentation): written 'None', it stays a category (judged 2026-11-13 for N01, on the proposal of N06)", "op": "map_values"},
+  {"id": "B-04:Bsmt Exposure:none", "verdict": "correct", "why": "'NA' means 'none of it' (the data's documentation): written 'None', it stays a category (judged 2026-11-13 for N01, on the proposal of N06)", "op": "map_values"},
+  {"id": "B-04:BsmtFin Type 1:none", "verdict": "correct", "why": "'NA' means 'none of it' (the data's documentation): written 'None', it stays a category (judged 2026-11-13 for N01, on the proposal of N06)", "op": "map_values"},
+  {"id": "B-04:BsmtFin Type 2:none", "verdict": "correct", "why": "'NA' means 'none of it' (the data's documentation): written 'None', it stays a category (judged 2026-11-13 for N01, on the proposal of N06)", "op": "map_values"},
+  {"id": "B-04:Garage Type:none", "verdict": "correct", "why": "'NA' means 'none of it' (the data's documentation): written 'None', it stays a category (judged 2026-11-13 for N01, on the proposal of N06)", "op": "map_values"},
+  {"id": "B-04:Garage Finish:none", "verdict": "correct", "why": "'NA' means 'none of it' (the data's documentation): written 'None', it stays a category (judged 2026-11-13 for N01, on the proposal of N06)", "op": "map_values"},
+  {"id": "B-04:Garage Qual:none", "verdict": "correct", "why": "'NA' means 'none of it' (the data's documentation): written 'None', it stays a category (judged 2026-11-13 for N01, on the proposal of N06)", "op": "map_values"},
+  {"id": "B-04:Garage Cond:none", "verdict": "correct", "why": "'NA' means 'none of it' (the data's documentation): written 'None', it stays a category (judged 2026-11-13 for N01, on the proposal of N06)", "op": "map_values"},
+  {"id": "B-04:Fireplace Qu:none", "verdict": "correct", "why": "'NA' means 'none of it' (the data's documentation): written 'None', it stays a category (judged 2026-11-13 for N01, on the proposal of N06)", "op": "map_values"}
+ ]
+}

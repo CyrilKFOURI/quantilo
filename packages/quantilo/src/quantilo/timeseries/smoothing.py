@@ -150,7 +150,7 @@ def ewma_alpha(x: np.ndarray) -> float:
     it is the α with the smallest sum of squared one-step errors."""
     from scipy.optimize import minimize_scalar
 
-    found = minimize_scalar(
+    found: Any = minimize_scalar(
         lambda a: _ewma_pass(x, float(a))[1],
         bounds=(0.01, 0.99),
         method="bounded",

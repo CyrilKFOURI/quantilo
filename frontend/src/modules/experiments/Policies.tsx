@@ -12,6 +12,7 @@ import { ParamPanel } from "../../ui/ParamPanel";
 import { useEvaluatePolicy, type DecisionsRequest, type LoggedDecisions, type PolicyEstimate, type PolicyEvaluation } from "./api";
 import { policyValuesFigure } from "./figures";
 import { gap, interval, value } from "./format";
+import { Matching } from "./Matching";
 import { CovariateChips } from "./Policy";
 
 const small = "h-7 text-xs";
@@ -298,8 +299,8 @@ function Evaluation({ evaluation, advanced }: { evaluation: PolicyEvaluation; ad
   );
 }
 
-/** "Advanced": every estimator side by side and the saved models (nothing new is computed until a
- *  model is added). */
+/** "Advanced": every estimator side by side, the saved models (nothing new is computed until a
+ *  model is added) and the matched groups (123, computed once asked). */
 function Advanced({
   datasetId,
   evaluation,
@@ -326,6 +327,9 @@ function Advanced({
           {evaluation.method}
           {evaluation.sampled && ` ${t("experiments.policy.sampled", { units: evaluation.units.toLocaleString("en-US") })}`}
         </p>
+        {evaluation.matching && (
+          <Matching key={`${request.action}-${request.reward}`} datasetId={datasetId} request={request} offer={evaluation.matching} actions={evaluation.actions} />
+        )}
         <LearnMore datasetId={datasetId} request={request} />
       </div>
     </details>

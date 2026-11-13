@@ -47,6 +47,7 @@ THIN = 0.2  # R-SIG-04: share of the median period's rows
 EMPTY = 0.2  # R-SIG-05
 DUPLICATES = 0.01  # R-SIG-06
 MAX_CELLS = 1_000  # cells listed by one signal
+MAX_GROUPS_SAID = 3  # R-SIG-09: groups named in the sentence (all are marked in the table)
 
 
 @dataclass
@@ -242,6 +243,88 @@ def series_signals(
             )
         )
     return out + kept[-MAX_SHIFTS:]
+
+
+# --- 054 bis: the groups ------------------------------------------------------------------------
+
+
+@dataclass
+class GroupSeries:
+    """One group's series of a measure split over time (the first split, `Other` left out)."""
+
+    label: str
+    values: Sequence[float | None]
+    rows: Sequence[int] | None = None
+
+
+def _last_unusual(
+    values: Sequence[float | None], periods: Sequence[Period], grain: Grain
+) -> tuple[int, float, bool] | None:
+    """The last complete period when it is unusual (R-SIG-01 on the series): its index, its
+    robust z and whether it is high; None otherwise."""
+    known, series, contiguous = _complete(values, periods)
+    if len(known) < MIN_PERIODS or np.ptp(series) == 0:
+        return None
+    from quantilo.timeseries import breaks
+
+    season = SEASONS.get(grain) if contiguous else None
+    remainder, _ = decompose(series, season)
+    typical = float(np.median(np.abs(series))) or 1.0
+    free = np.flatnonzero(np.abs(remainder) > 1e-9 * typical)
+    last = len(series) - 1
+    if not len(free) or free[-1] != last:
+        return None
+    for point in breaks.anomalies(remainder[free], series[free], "robust_z", ANOMALY_Z, season):
+        if int(free[point.index]) != last:
+            continue
+        if abs(point.value - point.expected) < MATERIAL * typical:
+            return None
+        return known[last], float(point.score), point.value > point.expected
+    return None
+
+
+def group_signals(
+    measure: str,
+    label: str,
+    split: str,
+    total: Sequence[float | None],
+    groups: Sequence[GroupSeries],
+    periods: Sequence[Period],
+    grain: Grain,
+) -> Signal | None:
+    """R-SIG-09 (054 bis): the last complete period is unusual in a group (R-SIG-01 on that
+    group's own series) while the total is not. Only the last complete period is judged, the one
+    the tiles read: judging every period of every group would multiply chance findings (8 groups
+    x 60 periods), and a group's unusual period that also moves the total is already said."""
+    if _last_unusual(total, periods, grain) is not None:
+        return None
+    found: list[tuple[str, int, float, bool]] = []
+    for group in groups:
+        hit = _last_unusual(group.values, periods, grain)
+        if hit is not None:
+            found.append((group.label, *hit))
+    if not found:
+        return None
+    found.sort(key=lambda item: -abs(item[2]))
+    period = periods[found[0][1]]
+    said = ", ".join(
+        f"{name} {'high' if high else 'low'} (robust z {z:.1f})"
+        for name, _, z, high in found[:MAX_GROUPS_SAID]
+    )
+    more = f" and {len(found) - MAX_GROUPS_SAID} more" if len(found) > MAX_GROUPS_SAID else ""
+    count = len(found)
+    plural = "s" if count > 1 else ""
+    return Signal(
+        "anomaly",
+        "info",
+        "cells",
+        "R-SIG-09",
+        measure,
+        f"{label}, {period.label}: unusual in {count} group{plural} of {split} "
+        f"while the total is not: {said}{more} (R-SIG-09).",
+        [SignalCell(periods[i].start, name, None, round(z, 2)) for name, i, z, _ in found],
+        float(count),
+    )
 
 
 # --- P13: quality -----------------------------------------------------------------------------

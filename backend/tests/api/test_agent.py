@@ -22,6 +22,13 @@ def no_key_in_env(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(f"QUANTILO_{vendor.secret}", raising=False)
 
 
+@pytest.fixture(autouse=True)
+def sdk_stands_in(client: TestClient) -> None:
+    """The scripted provider replaces the vendor SDK: these tests pass with or without the
+    `[agent]` extra (anthropic, openai). The SDK's absence is tested on its own below."""
+    client.app.state.agent.sdk_available = lambda vendor: True  # type: ignore[attr-defined]
+
+
 @pytest.fixture
 def traps(client: TestClient) -> str:
     return import_path(client, default_samples_dir() / "typing_traps.csv")
@@ -182,6 +189,21 @@ def test_without_a_key_the_assistant_says_how_to_add_one(client: TestClient, tra
     seen = events(client.post(f"{BASE}/conversations/{cid}/messages", json={"text": "Hi"}))
 
     assert seen[-1]["kind"] == "no_key" and "settings" in seen[-1]["message"]
+
+
+def test_without_the_sdk_the_assistant_says_how_to_install_it(
+    client: TestClient, traps: str
+) -> None:
+    client.app.state.agent.sdk_available = lambda vendor: False  # type: ignore[attr-defined]
+    script(client, answer("never reached"))
+    client.put(f"{BASE}/settings", json={"api_key": "sk-ant-test-1234abcd"})
+    settings = client.get(f"{BASE}/settings").json()
+    assert settings["sdk_installed"] is False and settings["ready"] is False
+    cid = conversation(client, traps)
+
+    seen = events(client.post(f"{BASE}/conversations/{cid}/messages", json={"text": "Hi"}))
+
+    assert seen[-1]["type"] == "error" and seen[-1]["kind"] == "not_installed"
 
 
 def test_conversations_are_listed_and_deleted(client: TestClient, traps: str) -> None:

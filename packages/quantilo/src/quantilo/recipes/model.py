@@ -102,11 +102,12 @@ class KpiStep(StepBase):
 class RecipeDriver(Strict):
     """A forecast driver (028 A4), as `timeseries.drivers.Driver`."""
 
-    column: str = Field(max_length=500)
-    kind: Literal["column", "flag", "calendar"] = "column"
+    column: str = Field(max_length=500)  # for public holidays: the country's ISO code (028 A5)
+    kind: Literal["column", "flag", "calendar", "holidays"] = "column"
     known: bool = False  # known in advance; past only otherwise (lagged by the horizon)
     future: Literal["file", "constant", "last"] = "file"
     value: float | None = None  # the constant, when future = "constant"
+    subdiv: str | None = Field(default=None, max_length=10)  # public holidays of a subdivision
 
 
 class SeriesConfig(Strict):

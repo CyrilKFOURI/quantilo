@@ -1,0 +1,14 @@
+{
+  "tsm.prophet_like": "Façon Prophet (tendance + Fourier)",
+  "tsm.prophet_like.what": "Les idées de Prophet sans sa bibliothèque : une tendance linéaire qui peut s'infléchir en 25 points au plus sur les 80 premiers % de l'historique (la plupart des inflexions ramenées à zéro), une saison de Fourier par cycle que l'historique couvre deux fois, et les drivers. Intervalles tirés de ses erreurs de validation.",
+  "tsm.prophet_like.h0": "",
+  "tsm.stlf": "STLF (STL + ETS)",
+  "tsm.stlf.what": "Les saisons retirées par STL (MSTL s'il y en a plusieurs), le reste prévu par ETS, puis le dernier cycle saisonnier rajouté. Intervalles tirés de ses erreurs de validation.",
+  "tsm.stlf.h0": "",
+  "ts.cycles.found": "L'historique couvre {count} cycles saisonniers ({cycles}). Les modèles à plusieurs saisons peuvent tous les utiliser.",
+  "ts.cycles.add": "Ajouter Façon Prophet et STLF",
+  "ts.cycle.daily": "quotidien",
+  "ts.cycle.weekly": "hebdomadaire",
+  "ts.cycle.yearly": "annuel",
+  "ts.drivers.usedByModels": "Utilisés par SARIMAX, la régression linéaire, le gradient boosting et Façon Prophet ; les autres modèles les ignorent."
+}

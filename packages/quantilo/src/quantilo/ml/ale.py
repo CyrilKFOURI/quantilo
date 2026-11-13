@@ -220,6 +220,141 @@ def ale(
     )
 
 
+# --- 125 bis: two columns at once (R-XAI-20) ----------------------------------------------------
+
+BINS_2D = 10  # intervals of each number in a two-column ALE (100 cells)
+ROWS_2D = 2_000
+
+
+@dataclass
+class Ale2d:
+    """The second-order ALE of two numbers (Apley & Zhu 2020, § 2.2): what the pair adds on top
+    of each column's own effect. Zero everywhere: the model adds their effects, no interaction."""
+
+    first: str
+    second: str
+    first_edges: list[float]
+    second_edges: list[float]
+    values: list[list[float]]  # first edges × second edges, centred, on the output's scale
+    counts: list[list[int]]  # rows per cell (first intervals × second intervals)
+    output: str
+    rows: int
+    empty: int  # cells without a row, filled from their nearest filled cell
+    strength: float  # spread of the surface ÷ spread of the predictions
+    sentence: str
+
+
+def _edges(values: np.ndarray, bins: int, column: str) -> np.ndarray:
+    edges = np.unique(np.quantile(values, np.linspace(0, 1, bins + 1)))
+    if len(edges) < 3:
+        raise AleError(f"{column} takes fewer than three values here: no surface to draw.")
+    return edges
+
+
+def _fill(local: np.ndarray, counts: np.ndarray) -> int:
+    """Empty cells take the value of the nearest filled cell (in index distance)."""
+    empty = np.argwhere(counts == 0)
+    filled = np.argwhere(counts > 0)
+    for k, j in empty:
+        nearest = filled[np.argmin(np.abs(filled - [k, j]).sum(axis=1))]
+        local[k, j] = local[nearest[0], nearest[1]]
+    return len(empty)
+
+
+def ale_2d(
+    pipeline: Pipeline,
+    x: pd.DataFrame,
+    task: Task,
+    first: str,
+    second: str,
+    bins: int = BINS_2D,
+) -> Ale2d:
+    """R-XAI-20: two numbers, 10 quantile intervals each, on up to 2 000 rows. Each row moves to
+    the four corners of its own cell; the second difference, averaged per cell, is accumulated
+    over both axes, then each column's own effect and the mean are taken out, so that what is
+    left is the interaction alone. Empty cells are filled from the nearest filled one, and said."""
+    for column in (first, second):
+        if column not in x.columns:
+            raise AleError(f"{column} is not an input of this model.")
+        if not _numeric(cast(pd.Series, x[column])):
+            raise AleError(f"{column} is not a number: the two-column ALE reads two numbers.")
+    if first == second:
+        raise AleError("Choose two different columns.")
+    predict, names, output = predictor(pipeline, task)
+    xs = x.iloc[_sample(len(x), ROWS_2D)]
+    a = cast(pd.Series, xs[first]).to_numpy(dtype=float)
+    b = cast(pd.Series, xs[second]).to_numpy(dtype=float)
+    keep = np.isfinite(a) & np.isfinite(b)
+    frame, a, b = xs.loc[keep], a[keep], b[keep]
+    bins = int(min(max(bins, 2), 20))
+    ea, eb = _edges(a, bins, first), _edges(b, bins, second)
+    ka = np.clip(np.searchsorted(ea, a, side="left"), 1, len(ea) - 1)
+    kb = np.clip(np.searchsorted(eb, b, side="left"), 1, len(eb) - 1)
+
+    def at(va: np.ndarray, vb: np.ndarray) -> np.ndarray:
+        changed = frame.copy()
+        changed[first] = va
+        changed[second] = vb
+        return predict(changed)[:, -1]  # binary: the positive class; several: the last one
+
+    second_difference = (
+        at(ea[ka], eb[kb])
+        - at(ea[ka - 1], eb[kb])
+        - at(ea[ka], eb[kb - 1])
+        + at(ea[ka - 1], eb[kb - 1])
+    )
+    na, nb = len(ea) - 1, len(eb) - 1
+    cell = (ka - 1) * nb + (kb - 1)
+    counts = np.bincount(cell, minlength=na * nb).reshape(na, nb)
+    local = np.bincount(cell, weights=second_difference, minlength=na * nb).reshape(
+        na, nb
+    ) / np.maximum(counts, 1)
+    empty = _fill(local, counts)
+    surface = np.zeros((na + 1, nb + 1))
+    surface[1:, 1:] = np.cumsum(np.cumsum(local, axis=0), axis=1)
+    # take out each column's own effect: the average step along it, over the other's intervals
+    weight = np.maximum(counts, 0)
+    step_a = (np.diff(surface, axis=0)[:, :-1] + np.diff(surface, axis=0)[:, 1:]) / 2
+    main_a = np.concatenate(
+        [[0.0], np.cumsum((step_a * weight).sum(axis=1) / np.maximum(weight.sum(axis=1), 1))]
+    )
+    step_b = (np.diff(surface, axis=1)[:-1, :] + np.diff(surface, axis=1)[1:, :]) / 2
+    main_b = np.concatenate(
+        [[0.0], np.cumsum((step_b * weight).sum(axis=0) / np.maximum(weight.sum(axis=0), 1))]
+    )
+    surface = surface - main_a[:, None] - main_b[None, :]
+    corners = (surface[:-1, :-1] + surface[1:, :-1] + surface[:-1, 1:] + surface[1:, 1:]) / 4
+    surface -= float((corners * weight).sum() / max(weight.sum(), 1))
+    spread = float(np.std(at(a, b))) or 1.0
+    strength = float(np.ptp(surface)) / spread
+    label = output if len(names) <= 1 else f"Probability of “{names[-1]}”"
+    if strength < 0.05:
+        verdict = "the model adds their effects: next to no interaction"
+    else:
+        high = np.unravel_index(int(np.argmax(surface)), surface.shape)
+        low = np.unravel_index(int(np.argmin(surface)), surface.shape)
+        verdict = (
+            f"together they move the {label.lower()} by {float(np.ptp(surface)):.3g} on top of "
+            f"their own effects (highest near {first} {ea[high[0]]:.4g} and {second} "
+            f"{eb[high[1]]:.4g}, lowest near {ea[low[0]]:.4g} and {eb[low[1]]:.4g})"
+        )
+    filled = f" {empty} empty cells took their nearest neighbour's value." if empty else ""
+    sentence = f"{first} and {second}: {verdict} (R-XAI-20).{filled}"
+    return Ale2d(
+        first,
+        second,
+        [float(v) for v in ea],
+        [float(v) for v in eb],
+        [[float(v) for v in row] for row in surface],
+        [[int(v) for v in row] for row in counts],
+        label,
+        int(keep.sum()),
+        int(empty),
+        round(strength, 4),
+        sentence,
+    )
+
+
 def monotonic(pipeline: Pipeline, x: pd.DataFrame, task: Task, column: str, sign: int) -> Monotonic:
     """Each checked row's prediction along a grid of the column (5th to 95th percentile) must
     only rise (+1) or only fall (−1): what a monotonic constraint promises, row by row."""

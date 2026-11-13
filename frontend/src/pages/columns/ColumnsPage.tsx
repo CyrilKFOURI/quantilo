@@ -13,7 +13,8 @@ import { useColumnHistory } from "../../features/columns/useColumnHistory";
 import { columnReadingNotes, ReadingNotes } from "../../features/readings/ReadingNotes";
 import { formatNumber } from "../../charts/figures";
 import { formatCount } from "../../lib/format";
-import { t, type MessageKey } from "../../lib/i18n";
+import { roleName, t, type MessageKey } from "../../lib/i18n";
+import { columnReasons } from "../../lib/i18n/reasons";
 import { Button } from "../../ui/Button";
 import { Checkbox, ErrorNote, Select, TextInput } from "../../ui/fields";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -77,7 +78,7 @@ export function ColumnsPage() {
         (column) =>
           !needle ||
           column.name.toLowerCase().includes(needle) ||
-          (column.role_label ?? "").toLowerCase().includes(needle),
+          (column.role_label ? roleName(column.role, column.role_label) : "").toLowerCase().includes(needle),
       )
       .sort(
         (a, b) =>
@@ -334,7 +335,7 @@ function ColumnRow({
         <TypeBadge
           type={column.type}
           detectedType={column.detected_type}
-          reasons={column.reasons}
+          reasons={columnReasons(column)}
           role={column.role}
           onChange={(type) => onChange({ type })}
           onReset={column.overridden ? () => onChange({ reset: true }) : undefined}
@@ -377,8 +378,8 @@ function ColumnRow({
       </td>
       <td className="max-w-80 px-3 py-2.5">
         <ConfidenceTag confidence={column.confidence} />
-        <p className="mt-0.5 line-clamp-2 text-xs text-ink-2" title={column.reasons.join(" · ")}>
-          {column.reasons.join(" · ")}
+        <p className="mt-0.5 line-clamp-2 text-xs text-ink-2" title={columnReasons(column).join(" · ")}>
+          {columnReasons(column).join(" · ")}
         </p>
       </td>
       <td className="max-w-64 px-3 py-2.5">

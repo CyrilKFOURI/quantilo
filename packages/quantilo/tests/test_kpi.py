@@ -15,7 +15,14 @@ from quantilo.kpi import rules
 from quantilo.kpi.compute import KpiError, compute
 from quantilo.kpi.definition import Definition
 from quantilo.kpi.probe import measure
-from quantilo.kpi.suggest import Facts, choose_date, hierarchies, split_candidates, suggest
+from quantilo.kpi.suggest import (
+    Facts,
+    choose_date,
+    hierarchies,
+    rank_dates,
+    split_candidates,
+    suggest,
+)
 from quantilo.typing.types import Parser
 
 
@@ -498,6 +505,48 @@ def test_the_date_is_the_order_one_never_a_birth_date() -> None:
     assert choose_date([sparse, full])[0] is full
 
 
+def test_a_price_beside_a_surface_gives_the_price_per_square_foot() -> None:
+    """093 bis, R-SUG-32: Σ price ÷ Σ living area, the living area preferred to the lot."""
+
+    def col(name: str, kind: str, role: str | None = None, distinct: int | None = None) -> Col:
+        return Col(name, kind, role, summary={**FULL, "distinct_count": distinct or 2_000})
+
+    houses = [
+        col("date", "datetime", None, 372),
+        col("price", "numeric_continuous", "amount"),
+        col("sqft_lot", "numeric_continuous", "surface"),
+        col("sqft_living", "numeric_continuous", "surface"),
+        col("bedrooms", "numeric_discrete", None, 13),
+    ]
+    found = {s.name: s for s in suggest(houses)}
+    per = found["Price per sq ft"]
+    assert per.rule == "R-SUG-32"
+    assert columns_of(per.definition) == [("sum", "price"), ("sum", "sqft_living")]
+    assert per.definition.ratio is not None and per.definition.ratio.kind == "ratio"
+    assert "sqft_living preferred to sqft_lot" in per.reasons[0]
+    # a surface is still averaged on its own (R-SUG-28), never summed
+    assert "Total sqft_living" not in found
+    metres = [
+        col("prix", "numeric_continuous", "amount"),
+        col("surface_bati", "numeric_continuous", "surface"),
+    ]
+    assert any(s.name == "Prix per m²" for s in suggest(metres))
+    assert not any(s.rule == "R-SUG-32" for s in suggest(houses[:3:2]))  # no surface, no ratio
+
+
+def test_the_builder_lists_dates_in_the_order_of_the_rule() -> None:
+    """048 bis: the Over time list follows R-SUG-17, birth dates last and marked."""
+    shipped = [c for c in orders() if c.type == "datetime"]
+    birth = Col("birth_date", "datetime")
+    updated = Col("last_updated", "datetime")
+    ranked = rank_dates([birth, updated, *reversed(shipped)])
+    assert [d.name for d in ranked] == ["Order Date", "Ship Date", "last_updated", "birth_date"]
+    assert ranked[0].reason.startswith("R-SUG-17 · Preferred: the date of the event")
+    assert ranked[0].name == choose_date([birth, updated, *shipped])[0].name  # type: ignore[union-attr]
+    assert ranked[-1].tier is None and "never a time axis" in ranked[-1].reason
+    assert all(d.reason.startswith("R-SUG-17") for d in ranked)
+
+
 def test_amounts_in_several_currencies_are_split_by_currency() -> None:
     currency = Col(
         "currency", "categorical_nominal", "currency", summary={**FULL, "distinct_count": 3}
@@ -629,3 +678,32 @@ def test_the_view_keeps_a_palette_of_its_own() -> None:
         Definition.model_validate(
             {"measures": [{"id": "m1", "agg": "count"}], "view": {"spacing": "huge"}}
         )
+
+
+def test_placeholder_end_dates_leave_the_time_axis(tmp_path: Path) -> None:
+    """R-TIME-04: contracts with no end dated 9999-12-31 would stretch the axis over 8,000 years."""
+    frame = sales(rows=400)
+    frame.loc[frame.index[:22], "date"] = pd.Timestamp("9999-12-31")
+    path = tmp_path / "open_ended.parquet"
+    frame.to_parquet(path)
+    result = run(
+        f"read_parquet({lit(str(path))})",
+        measures=[{"id": "m1", "agg": "sum", "column": "revenue"}],
+        time={"column": "date", "grain": "auto"},
+    )
+    assert any("R-TIME-04" in warning and "22 rows" in warning for warning in result.warnings)
+    assert not any("without a date" in warning for warning in result.warnings)
+    assert max(p.start for p in result.periods) <= "2025-12-31"
+
+
+def test_an_end_date_comes_after_the_start() -> None:
+    """R-SUG-33: a contract's end dates an exit, not the activity."""
+    columns = [
+        Col("end_date", "datetime"),
+        Col("start_date", "datetime"),
+        Col("fee", "numeric_continuous", "amount"),
+    ]
+    chosen, why = choose_date(columns)
+    assert chosen is not None and chosen.name == "start_date" and why and "end_date" in why
+    alone, reason = choose_date([Col("end_date", "datetime")])
+    assert alone is not None and alone.name == "end_date" and reason and "only date" in reason

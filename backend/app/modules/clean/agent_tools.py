@@ -25,8 +25,9 @@ class CleaningSuggestions(Tool[NoInput]):
         "List what looks dirty in the dataset and the fix proposed for each: extra spaces, case "
         "variants, wrong encoding, 'N/A' words, numbers or dates stored as text, -999 codes, "
         "lost leading zeros, duplicate rows, empty columns… Each has its reason with numbers and "
-        "a mode: A (lossless, ticked by default), S (suggested, check first). Whole dataset; "
-        "filters do not apply."
+        "a mode: A (lossless), S (suggested, check first), and `auto` when the fix is reliable "
+        "(right on 99 % or more of the cases measured): only those are applied by default. "
+        "Whole dataset; filters do not apply."
     )
     Input: ClassVar[type[BaseModel]] = NoInput
 
@@ -46,6 +47,7 @@ class CleaningSuggestions(Tool[NoInput]):
                 {
                     "id": s.id,
                     "mode": s.mode,
+                    "auto": s.auto,  # N03: a reliable fix, applied by default
                     "impact": s.impact,  # 096: format, values, types, rows, columns
                     "risk": s.risk,  # review: needs the user's decision
                     "title": s.title,
@@ -56,7 +58,7 @@ class CleaningSuggestions(Tool[NoInput]):
                 for s in found
             ]
         }
-        automatic = sum(1 for s in found if s.mode == "A")
+        automatic = sum(1 for s in found if s.auto)
         review = sum(1 for s in found if s.risk == "review")
         return ToolOutput(
             f"{len(found)} cleaning suggestions ({automatic} automatic, {review} need a decision)",
@@ -68,7 +70,7 @@ class CleaningSuggestions(Tool[NoInput]):
 class SaveInput(BaseModel):
     add: list[str] = Field(
         default_factory=list,
-        description="Ids of suggested (S) suggestions to apply too; automatic ones always are.",
+        description="Ids of other suggestions to apply too; the `auto` ones always are.",
     )
     skip: list[str] = Field(
         default_factory=list, description="Ids of automatic suggestions to leave out."
@@ -98,7 +100,9 @@ class SaveCleanedVersion(Tool[SaveInput]):
     def run(self, ctx: ToolContext, args: SaveInput) -> ToolOutput:
         try:
             found = self.service.suggestions(ctx.dataset_id).suggestions
-            steps = [s for s in default_steps(found) if s.suggestion not in args.skip]
+            steps = [
+                s for s in default_steps(found, auto_only=True) if s.suggestion not in args.skip
+            ]
             by_id = {s.id: s for s in found}
             for suggestion_id in args.add:
                 if suggestion_id not in by_id:
@@ -106,7 +110,7 @@ class SaveCleanedVersion(Tool[SaveInput]):
                 steps = with_suggestion(steps, by_id[suggestion_id], found)
             if not steps:
                 raise ToolError("Nothing to clean with these choices.")
-            job = self.service.save(ctx.dataset_id, steps)
+            job = self.service.save(ctx.dataset_id, steps, actor="agent")  # N46
         except AppError as error:
             raise ToolError(error.message) from error
         done = wait_for(

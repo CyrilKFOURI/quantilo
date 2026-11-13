@@ -2,7 +2,7 @@ import * as Menu from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronDown } from "lucide-react";
 
 import type { Role } from "../../api/client";
-import { t } from "../../lib/i18n";
+import { roleName, t } from "../../lib/i18n";
 
 type RoleMenuProps = {
   label: string;
@@ -23,7 +23,7 @@ export function RoleMenu({ label, value, roles, onChange }: RoleMenuProps) {
         className="inline-flex h-7 max-w-36 items-center gap-1 rounded-md border border-transparent px-1.5 text-[13px] hover:border-line hover:bg-surface-1 data-[state=open]:border-line data-[state=open]:bg-surface-1"
       >
         <span className={`truncate ${current ? "text-ink-1" : "text-ink-3"}`}>
-          {current?.label ?? t("columns.noRole")}
+          {current ? roleName(current.id, current.label) : t("columns.noRole")}
         </span>
         <ChevronDown size={13} strokeWidth={1.5} className="shrink-0 text-ink-3" aria-hidden />
       </Menu.Trigger>
@@ -43,7 +43,7 @@ export function RoleMenu({ label, value, roles, onChange }: RoleMenuProps) {
                   role.id ? "text-ink-1" : "text-ink-3"
                 }`}
               >
-                <span className="truncate">{role.label}</span>
+                <span className="truncate">{role.id ? roleName(role.id, role.label) : role.label}</span>
                 <Menu.ItemIndicator>
                   <Check size={14} strokeWidth={1.5} className="text-accent" aria-hidden />
                 </Menu.ItemIndicator>

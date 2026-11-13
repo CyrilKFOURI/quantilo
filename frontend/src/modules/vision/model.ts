@@ -10,6 +10,10 @@ export type ImageRow = {
   key: string; // rel_path: unique, where exact copies share their image_id
   name: string;
   label: string | null;
+  /** c3, R-VED-02: the label read at the import (equal to `label` until one is edited). */
+  labelOriginal: string | null;
+  /** c3, R-VED-03: marked to come back to; no effect on models. */
+  pinned: boolean;
   split: string | null;
   format: string | null;
   width: number | null;
@@ -54,6 +58,8 @@ export function toRows(index: ImageIndex): ImageRow[] {
       key,
       name: index.file_name[i] ?? key,
       label: index.label[i] ?? null,
+      labelOriginal: index.label_original[i] ?? index.label[i] ?? null,
+      pinned: Boolean(index.pinned[i]),
       split: index.split[i] ?? null,
       format: index.format[i] ?? null,
       width: index.width[i] ?? null,
@@ -92,6 +98,39 @@ export function toRows(index: ImageIndex): ImageRow[] {
 }
 
 export type Draft = Readonly<Record<string, Decision>>;
+
+/** c3: the labels and pins of the draft (R-VED-01, R-VED-03), by rel_path. */
+export type Edits = { labels: Readonly<Record<string, string>>; pins: Readonly<Record<string, boolean>> };
+export const NO_EDITS: Edits = { labels: {}, pins: {} };
+
+/** The rows as the draft shows them: a label edited (else the import's), pinned or not. The table
+ *  holds the saved state; the draft is read against the import's label, so a label taken back in
+ *  the draft shows the original again. */
+export function withEdits(rows: readonly ImageRow[], edits: Edits): ImageRow[] {
+  return rows.map((row) => {
+    const label = edits.labels[row.key] ?? row.labelOriginal;
+    const pinned = Boolean(edits.pins[row.key]);
+    return label === row.label && pinned === row.pinned ? row : { ...row, label, pinned };
+  });
+}
+
+/** R-VED-01: the labels keys 1 to 9 give, in alphabetical order (the import's and the new ones). */
+export function labelChoices(rows: readonly ImageRow[]): string[] {
+  const labels = new Set<string>();
+  for (const row of rows) {
+    if (row.label !== null) labels.add(row.label);
+    if (row.labelOriginal !== null) labels.add(row.labelOriginal);
+  }
+  return [...labels].sort((a, b) => a.localeCompare(b));
+}
+
+/** The label patch of a key pressed on a selection: 1-9 the n-th label, 0 back to the import's. */
+export function labelPatch(keys: readonly string[], digit: number, choices: readonly string[]): Record<string, string | null> | null {
+  if (digit === 0) return Object.fromEntries(keys.map((key) => [key, null]));
+  const label = choices[digit - 1];
+  if (label === undefined) return null;
+  return Object.fromEntries(keys.map((key) => [key, label]));
+}
 
 /** R-108-05: `keep` wins over a rule's exclusion, `exclude` over a flag; no decision: the rule. */
 export function isExcluded(row: ImageRow, draft: Draft): boolean {
@@ -246,8 +285,8 @@ export function sizeBucket(row: ImageRow): SizeBucket | null {
   return side < 256 ? "small" : side < 1024 ? "medium" : "large";
 }
 
-/** "any" issue, "none", "excluded", "decided" (has a decision), or one rule's code. */
-export type QualityFilter = "any" | "none" | "excluded" | "decided" | `R-VQ-${string}`;
+/** "any" issue, "none", "excluded", "decided" (has a decision), "pinned" (c3), or one rule's code. */
+export type QualityFilter = "any" | "none" | "excluded" | "decided" | "pinned" | `R-VQ-${string}`;
 
 export type Range = { measure: Measure; low: number; high: number };
 
@@ -283,6 +322,8 @@ export function matches(row: ImageRow, filters: Filters, draft: Draft): boolean 
       return isExcluded(row, draft);
     case "decided":
       return draft[row.key] !== undefined;
+    case "pinned":
+      return row.pinned;
     default:
       return row.issues.includes(filters.quality);
   }

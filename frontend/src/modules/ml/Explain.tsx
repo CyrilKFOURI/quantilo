@@ -4,7 +4,7 @@ import type { MlExplanation, MlRun } from "../../api/client";
 import { useMlExplanation } from "../../api/hooks";
 import { formatNumber } from "../../charts/figures";
 import { Plot } from "../../charts/Plot";
-import { t, type MessageKey } from "../../lib/i18n";
+import { locale, t, type MessageKey } from "../../lib/i18n";
 import { ErrorNote, Select } from "../../ui/fields";
 import { beeswarmFigure, dependenceFigure, permutationFigure, waterfallFigure } from "./figures";
 import { Loading } from "../../ui/Loading";
@@ -148,15 +148,30 @@ function ExplainBody({ found, datasetId, run }: { found: Explanation; datasetId:
   );
 }
 
+/** 127: what the engine says the effect is measured in, in the page's language (a closed list). */
+function outputName(output: string): string {
+  const quoted = /^(probability|log-odds) of “(.*)”$/.exec(output);
+  if (quoted) return t(quoted[1] === "probability" ? "ml.explain.output.probabilityOf" : "ml.explain.output.logOddsOf", { label: quoted[2] ?? "" });
+  const fixed: Record<string, MessageKey> = {
+    "average prediction": "ml.explain.output.average",
+    "probability of the class it raises most": "ml.explain.output.classRaised",
+    prediction: "ml.explain.output.prediction",
+    "log of the prediction": "ml.explain.output.log",
+  };
+  const key = fixed[output];
+  return key ? t(key) : output;
+}
+
 /** The terms of one free-text column that move the predictions most (052). */
 function WordsSection({ words }: { words: TextWords }) {
   const hint = t(words.method === "linear" ? "ml.explain.wordsLinear" : "ml.explain.wordsContrast", {
-    output: words.output,
+    output: outputName(words.output),
     terms: words.terms.toLocaleString("en-US"),
   });
   return (
     <Section title={t("ml.explain.words", { column: words.column })} hint={hint}>
-      <p className="max-w-prose text-[13px] text-ink-1">{words.sentence}</p>
+      {/* the engine's sentence is English; the table below says the same in every language */}
+      {locale() === "en" && <p className="max-w-prose text-[13px] text-ink-1">{words.sentence}</p>}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <WordList label={t("ml.explain.wordsUp")} items={words.up} />
         <WordList label={t("ml.explain.wordsDown")} items={words.down} />

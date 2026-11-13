@@ -1,22 +1,25 @@
 import { useState } from "react";
 
 import type { MlExplanation, MlRun, MlSurrogate } from "../../api/client";
-import { useMlAle, useMlMonotonic, useMlSurrogate } from "../../api/hooks";
+import { useMlAle, useMlAle2d, useMlMonotonic, useMlSurrogate } from "../../api/hooks";
 import { Plot } from "../../charts/Plot";
 import { t } from "../../lib/i18n";
 import { ErrorNote, Select } from "../../ui/fields";
 import { Loading } from "../../ui/Loading";
 import { Cell } from "../kpi/Customize";
-import { aleFigure } from "./figures";
+import { ExplainMore } from "./ExplainMore";
+import { ale2dFigure, aleFigure } from "./figures";
 
 type Explanation = NonNullable<MlExplanation>;
-type SurrogateNode = MlSurrogate["nodes"][number];
+/** A tree's node as the surrogate, the sparse tree and the optimal tree give it (125, 122). */
+export type TreeNode = Pick<MlSurrogate["nodes"][number], "id" | "value" | "samples" | "left" | "right" | "left_rule" | "right_rule">;
 
 const BINS = 20;
 const DEPTH = 3;
 /** Models whose training takes monotonic constraints (Settings › Advanced, 019). */
 const CONSTRAINED = new Set(["hist_gradient_boosting", "xgboost", "lightgbm"]);
 const SKIPPED_TYPES = new Set(["text", "datetime", "identifier"]);
+const NUMBER_TYPES = new Set(["numeric_continuous", "numeric_discrete"]);
 
 function Block({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
   return (
@@ -28,7 +31,8 @@ function Block({ title, hint, children }: { title: string; hint: string; childre
   );
 }
 
-/** Explain › Advanced (125): nothing here is computed before the user opens it. */
+/** Explain › Advanced (125): nothing here is computed before the user opens it; More (126) is
+ * folded inside it, and each of its methods waits for its own button. */
 export function ExplainAdvanced({
   datasetId,
   run,
@@ -42,11 +46,16 @@ export function ExplainAdvanced({
   column: string | null;
   onColumn: (column: string | null) => void;
 }) {
+  const [more, setMore] = useState(false);
   return (
     <div className="mt-3 space-y-6">
       <AleBlock datasetId={datasetId} run={run} found={found} column={column} onColumn={onColumn} />
       <SurrogateBlock datasetId={datasetId} run={run} />
       <MonotonicBlock datasetId={datasetId} run={run} />
+      <details className="text-xs" onToggle={(event) => setMore(event.currentTarget.open)}>
+        <summary className="cursor-pointer text-[13px] text-accent select-none hover:underline">{t("ml.explain.more")}</summary>
+        {more && <ExplainMore datasetId={datasetId} run={run} found={found} />}
+      </details>
     </div>
   );
 }
@@ -59,6 +68,11 @@ function AleBlock({ datasetId, run, found, column, onColumn }: { datasetId: stri
   const suggested = linked?.column ?? found.dependence[0]?.column ?? inputs[0] ?? null;
   const chosen = column ?? suggested;
   const ale = useMlAle(datasetId, run.id, chosen, bins);
+  // 125 bis (R-XAI-20): a second number, chosen by the user; nothing is computed before
+  const [second, setSecond] = useState<string | null>(null);
+  const numbers = run.preparation.decisions.filter((d) => d.use && NUMBER_TYPES.has(d.type)).map((d) => d.column);
+  const pair = second && chosen && second !== chosen && numbers.includes(chosen) ? second : null;
+  const surface = useMlAle2d(datasetId, run.id, pair ? chosen : null, pair);
   if (!chosen) return null;
   return (
     <Block title={t("ml.explain.ale")} hint={t("ml.explain.aleHint")}>
@@ -86,6 +100,20 @@ function AleBlock({ datasetId, run, found, column, onColumn }: { datasetId: stri
             ))}
           </Select>
         </Cell>
+        {numbers.includes(chosen) && numbers.length >= 2 && (
+          <Cell label={t("ml.explain.ale2d")} why={t("ml.explain.ale2dWhy")} changed={second !== null} onReset={() => setSecond(null)}>
+            <Select aria-label={t("ml.explain.ale2d")} value={second ?? ""} onChange={(e) => setSecond(e.target.value || null)} className="w-full text-xs">
+              <option value="">{t("ml.explain.ale2dNone")}</option>
+              {numbers
+                .filter((c) => c !== chosen)
+                .map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+            </Select>
+          </Cell>
+        )}
       </div>
       {ale.isError ? (
         <ErrorNote>{ale.error.message}</ErrorNote>
@@ -106,6 +134,20 @@ function AleBlock({ datasetId, run, found, column, onColumn }: { datasetId: stri
           )}
         </div>
       )}
+      {pair &&
+        (surface.isError ? (
+          <ErrorNote>{surface.error.message}</ErrorNote>
+        ) : !surface.data ? (
+          <Loading label={t("ml.explain.ale2dComputing")} compact className="h-40 rounded-md" />
+        ) : (
+          <div className="space-y-2">
+            <p className="max-w-prose text-[13px] text-ink-1">{surface.data.sentence}</p>
+            <figure className="min-w-0 rounded-md border border-line bg-surface-1 p-2" aria-label={t("ml.explain.ale2d")}>
+              <Plot figure={ale2dFigure(surface.data)} height={340} label={t("ml.explain.ale2dLabel", { first: surface.data.first, second: surface.data.second })} />
+            </figure>
+            <p className="text-xs text-ink-3">{t("ml.explain.ale2dRows", { rows: surface.data.rows.toLocaleString("en-US") })}</p>
+          </div>
+        ))}
     </Block>
   );
 }
@@ -145,9 +187,10 @@ function SurrogateBlock({ datasetId, run }: { datasetId: string; run: MlRun }) {
   );
 }
 
-function SurrogateTree({ nodes }: { nodes: SurrogateNode[] }) {
+/** A tree as nested questions, each branch folded open. */
+export function SurrogateTree({ nodes, label = t("ml.explain.surrogate") }: { nodes: TreeNode[]; label?: string }) {
   const byId = new Map(nodes.map((n) => [n.id, n]));
-  const render = (node: SurrogateNode, rule: string | null): React.ReactNode => {
+  const render = (node: TreeNode, rule: string | null): React.ReactNode => {
     const label = (
       <span className="text-[13px]">
         {rule && <span className="font-mono text-xs text-ink-2">{rule} → </span>}
@@ -171,7 +214,7 @@ function SurrogateTree({ nodes }: { nodes: SurrogateNode[] }) {
     );
   };
   const root = nodes[0];
-  return <ul className="rounded-md border border-line bg-surface-1 p-2" aria-label={t("ml.explain.surrogate")}>{root && render(root, null)}</ul>;
+  return <ul className="rounded-md border border-line bg-surface-1 p-2" aria-label={label}>{root && render(root, null)}</ul>;
 }
 
 function MonotonicBlock({ datasetId, run }: { datasetId: string; run: MlRun }) {

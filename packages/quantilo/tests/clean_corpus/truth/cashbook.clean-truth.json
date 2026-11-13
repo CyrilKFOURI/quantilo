@@ -1,0 +1,10 @@
+{
+ "label": "cashbook",
+ "corpus": "excel-corpus",
+ "path": "bookkeeping/Free_Excel_Cash_Book_Easy.xlsx",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-01:column_14", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"}
+ ]
+}

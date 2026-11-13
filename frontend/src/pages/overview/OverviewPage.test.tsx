@@ -148,6 +148,35 @@ describe("Overview page", () => {
     click.mockRestore();
   });
 
+  it("opens the report in a print preview without downloading it (025, R-REP-17)", async () => {
+    const job = { id: "j2", status: "running", progress: 0.5, message: "Variables 2 / 3", error: null, file_name: null };
+    let polls = 0;
+    mockApi({
+      "GET /health": health,
+      "GET /datasets/d1": dataset({ types_reviewed_at: "2026-10-13T10:00:00Z" }),
+      "POST /datasets/d1/open": dataset(),
+      "GET /datasets/d1/columns": columns,
+      "GET /datasets/d1/overview": overview,
+      "GET /column-roles": roles,
+      "GET /datasets/d1/columns/chart": bars(),
+      "POST /datasets/d1/report": job,
+      "GET /reports/jobs/j2": () =>
+        ++polls < 2 ? job : { ...job, status: "done", progress: 1, message: null, file_name: "sales-report.html" },
+      "GET /reports/jobs/j2/file": () => new Response("<!doctype html><title>r</title><h1>Data report</h1>", { headers: { "content-type": "text/html" } }),
+    });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    renderAt("/d/d1");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Print / PDF" }));
+    const dialog = await screen.findByRole("dialog", { name: "Report, print preview" });
+    const frame = await within(dialog).findByTitle("Report, print preview", {}, { timeout: 3000 });
+    expect(frame.getAttribute("sandbox")).toBe("allow-same-origin allow-modals");
+    expect(frame.getAttribute("srcdoc")).toContain("Data report");
+    expect(within(dialog).getByRole("button", { name: "Print or save as PDF" })).toBeEnabled();
+    expect(click).not.toHaveBeenCalled();
+    click.mockRestore();
+  });
+
   it("focuses a column from an alert", async () => {
     setup();
     renderAt("/d/d1");

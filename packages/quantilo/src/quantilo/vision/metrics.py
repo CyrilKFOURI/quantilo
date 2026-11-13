@@ -17,7 +17,9 @@ import numpy as np
 from pydantic import BaseModel
 
 ECE_BINS = 15
-ECE_ALERT = 0.05  # R-VM-03: beyond, temperature scaling is proposed
+ECE_ALERT = 0.05  # R-VM-03: beyond, temperature scaling (applied out of fold: R-VM-06)
+CALIBRATION_PARTS = 5  # R-VM-06: grouped parts, each rescaled by a T fitted on the others
+CALIBRATION_MIN = 30  # R-VM-06: with fewer scored images, the temperature is only proposed
 IMBALANCE_RATIO = 3.0  # R-VQ-13: majority / minority above this -> balanced accuracy
 BOOTSTRAP_DRAWS = 1_000  # R-VM-02
 BOOTSTRAP_LEVEL = 0.95
@@ -43,7 +45,7 @@ class ClassScores(BaseModel):
     support: int
 
 
-class Interval(BaseModel):
+class MetricInterval(BaseModel):
     low: float
     high: float
     level: float = BOOTSTRAP_LEVEL
@@ -77,11 +79,21 @@ class Reliability(BaseModel):
 
 
 class Calibration(BaseModel):
+    """R-VM-03 and R-VM-06. `temperature` is fitted on every scored image (the one to use on new
+    images); `applied` says the scored probabilities were rescaled out of fold, part by part, so
+    that `ece_after`, `log_loss_after` and `brier_after` are honest: no image is rescaled by a
+    temperature fitted on its own label."""
+
     reliability: Reliability
     suggest_temperature: bool
     temperature: float | None = None
     ece_after: float | None = None
     reason: str
+    applied: bool = False
+    temperatures: list[float] = []  # one per part (R-VM-06)
+    log_loss_after: float | None = None
+    brier_after: float | None = None
+    reliability_after: Reliability | None = None
 
 
 class ClassificationReport(BaseModel):
@@ -104,7 +116,7 @@ class ClassificationReport(BaseModel):
     brier: float | None = None
     calibration: Calibration | None = None
     top_k: dict[int, float] = {}
-    intervals: dict[str, Interval] = {}
+    intervals: dict[str, MetricInterval] = {}
     notes: list[str] = []
 
 
@@ -129,7 +141,7 @@ class ThresholdChoice(BaseModel):
     evaluation: list[int] = []  # R-VTH-01: test images the counts are computed on
 
 
-class Histogram(BaseModel):
+class ScoreHistogram(BaseModel):
     edges: list[float]
     normal: list[int]
     defect: list[int]
@@ -151,13 +163,18 @@ class AnomalyReport(BaseModel):
     n_defect: int
     auroc: float
     ap: float
-    auroc_interval: Interval | None = None
+    auroc_interval: MetricInterval | None = None
     auroc_by_type: dict[str, float] = {}
     threshold: ThresholdChoice | None = None
     at_threshold: ThresholdScores | None = None
-    histogram: Histogram
+    histogram: ScoreHistogram
     pixel: PixelReport | None = None
     notes: list[str] = []
+
+
+# The names of 111, kept for callers; the classes are renamed so that API schema names stay unique.
+Interval = MetricInterval
+Histogram = ScoreHistogram
 
 
 # ---------------------------------------------------------------------------------------------
@@ -504,10 +521,74 @@ def fit_temperature(
     return math.exp((a + b) / 2)
 
 
+def calibration_parts(
+    n: int, groups: Array | None = None, parts: int = CALIBRATION_PARTS, seed: int = SEED
+) -> np.ndarray:
+    """R-VM-06: a part (0 to parts - 1) per image; copies (same group) share a part, and groups
+    are dealt in a seeded random order so that each part holds about as many groups."""
+    keys = np.arange(n).astype(str) if groups is None else np.asarray(groups).astype(str).ravel()
+    unique, inverse = np.unique(keys, return_inverse=True)
+    order = np.random.default_rng(seed).permutation(len(unique))
+    part_of_group = np.empty(len(unique), dtype=int)
+    part_of_group[order] = np.arange(len(unique)) % max(1, min(parts, len(unique)))
+    return part_of_group[inverse]
+
+
+def crossfit_temperature(
+    y_true: Array,
+    proba: Array,
+    labels: Sequence[Any] | None = None,
+    groups: Array | None = None,
+    parts: int = CALIBRATION_PARTS,
+    seed: int = SEED,
+) -> tuple[np.ndarray, list[float]]:
+    """R-VM-06: the probabilities rescaled out of fold, each part by the temperature fitted
+    (smallest log loss) on the other parts. Predictions do not change: dividing the log
+    probabilities of a row by one positive number keeps their order."""
+    t = np.asarray(y_true).ravel()
+    order = _labels(t, None, labels)
+    p = _proba(proba, len(order))
+    part = calibration_parts(len(t), groups, parts, seed)
+    out = np.empty_like(p, dtype=float)
+    temperatures = []
+    for k in range(int(part.max()) + 1):
+        inside = part == k
+        rest = ~inside
+        temperature = fit_temperature(t[rest], p[rest], order) if rest.any() else 1.0
+        temperatures.append(temperature)
+        out[inside] = apply_temperature(p[inside], temperature)
+    return out, temperatures
+
+
+def calibrated_proba(
+    y_true: Array,
+    proba: Array,
+    labels: Sequence[Any] | None,
+    calibration_found: "Calibration | None",
+    groups: Array | None = None,
+    seed: int = SEED,
+) -> np.ndarray:
+    """The probabilities a report describes after R-VM-06 (the same ones when nothing was
+    applied): what the galleries and R-VQ-16 read."""
+    p = np.asarray(proba, dtype=float)
+    if calibration_found is None or not calibration_found.applied:
+        return p
+    return crossfit_temperature(y_true, p, labels, groups, seed=seed)[0]
+
+
 def calibration(
-    y_true: Array, proba: Array, labels: Sequence[Any] | None = None, bins: int = ECE_BINS
+    y_true: Array,
+    proba: Array,
+    labels: Sequence[Any] | None = None,
+    bins: int = ECE_BINS,
+    groups: Array | None = None,
+    seed: int = SEED,
 ) -> Calibration:
-    """R-VM-03: ECE and the reliability diagram; temperature scaling proposed beyond 0.05."""
+    """R-VM-03: ECE and the reliability diagram; beyond 0.05, temperature scaling. R-VM-06: with
+    at least 30 images it is applied out of fold (5 parts grouped by copies, each rescaled by a
+    temperature fitted on the other four) and the ECE, log loss and Brier score after are given;
+    with fewer it is only proposed (a temperature fitted on the images it is judged on flatters
+    the ECE after)."""
     diagram = reliability(y_true, proba, labels, bins)
     if diagram.ece <= ECE_ALERT:
         return Calibration(
@@ -517,23 +598,51 @@ def calibration(
         )
     t = np.asarray(y_true).ravel()
     order = _labels(t, None, labels)
-    temperature = fit_temperature(t, proba, order)
-    after = reliability(t, apply_temperature(_proba(proba, len(order)), temperature), order, bins)
+    p = _proba(proba, len(order))
+    temperature = fit_temperature(t, p, order)
+    mood = "over" if temperature > 1 else "under"
+    bound = (
+        " T reached its upper bound: the probabilities carry almost no information."
+        if temperature > 0.99 * TEMPERATURE_BOUNDS[1]
+        else ""
+    )
+    if len(t) < CALIBRATION_MIN:
+        after = reliability(t, apply_temperature(p, temperature), order, bins)
+        return Calibration(
+            reliability=diagram,
+            suggest_temperature=True,
+            temperature=temperature,
+            ece_after=after.ece,
+            reason=(
+                f"R-VM-03: ECE {diagram.ece:.3f} is above {ECE_ALERT:g}: the probabilities are "
+                f"{mood}-confident. Temperature scaling (T = {temperature:.2f}) would bring the "
+                f"ECE to {after.ece:.3f} on these same images; with fewer than "
+                f"{CALIBRATION_MIN} scored images it is proposed, not applied (R-VM-06)." + bound
+            ),
+        )
+    calibrated, temperatures = crossfit_temperature(t, p, order, groups, seed=seed)
+    after = reliability(t, calibrated, order, bins)
+    spread = (
+        f"T from {min(temperatures):.2f} to {max(temperatures):.2f}"
+        if max(temperatures) - min(temperatures) >= 0.005
+        else f"T = {temperatures[0]:.2f}"
+    )
     return Calibration(
         reliability=diagram,
         suggest_temperature=True,
         temperature=temperature,
         ece_after=after.ece,
+        applied=True,
+        temperatures=[round(v, 4) for v in temperatures],
+        log_loss_after=log_loss(t, calibrated, order),
+        brier_after=brier(t, calibrated, order),
+        reliability_after=after,
         reason=(
             f"R-VM-03: ECE {diagram.ece:.3f} is above {ECE_ALERT:g}: the probabilities are "
-            f"{'over' if temperature > 1 else 'under'}-confident. Temperature scaling "
-            f"(T = {temperature:.2f}) brings the ECE to {after.ece:.3f} without changing the "
-            "predictions."
-            + (
-                " T reached its upper bound: the probabilities carry almost no information."
-                if temperature > 0.99 * TEMPERATURE_BOUNDS[1]
-                else ""
-            )
+            f"{mood}-confident. Temperature scaling applied out of fold (R-VM-06: "
+            f"{len(temperatures)} parts grouped by copies, each rescaled by a temperature fitted "
+            f"on the others, {spread}): ECE {diagram.ece:.3f} -> {after.ece:.3f}; the "
+            f"predictions do not change. On new images: T = {temperature:.2f}." + bound
         ),
     )
 
@@ -570,7 +679,7 @@ def bootstrap_interval(
     draws: int = BOOTSTRAP_DRAWS,
     seed: int = SEED,
     level: float = BOOTSTRAP_LEVEL,
-) -> Interval | None:
+) -> MetricInterval | None:
     """Percentile interval of `statistic(rows)` over resampled rows, or over resampled groups
     (all the rows of a drawn group come together). Draws where the statistic is undefined (nan,
     e.g. a single class) are dropped and counted."""
@@ -597,7 +706,7 @@ def bootstrap_interval(
         return None
     alpha = (1 - level) / 2
     low, high = np.quantile(values, [alpha, 1 - alpha])
-    return Interval(
+    return MetricInterval(
         low=float(low),
         high=float(high),
         level=level,
@@ -666,7 +775,7 @@ def classification_report(
             report.notes.append(f"R-VM-05: no test image of {', '.join(missing)}: AUC left out.")
         report.log_loss = log_loss(t, p, order)
         report.brier = brier(t, p, order)
-        report.calibration = calibration(t, p, order)
+        report.calibration = calibration(t, p, order, groups=groups, seed=seed)
         report.top_k = {k: top_k_accuracy(t, p, k, order) for k in top_k_levels(len(order))}
     if bootstrap:
         report.intervals = _classification_intervals(t, pred, p, order, groups, draws, seed)
@@ -681,7 +790,7 @@ def _classification_intervals(
     groups: Array | None,
     draws: int,
     seed: int,
-) -> dict[str, Interval]:
+) -> dict[str, MetricInterval]:
     codes, pcodes = _encode(t, order), _encode(pred, order)
     k = len(order)
 
@@ -710,7 +819,7 @@ def _classification_intervals(
                 return float(np.mean(kept)) if len(kept) == len(values) else math.nan
 
             stats["roc_auc"] = macro
-    out: dict[str, Interval] = {}
+    out: dict[str, MetricInterval] = {}
     for offset, (name, fn) in enumerate(stats.items()):
         found = bootstrap_interval(fn, len(t), groups, draws, seed + offset)
         if found is not None:
@@ -757,11 +866,11 @@ def auroc_by_type(defect_types: Array, scores: Array, normal: str = "good") -> d
 
 def score_histogram(
     is_defect: Array, scores: Array, threshold: float | None = None, bins: int = 30
-) -> Histogram:
+) -> ScoreHistogram:
     """Normal and defect scores on shared bins, with the threshold."""
     y, s = _binary(is_defect), np.asarray(scores, dtype=float).ravel()
     edges = np.histogram_bin_edges(s, bins=bins)
-    return Histogram(
+    return ScoreHistogram(
         edges=edges.tolist(),
         normal=np.histogram(s[~y], bins=edges)[0].tolist(),
         defect=np.histogram(s[y], bins=edges)[0].tolist(),

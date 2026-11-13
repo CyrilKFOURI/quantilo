@@ -16,6 +16,8 @@ function setup() {
     "PUT /settings": (body: unknown) => body,
     "GET /storage": { workspace: "C:\\Users\\me\\Quantilo", total_bytes: 3_145_728, datasets: [{ id: "d1", name: "sales", bytes: 2_097_152 }] },
     "POST /storage/clear-caches": null,
+    "GET /modules/clean/settings": { mode: "apply" },
+    "PUT /modules/clean/settings": (body: unknown) => body,
   });
 }
 
@@ -34,6 +36,16 @@ describe("Settings page", () => {
       const put = calls.find((c) => c.key === "PUT /settings");
       expect(put?.body).toEqual({ detection, compute: { use_gpu: false } });
     });
+  });
+
+  it("applies the reliable cleaning fixes by default, and turns that off (N03)", async () => {
+    const calls = setup();
+    renderAt("/settings");
+    const mode = await screen.findByRole("combobox", { name: "Automatic cleaning" });
+    await waitFor(() => expect(mode).toHaveValue("apply"));
+    expect(within(mode).getAllByRole("option").map((option) => option.textContent)).toEqual(["Apply the reliable fixes", "Suggest only", "Create a cleaned version", "Off"]);
+    fireEvent.change(mode, { target: { value: "suggest" } });
+    await waitFor(() => expect(calls.find((c) => c.key === "PUT /modules/clean/settings")?.body).toEqual({ mode: "suggest" }));
   });
 
   it("saves detection thresholds as a whole", async () => {

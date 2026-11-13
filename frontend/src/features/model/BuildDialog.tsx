@@ -8,7 +8,7 @@ import { Button, buttonClass } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
 import { Checkbox, ErrorNote, Field, Select, TextInput } from "../../ui/fields";
 import { Loading } from "../../ui/Loading";
-import { modelApi, modelKeys, useBuild, type BuildPreview, type Model, type ModelTable } from "./api";
+import { modelApi, modelKeys, useBuild, type BuildFilter, type BuildPreview, type Model, type ModelTable } from "./api";
 
 type Reached = { table: ModelTable; through: string | null; keys: Set<string> };
 
@@ -16,7 +16,8 @@ type Reached = { table: ModelTable; through: string | null; keys: Set<string> };
  *  in the order the build joins them. */
 export function reachedFrom(model: Model, factId: string): Reached[] {
   const byId = new Map(model.tables.map((table) => [table.id, table]));
-  const links = model.relations.filter((relation) => relation.status === "accepted" && relation.cardinality !== "n:m" && !relation.problem);
+  // C1 (R-REL-13): an inactive relation is not built
+  const links = model.relations.filter((relation) => relation.status === "accepted" && relation.active !== false && relation.cardinality !== "n:m" && !relation.problem);
   const out: Reached[] = [];
   const seen = new Set([factId]);
   let frontier: { id: string; depth: number }[] = [{ id: factId, depth: 0 }];
@@ -52,6 +53,8 @@ export function BuildDialog({ projectId, model, open, onOpenChange }: DialogProp
   const [factId, setFactId] = useState(facts[0] ?? "");
   const [edits, setEdits] = useState<Record<string, string[]>>({});
   const [name, setName] = useState<string | null>(null);
+  // C1 (R-BLD-07): conditions on the fact or a dimension; on a dimension they keep its fact rows
+  const [filters, setFilters] = useState<BuildFilter[]>([]);
   const build = useBuild(projectId);
   const reached = useMemo(() => reachedFrom(model, factId), [model, factId]);
   const picks = useMemo(() => {
@@ -61,7 +64,8 @@ export function BuildDialog({ projectId, model, open, onOpenChange }: DialogProp
     }
     return out;
   }, [reached, edits]);
-  const body = { fact_id: factId, picks };
+  const ready = filters.filter((item) => item.column && (item.op === "empty" || item.op === "not_empty" || (item.values ?? []).length > 0));
+  const body = { fact_id: factId, picks, ...(ready.length ? { filters: ready } : {}) };
   const preview = useQuery({
     queryKey: modelKeys.preview(projectId, body),
     queryFn: () => modelApi.preview(projectId, body),
@@ -143,6 +147,13 @@ export function BuildDialog({ projectId, model, open, onOpenChange }: DialogProp
         ))}
         {build.isError && <ErrorNote>{build.error.message}</ErrorNote>}
 
+        <Filters
+          tables={[...model.tables.filter((table) => table.id === factId), ...reached.map((item) => item.table)]}
+          value={filters}
+          onChange={setFilters}
+          filteredOut={preview.data?.filtered_out ?? 0}
+        />
+
         <section className="space-y-3">
           <div className="space-y-1">
             <h3 className="text-xs font-semibold text-ink-1">{t("model.dialog.columns")}</h3>
@@ -215,6 +226,72 @@ export function BuildDialog({ projectId, model, open, onOpenChange }: DialogProp
         </section>
       </div>
     </Dialog>
+  );
+}
+
+const OPS: BuildFilter["op"][] = ["eq", "ne", "in", "not_in", "lt", "le", "gt", "ge", "empty", "not_empty"];
+
+/** C1 (R-BLD-07), folded: the rows of the build restricted by conditions; a condition on a
+ *  dimension keeps the fact rows whose dimension row meets it (one → many). */
+function Filters({ tables, value, onChange, filteredOut }: { tables: ModelTable[]; value: BuildFilter[]; onChange: (filters: BuildFilter[]) => void; filteredOut: number }) {
+  const update = (index: number, patch: Partial<BuildFilter>) => onChange(value.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  const first = tables[0];
+  return (
+    <details className="rounded-md border border-line px-3 py-2" open={value.length > 0}>
+      <summary className="cursor-pointer text-xs text-ink-2">
+        {t("model.filters.title")}
+        {filteredOut > 0 && <span className="ml-2 text-ink-3 tabular-nums">{t("model.filters.out", { count: formatCount(filteredOut) })}</span>}
+      </summary>
+      <p className="mt-2 text-xs text-ink-3">{t("model.filters.help")}</p>
+      <div className="mt-2 space-y-1.5">
+        {value.map((item, index) => {
+          const table = tables.find((candidate) => candidate.id === item.table_id) ?? first;
+          return (
+            <div key={index} className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))_auto] items-center gap-1.5">
+              <Select aria-label={t("model.filters.table")} value={item.table_id} onChange={(event) => update(index, { table_id: event.target.value, column: tables.find((t2) => t2.id === event.target.value)?.columns[0]?.name ?? "" })}>
+                {tables.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.name}
+                  </option>
+                ))}
+              </Select>
+              <Select aria-label={t("model.filters.column")} value={item.column} onChange={(event) => update(index, { column: event.target.value })}>
+                {(table?.columns ?? []).map((column) => (
+                  <option key={column.name} value={column.name}>
+                    {column.name}
+                  </option>
+                ))}
+              </Select>
+              <Select aria-label={t("model.filters.op")} value={item.op} onChange={(event) => update(index, { op: event.target.value as BuildFilter["op"] })}>
+                {OPS.map((op) => (
+                  <option key={op} value={op}>
+                    {t(`model.filters.op.${op}` as MessageKey)}
+                  </option>
+                ))}
+              </Select>
+              {item.op === "empty" || item.op === "not_empty" ? (
+                <span />
+              ) : (
+                <TextInput
+                  aria-label={t("model.filters.values")}
+                  placeholder={t("model.filters.valuesHint")}
+                  defaultValue={(item.values ?? []).join(", ")}
+                  onBlur={(event) => update(index, { values: event.target.value.split(",").map((part) => part.trim()).filter(Boolean) })}
+                />
+              )}
+              <Button variant="ghost" onClick={() => onChange(value.filter((_, i) => i !== index))}>
+                {t("model.filters.remove")}
+              </Button>
+            </div>
+          );
+        })}
+        {first && (
+          <Button variant="ghost" onClick={() => onChange([...value, { table_id: first.id, column: first.columns[0]?.name ?? "", op: "eq", values: [] }])}>
+            {t("model.filters.add")}
+          </Button>
+        )}
+      </div>
+    </details>
   );
 }
 

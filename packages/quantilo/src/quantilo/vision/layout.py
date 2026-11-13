@@ -14,10 +14,15 @@ code in `ignore` (the "Ignore folder labels" switch is `ignore={"R-VIS-LAY-01"}`
   pixel mask linked to its image.
 - R-VIS-LAY-05: a labels file and the folders disagree: the file wins, each conflict counted and
   listed (in `ingest`).
+- R-VIS-LAY-06: a folder with no image file but Parquet files holding an image column (the Hugging
+  Face layout `data/train-00000-of-00001.parquet`, `validation-...`, `test-...`): every such file
+  is read, and its `split` comes from its file name (`split_of_file`); a file whose name names no
+  split leaves its images without one. Undone by naming the code: no split is read from the names.
 """
 
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -256,6 +261,43 @@ def read_layout(rel_paths: Sequence[str], *, ignore: Collection[str] = ()) -> La
     return Layout(files=files, rules=rules, masks=set(masks), orphan_masks=orphans)
 
 
+def split_of_file(path: PurePosixPath | str) -> str | None:
+    """R-VIS-LAY-06 (and R-VIS-HF-03 for one file): the split a Parquet file's name gives, from its
+    stem then its folder, cut at `-`, `_`, `.` and spaces (`train-00000-of-00001` -> train)."""
+    path = PurePosixPath(str(path).replace("\\", "/"))
+    for text in (path.stem, path.parent.name):
+        for token in re.split(r"[-_.\s]+", text.lower()):
+            if token in SPLIT_NAMES:
+                return SPLIT_NAMES[token]
+    return None
+
+
+def parquet_folder_note(files: Sequence[tuple[str, str | None, int]]) -> RuleNote:
+    """R-VIS-LAY-06: the sentence for a folder of Parquet files, from (file, split, images)."""
+    per_split: Counter[str] = Counter()
+    unnamed: list[str] = []
+    for name, split, n in files:
+        if split is None:
+            unnamed.append(name)
+        else:
+            per_split[split] += n
+    total = sum(n for _, _, n in files)
+    read = ", ".join(f"{k} {v:,}" for k, v in per_split.items())
+    message = f"{len(files)} Parquet files with an image column read"
+    message += f", split from each file's name: {read}" if read else ""
+    if unnamed:
+        shown = ", ".join(unnamed[:3]) + (", ..." if len(unnamed) > 3 else "")
+        message += f"; no split in the name of {shown}"
+    return RuleNote(
+        "R-VIS-LAY-06",
+        f"{message} (R-VIS-LAY-06). {CHECK}",
+        "Hugging Face stores a dataset as one Parquet file (or several shards) per split, named "
+        "train-..., validation-..., test-...: the folder is the dataset and each name is the "
+        "producer's own split, kept rather than redrawn.",
+        total,
+    )
+
+
 __all__ = [
     "LABEL_SHARE",
     "NORMAL_LABELS",
@@ -264,5 +306,7 @@ __all__ = [
     "Layout",
     "RuleNote",
     "normal_flags",
+    "parquet_folder_note",
     "read_layout",
+    "split_of_file",
 ]

@@ -23,12 +23,24 @@ def get_row_service(request: Request) -> RowService:
 
 
 def view_params(
+    request: Request,
+    dataset_id: str,
     mode: Mode = "first",
     search: Annotated[str, Query(max_length=200)] = "",
     sort: Annotated[str | None, Query(min_length=1)] = None,
     desc: bool = False,
+    pinned: Annotated[
+        bool, Query(description="Only the pinned rows found (099 bis, R-PIN-17).")
+    ] = False,
+    pin_label: Annotated[str | None, Query(max_length=60)] = None,
 ) -> View:
-    return View(mode, search, sort, desc)
+    rows = None
+    if pinned:  # R-PIN-17: the pins found, its own and those followed from its parent
+        found = request.app.state.pins.pins(dataset_id)
+        rows = tuple(
+            p.row for p in found.pins if p.found and (pin_label is None or p.label == pin_label)
+        )
+    return View(mode, search, sort, desc, rows)
 
 
 Service = Annotated[RowService, Depends(get_row_service)]

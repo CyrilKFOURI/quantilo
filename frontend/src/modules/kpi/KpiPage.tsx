@@ -6,6 +6,7 @@ import { ApiError, type KpiDefinition, type KpiResult, type SavedKpi } from "../
 import { useColumns, useDataset, useDerivedColumns, useKpiActions, useKpiCompute, useKpis, useKpiSuggestions } from "../../api/hooks";
 import { withDerived } from "../../features/derived/derived";
 import { t } from "../../lib/i18n";
+import { reasonTexts } from "../../lib/i18n/reasons";
 import { Button } from "../../ui/Button";
 import { ErrorNote } from "../../ui/fields";
 import { Popover } from "../../ui/Popover";
@@ -259,6 +260,7 @@ export function KpiPage() {
             <Builder
               definition={draft}
               columns={withDerived(columns.data, derived.data)}
+              dateOrder={suggestions.data?.dates}
               result={result}
               invalid={typeof error?.details.field === "string" ? error.details.field : null}
               dirty={dirty}
@@ -301,7 +303,7 @@ export function KpiPage() {
                 />
               )}
               <div className={`min-w-0 space-y-6 ${compute.isFetching ? "opacity-60 transition-opacity" : ""}`} aria-busy={compute.isFetching}>
-                {result.warnings.map((w) => (
+                {reasonTexts(result.warnings, result.warning_details).map((w) => (
                   <p key={w} className="border-l-2 border-accent pl-3 text-xs text-ink-2">
                     {w}
                   </p>

@@ -8,6 +8,7 @@ from typing import Any, cast
 import joblib
 import numpy as np
 import pandas as pd
+import pytest
 from sklearn.model_selection import KFold
 from sklearn.pipeline import Pipeline
 
@@ -479,3 +480,65 @@ def test_the_window_follows_the_grain_of_the_period() -> None:
     numbered = order_for(panel(), WALK)
     assert numbered is not None and (numbered.grain, numbered.window) == ("period", 5)
     assert order_for(panel(), evaluate.Validation()) is None
+
+
+# --- 063 bis: the target's own past (R-LAG-03) --------------------------------------------------
+
+
+def persistent() -> pd.DataFrame:
+    """The target follows its own last value per entity (an AR(1)), plus noise."""
+    rng = np.random.default_rng(4)
+    frame = panel().sort_values(["id", "era"]).reset_index(drop=True)
+    values = np.zeros(len(frame))
+    for i in range(len(frame)):
+        same = i > 0 and frame.loc[i - 1, "id"] == frame.loc[i, "id"]
+        values[i] = (0.9 * values[i - 1] if same else 0.0) + rng.normal(0, 1)
+    frame["target"] = values
+    frame["echo"] = rng.normal(0, 1, len(frame))
+    return frame
+
+
+def test_the_target_lag_reads_only_earlier_periods_and_helps_an_ar_target() -> None:
+    frame = persistent()
+    validation = evaluate.Validation(
+        method="panel_walk_forward", period_column="era", entity_column="id", folds=3, embargo=0
+    )
+    choices = prep.Choices(target_lag="past_mean")
+    setup = _setup(
+        frame, LAG_FIELDS, TARGET, "regression", "linear_regression", None, None, choices, None,
+        validation,
+    )  # fmt: skip
+    assert any(w.startswith("R-LAG-03") and "shifted by 1" in w for w in setup.preparation.warnings)
+    assert "target" in setup.x_train.columns  # read by its lag only
+    built = prep.build(setup.preparation, len(setup.x_train), "regression")
+    matrix = np.asarray(built.fit_transform(setup.x_train, setup.y_train), dtype=float)
+    names = [str(n) for n in built.get_feature_names_out()]
+    assert "target" not in names and "target_past_mean" in names
+    past = matrix[:, names.index("target_past_mean")]
+    x = setup.x_train.reset_index(drop=True)
+    # the row's own target never enters: moving it leaves its lag unchanged
+    moved = x.copy()
+    moved.loc[0, "target"] += 1_000.0
+    again = np.asarray(built.transform(moved), dtype=float)[:, names.index("target_past_mean")]
+    assert again[0] == pytest.approx(past[0])
+    trained = train(
+        frame, LAG_FIELDS, TARGET, "regression", "linear_regression", None, len(frame), False,
+        choices=choices, validation=WALK,
+    )  # fmt: skip
+    plain = train(
+        frame, LAG_FIELDS, TARGET, "regression", "linear_regression", None, len(frame), False,
+        validation=WALK,
+    )  # fmt: skip
+    assert trained.score is not None and plain.score is not None
+    assert trained.score > plain.score + 0.1  # an AR(1) target: its past is the signal
+
+
+def test_the_target_lag_without_ordered_rows_is_refused() -> None:
+    setup = _setup(
+        echoed(), LAG_FIELDS, TARGET, "regression", "linear_regression", None, None,
+        prep.Choices(target_lag="past_ewm"), None, None,
+    )  # fmt: skip
+    assert any(
+        w.startswith("R-LAG-02 · Past values of the target") for w in setup.preparation.warnings
+    )
+    assert "target" not in setup.x_train.columns

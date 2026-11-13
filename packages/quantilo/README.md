@@ -23,6 +23,7 @@ pip install -e "packages/quantilo[ml]"       # + XGBoost, LightGBM, Optuna
 pip install -e "packages/quantilo[deep]"     # + PyTorch: CTGAN, TVAE, TimeGAN
 pip install -e "packages/quantilo[plot]"     # + plotly: the app's charts
 pip install -e "packages/quantilo[vision]"   # + torchvision, timm: DINOv2 / ResNet image vectors
+pip install -e "packages/quantilo[forecast-ai]"  # + chronos-forecasting, timesfm, PyTorch: AI forecasting
 ```
 
 On another computer, straight from GitHub (the repository is private: be signed in to GitHub, for example with `gh auth login`):
@@ -33,7 +34,7 @@ pip install "quantilo[ml,plot] @ git+https://github.com/CyrilKFOURI/quantilo.git
 
 Add `--upgrade` to get the latest version. The notebooks in `examples/` read the sample files of `samples/` at the repository root.
 
-Python 3.12 or later. The core needs DuckDB, pyarrow, NumPy, SciPy, statsmodels, scikit-learn and pydantic; no server, no database.
+Python 3.12 or later. The core needs DuckDB, pyarrow, NumPy, SciPy, statsmodels, scikit-learn, pydantic and holidays (public holidays by country, pure Python); no server, no database.
 
 On Windows, results use statistical notation (ρ, η, χ², ≥, →) that the old console encoding (cp1252) cannot print: `print()` then raises `UnicodeEncodeError` in a script. Run Python in UTF-8 mode, once for all scripts with `setx PYTHONUTF8 1`, or per run with `python -X utf8 script.py`. Jupyter is not affected.
 
@@ -47,6 +48,8 @@ ds = dx.from_pandas(frame, "customers")     # or dx.from_arrow(table)
 ```
 
 The CSV dialect is detected (separator, decimal comma, encoding). The source is copied once to Parquet in a cache folder (`~/.cache/quantilo`, `%LOCALAPPDATA%` on Windows, or `QUANTILO_CACHE`); opening an unchanged file again reuses the copy and the detected types.
+
+In Jupyter, a dataset left at the end of a cell shows its size, its columns with their type and role, and its first five rows, read as typed (`_repr_html_`).
 
 ### Images
 
@@ -83,6 +86,16 @@ vectors = deep.embed_image_set(images)        # 768 numbers per image, GPU fp16 
 vectors.sentence  # '1,034 images embedded with DINOv2 ViT-S/14 (768 numbers each) on NVIDIA GeForce RTX 4050 Laptop GPU in 15 s.'
 result = deep.probe_image_set(images, vectors)
 result.sentence   # 'Linear probe on DINOv2 ViT-S/14: accuracy 0.953 [0.914; 0.984]; kNN 0.852 [...]; majority baseline 0.336.'
+```
+
+When the training images are all normal (MVTec AD), PatchCore finds the unusual ones and explains each score by the closest normal patch; PaDiM and a convolutional autoencoder / VAE (input → reconstruction → error) are the alternatives:
+
+```python
+deep.weights.download("wide_resnet50_2", confirm=True)   # 276 MB, once (ResNet-18 on the CPU)
+run = deep.anomaly_image_set(images, "patchcore")         # or "padim", "autoencoder", "vae"
+run.sentence      # 'PatchCore (Wide ResNet-50-2): image AUROC 1.000 [...], pixel AUROC 0.987, AUPRO 0.947. Threshold ...'
+run.result.top[0].sentence   # 'This area looks least like the normal images: the nearest normal patch (training row 112, ...'
+heat = run.result.full_map(0)                             # the map at the image's own size
 ```
 
 Nothing is downloaded without `confirm=True`, and nothing in `quantilo.vision.deep` imports torch until it is used: without the extra, every deep option says why it is greyed out.
@@ -167,12 +180,17 @@ series.volatility()
 series.breaks()
 series.residuals()
 series.forecast(horizon=12)                         # naive models, ETS, ARIMA… ranked by MASE on rolling origins
+series.forecast(models=["prophet_like", "stlf"])    # several seasons: piecewise trend + Fourier, STL + ETS
 series.drivers()                                    # columns that move with the series, future values in the file
 series.forecast(horizon=12, models=["sarimax", "tslm", "gbm_lags"],
                 drivers=["visits",                              # past only: lagged by the horizon
                          dx.Driver("price", known=True),        # future values from the file's future rows
                          dx.Driver("weekday", kind="calendar"),
                          dx.Driver("holiday", kind="flag")])    # each driver judged with / without it
+series.drivers().holidays.guess                     # the country proposed by rule, and why
+series.forecast(models=["tslm", "prophet_like"], holidays="FR")   # public holidays (or "US-CA")
+series.forecast(models=["arima_auto", "gbm_lags"],
+                tuning=dx.Tuning(max_p=5, criterion="bic", gbm_grid="small", time_limit=30))
 series.scenario([dx.Driver("price", known=True)], {"price": [9.9] * 12})  # what if the price changes
 series.scenario([dx.Driver("price", known=True)],
                 changes=[dx.ScenarioChange("price", "percent", -10, start="2025-12", end="2025-12")])
@@ -181,6 +199,17 @@ stores = ds.timeseries("date", "montant", group="magasin")
 stores.groups()                                     # how many series, the hierarchy above (store → region)
 stores.forecast_groups(horizon=3, reconcile="mint_shrink")  # best model per store, totals that add up
 stores.forecast_groups(global_model=True, limit=200)        # + one LightGBM over every series; 200 largest
+```
+
+AI forecasting models (the `forecast-ai` extra): Chronos-Bolt Tiny / Small / Base, Chronos-2 and TimesFM 2.5, pretrained and zero-shot, and N-HiTS / N-BEATS, small networks trained on the CPU (500 periods or more). They are scored on the same rolling origins as the others; a pretrained model's weights are downloaded once, only with `confirm=True`, from the model's Hugging Face repository at a pinned revision, each file checked by size and SHA-256, into `~/.cache/quantilo/models/forecast` (`QUANTILO_MODELS_DIR` to change it). `DATA_EXPLORER_OFFLINE=1`: never download.
+
+```python
+from quantilo.timeseries import ai
+[(m.key, m.state, m.size_text) for m in ai.statuses()]   # ready, needs_download, offline, needs_extra
+ai.download("chronos_bolt_tiny", confirm=True)           # 35 MB, once; without confirm: ConfirmationRequired
+series.forecast(models=["seasonal_naive", "ets_auto", "chronos_bolt_tiny", "nhits"])
+series.forecast(models=["chronos_2"], drivers=[dx.Driver("price", known=True)])   # covariates
+stores.forecast_groups(models=["ets_auto", "chronos_2"])   # every store in one batch, learning across them
 ```
 
 ## Machine learning

@@ -4,6 +4,7 @@ import { Menu, Search, X } from "lucide-react";
 import { useDataset } from "../../api/hooks";
 import { OPEN_PALETTE_EVENT } from "../../features/command/Shortcuts";
 import { closeCurrentDataset, useCurrentDataset } from "../../features/datasets/current";
+import { CleanedVersionChip } from "../../features/lineage/CleanedVersionChip";
 import { FilterButton, FilterChips } from "../../features/filters/FilterBar";
 import { t } from "../../lib/i18n";
 import { useStoredState } from "../../lib/useStoredState";
@@ -52,6 +53,7 @@ export function TopBar({ onMenu, appMark = false }: { onMenu?: () => void; appMa
           <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
             <span className="shrink-0 text-ink-3 max-sm:hidden">{t("topbar.dataset")}</span>
             <DatasetSwitcher datasetId={datasetId} name={dataset.data.name} />
+            {ready && <CleanedVersionChip datasetId={datasetId} />}
             {!routed && (
               <button
                 type="button"

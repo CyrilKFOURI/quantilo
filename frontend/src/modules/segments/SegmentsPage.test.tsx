@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { column, roles } from "../../test/columns";
 import { dataset, health, mockApi } from "../../test/mockApi";
+import interpret from "../../test/interpret.json";
 import { renderAt } from "../../test/render";
 import { plan, run, summary, unusualRun, unusualSummary } from "../../test/segments";
 
@@ -14,6 +15,13 @@ vi.mock("../../charts/Plot", () => ({
 }));
 
 const BASE = "/modules/segments/datasets/d1";
+// 124 bis: the first segment's rule as filter conditions (R-SGT-05)
+const segmentTree = {
+  ...interpret.segmentTree,
+  segments: interpret.segmentTree.segments.map((s, i) =>
+    i === 0 ? { ...s, filters: [{ rule: "income ≤ 50", conditions: [{ column: "income", op: "lte", value: 50 }], note: null }] } : s,
+  ),
+};
 
 function setup(runs: unknown[] = [summary], unusual: unknown[] = [unusualSummary]) {
   return mockApi({
@@ -32,6 +40,7 @@ function setup(runs: unknown[] = [summary], unusual: unknown[] = [unusualSummary
       return { ...run, result: { ...run.result, segments: run.result.segments.map((s) => ({ ...s, name: names[String(s.id)] ?? s.name })) } };
     },
     [`POST ${BASE}/runs/${run.id}/dataset`]: { dataset_id: "d2" },
+    [`POST ${BASE}/runs/${run.id}/tree`]: segmentTree,
     [`GET ${BASE}/unusual`]: unusual,
     [`POST ${BASE}/unusual`]: { id: "job2", kind: "unusual", status: "running", stage: "loading", progress: null, message: null, run_id: null, error: null },
     "GET /modules/segments/jobs/job2": { id: "job2", kind: "unusual", status: "done", stage: "saving", progress: null, message: null, run_id: unusualRun.id, error: null },
@@ -78,6 +87,29 @@ describe("Segments page", () => {
       "href",
       `/api/v1${BASE}/runs/${run.id}/profiles.csv`,
     );
+  });
+
+  it("describes the segments with a tree under Advanced, only once asked (124)", async () => {
+    const calls = setup();
+    renderAt("/d/d1/segments");
+    const summary = await screen.findByText("Advanced · Describe segments with a tree");
+    const trees = () => calls.filter((c) => c.key === `POST ${BASE}/runs/${run.id}/tree`);
+    const folded = summary.closest("details") as HTMLDetailsElement;
+    folded.open = true;
+    fireEvent(folded, new Event("toggle"));
+    expect(trees()).toHaveLength(0);
+    fireEvent.click(await screen.findByRole("button", { name: "Describe segments with a tree" }));
+    expect(await screen.findByText(interpret.segmentTree.sentence)).toBeInTheDocument();
+    expect(trees()[0]?.body).toEqual({ depth: null, leaves: null });
+    expect(screen.getByText("Fidelity 100 %")).toBeInTheDocument();
+    for (const segment of interpret.segmentTree.segments) expect(screen.getByText(segment.text)).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Tree that predicts the segment" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add the rule income ≤ 50 to the filters" }));
+    expect(screen.getByText(/Added to the filters/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Levels" }), { target: { value: "2" } });
+    await waitFor(() => expect(trees().at(-1)?.body).toEqual({ depth: 2, leaves: null }));
   });
 
   it("renames a segment, saves the segments as a dataset, forces k with the slider", async () => {

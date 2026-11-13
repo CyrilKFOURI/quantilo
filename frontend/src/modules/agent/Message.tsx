@@ -5,8 +5,9 @@ import { useMemo } from "react";
 import { Markdown, parse } from "../../features/help/markdown";
 import { t } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
-import type { AgentLink } from "./api";
+import type { AgentLink, RowsRequest } from "./api";
 import { appHref, linkTarget } from "./links";
+import { RowsCard } from "./RowsCard";
 
 export type ShownStep = {
   id: string;
@@ -17,7 +18,11 @@ export type ShownStep = {
   ms?: number;
   progress?: { message: string; share: number | null };
   confirm?: string;
+  rows?: RowsRequest;
 };
+
+/** The user's answer to a card; `unmask` only for rows (columns shown as they are, this once). */
+export type Decide = (stepId: string, approved: boolean, unmask?: string[]) => void;
 
 export function UserMessage({ text }: { text: string }) {
   return (
@@ -43,8 +48,8 @@ export function AssistantMessage({
   streaming?: boolean;
   /** Figures of the answer found in no analysis (grounding check). */
   unverified?: string[];
-  /** Answers a change the assistant asked to make (live turn only). */
-  onDecide?: (stepId: string, approved: boolean) => void;
+  /** Answers a change the assistant asked to make, or rows it asked to see (live turn only). */
+  onDecide?: Decide;
 }) {
   const blocks = useMemo(() => parse(text), [text]);
   return (
@@ -91,10 +96,13 @@ function Step({
 }: {
   datasetId: string;
   step: ShownStep;
-  onDecide?: (stepId: string, approved: boolean) => void;
+  onDecide?: Decide;
 }) {
   const done = step.ok !== undefined && step.ok !== null;
   const target = step.link ? linkTarget(datasetId, step.link) : null;
+  if (step.rows && onDecide) {
+    return <RowsCard rows={step.rows} onDecide={(approved, unmask) => onDecide(step.id, approved, unmask)} />;
+  }
   if (step.confirm && onDecide) {
     return (
       <li className="space-y-2 rounded-lg border border-accent bg-accent-soft px-3 py-2.5 text-xs" role="group" aria-label={t("agent.confirmTitle")}>

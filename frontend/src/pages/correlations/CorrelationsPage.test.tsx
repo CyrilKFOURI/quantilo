@@ -166,7 +166,7 @@ describe("Correlations page", () => {
 
     await screen.findByText(/almost identical/);
     expect(screen.queryByText(/could be chance/)).not.toBeInTheDocument();
-    expect(screen.getByText(/1 weaker links hidden/)).toBeInTheDocument();
+    expect(screen.getByText(/1 weaker link hidden/)).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "+ Moderate · 1" })).toHaveAttribute("aria-checked", "true");
 
     fireEvent.click(screen.getByRole("radio", { name: "+ Weak · 2" }));

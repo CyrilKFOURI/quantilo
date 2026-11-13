@@ -1,0 +1,13 @@
+{
+ "label": "online_retail",
+ "corpus": "kaggle-data",
+ "path": "online-retail-ii-uci/online_retail_II.csv",
+ "sample_pct": 18.0,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-01:Description", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-04:Description", "verdict": "correct", "why": "a word for 'missing' in this file", "op": "null_values"},
+  {"id": "B-03:Description", "verdict": "correct", "why": "same value up to case or accents, each group read", "op": "map_values"},
+  {"id": "B-12:Customer ID", "verdict": "correct", "why": "an identifier with a trailing '.0'", "op": "change_type"}
+ ]
+}

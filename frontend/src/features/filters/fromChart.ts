@@ -3,7 +3,7 @@ import type { Condition } from "../../api/filters";
 import type { PointClick } from "../../charts/Plot";
 import { formatNumber } from "../../charts/figures";
 import { t } from "../../lib/i18n";
-import { PARTS } from "./conditions";
+import { parts } from "./conditions";
 
 export type ChartAction = { label: string; condition: Condition };
 
@@ -24,15 +24,15 @@ export function actionsFor(column: string, chart: Chart, point: PointClick): Cha
   if (chart.kind !== "bars") return [];
   const custom = Array.isArray(point.customdata) ? point.customdata : [];
   const label = String(custom[0] ?? point.y ?? point.x ?? "");
-  if (label === "(missing)") {
+  if (label === t("fig.chart.missing")) {
     return [
       { label: t("filters.keepOnly", { value: label }), condition: { column, op: "is_null", negate: false } },
       { label: t("filters.exclude", { value: label }), condition: { column, op: "is_null", negate: true } },
     ];
   }
-  if (!label || chart.view === "pie" || label.startsWith("Others (")) return [];
+  if (!label || chart.view === "pie" || label.startsWith(`${t("fig.chart.others")} (`)) return [];
   if (PART_VIEWS.has(chart.view)) {
-    const value = PARTS[chart.view]?.values.find((item) => item.label === label || item.value === label)?.value;
+    const value = parts()[chart.view]?.values.find((item) => item.label === label || item.english === label || item.value === label)?.value;
     if (value === undefined) return [];
     const base = { column, op: "part_in" as const, part: chart.view as Condition["part"], values: [value] };
     return [

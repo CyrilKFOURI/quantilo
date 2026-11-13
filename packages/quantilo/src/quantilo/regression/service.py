@@ -32,6 +32,7 @@ from quantilo.regression import selection as sl
 from quantilo.regression import stability as st
 from quantilo.regression import survival as sv
 from quantilo.regression import terms as tm
+from quantilo.regression import varying as vr
 from quantilo.regression.design import DesignError, LeftOutTerm, Variable, codes
 from quantilo.regression.families import EXPOSURE_ROLE, MAX_CLASSES, FamilyRequest
 from quantilo.regression.panel import PanelTable
@@ -87,6 +88,8 @@ MethodResult = (
     | sv.CoxTable
     | sv.TobitTable
     | mx.MixedTable
+    | vr.VaryingTable
+    | vr.RegimesTable
 )
 
 
@@ -119,6 +122,11 @@ class MethodOptions:
     sigma_x: str | None = None
     event: str | None = None  # R-SRV-01
     slope: str | None = None  # R-REG-MIX-01
+    regimes: int | None = None  # R-REG-STAB-07: 2 (default) or 3
+    strata: str | None = None  # R-REG-SURV-03; None or "": none
+    start: str | None = None  # R-REG-SURV-04; None follows the rule, "": none
+    rho: str | None = None  # R-REG-PHY-06: correlation of the errors on x and y, per row
+    formula: str | None = None  # R-REG-PHY-07: a curve of x typed by the user
 
 
 class RegressionService:
@@ -357,11 +365,14 @@ class RegressionService:
         if kind in ("measurement", "curves"):
             sigma = self._pick(options.sigma, offered.sigma, "the uncertainty of the target")
             sigma_x = self._pick(options.sigma_x, offered.sigma_x, "the uncertainty of x")
+            rho = options.rho or None
             names = tuple(p.column for p in (sigma, sigma_x) if p is not None)
+            if rho and kind == "measurement":
+                names = (*names, rho)
             read = self._aligned(dataset_id, fit, names, conditions, numeric=True)
             sy = read[sigma.column] if sigma else None
             if kind == "curves":
-                return ph.curves(fit, sy, sigma.column if sigma else None)
+                return ph.curves(fit, sy, sigma.column if sigma else None, options.formula)
             return ph.measurement(
                 fit,
                 sy,
@@ -370,6 +381,8 @@ class RegressionService:
                 read[sigma_x.column] if sigma_x else None,
                 sigma_x.column if sigma_x else None,
                 sigma_x.reason if sigma_x else "",
+                read[rho] if rho else None,
+                rho,
             )
         if kind == "survival":
             event = self._pick(options.event, offered.event, "the event")
@@ -377,13 +390,18 @@ class RegressionService:
                 return sv.CoxTable(
                     False, "Pick the yes/no column of the event that ends the duration."
                 )
-            return self._cox(dataset_id, fit, event, conditions)
+            start = self._pick(options.start, offered.start, "the start of each interval")
+            return self._cox(dataset_id, fit, event, conditions, options.strata or None, start)
         if kind == "mixed":
             group = offered.group
             if group is None:
                 return mx.mixed(fit, None, None, "", None)
             codes = fit.grouping.cluster_codes if fit.inputs.cluster else fit.grouping.entity_codes
             return mx.mixed(fit, codes, group.column, group.reason, options.slope or None)
+        if kind == "varying":
+            return vr.varying(fit)
+        if kind == "regimes":
+            return vr.regimes(fit, options.regimes or 2)
         raise RegressionError(f"Unknown method {kind!r}.", "unknown_method")
 
     @staticmethod
@@ -395,9 +413,16 @@ class RegressionService:
         return rule
 
     def _cox(
-        self, dataset_id: str, fit: an.Fitted, event: mt.Pick, conditions: list[Condition]
+        self,
+        dataset_id: str,
+        fit: an.Fitted,
+        event: mt.Pick,
+        conditions: list[Condition],
+        strata: str | None = None,
+        start: mt.Pick | None = None,
     ) -> sv.CoxTable:
-        """R-REG-SURV-01: the event read by R-SRV-03 over the used rows."""
+        """R-REG-SURV-01: the event read by R-SRV-03 over the used rows; R-REG-SURV-03 the
+        strata, R-REG-SURV-04 the start of each interval, over the same rows."""
         views = {v.name: v for v in self.columns.columns(dataset_id) if not v.excluded}
         view = views.get(event.column)
         if view is None:
@@ -418,7 +443,22 @@ class RegressionService:
                 for v, gone in zip(labels, missing, strict=True)
             ]
         )
-        return sv.cox(fit, happened, f"{event.column} = {level}", f"{event.reason} {why}")
+        layers = None
+        if strata:
+            values = self._aligned(dataset_id, fit, (strata,), conditions)[strata]
+            labels = [
+                None if v is None or (isinstance(v, float) and np.isnan(v)) else str(v)
+                for v in values
+            ]
+            found, names = codes(labels)
+            layers = sv.Strata(strata, found, names)
+        entry = None
+        if start is not None:
+            read = self._aligned(dataset_id, fit, (start.column,), conditions, numeric=True)
+            entry = sv.Entry(start.column, read[start.column], start.reason)
+        return sv.cox(
+            fit, happened, f"{event.column} = {level}", f"{event.reason} {why}", layers, entry
+        )
 
     def _aligned(
         self,

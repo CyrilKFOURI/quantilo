@@ -3,6 +3,7 @@ import { Info } from "lucide-react";
 import { useState } from "react";
 
 import { t } from "../../lib/i18n";
+import { columnReasons, type ReasonDetail } from "../../lib/i18n/reasons";
 
 type ReadingNotesProps = {
   notes: string[];
@@ -60,8 +61,9 @@ export function ReadingNotes({ datasetId, notes, label, hint, limit }: ReadingNo
 const READING_RULE = /\(R-(?:TYP|ING)-\d+\)/;
 
 /** Each column read by a rule, with that rule's reason: "dep: … (R-TYP-01)". */
-export function columnReadingNotes(columns: { name: string; reasons: string[] }[]): string[] {
-  return columns.flatMap((column) =>
-    column.reasons.filter((reason) => READING_RULE.test(reason)).map((reason) => `${column.name}: ${reason}`),
-  );
+export function columnReadingNotes(columns: { name: string; reasons: string[]; reason_details?: ReasonDetail[] | null }[]): string[] {
+  return columns.flatMap((column) => {
+    const shown = columnReasons(column); // M02: in the interface language
+    return column.reasons.flatMap((reason, index) => (READING_RULE.test(reason) ? [`${column.name}: ${shown[index] ?? reason}`] : []));
+  });
 }

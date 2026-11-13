@@ -33,6 +33,14 @@ export const motionPreference: Preference<"system" | "reduce" | "full"> = {
   defaultValue: "system",
 };
 
+/** Interface language (127). "auto" follows the browser; a change reloads the page (texts are read once). */
+export const languagePreference: Preference<"auto" | "en" | "fr"> = {
+  storageKey: "de.lang",
+  attribute: "lang",
+  values: ["auto", "en", "fr"],
+  defaultValue: "auto",
+};
+
 export function readPreference<T extends string>(preference: Preference<T>): T {
   try {
     const stored = localStorage.getItem(preference.storageKey);

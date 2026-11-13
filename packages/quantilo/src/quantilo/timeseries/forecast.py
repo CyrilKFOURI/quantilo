@@ -22,6 +22,7 @@ from statsmodels.tsa.exponential_smoothing.ets import ETSModel
 from statsmodels.tsa.forecasting.theta import ThetaModel
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
+from quantilo.timeseries import series as ts
 from quantilo.timeseries import stationarity as st
 from quantilo.timeseries.autocorrelation import ljung_box
 from quantilo.timeseries.decomposition import stl, strength
@@ -37,6 +38,70 @@ HORIZON = {"hour": 24, "day": 30, "week": 12, "month": 12, "quarter": 8, "year":
 def default_horizon(period: str, periods: int) -> int:
     """The usual horizon for the period, at most a quarter of the series (room to validate)."""
     return max(1, min(HORIZON[period], periods // 4))
+
+
+Criterion = Literal["aicc", "aic", "bic"]
+GbmGrid = Literal["fixed", "small", "wide"]
+
+
+@dataclass(frozen=True)
+class Tuning:
+    """Options of the models (028 A7, ⚙ Options, never needed): the bounds and criterion of the
+    automatic ARIMA search (Hyndman-Khandakar's defaults), the grid of gradient boosting, the
+    trend prior of the Prophet-like model, and a time limit per model (None: no limit)."""
+
+    max_p: int = 3
+    max_q: int = 3
+    max_seasonal_p: int = 1
+    max_seasonal_q: int = 1
+    max_d: int = 2
+    criterion: Criterion = "aicc"
+    gbm_grid: GbmGrid = "fixed"
+    changepoint_scale: float = 0.05
+    changepoints: int = 25
+    time_limit: float | None = None  # seconds per model
+
+    def __post_init__(self) -> None:
+        checks = [
+            (0 <= self.max_p <= 5, "max_p goes from 0 to 5"),
+            (0 <= self.max_q <= 5, "max_q goes from 0 to 5"),
+            (0 <= self.max_seasonal_p <= 2, "max_seasonal_p goes from 0 to 2"),
+            (0 <= self.max_seasonal_q <= 2, "max_seasonal_q goes from 0 to 2"),
+            (0 <= self.max_d <= 2, "max_d goes from 0 to 2"),
+            (0 < self.changepoint_scale <= 10, "changepoint_scale is above 0, at most 10"),
+            (0 <= self.changepoints <= 100, "changepoints goes from 0 to 100"),
+            (
+                self.time_limit is None or 1 <= self.time_limit <= 3600,
+                "time_limit goes from 1 to 3600 seconds",
+            ),
+        ]
+        wrong = [text for ok, text in checks if not ok]
+        if wrong:
+            raise ValueError("; ".join(wrong))
+
+    @property
+    def arima(self) -> tuple[int, int, int, int, int, str]:
+        return (
+            self.max_p,
+            self.max_q,
+            self.max_seasonal_p,
+            self.max_seasonal_q,
+            self.max_d,
+            self.criterion,
+        )
+
+
+DEFAULT_TUNING = Tuning()
+
+
+@dataclass
+class Component:
+    """One part of a structural fit (Prophet-like, 028 A6 story 4): over the fitted history,
+    then the forecast periods, in the series' unit."""
+
+    name: str  # "Trend", "weekly", "Public holidays (FR)", a driver's column
+    kind: Literal["trend", "season", "holidays", "driver"]
+    values: list[float]
 
 
 @dataclass
@@ -56,10 +121,24 @@ class Prediction:
     pvalues: np.ndarray | None = None
     importance: np.ndarray | None = None
     exog: list[int] | None = None
+    # Structural models: trend, seasons (then the drivers' effects, added by `drivers.Bound`)
+    # over the fitted history and the horizon; `start` = first period of the history they cover.
+    components: list[Component] = field(default_factory=list)
+    exog_effects: np.ndarray | None = None  # (fitted + h, driver columns): column × coefficient
+    start: int = 0
 
 
 class ModelError(ValueError):
     """The model cannot be fitted on this series (too short, values ≤ 0…)."""
+
+
+class Unavailable(ModelError):
+    """The model cannot run on this machine (028 B1: extra or weights missing): the reason is
+    the same at every origin, so it is reported instead of skipping them."""
+
+
+class TimeLimit(ModelError):
+    """A model went over its time limit (028 A7): it stops between two fits and says so."""
 
 
 def _quiet(compute: Callable):
@@ -205,6 +284,80 @@ def ets_auto(y: np.ndarray, h: int, season: int | None) -> Prediction:
     return _ets_prediction(best[0], len(y), h, best[1])
 
 
+STL_LONGEST = 400  # periods: longer cycles (yearly on hourly data) are left out of STLF
+
+
+def stlf_model(
+    period: ts.Period | None = None,
+) -> Callable[[np.ndarray, int, int | None], Prediction]:
+    """STLF (FPP3 §13.2, 028 A6): the seasons removed by STL (one cycle) or MSTL (several: the
+    cycles of the Prophet-like rule, rounded), the seasonally adjusted series forecast by the
+    automatic non-seasonal ETS, then the last cycle of each seasonal component added back.
+    Its own intervals (the ETS ones, the seasonal part taken as known) only serve the validation:
+    they covered ~50 % on rolling origins, so the final ones are conformal (`run_model`)."""
+
+    def fit(y: np.ndarray, h: int, season: int | None) -> Prediction:
+        from statsmodels.tsa.seasonal import MSTL
+
+        from quantilo.timeseries.prophet_like import cycles
+
+        n = len(y)
+        used, _ = cycles(period, season, n)
+        lengths = sorted({round(c.length) for c in used if 2 <= round(c.length) <= STL_LONGEST})
+        lengths = [m for m in lengths if n >= 2 * m]
+        if not lengths:
+            raise ModelError("Needs two full cycles of a season.")
+        if len(lengths) == 1:
+            seasonal = [stl(y, lengths[0]).seasonal]
+        else:
+            parts = _quiet(lambda: MSTL(y, periods=lengths).fit())
+            seasonal = list(np.asarray(parts.seasonal, dtype=float).reshape(n, -1).T)
+        adjusted = y - np.sum(seasonal, axis=0)
+        base = ets_auto(adjusted, h, None)
+        steps = np.arange(h)
+        ahead = np.sum(
+            [component[n - m + steps % m] for component, m in zip(seasonal, lengths, strict=True)],
+            axis=0,
+        )
+        method = "STL" if len(lengths) == 1 else "MSTL"
+        prediction = Prediction(
+            base.mean + ahead,
+            base.low80 + ahead,
+            base.high80 + ahead,
+            base.low95 + ahead,
+            base.high95 + ahead,
+            f"{method} ({', '.join(map(str, lengths))}) + {base.info}",
+            base.resid,
+        )
+        prediction.approximate = True
+        return prediction
+
+    return fit
+
+
+def prophet_model(
+    period: ts.Period | None = None, tuning: Tuning = DEFAULT_TUNING
+) -> Callable[..., Prediction]:
+    """The Prophet-like structural model (028 A6, `prophet_like.py`), drivers included; each
+    public holiday gets its own column (`separate_holidays`, 028 A5). `tuning`: number of
+    candidate changepoints and the prior scale of their slope changes (028 A7)."""
+
+    def fit(
+        y: np.ndarray,
+        h: int,
+        season: int | None,
+        x: np.ndarray | None = None,
+        x_future: np.ndarray | None = None,
+    ) -> Prediction:
+        from quantilo.timeseries import prophet_like
+
+        built = prophet_like.model(period, tuning.changepoints, tuning.changepoint_scale)
+        return built(y, h, season, x, x_future)
+
+    fit.separate_holidays = True  # type: ignore[attr-defined]
+    return fit
+
+
 def theta(y: np.ndarray, h: int, season: int | None) -> Prediction:
     seasonal = bool(season and season >= 2 and len(y) >= 2 * season and (y > 0).all())
     fit = _quiet(
@@ -293,8 +446,9 @@ def _arima_label(order: tuple[int, int, int], seasonal: tuple[int, int, int, int
     return text
 
 
-def differences(y: np.ndarray, season: int | None) -> tuple[int, int, int]:
-    """Seasonal differences D (strong seasonality) then d (ADF and KPSS), and the usable cycle."""
+def differences(y: np.ndarray, season: int | None, max_d: int = 2) -> tuple[int, int, int]:
+    """Seasonal differences D (strong seasonality) then d (ADF and KPSS, at most `max_d`), and
+    the usable cycle."""
     m = season if season and 2 <= season <= MAX_SEASONAL_ARIMA and len(y) >= 3 * season else 0
     seasonal_d = 0
     if m:
@@ -303,7 +457,7 @@ def differences(y: np.ndarray, season: int | None) -> tuple[int, int, int]:
             seasonal_d = 1
     base = y[m:] - y[:-m] if seasonal_d else y
     d = 0
-    while d < 2:
+    while d < max_d:
         verdict = st.judge(base)
         if verdict is None or verdict.verdict == "stationary":
             break
@@ -311,35 +465,50 @@ def differences(y: np.ndarray, season: int | None) -> tuple[int, int, int]:
     return d, seasonal_d, m
 
 
-def arima_auto(y: np.ndarray, h: int, season: int | None) -> Prediction:
+def arima_auto(
+    y: np.ndarray, h: int, season: int | None, tuning: Tuning = DEFAULT_TUNING
+) -> Prediction:
     """Hyndman-Khandakar stepwise search, simplified: differences from tests, then neighbours of
-    the best (p, q, P, Q) by AICc, within a time budget."""
-    known = _known_orders(y, season)
+    the best (p, q, P, Q) by AICc (or the criterion of `tuning`), within a time budget."""
+    known = _known_orders(y, season, tuning)
     if known is not None:
         order, seasonal, label = known
         try:
             return _arima_prediction(_sarimax(y, order, seasonal), h, label)
         except Exception:
             pass  # search again below
-    order, seasonal, label, fit = arima_search(y, season)
-    _remember_orders(y, season, (order, seasonal, label))
+    order, seasonal, label, fit = arima_search(y, season, tuning)
+    _remember_orders(y, season, (order, seasonal, label), tuning)
     return _arima_prediction(fit, h, label)
 
 
+def arima_model(
+    tuning: Tuning = DEFAULT_TUNING,
+) -> Callable[[np.ndarray, int, int | None], Prediction]:
+    """The automatic ARIMA with the bounds and criterion of `tuning` (028 A7)."""
+
+    def fit(y: np.ndarray, h: int, season: int | None) -> Prediction:
+        return arima_auto(y, h, season, tuning)
+
+    return fit
+
+
 ORDERS_KEPT = 128  # series whose automatic ARIMA orders are remembered
-_orders: OrderedDict[tuple[bytes, int | None], tuple[Any, Any, str]] = OrderedDict()
+_orders: OrderedDict[tuple[Any, ...], tuple[Any, Any, str]] = OrderedDict()
 _orders_lock = threading.Lock()
 
 
-def _orders_key(y: np.ndarray, season: int | None) -> tuple[bytes, int | None]:
+def _orders_key(y: np.ndarray, season: int | None, tuning: Tuning) -> tuple[Any, ...]:
     data = np.ascontiguousarray(y, dtype=float).tobytes()
-    return hashlib.sha1(data, usedforsecurity=False).digest(), season
+    return hashlib.sha1(data, usedforsecurity=False).digest(), season, tuning.arima
 
 
-def _known_orders(y: np.ndarray, season: int | None) -> tuple[Any, Any, str] | None:
-    """The orders already found for exactly this series (the same training window searched by
-    ARIMA (automatic) and by SARIMAX, or a forecast run again)."""
-    key = _orders_key(y, season)
+def _known_orders(
+    y: np.ndarray, season: int | None, tuning: Tuning = DEFAULT_TUNING
+) -> tuple[Any, Any, str] | None:
+    """The orders already found for exactly this series and search (the same training window
+    searched by ARIMA (automatic) and by SARIMAX, or a forecast run again)."""
+    key = _orders_key(y, season, tuning)
     with _orders_lock:
         found = _orders.get(key)
         if found is not None:
@@ -347,31 +516,46 @@ def _known_orders(y: np.ndarray, season: int | None) -> tuple[Any, Any, str] | N
         return found
 
 
-def _remember_orders(y: np.ndarray, season: int | None, found: tuple[Any, Any, str]) -> None:
+def _remember_orders(
+    y: np.ndarray,
+    season: int | None,
+    found: tuple[Any, Any, str],
+    tuning: Tuning = DEFAULT_TUNING,
+) -> None:
     with _orders_lock:
-        _orders[_orders_key(y, season)] = found
+        _orders[_orders_key(y, season, tuning)] = found
         while len(_orders) > ORDERS_KEPT:
             _orders.popitem(last=False)
 
 
-def arima_orders(y: np.ndarray, season: int | None) -> tuple[Any, Any, str]:
+def arima_orders(
+    y: np.ndarray, season: int | None, tuning: Tuning = DEFAULT_TUNING
+) -> tuple[Any, Any, str]:
     """Orders and label of the automatic ARIMA for this series, searched once."""
-    known = _known_orders(y, season)
+    known = _known_orders(y, season, tuning)
     if known is None:
-        order, seasonal, label, _ = arima_search(y, season)
+        order, seasonal, label, _ = arima_search(y, season, tuning)
         known = (order, seasonal, label)
-        _remember_orders(y, season, known)
+        _remember_orders(y, season, known, tuning)
     return known
 
 
 def arima_search(
-    y: np.ndarray, season: int | None
+    y: np.ndarray, season: int | None, tuning: Tuning = DEFAULT_TUNING
 ) -> tuple[tuple[int, int, int], tuple[int, int, int, int], str, Any]:
-    """The orders chosen by the automatic ARIMA, their label and the fitted model."""
-    d, seasonal_d, m = differences(y, season)
+    """The orders chosen by the automatic ARIMA, their label and the fitted model. `tuning`
+    bounds p, q, P, Q and d and picks the criterion (AICc by default, as Hyndman-Khandakar)."""
+    d, seasonal_d, m = differences(y, season, tuning.max_d)
     started = time.monotonic()
+    budget = min(ARIMA_BUDGET, tuning.time_limit or ARIMA_BUDGET)
     tried: dict[tuple[int, int, int, int], float] = {}
     fits: dict[tuple[int, int, int, int], object] = {}
+    top = (
+        tuning.max_p,
+        tuning.max_q,
+        tuning.max_seasonal_p if m else 0,
+        tuning.max_seasonal_q if m else 0,
+    )
 
     def score(p: int, q: int, sp: int, sq: int) -> float:
         key = (p, q, sp, sq)
@@ -379,7 +563,8 @@ def arima_search(
             return tried[key]
         try:
             fit = _sarimax(y, (p, d, q), (sp, seasonal_d, sq, m) if m else (0, 0, 0, 0))
-            value = float(fit.aicc) if np.isfinite(fit.aicc) else math.inf
+            found = float(getattr(fit, tuning.criterion))
+            value = found if np.isfinite(found) else math.inf
             fits[key] = fit
         except Exception:
             value = math.inf
@@ -391,10 +576,11 @@ def arima_search(
         if m
         else [(2, 2, 0, 0), (0, 0, 0, 0), (1, 0, 0, 0), (0, 1, 0, 0)]
     )
-    for start in starts:
+    bounded = [tuple(min(v, b) for v, b in zip(start, top, strict=True)) for start in starts]
+    for start in dict.fromkeys(bounded):
         score(*start)
     improved = True
-    while improved and time.monotonic() - started < ARIMA_BUDGET:
+    while improved and time.monotonic() - started < budget:
         improved = False
         best = min(tried, key=tried.__getitem__)
         p, q, sp, sq = best
@@ -402,16 +588,13 @@ def arima_search(
             candidate = (p + dp, q + dq, sp + dsp, sq + dsq)
             if (
                 min(candidate) < 0
-                or candidate[0] > 3
-                or candidate[1] > 3
-                or candidate[2] > (1 if m else 0)
-                or candidate[3] > (1 if m else 0)
+                or any(v > b for v, b in zip(candidate, top, strict=True))
                 or candidate in tried
             ):
                 continue
             if score(*candidate) < tried[best]:
                 improved = True
-            if time.monotonic() - started > ARIMA_BUDGET:
+            if time.monotonic() - started > budget:
                 break
     best = min(tried, key=tried.__getitem__)
     if not math.isfinite(tried[best]):
@@ -419,18 +602,20 @@ def arima_search(
     p, q, sp, sq = best
     order, seasonal = (p, d, q), (sp, seasonal_d, sq, m) if m else (0, 0, 0, 0)
     label = _arima_label(order, seasonal)
+    if tuning.criterion != "aicc":
+        label += f" by {tuning.criterion.upper()}"
     if season and season > MAX_SEASONAL_ARIMA:
         label += " (cycle too long for seasonal terms)"
-    if time.monotonic() - started > ARIMA_BUDGET:
+    if time.monotonic() - started > budget:
         label += " (search stopped at the time limit)"
     return order, seasonal, label, fits[best]
 
 
-def sarimax_model() -> Callable[..., Prediction]:
+def sarimax_model(tuning: Tuning = DEFAULT_TUNING) -> Callable[..., Prediction]:
     """SARIMAX (028 A4): the orders of the automatic ARIMA found without drivers, then the model
     refitted with them as regressors (regression with ARIMA errors). The orders are searched once
-    per training window (shared with ARIMA (automatic)), so the "with / without each driver"
-    comparisons only refit."""
+    per training window (shared with ARIMA (automatic) under the same `tuning`), so the "with /
+    without each driver" comparisons only refit."""
 
     def fit(
         y: np.ndarray,
@@ -439,7 +624,7 @@ def sarimax_model() -> Callable[..., Prediction]:
         x: np.ndarray | None = None,
         x_future: np.ndarray | None = None,
     ) -> Prediction:
-        order, seasonal, label = arima_orders(y, season)
+        order, seasonal, label = arima_orders(y, season, tuning)
         if x is None or x_future is None or not x.shape[1]:
             try:
                 result = _sarimax(y, order, seasonal)
@@ -529,7 +714,23 @@ def linear_trend_season(
     return prediction
 
 
-def _lag_model(kind: str) -> Callable[[np.ndarray, int, int | None], Prediction]:
+GBM_LEAVES = 15  # leaves per tree of the fixed gradient boosting
+
+
+def lag_grid(grid: GbmGrid, lags: int) -> list[tuple[int, int]]:
+    """The (lags, leaves per tree) tried by gradient boosting (028 A7): fixed = the default
+    alone; small = half or all of the cycle's lags × 7 or 15 leaves (4); wide = half, all or
+    twice the lags × 7, 15 or 31 leaves (9)."""
+    if grid == "fixed":
+        return [(lags, GBM_LEAVES)]
+    counts = [max(3, lags // 2), lags] + ([min(2 * lags, 48)] if grid == "wide" else [])
+    leaves = [7, 15] + ([31] if grid == "wide" else [])
+    return list(dict.fromkeys((c, leaf) for c in counts for leaf in leaves))
+
+
+def _lag_model(
+    kind: str, grid: GbmGrid = "fixed"
+) -> Callable[[np.ndarray, int, int | None], Prediction]:
     """Gradient boosting or a small neural network predicting each period from the previous
     ones, on the series with its linear trend removed (trees cannot extrapolate a trend), then
     forecasting one step at a time. Its own intervals (in-sample one-step errors widened with the
@@ -537,14 +738,21 @@ def _lag_model(kind: str) -> Callable[[np.ndarray, int, int | None], Prediction]
 
     Drivers (028 A4) enter twice: in the linear part removed first (trend + drivers, so that a
     driver leaving its past range still moves the forecast) and as features of the period being
-    predicted (for what is not linear)."""
+    predicted (for what is not linear).
 
-    def fit(
+    `grid` (gradient boosting, 028 A7): the lags and leaves of `lag_grid`, each scored on the last
+    h periods of the training window (an inner hold-out, so the rolling validation stays honest),
+    the best refitted on the whole window."""
+
+    def one(
         y: np.ndarray,
         h: int,
         season: int | None,
-        x: np.ndarray | None = None,
-        x_future: np.ndarray | None = None,
+        x: np.ndarray | None,
+        x_future: np.ndarray | None,
+        lags: int,
+        leaves: int,
+        importance: bool = True,
     ) -> Prediction:
         from sklearn.ensemble import HistGradientBoostingRegressor
         from sklearn.neural_network import MLPRegressor
@@ -552,7 +760,6 @@ def _lag_model(kind: str) -> Callable[[np.ndarray, int, int | None], Prediction]
         from sklearn.preprocessing import StandardScaler
 
         n = len(y)
-        lags = max(3, min(season or 12, 24, n // 4))
         if n < lags + 10:
             raise ModelError(f"Needs at least {lags + 10} periods.")
         k = 0 if x is None or x_future is None else x.shape[1]
@@ -580,7 +787,7 @@ def _lag_model(kind: str) -> Callable[[np.ndarray, int, int | None], Prediction]
         target = rest[lags:]
         if kind == "gbm":
             model = HistGradientBoostingRegressor(
-                max_iter=200, learning_rate=0.05, max_leaf_nodes=15, random_state=42
+                max_iter=200, learning_rate=0.05, max_leaf_nodes=leaves, random_state=42
             )
         else:
             model = make_pipeline(
@@ -604,7 +811,7 @@ def _lag_model(kind: str) -> Callable[[np.ndarray, int, int | None], Prediction]
         ) + f" on {lags} lags"
         prediction = _band(np.array(steps), sigma, label, resid)
         prediction.approximate = True
-        if drivers is not None:
+        if drivers is not None and importance:
 
             def fitted(given: np.ndarray) -> np.ndarray:
                 """In-sample one-step prediction of y with these driver values."""
@@ -614,6 +821,40 @@ def _lag_model(kind: str) -> Callable[[np.ndarray, int, int | None], Prediction]
                 return base[lags:] + np.asarray(model.predict(rows), dtype=float)
 
             prediction.importance = _shuffled_error(fitted, drivers[:n], y[lags:])
+        return prediction
+
+    def fit(
+        y: np.ndarray,
+        h: int,
+        season: int | None,
+        x: np.ndarray | None = None,
+        x_future: np.ndarray | None = None,
+    ) -> Prediction:
+        n = len(y)
+        lags = max(3, min(season or 12, 24, n // 4))
+        if kind != "gbm" or grid == "fixed":
+            return one(y, h, season, x, x_future, lags, GBM_LEAVES)
+        tried = lag_grid(grid, lags)
+        hold = max(1, min(h, n // 5))
+        best: tuple[float, int, int] | None = None
+        for count, leaves in tried:
+            past = None if x is None else x[:-hold]
+            given = None if x is None else x[-hold:]
+            try:
+                trial = one(y[:-hold], hold, season, past, given, count, leaves, False)
+            except ModelError:
+                continue
+            error = float(np.mean(np.abs(trial.mean - y[-hold:])))
+            if best is None or error < best[0]:
+                best = (error, count, leaves)
+        if best is None:
+            raise ModelError(f"Needs at least {lags + 10 + hold} periods for the grid.")
+        _, count, leaves = best
+        prediction = one(y, h, season, x, x_future, count, leaves)
+        prediction.info = (
+            f"Gradient boosting on {count} lags, {leaves} leaves (grid {grid}: best of "
+            f"{len(tried)} on the last {hold} periods)"
+        )
         return prediction
 
     return fit
@@ -753,6 +994,41 @@ def adida(y: np.ndarray, h: int, season: int | None) -> Prediction:
 
 
 Model = Callable[[np.ndarray, int, int | None], Prediction]
+
+# AI models (028 phase B): pretrained (`pretrained.py`, the forecast-ai extra) and trained
+# networks (`neural.py`). Their modules import this one: imported at the first call only.
+PRETRAINED_MODELS = (
+    "chronos_bolt_tiny",
+    "chronos_bolt_small",
+    "chronos_bolt_base",
+    "chronos_2",
+    "timesfm_2p5",
+)
+NEURAL_MODELS = ("nhits", "nbeats")
+AI_MODELS = (*PRETRAINED_MODELS, *NEURAL_MODELS)
+
+
+def ai_model(key: str, tuning: Tuning = DEFAULT_TUNING) -> Callable[..., Prediction]:
+    """A pretrained model, or N-HiTS / N-BEATS with the time limit of `tuning` (028 A7)."""
+
+    def fit(
+        y: np.ndarray,
+        h: int,
+        season: int | None,
+        x: np.ndarray | None = None,
+        x_future: np.ndarray | None = None,
+    ) -> Prediction:
+        if key in NEURAL_MODELS:
+            from quantilo.timeseries import neural
+
+            return neural.model(key, tuning)(y, h, season)
+        from quantilo.timeseries import pretrained
+
+        return pretrained.model(key)(y, h, season, x, x_future)
+
+    return fit
+
+
 MODELS: dict[str, Model] = {
     "naive": naive,
     "seasonal_naive": seasonal_naive,
@@ -767,7 +1043,7 @@ MODELS: dict[str, Model] = {
     "sarima": naive,  # replaced by sarima_manual(...) with the user's orders
     "tslm": linear_trend_season,
     "structural": structural,
-    "gbm_lags": _lag_model("gbm"),
+    "gbm_lags": _lag_model("gbm"),  # lag_model("gbm", grid) with a grid (028 A7)
     "mlp_lags": _lag_model("mlp"),
     "croston": croston,
     "sba": sba,
@@ -775,9 +1051,17 @@ MODELS: dict[str, Model] = {
     "adida": adida,
     "combination": naive,  # not a model: averages the best ones, after the others (`combine`)
     "sarimax": sarimax_model(),  # a fresh one (its own cache of orders) per forecast
+    # 028 A6; their cycles follow the period, inferred here from the season (the service gives
+    # the period itself: `PERIOD_MODELS`).
+    "prophet_like": prophet_model(),
+    "stlf": stlf_model(),
+    **{key: ai_model(key) for key in AI_MODELS},
 }
+lag_model = _lag_model
 INTERMITTENT_MODELS = ("croston", "sba", "tsb", "adida")
-DRIVER_MODELS = ("sarimax", "tslm", "gbm_lags")  # the models that use drivers (028 A4)
+# The models that use drivers (028 A4, A6).
+DRIVER_MODELS = ("sarimax", "tslm", "gbm_lags", "prophet_like", "chronos_2")
+PERIOD_MODELS = {"prophet_like": prophet_model, "stlf": stlf_model}  # built for a period
 COMBINED = 3  # models averaged by "combination"
 DEFAULT_MODELS = ("naive", "seasonal_naive", "ets_auto", "arima_auto")
 
@@ -842,6 +1126,11 @@ class ModelResult:
     uses_drivers: bool = False
     mase_without_drivers: float | None = None  # the same model without any driver
     drivers: list[DriverEffect] = field(default_factory=list)
+    # Prophet-like (028 A6 story 4): trend, each season, the holidays' and drivers' effects of the
+    # final fit, from period `components_start` of the history to the end of the horizon.
+    components: list[Component] = field(default_factory=list)
+    components_start: int = 0
+    timed_out: bool = False  # stopped at the time limit (028 A7)
 
 
 def origins(n: int, h: int, season: int | None) -> list[int]:
@@ -864,21 +1153,37 @@ class OriginRun:
     prediction: Prediction
 
 
-def origin_runs(y: np.ndarray, model: Model, h: int, season: int | None) -> list[OriginRun]:
+def _over(deadline: float | None, limit: float | None, what: str) -> None:
+    if deadline is not None and time.monotonic() > deadline:
+        raise TimeLimit(f"Stopped at the time limit ({limit:g} s) {what}.")
+
+
+def origin_runs(
+    y: np.ndarray, model: Model, h: int, season: int | None, limit: float | None = None
+) -> list[OriginRun]:
+    """The model fitted at each rolling origin; with `limit` (seconds), it stops between two
+    origins once over it (`TimeLimit`)."""
     runs = []
-    for size in origins(len(y), h, season):
+    deadline = time.monotonic() + limit if limit else None
+    sizes = origins(len(y), h, season)
+    for done, size in enumerate(sizes):
         test = y[size : size + h]
         if not len(test):
             continue
+        _over(deadline, limit, f"after {done} of {len(sizes)} rolling origins")
         try:
             runs.append(OriginRun(size, model(y[:size], len(test), season)))
+        except Unavailable:
+            raise
         except ModelError:
             continue  # too little history at this origin for this model
     return runs
 
 
-def evaluate(y: np.ndarray, model: Model, h: int, season: int | None) -> Scores:
-    return score(y, origin_runs(y, model, h, season), h, season)
+def evaluate(
+    y: np.ndarray, model: Model, h: int, season: int | None, limit: float | None = None
+) -> Scores:
+    return score(y, origin_runs(y, model, h, season, limit), h, season)
 
 
 def score(y: np.ndarray, runs: list[OriginRun], h: int, season: int | None) -> Scores:
@@ -962,15 +1267,31 @@ def _backtests(runs: list[OriginRun]) -> list[Backtest]:
     ]
 
 
-def run_model(key: str, model: Model, y: np.ndarray, h: int, season: int | None) -> ModelResult:
+def run_model(
+    key: str,
+    model: Model,
+    y: np.ndarray,
+    h: int,
+    season: int | None,
+    limit: float | None = None,
+) -> ModelResult:
+    """Score a model on the rolling origins, then refit it on the whole series. `limit`
+    (seconds, 028 A7): over it, the model stops between two fits and its row says so."""
     started = time.monotonic()
     try:
-        runs = origin_runs(y, model, h, season)
+        runs = origin_runs(y, model, h, season, limit)
         scores = score(y, runs, h, season)
+        _over(started + limit if limit else None, limit, "before the final fit")
         final = model(y, h, season)
     except (ModelError, ValueError, np.linalg.LinAlgError) as error:
         return ModelResult(
-            key, None, None, None, error=str(error), seconds=time.monotonic() - started
+            key,
+            None,
+            None,
+            None,
+            error=str(error),
+            seconds=time.monotonic() - started,
+            timed_out=isinstance(error, TimeLimit),
         )
     if final.approximate and (bands := conformal(y, runs, final.mean)):
         final.low80, final.high80, final.low95, final.high95 = bands
@@ -995,6 +1316,8 @@ def run_model(key: str, model: Model, y: np.ndarray, h: int, season: int | None)
         check,
         time.monotonic() - started,
         backtests=_backtests(runs),
+        components=final.components,
+        components_start=final.start,
     )
 
 

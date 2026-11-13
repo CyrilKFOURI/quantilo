@@ -34,6 +34,9 @@ class CleanReport:
     dropped: list[str] = field(default_factory=list)
     type_changes: list[TypeChange] = field(default_factory=list)  # filled after the typing
     seconds: float = 0.0
+    # C-59: the step that reshaped the table (split into rows, unpivot, pivot, group by, append);
+    # the version then has no row map: its rows do not come one by one from the parent's
+    reshaped_by: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

@@ -65,6 +65,24 @@ def test_parquet_with_an_image_column(tmp_path: Path) -> None:
     assert [c.name for c in preview.columns] == ["image"]
 
 
+def test_folder_of_hf_parquet_files_is_an_image_set(tmp_path: Path) -> None:
+    from tests.vision_fixtures import hf_parquet
+
+    data = tmp_path / "data"
+    data.mkdir()
+    for split in ("train", "validation", "test"):
+        hf_parquet(data / f"{split}-00000-of-00001.parquet", [encode(scene())], [0], ["a"])
+    found = image_source(data)
+    assert found is not None and found.rule == "R-VIS-SRC-04" and found.kind == "folder"
+    preview = preview_source(data, SourceOptions())
+    assert preview.detected is not None and preview.detected.rule == "R-VIS-SRC-04"
+    assert preview.columns == []  # straight to the image step, no table read
+    tables = tmp_path / "tables"
+    tables.mkdir()
+    pq.write_table(pa.table({"a": [1]}), tables / "plain.parquet")
+    assert image_source(tables) is None
+
+
 def test_table_preview_routes_a_folder_of_images(tmp_path: Path) -> None:
     preview = preview_source(_folder(tmp_path / "set"), SourceOptions())
     assert preview.detected is not None

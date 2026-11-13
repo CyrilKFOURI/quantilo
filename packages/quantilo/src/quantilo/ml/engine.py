@@ -17,6 +17,15 @@ from quantilo.catalog import Catalog
 from quantilo.errors import ExplorerError
 from quantilo.filters.model import Condition
 from quantilo.filters.scope import scoped_source, where_for
+from quantilo.interpret import anchors as anchoring
+from quantilo.interpret import compare as readable
+from quantilo.interpret import extras
+from quantilo.interpret import interactions as pairing
+from quantilo.interpret import kernel_shap as sampling
+from quantilo.interpret import rashomon as optimal
+from quantilo.interpret import risk_score as interpretable
+from quantilo.interpret import sparse_tree as sparse
+from quantilo.interpret import tabular_prototypes as examples
 from quantilo.ml import ale as effects
 from quantilo.ml import browser, evaluate
 from quantilo.ml import classes as binning
@@ -150,6 +159,32 @@ class Explained:
     rows: np.ndarray  # file row of each
     fields: list[Field]
     positive: str | None
+
+
+@dataclass
+class Readable:
+    """The rows a readable model learns on and is judged on (R-XAI-08), with the run's model's
+    probability of the positive class on the judged rows."""
+
+    learn: pd.DataFrame
+    y_learn: np.ndarray  # class labels as text (numbers for a regression, 122 bis)
+    check: pd.DataFrame
+    y_check: np.ndarray
+    probability: np.ndarray  # two classes: of the positive; a number: the model's prediction
+    positive: str
+    label: str  # the run's model, as the sentences name it
+    source: str
+    types: dict[str, str]
+    task: str = "binary"
+    classes: list[str] | None = None  # 121 bis: three classes or more, as the model orders them
+    probabilities: np.ndarray | None = None  # checked rows by classes
+
+
+def model_label(model: str) -> str:
+    """The run's model, as the comparison sentences name it."""
+    spec = catalogue.CATALOGUE.get(model)
+    label = spec.label if spec else ("ensemble" if model == "ensemble" else model)
+    return f"run's model ({label})"
 
 
 def constraints(text: str | None) -> dict[str, int]:
@@ -727,6 +762,22 @@ class MlEngine:
         except effects.AleError as error:
             raise MlError(str(error), "no_ale") from None
 
+    def _ale_2d(
+        self,
+        dataset_id: str,
+        pipeline: Any,
+        trained: Any,
+        conditions: list[Condition],
+        first: str,
+        second: str,
+    ) -> effects.Ale2d:
+        """The two-column ALE of two numbers (125 bis, R-XAI-20): their interaction alone."""
+        found = self._explained(dataset_id, pipeline, trained, conditions)
+        try:
+            return effects.ale_2d(pipeline, found.x, trained.task, first, second)
+        except effects.AleError as error:
+            raise MlError(str(error), "no_ale") from None
+
     def _monotonic(
         self, dataset_id: str, pipeline: Any, trained: Any, conditions: list[Condition]
     ) -> list[effects.Monotonic]:
@@ -781,6 +832,386 @@ class MlEngine:
             )
         except whatif.CounterfactualError as error:
             raise MlError(str(error), "no_counterfactual") from None
+
+    # --- Interpretability under Advanced, More (126) ----------------------------------------------
+
+    def _left_out(self, pipeline: Any, found: Explained) -> dict[str, str]:
+        """Inputs that a method reading values between rows cannot use, and why."""
+        texts = set(textual.steps_of(pipeline))
+        by_name = {f.name: f for f in found.fields}
+        left: dict[str, str] = {}
+        for column in map(str, found.x.columns):
+            info = by_name.get(column)
+            if column in texts or (info is not None and info.type == "text"):
+                left[column] = "free text"
+            elif info is not None and info.type == "datetime":
+                left[column] = "a date"
+            elif info is not None and info.type == "identifier":
+                left[column] = "an identifier"
+        return left
+
+    def _permutation_shap(
+        self,
+        dataset_id: str,
+        pipeline: Any,
+        trained: Any,
+        conditions: list[Condition],
+        pairs: int = sampling.PAIRS,
+        background: int = sampling.BACKGROUND,
+    ) -> sampling.PermutationShap:
+        """SHAP values for any model, by sampling permutations (R-XAI-12)."""
+        found = self._explained(dataset_id, pipeline, trained, conditions)
+        shown = [p.row for p in trained.predictions]
+        try:
+            return sampling.permutation_shap(
+                pipeline,
+                found.x,
+                found.rows,
+                trained.task,
+                shown,
+                set(textual.steps_of(pipeline)),
+                pairs,
+                background,
+            )
+        except sampling.PermutationShapError as error:
+            raise MlError(str(error), "no_permutation_shap") from None
+
+    def _interactions(
+        self,
+        dataset_id: str,
+        pipeline: Any,
+        trained: Any,
+        conditions: list[Condition],
+        ranked: list[str],
+        count: int = pairing.COLUMNS,
+    ) -> pairing.Interactions:
+        """Friedman's H on the most important columns (R-XAI-13)."""
+        found = self._explained(dataset_id, pipeline, trained, conditions)
+        try:
+            return pairing.interactions(
+                pipeline, found.x, trained.task, ranked, self._left_out(pipeline, found), count
+            )
+        except pairing.InteractionError as error:
+            raise MlError(str(error), "no_interactions") from None
+
+    def _anchor(
+        self,
+        dataset_id: str,
+        pipeline: Any,
+        trained: Any,
+        conditions: list[Condition],
+        row: int,
+        ranked: list[str],
+        threshold: float = anchoring.THRESHOLD,
+        max_conditions: int = anchoring.MAX_CONDITIONS,
+    ) -> anchoring.Anchor:
+        """One row's anchor: a rule that holds on most similar rows (R-XAI-14)."""
+        found = self._explained(dataset_id, pipeline, trained, conditions)
+        classification = trained.classification
+        try:
+            return anchoring.anchor(
+                pipeline,
+                found.x,
+                found.rows,
+                trained.task,
+                row,
+                found.fields,
+                set(textual.steps_of(pipeline)),
+                ranked,
+                threshold,
+                max_conditions,
+                classification.threshold if classification else None,
+                found.positive,
+            )
+        except anchoring.AnchorError as error:
+            raise MlError(str(error), "no_anchor") from None
+
+    def _prototypes(
+        self,
+        dataset_id: str,
+        pipeline: Any,
+        trained: Any,
+        conditions: list[Condition],
+        ranked: list[str],
+        count: int = examples.PROTOTYPES,
+        criticisms: int = examples.CRITICISMS,
+    ) -> examples.Prototypes:
+        """Prototypes and criticisms of each class (R-XAI-15)."""
+        found = self._explained(dataset_id, pipeline, trained, conditions)
+        try:
+            return examples.prototypes(
+                pipeline,
+                found.x,
+                found.y,
+                found.rows,
+                trained.task,
+                found.fields,
+                set(textual.steps_of(pipeline)),
+                ranked,
+                count,
+                criticisms,
+            )
+        except examples.PrototypeError as error:
+            raise MlError(str(error), "no_prototypes") from None
+
+    # --- Models readable by construction (121, 122) ----------------------------------------------
+
+    def _readable_rows(
+        self,
+        dataset_id: str,
+        pipeline: Any,
+        trained: Any,
+        conditions: list[Condition],
+        held_out: mistakes.HeldOut | None,
+        tasks: frozenset[str] = frozenset({"binary"}),
+    ) -> Readable:
+        """R-XAI-05 and R-XAI-08: a run's rows to learn a card or a tree on, and its held-out
+        rows, where the model's probability (or prediction, for a number) was honest. `tasks`:
+        two classes for one card; 121 bis and 122 bis open more classes and numbers."""
+        classification = trained.classification
+        positive = classification.positive if classification else None
+        if trained.task not in tasks or (trained.task == "binary" and positive is None):
+            raise MlError(
+                "R-XAI-05: a scorecard gives the risk of one event: it needs a run with two "
+                "classes.",
+                "not_binary",
+            )
+        number = trained.task == "regression"
+        if held_out is None or (held_out.probabilities is None and not number):
+            raise MlError(
+                "This run kept no held-out predictions: train it again to compare a readable "
+                "model with it.",
+                "no_held_out",
+            )
+        fields, target, source = self._request(dataset_id, trained.target, None, conditions)
+        connection = duckdb.connect()
+        try:
+            frame = ml_data.load(
+                connection,
+                source,
+                fields,
+                target.name,
+                trained.validation.max_rows,
+                period_of(trained.validation, fields),
+            )
+        finally:
+            connection.close()
+        data = frame.data.reset_index(drop=True)
+        inputs = [str(c) for c in pipeline.feature_names_in_]
+        if [c for c in inputs if c not in data.columns] or data.empty:
+            raise MlError("The data changed since this run: train it again.")
+        series = cast(pd.Series, data[target.name])
+        if trained.classes is not None:
+            labels = binning.apply(series, trained.classes).astype(str)
+        else:
+            labels = trainer.prepare_target(series, trained.task).astype(str)
+        limit = interpretable.ROWS if not browser.active() else interpretable.BROWSER_ROWS
+        rows = readable.split(
+            cast(pd.Series, data["__row"]).to_numpy(dtype=int), held_out.rows, limit
+        )
+        if not len(rows.check) or not len(rows.learn):
+            raise MlError("Too few held-out rows to judge a readable model on.")
+        x = cast(pd.DataFrame, data[inputs])
+        types = {f.name: str(f.type) for f in fields}
+        if number:  # 122 bis: the model's held-out prediction stands for its probability
+            values = np.asarray(pd.to_numeric(series, errors="coerce"), dtype=float)
+            return Readable(
+                x.iloc[rows.learn].reset_index(drop=True),
+                values[rows.learn],
+                x.iloc[rows.check].reset_index(drop=True),
+                values[rows.check],
+                np.asarray(held_out.predicted, dtype=float)[rows.held],
+                "",
+                model_label(trained.model),
+                rows.source,
+                types,
+                "regression",
+            )
+        classes = list(held_out.classes)
+        y = labels.to_numpy()
+        if trained.task != "binary":  # 121 bis: one card per class
+            matrix = np.asarray(held_out.probabilities)[rows.held]
+            return Readable(
+                x.iloc[rows.learn].reset_index(drop=True),
+                y[rows.learn],
+                x.iloc[rows.check].reset_index(drop=True),
+                y[rows.check],
+                matrix[:, 0],
+                "",
+                model_label(trained.model),
+                rows.source,
+                types,
+                trained.task,
+                classes,
+                matrix,
+            )
+        if positive not in classes:
+            raise MlError("The held-out predictions do not name the positive class: train again.")
+        probability = np.asarray(held_out.probabilities)[rows.held, classes.index(positive)]
+        return Readable(
+            x.iloc[rows.learn].reset_index(drop=True),
+            y[rows.learn],
+            x.iloc[rows.check].reset_index(drop=True),
+            y[rows.check],
+            probability,
+            positive,
+            model_label(trained.model),
+            rows.source,
+            types,
+        )
+
+    def _risk_scores(
+        self,
+        dataset_id: str,
+        pipeline: Any,
+        trained: Any,
+        conditions: list[Condition],
+        held_out: mistakes.HeldOut | None,
+        k: int = interpretable.CONDITIONS,
+        bound: int = interpretable.BOUND,
+        monotone: bool = False,
+    ) -> interpretable.RiskScores:
+        """FasterRisk's scorecard (121) against the run's model, on the same held-out rows;
+        `monotone`: one direction of points per number (R-XAI-16)."""
+        found = self._readable_rows(dataset_id, pipeline, trained, conditions, held_out)
+        y_learn = (found.y_learn == found.positive).astype(float)
+        y_check = (found.y_check == found.positive).astype(float)
+        try:
+            return interpretable.risk_scores(
+                found.learn,
+                y_learn,
+                found.check,
+                y_check,
+                found.probability,
+                found.positive,
+                found.label,
+                found.source,
+                k,
+                bound,
+                set(textual.steps_of(pipeline)),
+                found.types,
+                monotone,
+            )
+        except interpretable.RiskScoreError as error:
+            raise MlError(str(error), "no_scorecard") from None
+
+    def _class_cards(
+        self,
+        dataset_id: str,
+        pipeline: Any,
+        trained: Any,
+        conditions: list[Condition],
+        held_out: mistakes.HeldOut | None,
+        k: int = interpretable.CONDITIONS,
+        bound: int = interpretable.BOUND,
+        monotone: bool = False,
+    ) -> interpretable.ClassCards:
+        """Three classes or more (121 bis, R-XAI-17): one card per class, against the model."""
+        found = self._readable_rows(
+            dataset_id, pipeline, trained, conditions, held_out, frozenset({"multiclass"})
+        )
+        assert found.classes is not None and found.probabilities is not None
+        try:
+            return interpretable.class_cards(
+                found.learn,
+                found.y_learn,
+                found.check,
+                found.y_check,
+                found.probabilities,
+                found.classes,
+                found.label,
+                found.source,
+                k,
+                bound,
+                set(textual.steps_of(pipeline)),
+                found.types,
+                monotone,
+            )
+        except interpretable.RiskScoreError as error:
+            raise MlError(str(error), "no_scorecard") from None
+
+    def _sparse_tree(
+        self,
+        dataset_id: str,
+        pipeline: Any,
+        trained: Any,
+        conditions: list[Condition],
+        held_out: mistakes.HeldOut | None,
+        depth: int = sparse.DEPTH,
+        leaves: int = sparse.LEAVES,
+    ) -> sparse.SparseTree:
+        """A sparse CART tree learnt on the target (122, R-XAI-09), against the run's model; for
+        three classes or more and for a number too (122 bis, R-XAI-19)."""
+        found = self._readable_rows(
+            dataset_id,
+            pipeline,
+            trained,
+            conditions,
+            held_out,
+            frozenset({"binary", "multiclass", "regression"}),
+        )
+        skip = set(textual.steps_of(pipeline)) | {
+            c for c, kind in found.types.items() if kind in {"text", "identifier"}
+        }
+        try:
+            return sparse.sparse_tree(
+                found.learn,
+                found.y_learn,
+                found.check,
+                found.y_check,
+                cast(Any, found.task),
+                depth,
+                leaves,
+                skip,
+                found.positive or None,
+                found.probability if found.task in ("binary", "regression") else None,
+                found.label,
+            )
+        except sparse.SparseTreeError as error:
+            raise MlError(str(error), "no_tree") from None
+
+    def _optimal(
+        self,
+        dataset_id: str,
+        pipeline: Any,
+        trained: Any,
+        conditions: list[Condition],
+        held_out: mistakes.HeldOut | None,
+        kind: str,
+        depth: int = optimal.DEPTH,
+    ) -> optimal.OptimalTree | optimal.RashomonSet:
+        """Advanced, More (122): GOSDT's optimal tree, or TreeFARMS's Rashomon set; refused
+        with R-XAI-10 when the `interpret` extra cannot run here."""
+        found = self._readable_rows(dataset_id, pipeline, trained, conditions, held_out)
+        skip = set(textual.steps_of(pipeline))
+        try:
+            if kind == "gosdt":
+                return optimal.optimal_tree(
+                    found.learn,
+                    found.y_learn,
+                    found.check,
+                    found.y_check,
+                    found.positive,
+                    depth,
+                    skip,
+                    found.types,
+                    found.probability,
+                    found.label,
+                )
+            return optimal.rashomon_set(
+                found.learn,
+                found.y_learn,
+                found.check,
+                found.y_check,
+                found.positive,
+                depth,
+                skip,
+                found.types,
+            )
+        except extras.ExtraMissing as error:
+            raise MlError(str(error), "extra_missing", 409) from None
+        except optimal.RashomonError as error:
+            raise MlError(str(error), "no_tree") from None
 
     def _neutralize(
         self,

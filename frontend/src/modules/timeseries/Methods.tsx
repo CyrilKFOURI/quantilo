@@ -80,6 +80,8 @@ export const CATALOGUE = {
       "sarima",
       "sarimax",
       "tslm",
+      "prophet_like",
+      "stlf",
       "structural",
       "gbm_lags",
       "mlp_lags",
@@ -87,6 +89,13 @@ export const CATALOGUE = {
       "sba",
       "tsb",
       "adida",
+      "chronos_bolt_tiny",
+      "chronos_bolt_small",
+      "chronos_bolt_base",
+      "chronos_2",
+      "timesfm_2p5",
+      "nhits",
+      "nbeats",
       "combination",
     ],
     defaults: ["naive", "seasonal_naive", "ets_auto", "arima_auto"],
@@ -149,6 +158,8 @@ const GROUPS: Partial<Record<Section, Group[]>> = {
         "sarima",
         "sarimax",
         "tslm",
+        "prophet_like",
+        "stlf",
       ],
     },
     { label: "ts.group.ml", keys: ["gbm_lags", "mlp_lags"] },
@@ -157,13 +168,35 @@ const GROUPS: Partial<Record<Section, Group[]>> = {
       keys: ["croston", "sba", "tsb", "adida"],
     },
     { label: "ts.group.combination", keys: ["combination"] },
+    // 028 phase B (onion rule): never ticked by default, folded; the trained networks deeper.
+    {
+      label: "ts.group.pretrained",
+      keys: [
+        "chronos_bolt_tiny",
+        "chronos_bolt_small",
+        "chronos_bolt_base",
+        "chronos_2",
+        "timesfm_2p5",
+      ],
+      fold: "advanced",
+    },
     { label: "ts.group.stateSpace", keys: ["structural"], fold: "more" },
+    { label: "ts.group.deep", keys: ["nhits", "nbeats"], fold: "more" },
   ],
 };
 
 /** Too slow without native threads: locked in the browser-only build. SARIMAX runs the
  * automatic ARIMA search at every origin, then refits once per driver. */
 export const LOCKED = new Set(LITE ? ["arima_auto", "sarima", "sarimax"] : []);
+/** The browser version cannot run PyTorch: the AI models (028 phase B) say so instead. */
+const LITE_AI: Partial<Record<string, MessageKey>> = LITE
+  ? Object.fromEntries(
+      ["chronos_bolt_tiny", "chronos_bolt_small", "chronos_bolt_base", "chronos_2", "timesfm_2p5", "nhits", "nbeats"].map(
+        (key) => [key, "fcai.state.browser" as MessageKey],
+      ),
+    )
+  : {};
+for (const key of Object.keys(LITE_AI)) LOCKED.add(key);
 
 /** Methods whose value is a change per period. */
 const SLOPES = new Set(["sen", "linear_trend"]);
@@ -198,6 +231,8 @@ export function MethodsRow({
   addLabel,
   label,
   align = "start",
+  onPick,
+  tag,
 }: {
   section: Section;
   chosen: string[];
@@ -212,6 +247,11 @@ export function MethodsRow({
   label?: string;
   /** "end" when "+ Add method" sits far right of its row: the list then opens leftwards. */
   align?: "start" | "end";
+  /** Called before ticking a method; true when it handled the click itself (a pretrained model
+   *  whose weights must be downloaded first opens its confirmation, 028 B1). */
+  onPick?: (key: string) => boolean;
+  /** A short tag after a method's name in the list ("Download · 35 MB"). */
+  tag?: (key: string) => string | null;
 }) {
   const [open, setOpen] = useState(false);
   const all = CATALOGUE[section].all as readonly string[];
@@ -243,7 +283,14 @@ export function MethodsRow({
           role="menuitemcheckbox"
           aria-checked={on}
           aria-disabled={locked || undefined}
-          onClick={() => !locked && toggle(key)}
+          onClick={() => {
+            if (locked) return;
+            if (!on && onPick?.(key)) {
+              setOpen(false);
+              return;
+            }
+            toggle(key);
+          }}
           className={`flex w-full items-start gap-2 rounded-md px-2.5 py-1.5 text-left ${locked ? "cursor-not-allowed opacity-60" : "hover:bg-surface-2"}`}
         >
           <span className="mt-0.5 size-3.5 shrink-0 text-accent">
@@ -254,10 +301,15 @@ export function MethodsRow({
               {name(key)}
               {LOCKED.has(key) && <LockBadge />}
               {badge?.(key)}
+              {!locked && tag?.(key) && (
+                <span className="rounded-full border border-line px-1.5 text-[11px] text-ink-2">
+                  {tag(key)}
+                </span>
+              )}
             </span>
             <span className="block text-xs text-ink-3">
               {LOCKED.has(key)
-                ? t("lite.methodLocked")
+                ? t(LITE_AI[key] ?? "lite.methodLocked")
                 : (unavailable[key] ?? t(`tsm.${key}.what` as MessageKey))}
             </span>
           </span>

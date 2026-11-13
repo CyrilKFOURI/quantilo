@@ -2,13 +2,17 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import Any
 
-import anthropic
-import httpx2
 import pytest
-from anthropic.types.beta import BetaMessage
 
-from app.modules.agent.engine.messages import Block, Message, user_text
-from app.modules.agent.engine.provider import (
+anthropic = pytest.importorskip(
+    "anthropic", reason="the assistant's `[agent]` extra is not installed"
+)
+httpx2 = pytest.importorskip("httpx2")
+
+from anthropic.types.beta import BetaMessage  # noqa: E402
+
+from app.modules.agent.engine.messages import Block, Message, user_text  # noqa: E402
+from app.modules.agent.engine.provider import (  # noqa: E402
     Completed,
     ProviderError,
     Request,
@@ -16,7 +20,7 @@ from app.modules.agent.engine.provider import (
     ThinkingDelta,
     ToolSpec,
 )
-from app.modules.agent.providers.anthropic import (
+from app.modules.agent.providers.anthropic import (  # noqa: E402
     FALLBACK_BETA,
     AnthropicProvider,
     build_params,

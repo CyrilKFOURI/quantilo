@@ -21,7 +21,12 @@ background (06), inspection photos of one object that all look alike to the hash
 then flags nothing and says so in `notes`; for R-VQ-10 only exact copies are grouped (R-VQ-11 and
 12 follow). Found on MVTec AD `bottle`: 100 % "overexposed", 70 % "near duplicates".
 
-R-VQ-16 (possibly mislabelled, out-of-fold probabilities) needs a model: it comes with 112.
+Two rules need more than the import and live in `MODEL_RULES` (Advanced, never run at import):
+- R-VQ-16, possibly mislabelled: a trained model's out-of-fold probabilities give the image's own
+  label less than 0.1 and another class more than 0.8 (`possibly_mislabelled`, run by 112's
+  classification and read on the Quality tab). A suggestion only: nothing is excluded.
+- R-VQ-17, semantic near-copies: the cosine of two frozen-network vectors (DINOv2) is at least
+  0.95 (`semantic_duplicates`); only the groups the hashes of R-VQ-10 did not already find.
 """
 
 from __future__ import annotations
@@ -36,6 +41,7 @@ import numpy as np
 import pyarrow as pa
 
 from quantilo.vision.duplicates import (
+    SEMANTIC_COSINE,
     DuplicateGroup,
     Leak,
     duplicate_groups,
@@ -43,6 +49,8 @@ from quantilo.vision.duplicates import (
     group_ids,
     label_conflicts,
     leaks,
+    semantic_groups,
+    semantic_pairs,
 )
 
 Effect = Literal["excluded", "flagged", "dataset"]
@@ -208,6 +216,35 @@ RULES: dict[str, QualityRule] = {
             "1 % of every set.",
             "flagged",
             ("outlier_z", "knn_k", "knn_quantile"),
+        ),
+    )
+}
+
+
+MISLABEL_GIVEN = 0.1  # R-VQ-16: the image's own label under this probability
+MISLABEL_OTHER = 0.8  # R-VQ-16: and another class over this one
+
+# Rules that read a trained model or a frozen network: Advanced, never run at the import.
+MODEL_RULES: dict[str, QualityRule] = {
+    r.code: r
+    for r in (
+        QualityRule(
+            "R-VQ-16",
+            "Possibly mislabelled",
+            "Confident learning: a model that never saw the image (out of fold) gives its label "
+            "less than 10 % and another class more than 80 %. Often a wrong label, sometimes a "
+            "hard image: a suggestion to check, nothing is excluded.",
+            "flagged",
+            ("given", "other"),
+        ),
+        QualityRule(
+            "R-VQ-17",
+            "Semantic near-copies",
+            "Two photos of the same thing from another angle or after an edit escape the hashes "
+            "of R-VQ-10; a frozen network (DINOv2) sees them as almost the same vector (cosine "
+            "at least 0.95). Reviewed side by side; a split should keep them on one side.",
+            "flagged",
+            ("cosine",),
         ),
     )
 }
@@ -706,6 +743,161 @@ def assess(
     )
 
 
+def possibly_mislabelled(
+    labels: Sequence[Any],
+    proba: np.ndarray,
+    classes: Sequence[str],
+    rows: Sequence[int],
+    *,
+    given: float = MISLABEL_GIVEN,
+    other: float = MISLABEL_OTHER,
+    model: str = "",
+    calibrated: bool = False,
+    scope: str = "",
+) -> QualityFinding:
+    """R-VQ-16 on out-of-fold probabilities (`proba[i]` for table row `rows[i]`, columns in the
+    order of `classes`). The rows are sorted by the other class's probability (the surest first);
+    `details` carries, per row, the label given, the class suggested and both probabilities."""
+    p = np.asarray(proba, dtype=float)
+    index = {str(c): k for k, c in enumerate(classes)}
+    found = []
+    for i, label in enumerate(labels):
+        k = index.get(str(label))
+        if k is None or not np.isfinite(p[i]).all():
+            continue
+        rest = p[i].copy()
+        rest[k] = -1.0
+        best = int(rest.argmax())
+        if p[i, k] < given and p[i, best] > other:
+            found.append((float(p[i, best]), int(rows[i]), str(label), str(classes[best]), p[i, k]))
+    found.sort(key=lambda f: (-f[0], f[1]))
+    rule = MODEL_RULES["R-VQ-16"]
+    where = f" by {model}" if model else ""
+    if found:
+        message = (
+            f"{_plural(len(found), 'image')} whose label gets less than {given:.0%} from a model "
+            f"that never saw {'it' if len(found) == 1 else 'them'}{where}, while another class "
+            f"gets more than {other:.0%}: check {'its' if len(found) == 1 else 'their'} label."
+        )
+    else:
+        message = f"No image looks mislabelled{where} (R-VQ-16)."
+    notes = []
+    if calibrated:
+        notes.append("Probabilities read after the temperature scaling of R-VM-06.")
+    if scope:
+        notes.append(scope)
+    return QualityFinding(
+        code="R-VQ-16",
+        title=rule.title,
+        message=message,
+        reason=rule.reason,
+        effect="flagged",
+        count=len(found),
+        rows=tuple(f[1] for f in found),
+        parameters={"given": given, "other": other},
+        details={
+            "model": model,
+            "checked": len(labels),
+            "notes": notes,
+            "images": [
+                {
+                    "row": r,
+                    "label": lab,
+                    "suggested": sug,
+                    "suggested_proba": round(q, 4),
+                    "label_proba": round(float(g), 4),
+                }
+                for q, r, lab, sug, g in found
+            ],
+        },
+    )
+
+
+def semantic_duplicates(
+    vectors: np.ndarray,
+    known: Sequence[DuplicateGroup] = (),
+    labels: Sequence[Any] | None = None,
+    split: Sequence[Any] | None = None,
+    *,
+    cosine: float = SEMANTIC_COSINE,
+    network: str = "",
+    common_share: float = QualityThresholds.common_share,
+    min_images: int = QualityThresholds.min_relative,
+) -> QualityFinding:
+    """R-VQ-17: groups of images whose frozen-network vectors have a cosine of at least `cosine`,
+    left out when R-VQ-09 / 10 already grouped them (`known`). `details.groups` lists each group
+    with its smallest cosine, whether its labels differ and whether it spans train and test.
+
+    The set's style is not a defect (as for R-VQ-10): when the groups would hold more than
+    `common_share` of the compared images (MVTec `bottle`: one object shot the same way, median
+    cosine 0.97), nothing is flagged and `details.style` says so."""
+    x = np.asarray(vectors, dtype=np.float32)
+    n = len(x)
+    pairs = semantic_pairs(x, cosine)
+    groups = semantic_groups(n, pairs, known)
+    computed = int(np.isfinite(x).all(axis=1).sum()) if n else 0
+    grouped = sum(len(g.rows) for g in groups)
+    style = None
+    if computed >= min_images and grouped > common_share * computed:
+        style = (
+            f"{network or 'The network'} sees {grouped:,} of {computed:,} images as near-copies "
+            f"(cosine at least {cosine:g}): they show the same subject the same way. R-VQ-17 "
+            "flags nothing: read as this set's style."
+        )
+        groups = []
+    lowest: dict[int, float] = {}
+    group_of = {r: g.group for g in groups for r in g.rows}
+    for i, j, c in pairs:
+        g = group_of.get(i)
+        if g is not None and group_of.get(j) == g:
+            lowest[g] = min(lowest.get(g, 1.0), c)
+    described = []
+    for g in groups:
+        names = {str(labels[r]) for r in g.rows if labels is not None and labels[r] is not None}
+        sides = {str(split[r]) for r in g.rows if split is not None and split[r] is not None}
+        described.append(
+            {
+                "group": g.group,
+                "kind": "semantic",
+                "rows": list(g.rows),
+                "keep": None,
+                "cosine": round(lowest.get(g.group, cosine), 4),
+                "two_labels": len(names) > 1,
+                "leak": "train" in sides and bool(sides & {"test", "val"}),
+            }
+        )
+    rows = tuple(r for g in groups for r in g.rows)
+    rule = MODEL_RULES["R-VQ-17"]
+    by = f" by {network}" if network else ""
+    if style:
+        message = style
+    elif groups:
+        message = (
+            f"{_plural(len(groups), 'group')} of near-copies seen{by} that the hashes of "
+            f"R-VQ-10 missed ({_plural(len(rows), 'image')}, cosine at least {cosine:g})."
+        )
+    else:
+        message = f"No semantic near-copy beyond R-VQ-10{by} (cosine at least {cosine:g})."
+    return QualityFinding(
+        code="R-VQ-17",
+        title=rule.title,
+        message=message,
+        reason=rule.reason,
+        effect="flagged",
+        count=len(rows),
+        rows=rows,
+        parameters={"cosine": cosine},
+        details={
+            "groups": described,
+            "pairs": len(pairs),
+            "compared": computed,
+            "leaks": sum(1 for d in described if d["leak"]),
+            "conflicts": sum(1 for d in described if d["two_labels"]),
+            "style": style,
+        },
+    )
+
+
 def thresholds_from(values: Mapping[str, Any] | None) -> QualityThresholds:
     """Thresholds from a mapping (the API's JSON); unknown names are refused by name."""
     if not values:
@@ -725,6 +917,9 @@ def thresholds_from(values: Mapping[str, Any] | None) -> QualityThresholds:
 
 
 __all__ = [
+    "MISLABEL_GIVEN",
+    "MISLABEL_OTHER",
+    "MODEL_RULES",
     "RULES",
     "QualityFinding",
     "QualityReport",
@@ -732,6 +927,8 @@ __all__ = [
     "QualityThresholds",
     "assess",
     "knn_distances",
+    "possibly_mislabelled",
     "robust_z",
+    "semantic_duplicates",
     "thresholds_from",
 ]

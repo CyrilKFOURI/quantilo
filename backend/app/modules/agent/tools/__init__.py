@@ -7,11 +7,13 @@ from quantilo.compare.service import CompareService
 from quantilo.correlations.service import CorrelationService
 from quantilo.profiling.service import ProfilingService
 from quantilo.regression.service import RegressionService
+from quantilo.rows.service import RowService
 from quantilo.variable.service import VariableService
 
 from app.modules.agent.engine.tools import Tool, ToolRegistry
 from app.modules.agent.repository import NoteRepository
 from app.services.columns.service import ColumnService
+from app.services.datasets.service import DatasetService
 from app.services.report.service import ReportService
 from app.services.versions.service import VersionService
 
@@ -28,6 +30,8 @@ class AppServices:
     reports: ReportService
     versions: VersionService | None = None  # what changed between two versions (031)
     regression: RegressionService | None = None  # the Regression tab (068)
+    datasets: DatasetService | None = None  # how a dataset was read from its file (describe_layout)
+    rows: RowService | None = None  # raw rows, for sample_rows (R-AG-P2)
 
 
 def default_registry(
@@ -41,6 +45,7 @@ def default_registry(
         ListColumns,
         ProfileColumn,
     )
+    from app.modules.agent.tools.layout import DescribeLayout
     from app.modules.agent.tools.memory import GetPlaybook, Remember
     from app.modules.agent.tools.regression import FitRegression
     from app.modules.agent.tools.relations import (
@@ -50,13 +55,16 @@ def default_registry(
         RankAssociationsWith,
     )
     from app.modules.agent.tools.report import ExportReport
+    from app.modules.agent.tools.rows import SampleRows
 
     return ToolRegistry(
         [
             GetDatasetOverview(services),
+            DescribeLayout(services),
             ListColumns(services),
             ProfileColumn(services),
             CountRows(services),
+            SampleRows(services),
             CompareColumns(services),
             GetCorrelations(services),
             RankAssociationsWith(services),

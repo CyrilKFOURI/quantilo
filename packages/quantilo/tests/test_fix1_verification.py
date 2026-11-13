@@ -137,13 +137,17 @@ def test_assembled_date_is_suggested_and_reversible(tmp_path: Path) -> None:
     assert len(found) == 1
     suggestion = found[0]
     assert suggestion.mode == "S"  # proposed, never ticked by default
-    assert suggestion.columns == ["an", "mois", "jour"]
+    # C1: the time of day in `hrmn` ("07:40") joins the date (it was left out by fix1)
+    assert suggestion.columns == ["an", "mois", "jour", "hrmn"]
     assert isinstance(suggestion.step, AssembleDate) and suggestion.step.to == "date"
+    assert suggestion.step.time == "hrmn" and suggestion.step.hour is None
     assert not any(step.rule == "B-20" for step in cleaning.steps)
     assert "800 of 800 rows" in suggestion.reason
     cleaned = cleaning.use(suggestion.id).apply(cache_dir=tmp_path / "cache")
     assert cleaned.column("date").type == "datetime"
     assert {"jour", "mois", "an"} <= set(cleaned.columns)  # the parts stay
+    first = cleaned.to_pandas(["date", "hrmn"]).head(1)
+    assert str(first["date"].iloc[0])[11:16] == accidents()["hrmn"].iloc[0]
     assert ds.columns == list(accidents().columns)  # the source is never changed
     setup = cleaned.timeseries().setup()
     assert setup.time == "date"

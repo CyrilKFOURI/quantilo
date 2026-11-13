@@ -1,5 +1,7 @@
 """062: regimes of a series, a statsmodels MarkovRegression read with rules."""
 
+from typing import Any
+
 import numpy as np
 import pytest
 from statsmodels.tsa.regime_switching.markov_regression import MarkovRegression
@@ -30,9 +32,9 @@ def test_a_random_walk_is_read_through_its_changes(walk) -> None:
 
 def test_same_numbers_as_statsmodels(walk) -> None:
     found = rg.find_regimes(walk, k=2, on="changes")
-    direct = MarkovRegression(np.diff(walk), k_regimes=2, trend="c", switching_variance=True).fit(
-        disp=False
-    )
+    direct: Any = MarkovRegression(
+        np.diff(walk), k_regimes=2, trend="c", switching_variance=True
+    ).fit(disp=False)
     durations = sorted(float(d) for d in direct.expected_durations)
     ours = sorted(r.expected_duration or 0 for r in found.regimes)
     assert ours == pytest.approx(durations, rel=0.02)

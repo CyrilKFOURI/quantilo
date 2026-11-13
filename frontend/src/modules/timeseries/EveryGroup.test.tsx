@@ -126,6 +126,7 @@ const result: GroupForecast = {
   notes: [],
   workers: 4,
   seconds: 2,
+  batch_models: [],
 };
 const job = { id: "g1", status: "done", done: 3, total: 3, stage: "reconcile", current: null, result, error: null };
 const model = (key: string) => ({

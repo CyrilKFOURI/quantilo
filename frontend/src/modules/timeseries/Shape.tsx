@@ -37,13 +37,13 @@ function volatilityFigure(data: SeriesVolatility): Figure {
       xaxis: { type: "date", anchor: "y2" },
       yaxis: {
         domain: [0.45, 1],
-        title: { text: "Residuals", font: { size: 11 } },
+        title: { text: t("fig.ts.residuals"), font: { size: 11 } },
         zeroline: true,
         zerolinecolor: tokens.line,
       },
       yaxis2: {
         domain: [0, 0.38],
-        title: { text: "Rolling σ", font: { size: 11 } },
+        title: { text: t("fig.ts.rollingSigma"), font: { size: 11 } },
         rangemode: "tozero",
       },
     };
@@ -54,7 +54,7 @@ function volatilityFigure(data: SeriesVolatility): Figure {
           x: data.periods,
           y: data.residuals,
           marker: { color: withAlpha(tokens.ink3, 0.6) },
-          hovertemplate: "Residual: %{y:,.4g}<extra></extra>",
+          hovertemplate: t("fig.ts.hoverResidual"),
         } as Data,
         {
           type: "scatter",
@@ -63,7 +63,7 @@ function volatilityFigure(data: SeriesVolatility): Figure {
           y: data.rolling_std,
           yaxis: "y2",
           line: { color: tokens.palette[0] ?? tokens.numeric, width: 2 },
-          hovertemplate: `${data.window}-period σ: %{y:,.4g}<extra></extra>`,
+          hovertemplate: t("fig.ts.hoverPeriodSigma", { window: String(data.window) }),
         } as Data,
       ],
       layout,
@@ -166,7 +166,7 @@ export function ResidualsBody({
             shape.qq.theoretical,
             shape.qq.sample,
             { slope: shape.qq.slope, intercept: shape.qq.intercept },
-            "Normal quantiles",
+            t("fig.ts.normalQuantiles"),
           )
         : null,
     [shape],
@@ -290,7 +290,7 @@ function breaksFigure(data: SeriesBreaks): Figure {
         {
           type: "scatter",
           mode: "lines",
-          name: data.deseasonalized ? "Series without seasonality" : "Series",
+          name: data.deseasonalized ? t("fig.ts.seriesWithoutSeasonality") : t("fig.ts.series"),
           x: data.periods,
           y: data.values,
           line: {
@@ -302,7 +302,7 @@ function breaksFigure(data: SeriesBreaks): Figure {
         {
           type: "scatter",
           mode: "lines",
-          name: trend ? "Segment trend" : "Segment mean",
+          name: trend ? t("fig.ts.segmentTrend") : t("fig.ts.segmentMean"),
           x: data.periods,
           y: means,
           line: {
@@ -310,12 +310,12 @@ function breaksFigure(data: SeriesBreaks): Figure {
             width: 2.5,
             shape: "hv",
           },
-          hovertemplate: "Segment mean: %{y:,.4g}<extra></extra>",
+          hovertemplate: t("fig.ts.hoverSegmentMean"),
         } as Data,
         {
           type: "scatter",
           mode: "markers",
-          name: "Anomalies",
+          name: t("fig.ts.anomalies"),
           x: data.anomalies.map((a) => a.period),
           y: data.anomalies.map((a) => data.values[a.index]),
           marker: {
@@ -324,7 +324,7 @@ function breaksFigure(data: SeriesBreaks): Figure {
             symbol: "circle-open",
             line: { width: 2 },
           },
-          hovertemplate: "%{x}: anomaly<extra></extra>",
+          hovertemplate: t("fig.ts.hoverAnomaly"),
         } as Data,
       ],
       layout: {

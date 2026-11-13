@@ -4,7 +4,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 
-from app.schemas.joins import JoinIn, JoinPreviewOut, JoinSuggestIn, JoinSuggestOut
+from app.schemas.joins import (
+    JoinIn,
+    JoinLineageOut,
+    JoinPreviewOut,
+    JoinSuggestIn,
+    JoinSuggestOut,
+)
 from app.schemas.model import CreatedOut
 from app.services.joins import JoinService
 
@@ -34,3 +40,15 @@ def preview_join(dataset_id: str, body: JoinIn, service: Service) -> JoinPreview
 def create_join(dataset_id: str, body: JoinIn, service: Service) -> CreatedOut:
     """Write the joined dataset (after the user confirmed the preview) and import it."""
     return service.create(dataset_id, body)
+
+
+@router.get("")
+def join_lineage(dataset_id: str, service: Service) -> JoinLineageOut:
+    """C1 (R-JN-06): what this joined dataset was made of, and whether it is out of date."""
+    return service.lineage(dataset_id)
+
+
+@router.post("/rebuild")
+def rebuild_join(dataset_id: str, service: Service) -> CreatedOut:
+    """C1: the same join on the sources as they are now (the previous version is kept)."""
+    return service.rebuild(dataset_id)

@@ -109,7 +109,11 @@ const runDetail = (status = "warning", stepsOut = [
   },
   changes: { level: "check", level_label: "Check", headline: "Compared with ventes_octobre: +3.1% rows.", vs: "d0" },
   compared: [
-    { id: "s4", label: "Revenue", kind: "kpi", value: 1200, previous: 1000, change: 200, change_pct: 0.2, detail: null, higher_is_better: null },
+    {
+      id: "s4", label: "Revenue", kind: "kpi", value: 1200, previous: 1000, change: 200, change_pct: 0.2, detail: null, higher_is_better: null,
+      attained: 1.04, previous_attained: 0.92, crossed: "reached",
+      goal: "◎ Revenue reached its target: 104% of target in Nov 2025, 92% at the previous run (R-GOAL-04)",
+    },
   ],
   previous_run_id: "run1",
   recipe_name: "Ventes mensuelles",
@@ -133,6 +137,8 @@ describe("RecipePage", () => {
     const report = await screen.findByRole("region", { name: "Run report" });
     expect(within(report).getByText("Compared with ventes_octobre: +3.1% rows.")).toBeInTheDocument();
     expect(within(report).getByText(/\+200 \(\+20\.0%\)/)).toBeInTheDocument();
+    // 061 bis: a target crossed since the previous run is said in words (R-GOAL-04)
+    expect(within(report).getByText(/Revenue reached its target: 104% of target/)).toBeInTheDocument();
     expect(within(report).getByText(/40% of the values/)).toBeInTheDocument();
     expect(within(report).getAllByText("Done with a warning").length).toBeGreaterThan(0);
     expect(within(report).getByText("Uses churn, missing from the file.")).toBeInTheDocument();

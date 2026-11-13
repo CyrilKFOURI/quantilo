@@ -20,6 +20,7 @@ DERIVED_SHARE = 0.95
 DERIVED_ROWS = 10
 DERIVED_ROWS_NAMED = 3
 SPARSE_SHARE = 0.75
+MAX_BALANCE_PAIRS = 12  # K5: columns among which a (money in, money out) pair is looked for
 MIN_PERIODS = 4
 _NUMBERED = re.compile(r"^(.*?\D)\s*(\d{1,3})$")
 _TOTAL_NAME = re.compile(r"\b(total|sum|somme)\b", re.I)
@@ -70,6 +71,61 @@ def derived_columns(facts: Facts) -> list[RuleHit]:
                         "K1",
                         0.0,
                         f"'{plan.name}' is the sum of {names} on "
+                        f"{ok / checked:.0%} of the rows: marked derived.",
+                    )
+                )
+                break
+    return hits
+
+
+def running_balance(facts: Facts) -> list[RuleHit]:
+    """K5 (C1): a running balance. A column whose value is, row after row, the previous one plus
+    an amount column (`balance = previous + amount`) or plus one column and minus another (money
+    in, money out) on 95 % of the rows: marked derived, like a sum of columns (K1), and said in
+    the table's reasons. It is computed from the others: a long format leaves it out."""
+    hits = []
+    numeric = [p for p in facts.columns if p.dtype == "number"]
+    grid = facts.grid
+    values = {
+        p.source_col: [numeric_value(grid.value(r, p.source_col - 1)) for r in facts.rows]
+        for p in numeric
+    }
+    for plan in numeric:
+        if plan.role == "derived":  # a sum of columns (K1) is no balance
+            continue
+        balance = values[plan.source_col]
+        others = [p for p in numeric if p is not plan]  # a total of money in counts (K1)
+        pairs: list[tuple[ColumnPlan, ColumnPlan | None]] = [(p, None) for p in others]
+        # money in, money out: any pair among a few columns, else the totals (K1) only
+        among = (
+            others
+            if len(others) <= MAX_BALANCE_PAIRS
+            else [p for p in others if p.role == "derived"]
+        )
+        pairs += [(a, b) for a in among for b in among if a is not b]
+        for plus, minus in pairs:
+            checked = ok = moved = 0
+            for i in range(1, len(balance)):
+                before, now = balance[i - 1], balance[i]
+                add = values[plus.source_col][i]
+                take = values[minus.source_col][i] if minus is not None else None
+                if before is None or now is None or (add is None and take is None):
+                    continue
+                checked += 1
+                change = (add or 0.0) - (take or 0.0)
+                ok += _close(now, before + change)
+                moved += change != 0
+                if checked == DERIVED_ROWS and ok < checked - 1:  # cheap early exit
+                    break
+            enough = checked >= DERIVED_ROWS and moved >= DERIVED_ROWS_NAMED
+            if enough and ok / checked >= DERIVED_SHARE:
+                plan.role = "derived"
+                how = f"plus '{plus.name}'" + (f" minus '{minus.name}'" if minus else "")
+                hits.append(
+                    RuleHit(
+                        "K5",
+                        0.0,
+                        f"'{plan.name}' is a running balance (the row above {how}) on "
                         f"{ok / checked:.0%} of the rows: marked derived.",
                     )
                 )

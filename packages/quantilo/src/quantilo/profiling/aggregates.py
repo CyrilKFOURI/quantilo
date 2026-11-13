@@ -103,19 +103,30 @@ def _labels(connection: duckdb.DuckDBPyConnection, source: str, view: Any) -> li
 def _code_column(
     connection: duckdb.DuckDBPyConnection, source: str, entity: Any, views: Sequence[Any]
 ) -> tuple[Any, dict[str, str]] | None:
-    """A column naming a code (iso_code, country_code) with at most one code per label."""
-    for view in views:
-        if view.name == entity.name or view.type in NUMBERS or view.type == "datetime":
-            continue
-        if semantics.code_by_name(view.name) is None and "iso" not in name_tokens(view.name):
-            continue
-        label, code = _label(entity), _label(view)
-        rows = connection.execute(
-            f"SELECT {label}, max({code}), count(DISTINCT {code}) FROM {source} "
-            f"WHERE {label} IS NOT NULL GROUP BY 1"
-        ).fetchall()
-        if rows and all(int(k) <= 1 for _, _, k in rows):
-            return view, {str(lab): str(c) for lab, c, _ in rows if c is not None}
+    """A column naming a code (iso_code, country_code) with at most one code per label (the first
+    such column). N43 (cleaning audit): every candidate in one query, a label having at most one
+    code when its smallest and largest codes are equal (or it has none)."""
+    candidates = [
+        view
+        for view in views
+        if view.name != entity.name
+        and view.type not in NUMBERS
+        and view.type != "datetime"
+        and (semantics.code_by_name(view.name) is not None or "iso" in name_tokens(view.name))
+    ]
+    if not candidates:
+        return None
+    label = _label(entity)
+    parts = ", ".join(f"max({_label(v)}), min({_label(v)})" for v in candidates)
+    rows = connection.execute(
+        f"SELECT {label}, {parts} FROM {source} WHERE {label} IS NOT NULL GROUP BY 1"
+    ).fetchall()
+    if not rows:
+        return None
+    for index, view in enumerate(candidates):
+        high, low = 1 + 2 * index, 2 + 2 * index
+        if all(row[high] is None or row[high] == row[low] for row in rows):
+            return view, {str(row[0]): str(row[high]) for row in rows if row[high] is not None}
     return None
 
 

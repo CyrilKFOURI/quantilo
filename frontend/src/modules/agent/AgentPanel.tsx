@@ -11,6 +11,7 @@ import { ErrorNote, Select } from "../../ui/fields";
 import { describePage } from "./links";
 import { AssistantMessage, UserMessage } from "./Message";
 import { NotesView } from "./NotesView";
+import { privacyText } from "./RowsCard";
 import { formatTokens, SettingsView } from "./SettingsView";
 import { useAgentSettings, useConversation, useConversations, useDeleteConversation, useTurn } from "./useAgent";
 
@@ -83,6 +84,7 @@ function Chat({ datasetId, onClose }: { datasetId: string; onClose: () => void }
   }, [messages.length, state.live?.text, state.live?.steps.length]);
 
   const ready = settings.data?.ready;
+  const sharing = settings.data?.rows_sharing ?? "never";
 
   const ask = async (text: string) => {
     const page = describePage(location.pathname, location.search as Record<string, unknown>);
@@ -161,13 +163,21 @@ function Chat({ datasetId, onClose }: { datasetId: string; onClose: () => void }
         </div>
       ) : view === "settings" && settings.data ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <SettingsView settings={settings.data} onDone={() => setView("chat")} />
+          <SettingsView datasetId={datasetId} settings={settings.data} onDone={() => setView("chat")} />
         </div>
       ) : (
         <>
           <div ref={scroller} className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4" aria-live="polite">
-            {settings.data && !ready && <Setup sdk={settings.data.sdk_installed} onSettings={() => setView("settings")} />}
-            {ready && messages.length === 0 && !state.live && <Suggestions datasetId={datasetId} onPick={ask} />}
+            {settings.data && !ready && (
+              <Setup sdk={settings.data.sdk_installed} privacy={privacyText(sharing)} onSettings={() => setView("settings")} />
+            )}
+            {ready && messages.length === 0 && !state.live && (
+              <Suggestions
+                datasetId={datasetId}
+                privacy={sharing !== "never" ? privacyText(sharing) : null}
+                onPick={ask}
+              />
+            )}
             {messages.map((message, index) =>
               message.role === "user" ? (
                 <UserMessage key={index} text={message.text} />
@@ -220,12 +230,12 @@ function Chat({ datasetId, onClose }: { datasetId: string; onClose: () => void }
   );
 }
 
-function Setup({ sdk, onSettings }: { sdk: boolean; onSettings: () => void }) {
+function Setup({ sdk, privacy, onSettings }: { sdk: boolean; privacy: string; onSettings: () => void }) {
   return (
     <div className="space-y-3 rounded-xl border border-line bg-surface-0 p-4 text-[13px]">
       <p className="font-medium text-ink-1">{t("agent.setupTitle")}</p>
       <p className="text-ink-2">{sdk ? t("agent.setupKey") : t("agent.sdkMissing")}</p>
-      <p className="text-xs text-ink-3">{t("agent.privacy")}</p>
+      <p className="text-xs text-ink-3">{privacy}</p>
       {sdk && (
         <Button variant="primary" onClick={onSettings}>
           {t("agent.addKey")}
@@ -235,7 +245,16 @@ function Setup({ sdk, onSettings }: { sdk: boolean; onSettings: () => void }) {
   );
 }
 
-function Suggestions({ datasetId, onPick }: { datasetId: string; onPick: (text: string) => void }) {
+/** The empty conversation: three questions, and what leaves this computer when rows can be shared. */
+function Suggestions({
+  datasetId,
+  privacy,
+  onPick,
+}: {
+  datasetId: string;
+  privacy: string | null;
+  onPick: (text: string) => void;
+}) {
   const columns = useColumns(datasetId, true);
   const target = columns.data?.find((c) => !c.excluded && (c.type === "boolean" || c.type === "categorical_nominal"));
   const questions = [
@@ -246,6 +265,7 @@ function Suggestions({ datasetId, onPick }: { datasetId: string; onPick: (text: 
   return (
     <div className="space-y-3">
       <p className="text-[13px] text-ink-2">{t("agent.intro")}</p>
+      {privacy && <p className="text-xs text-ink-3">{privacy}</p>}
       <ul className="space-y-2">
         {questions.map((question) => (
           <li key={question}>

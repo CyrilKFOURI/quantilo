@@ -9,16 +9,25 @@ near-duplicates.
 - A-05: a minority of a number column 100 or 1,000 times off (cents, grams, 0–1 percentages).
 - A-10: a column that determines another (city → country) except on a few rows.
 - A-11, A-12, A-13: dates in the wrong order, totals that are not their parts, ages that contradict
-  the birth date.
+  the birth date. Each one proposes the conditional step (C-45, `set_where`, `swap_values`).
 - A-15: rows equal once normalized, apart from an identifier or a free text.
+- B1 (rules/shapes.py, rules/distributions.py, rules/linkage.py): A-04 shapes of codes, phones and
+  e-mails; A-14 dates written another way (day and month, two-digit years, time zones); A-06
+  outliers, A-07 floating-point noise, A-08 Benford, A-09 last digits; A-16 near-duplicates by
+  Fellegi–Sunter; A-17 rows mostly empty.
+- F-02 (rules/formats.py, audit 2026-11-12 N21): identifiers whose check digit fails (SIREN, SIRET,
+  French VAT, IBAN, EAN / UPC, ISBN), flagged, never corrected; F-01 (N20) phones in the
+  international form; F-04 (N24) countries written one way; F-05 (N23) quantities with
+  a unit read as numbers.
 """
 
 from __future__ import annotations
 
 import math
 import re
-from collections import defaultdict
-from collections.abc import Sequence
+import time
+from collections import Counter, defaultdict
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -27,6 +36,7 @@ import numpy as np
 
 from quantilo import semantics
 from quantilo.catalog import ColumnView
+from quantilo.cleaning import formula as fx
 from quantilo.cleaning import model as m
 from quantilo.cleaning import phonetic as ph
 from quantilo.cleaning import text as tx
@@ -40,7 +50,7 @@ from quantilo.cleaning.compile import (
 )
 from quantilo.cleaning.rules import basic
 from quantilo.cleaning.rules.basic import Column, Context, TextStages, n, q
-from quantilo.cleaning.suggestion import CleanSuggestion, Example, Mode
+from quantilo.cleaning.suggestion import CleanSuggestion, Example, MergeGroup, MergeValue, Mode
 from quantilo.ingestion.sql import ident, lit
 from quantilo.typing.parsers import clean_text, number_sql
 
@@ -60,11 +70,21 @@ FD_COLUMNS = 14
 FD_MAX = 10
 FD_SECOND_ROWS = 5  # C-27: a second answer this frequent for one value of A is real
 FD_SECOND_SHARE = 0.1  # (Dominique: M and F), not an error
+FD_SECOND_NAMES = 0.02  # N15: from a first name, a second answer from 2 % of its rows (Claude: F)
+FD_MAJORITY = 3  # N15: a value of A is corrected only if its majority has this many rows
+FD_EXPLAINED = 3  # N15: rows of A = a and C = c that all say b′: a real exception, not a typo
+FD_COPY = 0.95  # … a column equal to B on this share of rows is a copy of B, no evidence
+FD_CONTEXT = 24  # … C among this many text columns (the finest first)
+FD_CONTEXT_ROWS = 50_000  # … read on this many rows at most
 UNIT_FACTORS = (100, 1000)
 UNIT_TOLERANCE = 0.15  # log10: the two groups' quantiles are this close once rescaled
 UNIT_SHARE = (0.01, 0.30)
 UNIT_MIN_VALUES = 10
 UNIT_SPLITS = 30  # the widest gaps between distinct values tried as the split
+# N17: in a percentage, a minority of small values a hundred times smaller is a real low tail
+# (scores of 0.04 %) unless a gap of this many powers of ten parts it from the others
+UNIT_PERCENT_GAP = 0.5
+PERCENT_WORDS = {"pct", "percent", "percentage", "pourcentage", "pourcent", "100g"}
 ORDER_SHARE = 0.95  # A-11
 TOTAL_SHARE = 0.95  # A-12
 TOTAL_COLUMNS = 10
@@ -76,24 +96,88 @@ NEAR_SHARE = 0.05  # A-15: normalized duplicates are at most this share of the r
 NEAR_KEYS = 3
 NEAR_ANCHOR = 20  # A-15: a key column naming the record (a date, a customer…) has this many values
 SEPARATORS = r"[\s.,;:'\"`_/\\()\[\]-]+"  # A-15: what normalizing removes
+LIST_SHARE = 0.3  # N13: rows holding a separator for a column of lists
+LIST_VALUES = 5  # … among this many distinct values at least
+LIST_DISTINCT = 0.1  # … or this share of the distinct values, when their items stand alone
+LIST_REPEAT = 0.5  # … and this share of item occurrences seen in two values or more
 FREE_WORDS = {"note", "notes", "comment", "comments", "remark", "remarks", "message", "feedback"}
+# N44 (audit 2026-11-12): bounds on a wide file. A-01 to A-03 on this many category text columns
+# at most, those with the fewest distinct values per row; the checks not started after this
+# many seconds are left out. Either way a note (A-00) names what was not checked.
+SPELLING_COLUMNS = 60
+TIME_BUDGET = 15.0
 ORDER = {
+    "A-00": 100,  # N44: what a wide file left unchecked, first
+    "A-14": 105,  # C-46: dates rewritten before B-11 reads them (110)
     "A-01": 200,
     "A-02": 210,
     "A-03": 220,
+    "F-01": 224,  # N20: phones in the international form, before A-04's layout (rules/formats.py)
+    "A-21": 222,  # N30: business synonyms (rules/synonyms.py), after the spellings
+    "A-04": 225,
+    "F-02": 226,  # N21: identifiers with a check digit (rules/formats.py)
+    "F-04": 227,  # N24: countries written several ways (rules/formats.py)
+    "F-05": 228,  # N23: quantities with a unit read as numbers (rules/formats.py)
     "A-05": 230,
+    "A-07": 232,
+    "A-06": 235,
     "A-15": 240,
+    "A-16": 245,
+    "A-20": 247,  # N36: one entity written several ways, numbered (rules/entities.py)
+    "A-17": 250,
+    "A-18": 255,  # N33: a value of a group repeated on its rows
+    "A-19": 256,  # N34: two columns that say the same thing
     "A-10": 300,
     "A-11": 310,
     "A-12": 320,
     "A-13": 330,
+    "A-08": 340,
+    "A-09": 350,
 }
+# 096 (shared with the Basic layer): how each rule changes the dataset; by step when a rule
+# proposes two steps (A-06: a flag column, or the values capped).
+IMPACT: dict[str, m.Impact] = {
+    "A-00": "values",  # N44: a note, no step
+    "A-01": "values",
+    "A-02": "values",
+    "A-03": "values",
+    "A-04": "values",
+    "A-05": "values",
+    "A-06": "values",
+    "A-07": "format",  # 0.30000000000000004 → 0.3: the number as written, nothing lost
+    "A-08": "values",
+    "A-09": "values",
+    "A-10": "values",
+    "A-11": "values",
+    "A-12": "values",
+    "A-13": "values",
+    "A-14": "values",
+    "A-15": "rows",
+    "A-16": "rows",
+    "A-20": "columns",  # N36: an entity number, the names unchanged
+    "A-17": "rows",
+    "A-18": "values",  # N33: an information, no step
+    "A-19": "columns",  # N34: a copy removed, or an information
+    "F-02": "columns",  # N21: a flag column (the IBAN's electronic form says "format")
+    "F-04": "values",  # N24: a country written one way (variants merged)
+    "F-01": "format",  # N20: the same number, written in the international form
+    "F-05": "columns",  # N23: new columns of numbers (grams, litres, metres) and units
+    "A-21": "values",  # N30: business synonyms merged
+}
+STEP_IMPACT: dict[tuple[str, str], m.Impact] = {
+    ("A-06", "conditional_column"): "columns",
+}
+FIX_CASES = 200  # A-10: values of A corrected by one step at most
 NULL_TOKENS = basic.SURE_TOKENS | basic.WEAK_TOKENS
 START_WORDS = {"start", "begin", "beginning", "from", "open", "opened", "checkin", "pickup"}
 START_WORDS |= {"arrival", "debut", "hire", "hired", "entry", "admission", "admitted"}
+# N16: the words of a record's first date (nyc_311 created_date, a filing, an order)
+START_WORDS |= {"created", "received", "filed", "submitted", "issued", "ordered"}
 END_WORDS = {"end", "ending", "finish", "finished", "until", "close", "closed", "checkout"}
 END_WORDS |= {"dropoff", "departure", "fin", "termination", "terminated", "exit", "discharge"}
 END_WORDS |= {"discharged", "expiry", "expiration", "expires", "due"}
+END_WORDS |= {"resolved", "shipped", "delivered"}  # N16
+SWAP_DAYS = 60  # N16: two dates swapped are this close; further apart, one of them is wrong
 BIRTH_WORDS = {"birth", "birthday", "dob", "born", "naissance", "birthdate"}
 SINGLE_TOKEN = re.compile(r"^(?:[a-z]|\d+)$")
 
@@ -126,8 +210,18 @@ class Advanced:
     basic_found: list[CleanSuggestion]
     found: list[CleanSuggestion] = field(default_factory=list)
     merges: dict[str, dict[str, str]] = field(default_factory=dict)  # column → final → canonical
+    # column → (raw → after the Basic text fixes, folded key → its display): `variants`
+    spellings: dict[str, tuple[dict[str, str], dict[str, str]]] = field(default_factory=dict)
     sampled: bool = False
     sample_rows: int = 0
+    # N44: when the checks started, and what the bounds left out (column names, check names)
+    started: float = field(default_factory=time.monotonic)
+    unchecked: list[str] = field(default_factory=list)  # beyond SPELLING_COLUMNS
+    late_columns: list[str] = field(default_factory=list)  # A-01 to A-03, out of time
+    late_checks: list[str] = field(default_factory=list)
+
+    def out_of_time(self) -> bool:
+        return time.monotonic() - self.started > TIME_BUDGET
 
     def add(
         self,
@@ -141,11 +235,13 @@ class Advanced:
         rows: int = 0,
         examples: Sequence[tuple[str | None, str | None]] | None = None,
         key: str | None = None,
-        impact: m.Impact = "values",
+        impact: m.Impact | None = None,
     ) -> None:
         if step is not None:
             step.origin = "suggested"
             step.rule = rule
+        if impact is None:
+            impact = STEP_IMPACT.get((rule, step.op if step is not None else "")) or IMPACT[rule]
         target = "+".join(c.name for c in columns) if columns else "rows"
         suggestion = CleanSuggestion(
             id=f"{rule}:{target}" + (f":{key}" if key else ""),
@@ -259,7 +355,13 @@ def _spelling_columns(advanced: Advanced) -> list[tuple[Column, TextStages]]:
         if not basic._is_category(column) or basic._converted(column) or basic._is_code(stages):
             continue
         found.append((column, stages))
-    return found
+    if len(found) <= SPELLING_COLUMNS:
+        return found
+    # N44: the most categorical (fewest distinct values per row) first, checked in their order
+    ranked = sorted(found, key=lambda i: (i[0].distinct / max(i[0].nonnull, 1), i[0].position))
+    kept = {column.name for column, _ in ranked[:SPELLING_COLUMNS]}
+    advanced.unchecked += [column.name for column, _ in found if column.name not in kept]
+    return [(column, stages) for column, stages in found if column.name in kept]
 
 
 def _merge_suggestion(
@@ -310,44 +412,115 @@ def _merge_suggestion(
         for canon, members in pairs
         for unit in sorted(members, key=lambda u: -u.rows)
     ]
+    step_map = basic._capped(mapping, weights)
     advanced.add(
         rule,
         "S",
         [column],
         title,
         reason,
-        m.MapValues(id=_id(), column=column.name, map=basic._capped(mapping, weights)),
+        m.MapValues(id=_id(), column=column.name, map=step_map),
         cells=cells,
         examples=examples,
     )
+    advanced.found[-1].clusters = _clusters(pairs, step_map)
+
+
+def _clusters(pairs: list[tuple[Unit, list[Unit]]], step_map: dict[str, Any]) -> list[MergeGroup]:
+    """N38: each group of a merge with its values and their rows, the most frequent first; only
+    the spellings the (capped) map holds, so the page's review writes back exactly that map."""
+    clusters = []
+    for canonical, others in pairs:
+        values = [
+            MergeValue(
+                value=unit.display,
+                rows=unit.rows,
+                spellings=sorted(s for s in unit.spellings if s in step_map),
+            )
+            for unit in sorted(others, key=lambda u: (-u.rows, u.display))
+        ]
+        values = [value for value in values if value.spellings]
+        if values:
+            clusters.append(
+                MergeGroup(target=canonical.display, rows=canonical.rows, values=values)
+            )
+    return clusters
 
 
 def spellings(advanced: Advanced) -> None:
     for column, stages in _spelling_columns(advanced):
+        if advanced.out_of_time():  # N44
+            advanced.late_columns.append(column.name)
+            continue
         units = units_of(stages)
         if len(units) < 2:
             continue
         person = basic._person_names(column)
+        listed = not person and _is_list(units)
         groups = Groups(units)
-        # A-01: fingerprint (word order, punctuation)
-        key = (lambda v: ph.fingerprint(v, ordered=True)) if person else ph.fingerprint
-        for _, indexes in _buckets(units, key).items():
-            for index in indexes[1:]:
-                if _same_numbers(units[indexes[0]].key, units[index].key):
-                    groups.union(indexes[0], index)
+        # A-01: fingerprint (word order, punctuation); a list: the set of its items' (N13)
+        key: Callable[[str], str] = (
+            (lambda v: ph.fingerprint(v, ordered=True)) if person else ph.fingerprint
+        )
+        _join(groups, _buckets(units, _list_key(key) if listed else key))
         first = {i: groups.find(i) for i in range(len(units))}
-        _emit(advanced, "A-01", column, groups, {i: i for i in range(len(units))}, person)
-        # A-02: 2-letter fingerprint (spaces and separators)
-        for _, indexes in _buckets(units, ph.ngram_fingerprint).items():
-            for index in indexes[1:]:
-                if _same_numbers(units[indexes[0]].key, units[index].key):
-                    groups.union(indexes[0], index)
+        how = HOW_LIST if listed else HOW
+        _emit(advanced, "A-01", column, groups, {i: i for i in range(len(units))}, person, how)
+        if person:
+            # N14: no A-02 nor A-03 on names of people: 'LE ROUX' and 'LEROUX' are two families
+            continue
+        # A-02: 2-letter fingerprint in order (spaces and separators only, N14)
+        _join(groups, _buckets(units, _list_key(_ordered_pairs) if listed else _ordered_pairs))
         second = {i: groups.find(i) for i in range(len(units))}
-        _emit(advanced, "A-02", column, groups, first, person)
-        # A-03: a rare spelling close to a frequent one (not on names of people)
-        if not person:
-            _neighbours(advanced, column, groups)
-            _emit(advanced, "A-03", column, groups, second, person)
+        _emit(advanced, "A-02", column, groups, first, person, how)
+        # A-03: a rare spelling close to a frequent one
+        _neighbours(advanced, column, groups)
+        _emit(advanced, "A-03", column, groups, second, person, how)
+
+
+def _ordered_pairs(value: str) -> str:
+    return ph.ngram_fingerprint(value, ordered=True)
+
+
+def _list_key(key: Callable[[str], str]) -> Callable[[str], str]:
+    return lambda value: ph.items_key(value, key)
+
+
+def _join(groups: Groups, buckets: dict[str, list[int]]) -> None:
+    units = groups.units
+    for indexes in buckets.values():
+        for index in indexes[1:]:
+            if _same_numbers(units[indexes[0]].key, units[index].key):
+                groups.union(indexes[0], index)
+
+
+def _is_list(units: list[Unit]) -> bool:
+    """N13: a column of lists ('en:vegan,en:no-gluten'), seen one of two ways:
+    - most rows are lists: at least 30 % of the rows hold a separator (`,` `;` `|`) and the items
+      come back from one value to another (half of the item occurrences are items seen in two
+      distinct values or more): Open Food Facts' categories, labels, states;
+    - its items stand alone too: at least 10 % of the distinct values are lists, and half of their
+      items are also whole values of the column (brands: 'Kroger, The Kroger Co.' and 'The Kroger
+      Co.'). A company name with a legal suffix ('Pepperidge Farm, Inc.': 'Inc.' never stands
+      alone) or a city with its state ('BROOKLYN, NY', 4 % of the values) is not a list.
+    A free text with commas has items that never come back."""
+    lists = [unit for unit in units if ph.ITEM_SEPARATOR.search(unit.key)]
+    if len(lists) < LIST_VALUES:
+        return False
+    items = [{ph.fingerprint(item) for item in ph.items(unit.key)} for unit in lists]
+    occurrences = sum(len(found) for found in items)
+    if not occurrences:
+        return False
+    total = sum(unit.rows for unit in units)
+    if sum(unit.rows for unit in lists) >= LIST_SHARE * total:
+        seen = Counter(item for found in items for item in found)
+        if sum(c for c in seen.values() if c >= 2) >= LIST_REPEAT * occurrences:
+            return True
+    if len(lists) < LIST_DISTINCT * len(units):
+        return False
+    alone = {ph.fingerprint(unit.key) for unit in units if not ph.ITEM_SEPARATOR.search(unit.key)}
+    standing = sum(1 for found in items for item in found if item in alone)
+    return standing >= LIST_REPEAT * occurrences
 
 
 def _buckets(units: list[Unit], key: Any) -> dict[str, list[int]]:
@@ -360,9 +533,20 @@ def _buckets(units: list[Unit], key: Any) -> dict[str, list[int]]:
 
 HOW = {
     "A-01": "same words once case, accents, punctuation and word order are ignored (fingerprint)",
-    "A-02": "same letters once spaces and separators are removed (2-letter fingerprint)",
+    "A-02": "same letters in the same order once spaces and separators are removed (2-letter "
+    "fingerprint)",
     "A-03": "a rare spelling one or two letters away from a frequent one (same sound, letters "
     "swapped, or one letter missing in a long word)",
+}
+
+
+# N13: a column of lists is compared item by item, never word by word across its items
+HOW_LIST = {
+    **HOW,
+    "A-01": "same items in another order or written another way (case, accents, punctuation); "
+    "a column of lists, compared item by item, never word by word across items",
+    "A-02": "same items once spaces and separators inside each item are removed; a column of "
+    "lists, compared item by item",
 }
 
 
@@ -373,6 +557,7 @@ def _emit(
     groups: Groups,
     before: dict[int, int],
     person: bool,
+    how: dict[str, str] = HOW,
 ) -> None:
     """The groups this method joined (`before`: each unit's group before it), each one's
     canonical = its most frequent unit; the units of the canonical's earlier group are left to the
@@ -389,7 +574,7 @@ def _emit(
         if len(olds) > 1
     }
     if roots:
-        _merge_suggestion(advanced, rule, column, groups, roots, HOW[rule], person)
+        _merge_suggestion(advanced, rule, column, groups, roots, how[rule], person)
 
 
 def _neighbours(advanced: Advanced, column: Column, groups: Groups) -> None:
@@ -553,6 +738,15 @@ def _unit_split(logs: np.ndarray) -> tuple[float, int, float] | None:
     return best
 
 
+def percent(column: Column) -> bool:
+    """N17: a percentage (or a share per 100 g), by its name or its role: '% Votants',
+    'discount_pct', 'fruits-vegetables-legumes_100g'."""
+    view_role = column.view.role if column.view else None
+    role = column.role.id if column.role is not None else None
+    words = set(semantics.tokens(column.name))
+    return "%" in column.name or "percentage" in (role, view_role) or bool(words & PERCENT_WORDS)
+
+
 def units(advanced: Advanced) -> None:
     connection = advanced.context.connection
     for column in _measures(advanced):
@@ -568,6 +762,11 @@ def units(advanced: Advanced) -> None:
         if split is None:
             continue
         threshold, exponent, _mismatch = split
+        if exponent < 0 and percent(column):
+            logs = np.log10(values)
+            gap = float(logs[logs >= threshold].min() - logs[logs < threshold].max())
+            if gap < UNIT_PERCENT_GAP:
+                continue  # N17: the low tail of real small percentages, not fractions
         factor = 10 ** abs(exponent)
         bound = 10**threshold
         test = f"v >= {bound!r}" if exponent > 0 else f"v > 0 AND v < {bound!r}"
@@ -722,6 +921,7 @@ class Dependency:
     groups: float  # rows per value of A
     paired: int  # values of A with two rows or more
     majority: dict[int, int]  # code of A → code of its majority B
+    support: dict[int, tuple[int, int]]  # code of A → (rows of its majority B, rows with a B)
     accepted: set[tuple[int, int]]  # C-27: second answers frequent enough to be real
     errors: int  # rows that are neither the majority nor an accepted second answer
 
@@ -761,15 +961,18 @@ def _dependency(
     group_size = np.repeat(sizes, lengths)
     group_top = np.repeat(tops, lengths)
     majority: dict[int, int] = {}
+    support: dict[int, tuple[int, int]] = {}
     accepted: set[tuple[int, int]] = set()
     alternative = 0
+    second = FD_SECOND_NAMES if basic._person_names(a) else FD_SECOND_SHARE
     for value, count, size, top in zip(
         unique.tolist(), counts.tolist(), group_size.tolist(), group_top.tolist(), strict=True
     ):
         owner, answer = divmod(value, nb)
         if count == top and owner not in majority:
             majority[owner] = answer
-        elif count >= FD_SECOND_ROWS and count / size >= FD_SECOND_SHARE:
+            support[owner] = (top, size)
+        elif count >= FD_SECOND_ROWS and count / size >= second:
             accepted.add((owner, answer))
             alternative += count
     return Dependency(
@@ -781,6 +984,7 @@ def _dependency(
         groups=total / len(starts),
         paired=int((sizes >= 2).sum()),
         majority=majority,
+        support=support,
         accepted=accepted,
         errors=errors - alternative,
     )
@@ -813,7 +1017,7 @@ def dependencies(advanced: Advanced) -> None:
     reported = [d for d in found.values() if d.reportable and not _implied(d, found, columns)]
     reported.sort(key=lambda d: (-d.errors, d.a.position))
     for dependency in reported[:FD_MAX]:
-        _dependency_suggestion(advanced, dependency, coded, raw, numbers)
+        _dependency_suggestion(advanced, dependency, coded, raw, numbers, found)
 
 
 def _implied(
@@ -834,12 +1038,219 @@ def _implied(
     return False
 
 
+@dataclass
+class Kept:
+    """N15: why a disagreeing row is left alone (a real exception, not a typo)."""
+
+    kind: str  # "unclear", "copied", "agrees", "explained"
+    text: str  # said in the reason
+
+
+def _exceptions(
+    advanced: Advanced,
+    dependency: Dependency,
+    coded: dict[str, tuple[np.ndarray, list[str]]],
+    found: dict[tuple[str, str], Dependency],
+    numbers: np.ndarray,
+    positions: np.ndarray,
+) -> dict[int, Kept]:
+    """N15: the world has repeated exceptions (Marble Hill: ZIP 10463 and the Bronx's district 8,
+    in Manhattan; ZIP 11237 on both sides of the Brooklyn–Queens border; two towns named Wayne).
+    A disagreeing row is left alone, never changed, when
+    - its value of A has no clear majority (fewer than 3 rows, or not twice the others: 'MONTVALE'
+      NY on one row, NJ on the other);
+    - its B is written in another column of the row (311: city 'MANHATTAN' where most rows of
+      ZIP 10023 write 'NEW YORK', and borough 'MANHATTAN'): another naming, not a slip;
+    - another column that determines B agrees with its B (borough MANHATTAN with city NEW YORK):
+      the row is consistent, A may be the odd one, or the place is on a border;
+    - a third column explains it: every row with this A and this C (3 or more) has this B (ZIP
+      3168 and suburb Notting Hill: Southern Metropolitan, where Clayton is South-Eastern; ZIP
+      10463 and tax block 02215: Manhattan). The third column is any text column of the table,
+      read on the rows of the values of A that disagree (50,000 rows at most).
+    A typo stays alone: the planted 'Paris, Belgium' rows have Paris ZIP codes (75…) and nothing
+    else in common, so their step stays."""
+    a, b = dependency.a, dependency.b
+    codes_a, labels_a = coded[a.name]
+    codes_b, labels_b = coded[b.name]
+    others = [name for name in coded if name not in (a.name, b.name)]
+    keys = sorted({int(codes_a[p]) for p in positions.tolist()})
+    order = np.argsort(codes_a, kind="stable")
+    bounds = zip(
+        keys,
+        np.searchsorted(codes_a[order], keys, side="left").tolist(),
+        np.searchsorted(codes_a[order], keys, side="right").tolist(),
+        strict=True,
+    )
+    rows_of = {key: order[low:high] for key, low, high in bounds}
+    context = {name: coded[name] for name in others}
+    context |= _context(advanced, set(coded), numbers, rows_of)
+    # a copy of B (311's park_borough, equal to borough) proves nothing about a row's B
+    folded_b = {ph.fold(label): code for code, label in enumerate(labels_b)}
+    context = {k: v for k, v in context.items() if not _copy_of_b(v, codes_b, folded_b)}
+    others = [name for name in others if name in context]
+    out: dict[int, Kept] = {}
+    for position in positions.tolist():
+        key, answer = int(codes_a[position]), int(codes_b[position])
+        top, size = dependency.support.get(key, (0, 0))
+        said = f"{q(labels_a[key])} has {b.name} {q(labels_b[answer])}"
+        if top < FD_MAJORITY or top < 2 * (size - top):
+            out[position] = Kept(
+                "unclear",
+                f"{q(labels_a[key])} has no clear {b.name} ({top} of its {size} rows agree)",
+            )
+            continue
+        kept = _copied(context, codes_b, labels_b, position, said)
+        if kept is None:
+            kept = _agrees(dependency, coded, found, others, position, said)
+        if kept is None:
+            kept = _explained(context, rows_of[key], codes_b, position, said)
+        if kept is not None:
+            out[position] = kept
+    return out
+
+
+def _copy_of_b(
+    pair: tuple[np.ndarray, list[str]], codes_b: np.ndarray, folded_b: dict[str, int]
+) -> bool:
+    """A column that writes the very value of B on 95 % of the rows where both are known (among
+    the rows read) is a copy of B: it repeats B's slips too."""
+    codes, labels = pair
+    as_b = np.array([folded_b.get(ph.fold(label), -2) for label in labels] + [-3], dtype=np.int64)
+    known = (codes >= 0) & (codes_b >= 0)
+    if not known.any():
+        return False
+    return float((as_b[codes[known]] == codes_b[known]).mean()) >= FD_COPY
+
+
+def _copied(
+    context: dict[str, tuple[np.ndarray, list[str]]],
+    codes_b: np.ndarray,
+    labels_b: list[str],
+    position: int,
+    said: str,
+) -> Kept | None:
+    """Another column of the row (A aside: a shifted A is an error; copies of B aside) holds this
+    very B: borough 'MANHATTAN' where the city of most rows of ZIP 10023 is 'NEW YORK'."""
+    wanted = ph.fold(labels_b[int(codes_b[position])])
+    for name, (codes, labels) in context.items():
+        code = int(codes[position])
+        if code >= 0 and ph.fold(labels[code]) == wanted:
+            return Kept("copied", f"{said}, the same as its {name}")
+    return None
+
+
+def _agrees(
+    dependency: Dependency,
+    coded: dict[str, tuple[np.ndarray, list[str]]],
+    found: dict[tuple[str, str], Dependency],
+    others: list[str],
+    position: int,
+    said: str,
+) -> Kept | None:
+    """Another column D → B whose clear majority, on this row's D, is this row's B."""
+    b = dependency.b
+    answer = int(coded[b.name][0][position])
+    for name in others:
+        other = found.get((name, b.name))
+        code = int(coded[name][0][position])
+        if other is None or code < 0 or other.majority.get(code) != answer:
+            continue
+        if other.support.get(code, (0, 0))[0] < FD_MAJORITY:
+            continue
+        return Kept("agrees", f"{said}, as {name} {q(coded[name][1][code])} says")
+    return None
+
+
+def _explained(
+    context: dict[str, tuple[np.ndarray, list[str]]],
+    same_a: np.ndarray,
+    codes_b: np.ndarray,
+    position: int,
+    said: str,
+) -> Kept | None:
+    """A third column C: all the rows of this A and this row's C (3 or more) have this B."""
+    answer = int(codes_b[position])
+    for name, (codes_c, labels_c) in context.items():
+        code = int(codes_c[position])
+        if code < 0:
+            continue
+        group = same_a[(codes_c[same_a] == code) & (codes_b[same_a] >= 0)]
+        if len(group) >= FD_EXPLAINED and bool((codes_b[group] == answer).all()):
+            return Kept(
+                "explained", f"{said} on all its {len(group)} rows with {name} {q(labels_c[code])}"
+            )
+    return None
+
+
+def _context_columns(advanced: Advanced, skip: set[str]) -> list[Column]:
+    """Text columns that may explain an exception (an address, a block, a neighbourhood)."""
+    found = []
+    for column in advanced.context.columns:
+        view = column.view
+        if column.name in skip or not is_text(column.dtype) or column.distinct < 2:
+            continue
+        if view is not None and view.type in ("ignored", "boolean"):
+            continue
+        if basic._converted(column):
+            continue
+        found.append(column)
+    return sorted(found, key=lambda c: -c.distinct)[:FD_CONTEXT]
+
+
+def _context(
+    advanced: Advanced,
+    skip: set[str],
+    numbers: np.ndarray,
+    rows_of: dict[int, np.ndarray],
+) -> dict[str, tuple[np.ndarray, list[str]]]:
+    """N15: the other text columns, read on the rows of the values of A that disagree only (the
+    smallest values first, FD_CONTEXT_ROWS at most); −1 elsewhere."""
+    columns = _context_columns(advanced, skip)
+    if not columns:
+        return {}
+    chosen: list[np.ndarray] = []
+    total = 0
+    for rows in sorted(rows_of.values(), key=len):
+        if total + len(rows) > FD_CONTEXT_ROWS:
+            break
+        chosen.append(rows)
+        total += len(rows)
+    if not chosen:
+        return {}
+    positions = np.unique(np.concatenate(chosen))
+    ids = numbers[positions].tolist()
+    texts = ", ".join(as_text(c.name, c.dtype) for c in columns)
+    fetched = advanced.context.connection.execute(
+        f"SELECT {ROW}, {texts} FROM {SAMPLE} WHERE {ROW} IN (SELECT unnest($ids)) ORDER BY {ROW}",
+        {"ids": ids},
+    ).fetchall()
+    where = np.searchsorted(numbers, np.array([r[0] for r in fetched], dtype=np.int64))
+    out: dict[str, tuple[np.ndarray, list[str]]] = {}
+    for index, column in enumerate(columns, start=1):
+        codes = np.full(len(numbers), -1, dtype=np.int64)
+        labels: list[str] = []
+        seen: dict[str, int] = {}
+        for at, row in zip(where.tolist(), fetched, strict=True):
+            value = row[index]
+            if value is None or not str(value).strip():
+                continue
+            key = ph.fold(str(value))
+            code = seen.get(key)
+            if code is None:
+                code = seen[key] = len(labels)
+                labels.append(str(value))
+            codes[at] = code
+        out[column.name] = (codes, labels)
+    return out
+
+
 def _dependency_suggestion(
     advanced: Advanced,
     dependency: Dependency,
     coded: dict[str, tuple[np.ndarray, list[str]]],
     raw: dict[str, list[Any]],
     numbers: np.ndarray,
+    found: dict[tuple[str, str], Dependency] | None = None,
 ) -> None:
     a, b = dependency.a, dependency.b
     codes_a, labels_a = coded[a.name]
@@ -854,40 +1265,145 @@ def _dependency_suggestion(
     positions = np.flatnonzero(wrong)
     if not len(positions):
         return
+    kept = _exceptions(advanced, dependency, coded, found or {}, numbers, positions)
+    typos = np.array([p for p in positions.tolist() if p not in kept], dtype=np.int64)
     per_key: dict[int, int] = defaultdict(int)
     for position in positions.tolist():
         per_key[int(codes_a[position])] += 1
     worst = max(per_key, key=lambda k: per_key[k])
     worst_rows = int(((codes_a == worst) & (codes_b >= 0)).sum())
     worst_share = 1 - per_key[worst] / max(worst_rows, 1)
-    listed = [int(numbers[p]) for p in positions[:LISTED].tolist()]
+    shown = [*typos.tolist(), *(p for p in positions.tolist() if p in kept)][:LISTED]
     examples = [
         (
             f"{row_label(int(numbers[p]))}: {a.name} {q(str(raw[a.name][p]))}, "
             f"{b.name} {q(str(raw[b.name][p]))}",
-            labels_b[int(expected[p])],
+            f"{labels_b[int(codes_b[p])]} (kept)" if p in kept else labels_b[int(expected[p])],
         )
-        for p in positions[:LISTED].tolist()
+        for p in shown
     ]
     count = len(positions)
+    # N15: a person's sex (or any B) is never corrected from their name (CLN-5)
+    names = basic._person_names(a)
+    step = (
+        _dependency_step(advanced, dependency, codes_a, codes_b, raw, typos)
+        if len(typos) and not names
+        else None
+    )
     reason = (
         f"{a.name} determines {b.name} on {dependency.share:.1%} of rows: "
         f"{q(labels_a[worst])} has {b.name} {q(labels_b[dependency.majority[worst]])} on "
         f"{worst_share:.1%} of its rows. {scaled(advanced, count)} rows disagree "
-        f"({rows_list(listed, count)}): a typo or a wrong value in one of the two columns. "
-        "Information only: check these rows (no step changes a value according to another "
-        "column yet)."
+        f"({rows_list(sorted(int(numbers[p]) for p in shown), count)})"
     )
+    if kept:
+        texts = list(dict.fromkeys(k.text for k in kept.values()))
+        more = f" (and {len(texts) - 2} more)" if len(texts) > 2 else ""
+        alone = "all of them" if len(kept) == count else f"{scaled(advanced, len(kept))} of them"
+        reason += (
+            f". {alone[0].upper()}{alone[1:]} look like real exceptions, repeated or consistent "
+            f"with the rest of the row: {'; '.join(texts[:2])}{more}. Not changed."
+        )
+        if len(typos):
+            reason += (
+                f" The other {scaled(advanced, len(typos))} look like a typo or a wrong value in "
+                "one of the two columns."
+            )
+    else:
+        reason += ": a typo or a wrong value in one of the two columns."
+    if step is not None:
+        rows = "these rows" if not kept else "those rows"
+        reason += (
+            f" The step sets {b.name} to the majority value of its {a.name} on {rows} only (the "
+            f"wrong values it saw are listed, a new one is never changed); if {a.name} is the "
+            "wrong column, leave it unticked."
+        )
+        if advanced.sampled:
+            reason += " Found on a sample: other rows may disagree too."
+    elif names and len(typos):
+        reason += (
+            f" {a.name} holds names of people: no step changes a person's {b.name} from their "
+            "name (CLN-5). Information only: check these rows."
+        )
+    else:
+        reason += " Information only: check these rows."
     advanced.add(
         "A-10",
-        "I",
+        "S" if step is not None else "I",
         [a, b],
         f"{b.name} disagrees with {a.name} on {scaled(advanced, count)} rows",
         reason,
+        step,
         rows=0,
-        cells=count,
+        cells=len(typos) if step is not None else count,
         examples=examples,
     )
+
+
+def variants(advanced: Advanced, column: Column, raw: str) -> set[str]:
+    """The spellings a value may have when a step reads it (C-23): as stored, after the Basic
+    text fixes, and the form B-03 or A-01 to A-03 would merge it into."""
+    found = {raw}
+    stages = advanced.context.stages.get(column.name)
+    if stages is None:
+        return found
+    cache = advanced.spellings.get(column.name)
+    if cache is None:
+        finals = {r: f for f, rs in _final_of(stages).items() for r in rs}
+        displays = {unit.key: unit.display for unit in units_of(stages)}
+        cache = advanced.spellings[column.name] = (finals, displays)
+    finals, displays = cache
+    final = finals.get(raw, raw)
+    found.add(final)
+    key = ph.fold(final)
+    merged = advanced.merges.get(column.name, {}).get(key, key)
+    for one in (key, merged):
+        if one in displays:
+            found.add(displays[one])
+    return found
+
+
+def _dependency_step(
+    advanced: Advanced,
+    dependency: Dependency,
+    codes_a: np.ndarray,
+    codes_b: np.ndarray,
+    raw: dict[str, list[Any]],
+    positions: np.ndarray,
+) -> m.SetWhere | None:
+    """C-45: one case per value of A that has wrong rows: where A is that value (any of its
+    spellings) and B one of the wrong values seen, B takes the majority value of A, written as
+    most of its rows write it."""
+    a, b = dependency.a, dependency.b
+    wrong_b: dict[int, set[str]] = defaultdict(set)
+    wrong_a: dict[int, set[str]] = defaultdict(set)
+    for position in positions.tolist():
+        code = int(codes_a[position])
+        wrong_a[code].add(str(raw[a.name][position]))
+        wrong_b[code].add(str(raw[b.name][position]))
+    written: dict[int, Counter[str]] = defaultdict(Counter)
+    for position in np.flatnonzero(np.isin(codes_a, list(wrong_a))).tolist():
+        code = int(codes_a[position])
+        if int(codes_b[position]) == dependency.majority.get(code) and raw[b.name][position]:
+            written[code][str(raw[b.name][position])] += 1
+    cases = []
+    for code in sorted(wrong_a, key=lambda c: -len(wrong_b[c]))[:FIX_CASES]:
+        if not written[code]:
+            continue
+        target = written[code].most_common(1)[0][0]
+        spelled_a = sorted({v for raw_a in wrong_a[code] for v in variants(advanced, a, raw_a)})
+        spelled_b = sorted({v for raw_b in wrong_b[code] for v in variants(advanced, b, raw_b)})
+        spelled_b = [v for v in spelled_b if v != target]
+        if not spelled_b or len(spelled_a) > m.MAX_VALUES or len(spelled_b) > m.MAX_VALUES:
+            continue
+        conditions = [
+            m.RowCondition(column=a.name, op="in", values=spelled_a),
+            m.RowCondition(column=b.name, op="in", values=spelled_b),
+        ]
+        cases.append(m.Case(conditions=conditions, value=target))
+    if not cases:
+        return None
+    return m.SetWhere(id=_id(), column=b.name, cases=cases)
 
 
 # --- Dates in order (A-11), ages (A-13) ---------------------------------------------------------
@@ -936,43 +1452,170 @@ def _ordered(first: Column, second: Column) -> bool:
     return tier_a == 0 and tier_b in (2, 3)
 
 
+def _apart(days: float) -> str:
+    """'3 days', '2 months', '6 years'."""
+    if days >= 730:
+        return f"{days / 365.25:,.0f} years"
+    if days >= 60:
+        return f"{days / 30.44:,.0f} months"
+    return f"{days:,.0f} days" if days >= 2 else "a day or less"
+
+
 def date_order(advanced: Advanced) -> None:
+    """A-11: an end before its start. N16: an end written more coarsely than its start (at :00
+    seconds, at midnight: nyc_311 `closed_date`) is compared at its own precision, so the same
+    minute or day written two ways is no inversion (said once when it is all there is, never
+    swapped); two dates less than 60 days apart are swapped (S, `swap_values` on those rows
+    only); further apart one of them is wrong: listed, not changed (I)."""
     dates = _dates(advanced)
     context = advanced.context
     for first, first_expr in dates:
         for second, second_expr in dates:
             if first is second or not _ordered(first, second):
                 continue
-            both = f"({first_expr}) IS NOT NULL AND ({second_expr}) IS NOT NULL"
-            total, wrong = context.one(
-                f"SELECT count(*) FILTER (WHERE {both}), count(*) FILTER (WHERE {both} AND "
-                f"({first_expr}) > ({second_expr})) FROM {advanced.rows_source}"
+            stamps = is_temporal(first.dtype) and is_temporal(second.dtype)
+            stamps = stamps and "DATE" not in (first.dtype, second.dtype)
+            a, b = first_expr, second_expr
+            if stamps:
+                a = f"CAST({ident(first.name)} AS TIMESTAMP)"
+                b = f"CAST({ident(second.name)} AS TIMESTAMP)"
+            both = f"({a}) IS NOT NULL AND ({b}) IS NOT NULL"
+            after = f"{both} AND ({a}) > ({b})"
+            cut = (  # the start at the end's precision: its day, or its minute
+                f"CASE WHEN date_trunc('day', {b}) = {b} THEN date_trunc('day', {a}) "
+                f"WHEN date_trunc('minute', {b}) = {b} THEN date_trunc('minute', {a}) ELSE {a} END"
+                if stamps
+                else a
             )
-            total, wrong = int(total), int(wrong)
-            if not wrong or not total or 1 - wrong / total < ORDER_SHARE:
+            real = f"({cut}) > ({b})"
+            days = f"date_diff('day', CAST({b} AS DATE), CAST({a} AS DATE))"
+            total, wrong, tiny, far, same, median = context.one(
+                f"SELECT count(*) FILTER (WHERE {both}), count(*) FILTER (WHERE {after}), "
+                f"count(*) FILTER (WHERE {after} AND NOT {real}), "
+                f"count(*) FILTER (WHERE {after} AND {real} AND {days} >= {SWAP_DAYS}), "
+                f"count(*) FILTER (WHERE {after} AND {real} AND {days} = 0), "
+                f"median({days}) FILTER (WHERE {after} AND {real} AND {days} >= {SWAP_DAYS}) "
+                f"FROM {advanced.rows_source}"
+            )
+            total, wrong, tiny, far, same = int(total), int(wrong), int(tiny), int(far), int(same)
+            inverted = wrong - tiny
+            if not total or not wrong:
                 continue
-            listed = context.connection.execute(
-                f"SELECT file_row_number, {display_sql(first)}, {display_sql(second)} "
-                f"FROM {advanced.rows_source} WHERE {both} "
-                f"AND ({first_expr}) > ({second_expr}) ORDER BY file_row_number LIMIT {LISTED}"
-            ).fetchall()
-            reason = (
-                f"{first.name} comes before {second.name} on {1 - wrong / total:.1%} of rows, "
-                f"after it on {n(wrong)} ({rows_list([r[0] for r in listed], wrong)}): swapped "
-                "or mistyped dates. Information only: check these rows."
-            )
-            advanced.add(
-                "A-11",
-                "I",
-                [first, second],
-                f"{second.name} before {first.name} on {n(wrong)} rows",
-                reason,
-                cells=wrong,
-                examples=[
-                    (f"{row_label(r[0])}: {first.name} {r[1]}", f"{second.name} {r[2]}")
-                    for r in listed
-                ],
-            )
+            spans = OrderSpans(a, b, after, real, days, tiny, far, inverted - far - same, same)
+            if not inverted:
+                if 1 - tiny / total >= ORDER_SHARE:
+                    _same_precision(advanced, first, second, spans)
+            elif 1 - inverted / total >= ORDER_SHARE:
+                _out_of_order(advanced, first, second, spans, total, float(median or 0))
+
+
+@dataclass
+class OrderSpans:
+    """N16: the rows of A-11 by how far apart their two dates are."""
+
+    a: str
+    b: str
+    after: str  # SQL: both read and the first after the second
+    real: str  # … and still after it at the second's precision
+    days: str
+    tiny: int  # the same minute or day, the end written without its seconds or time
+    far: int  # 60 days or more apart: one date is wrong
+    close: int  # in between: swapped dates
+    same: int = 0  # timestamps hours apart on one day: a time typed or rounded, not swapped
+
+    def listed(self, advanced: Advanced, first: Column, second: Column, where: str) -> list[Any]:
+        return advanced.context.connection.execute(
+            f"SELECT file_row_number, {display_sql(first)}, {display_sql(second)} "
+            f"FROM {advanced.rows_source} WHERE {self.after} AND {where} "
+            f"ORDER BY file_row_number LIMIT {LISTED}"
+        ).fetchall()
+
+
+def _examples(first: Column, second: Column, listed: list[Any]) -> list[tuple[str, str]]:
+    return [(f"{row_label(r[0])}: {first.name} {r[1]}", f"{second.name} {r[2]}") for r in listed]
+
+
+def _same_precision(advanced: Advanced, first: Column, second: Column, spans: OrderSpans) -> None:
+    listed = spans.listed(advanced, first, second, "true")
+    advanced.add(
+        "A-11",
+        "I",
+        [first, second],
+        f"{second.name} a little before {first.name} on {n(spans.tiny)} rows (the same minute)",
+        f"{second.name} is before {first.name} on {n(spans.tiny)} rows "
+        f"({rows_list([r[0] for r in listed], spans.tiny)}), always in the same minute (or day): "
+        f"{second.name} is written there without its seconds (:00) or its time. Not an error "
+        "and not swapped; a duration computed from them is negative by a few seconds. Not "
+        "changed.",
+        cells=spans.tiny,
+        examples=_examples(first, second, listed),
+        key="minute",
+    )
+
+
+def _out_of_order(
+    advanced: Advanced,
+    first: Column,
+    second: Column,
+    spans: OrderSpans,
+    total: int,
+    median: float,
+) -> None:
+    wrong = spans.close + spans.far + spans.same
+    listed = spans.listed(advanced, first, second, spans.real)
+    order = f"{first.name} comes before {second.name} on {1 - wrong / total:.1%} of rows"
+    rows = rows_list([r[0] for r in listed], wrong)
+    left = []  # the rows the step leaves, and why
+    if spans.far:
+        left.append(
+            f"{n(spans.far)} {'is' if spans.far == 1 else 'are'} {SWAP_DAYS} days or more apart "
+            f"({_apart(median)}, median): one date is wrong there, not swapped"
+        )
+    if spans.same:
+        left.append(
+            f"{n(spans.same)} {'is' if spans.same == 1 else 'are'} hours apart on the same day: a "
+            "time typed or rounded, not swapped"
+        )
+    if spans.tiny:
+        left.append(
+            f"{n(spans.tiny)} more {'is' if spans.tiny == 1 else 'are'} in the same minute or day, "
+            f"{second.name} written without its seconds or time: no inversion"
+        )
+    said = " ".join(f"{part[0].upper()}{part[1:]}." for part in left)
+    if not spans.close:
+        advanced.add(
+            "A-11",
+            "I",
+            [first, second],
+            f"{second.name} before {first.name} on {n(wrong)} rows",
+            f"{order}, after it on {n(wrong)} ({rows}). {said} Not changed: check these rows.",
+            cells=wrong,
+            examples=_examples(first, second, listed),
+        )
+        return
+    a, b = fx.quoted(first.name), fx.quoted(second.name)
+    when = f"{a} > {b}"
+    if spans.tiny or spans.same:  # not the rows of one day
+        when += f" and date_diff('day', {b}, {a}) >= 1"
+    if spans.far:
+        when += f" and date_diff('day', {b}, {a}) < {SWAP_DAYS}"
+    reason = (
+        f"{order}, after it on {n(wrong)} ({rows}): swapped or mistyped dates. The step swaps "
+        f"the two dates on the {n(spans.close)} rows where {first.name} is after {second.name} "
+        f"by less than {SWAP_DAYS} days; it needs both read as dates (Types)."
+        + (f" {said} They are left as they are." if said else "")
+        + " If one date is simply wrong, leave it unticked and check these rows."
+    )
+    advanced.add(
+        "A-11",
+        "S",
+        [first, second],
+        f"{second.name} before {first.name} on {n(wrong)} rows",
+        reason,
+        m.SwapValues(id=_id(), columns=[first.name, second.name], when=when),
+        cells=spans.close,
+        examples=_examples(first, second, listed),
+    )
 
 
 def ages(advanced: Advanced) -> None:
@@ -989,8 +1632,9 @@ def ages(advanced: Advanced) -> None:
         for birth, birth_expr in births:
             references = [(c, e) for c, e in dates if c is not birth and c is not age]
             best: tuple[float, str, str, int, int] | None = None
+            source: Column | float | None = None  # the reference date, or the year of the ages
             plausible = f"{value} BETWEEN 0 AND 130 AND ({birth_expr}) IS NOT NULL"
-            for _reference, reference_expr in references:
+            for reference, reference_expr in references:
                 computed = f"floor(date_diff('day', {birth_expr}, {reference_expr}) / 365.25)"
                 where = f"{plausible} AND ({reference_expr}) IS NOT NULL"
                 total, good = context.one(
@@ -999,6 +1643,7 @@ def ages(advanced: Advanced) -> None:
                 )
                 if total and (best is None or good / total > best[0]):
                     best = (good / total, computed, where, int(total), int(good))
+                    source = reference
             year = f"({value} + year({birth_expr}))"
             mode = context.one(
                 f"SELECT mode({year}) FROM {advanced.rows_source} WHERE {plausible}"
@@ -1011,6 +1656,7 @@ def ages(advanced: Advanced) -> None:
                 if total and (best is None or good / total > best[0]):
                     computed = f"({float(mode)!r} - year({birth_expr}))"
                     best = (good / total, computed, plausible, int(total), int(good))
+                    source = float(mode)
             if best is None:
                 continue
             share, computed, where, total, good = best
@@ -1023,23 +1669,45 @@ def ages(advanced: Advanced) -> None:
                 f"FROM {advanced.rows_source} WHERE {where} AND abs({value} - {computed}) > 1 "
                 f"ORDER BY file_row_number LIMIT {LISTED}"
             ).fetchall()
+            step = _age_step(age, birth, source)
+            on = f"on {source.name}" if isinstance(source, Column) else f"in {int(source or 0)}"
             reason = (
                 f"{age.name} matches {birth.name} (within a year) on {share:.1%} of rows; "
                 f"{n(wrong)} rows disagree ({rows_list([r[0] for r in listed], wrong)}). "
-                "Information only: check these rows."
+                f"The step writes the age {birth.name} gives {on} on these rows only; it needs "
+                "the dates read as dates (Types). If the birth date is the wrong one, leave it "
+                "unticked."
             )
             advanced.add(
                 "A-13",
-                "I",
+                "S",
                 [age, birth],
                 f"{age.name} contradicts {birth.name} on {n(wrong)} rows",
                 reason,
+                step,
                 cells=wrong,
                 examples=[
                     (f"{row_label(r[0])}: {age.name} {r[1]}, {birth.name} {r[2]}", f"{r[3]}")
                     for r in listed
                 ],
             )
+
+
+def _age_step(age: Column, birth: Column, source: Column | float | None) -> m.SetWhere:
+    """C-45: the age in whole years at the reference date (birthday passed or not), or the year
+    of the ages minus the birth year, where the age is more than a year off."""
+    born = fx.quoted(birth.name)
+    if isinstance(source, Column):
+        at = fx.quoted(source.name)
+        passed = (
+            f"CASE WHEN month({at}) * 100 + day({at}) < month({born}) * 100 + day({born}) "
+            "THEN 1 ELSE 0 END"
+        )
+        computed = f"year({at}) - year({born}) - {passed}"
+    else:
+        computed = f"{int(source or 0)} - year({born})"
+    test = f"abs({fx.quoted(age.name)} - ({computed})) > 1"
+    return m.SetWhere(id=_id(), column=age.name, cases=[m.Case(when=test, formula=computed)])
 
 
 # --- Totals (A-12) -------------------------------------------------------------------------------
@@ -1100,6 +1768,7 @@ def totals(advanced: Advanced) -> None:
     numbers = np.array([r[0] for r in rows], dtype=np.int64)
     data = np.array([[np.nan if v is None else v for v in r[1:]] for r in rows], dtype=float).T
     distinct = [len(np.unique(col[np.isfinite(col)])) for col in data]
+    flags = [percent(c) for c in columns]
     probe = data[:, np.random.default_rng(SEED).permutation(data.shape[1])[:TOTAL_PROBE]]
     reported: list[int] = []
     for t, target in enumerate(columns):
@@ -1114,6 +1783,8 @@ def totals(advanced: Advanced) -> None:
             parts = [others[i] for i in local]
             if any(p in reported for p in parts) or not _plausible(probe, t, kind, parts):
                 continue
+            if len({flags[i] for i in (t, *parts)}) > 1:
+                continue  # N17: a percentage is never added to counts (Votants + % Votants)
             arrays = [data[p] for p in parts]
             mask = np.isfinite(y) & np.all([np.isfinite(a) for a in arrays], axis=0)
             if mask.sum() < 50:
@@ -1157,6 +1828,36 @@ def _share(y: np.ndarray, x: np.ndarray) -> float:
     return float(np.mean(close))
 
 
+def decimals_of(values: np.ndarray) -> int:
+    """The fewest decimals (0 to 6) that write at least 99 % of the values exactly."""
+    finite = values[np.isfinite(values)]
+    if not len(finite):
+        return 2
+    for places in range(7):
+        if np.mean(np.abs(finite - np.round(finite, places)) < 1e-9) >= 0.99:
+            return places
+    return 6
+
+
+def _total_step(target: Column, parts: list[Column], kind: str, y: np.ndarray) -> m.SetWhere:
+    """C-45: the total recalculated (rounded as the totals are written) where it differs from
+    its parts by more than 1 % (and 0.011)."""
+    names = [fx.quoted(p.name) for p in parts]
+    if kind == "product":
+        computed = f"{names[0]} * {names[1]}"
+    elif kind == "product_plus":
+        computed = f"{names[0]} * {names[1]} + {names[2]}"
+    else:
+        computed = " + ".join(names)
+    total = fx.quoted(target.name)
+    test = (
+        f"abs({total} - ({computed})) > greatest({TOTAL_RELATIVE!r} * abs({total}), "
+        f"{TOTAL_ABSOLUTE!r})"
+    )
+    value = f"round({computed}, {decimals_of(y)})"
+    return m.SetWhere(id=_id(), column=target.name, cases=[m.Case(when=test, formula=value)])
+
+
 def _total_suggestion(
     advanced: Advanced,
     target: Column,
@@ -1172,17 +1873,31 @@ def _total_suggestion(
     count = len(positions)
     formula = _formula(kind, [p.name for p in parts])
     listed = [int(numbers[p]) for p in positions[:LISTED].tolist()]
+    units = [
+        f.columns[0]
+        for f in advanced.found
+        if f.rule == "A-05" and f.columns and f.columns[0] in {p.name for p in parts}
+    ]
+    warning = (
+        f" {', '.join(units)} also has values in another unit (A-05): tick that fix too, it "
+        "runs before this one, or these rows get a wrong total."
+        if units
+        else ""
+    )
     reason = (
         f"{target.name} = {formula} (within 1 %) on {share:.1%} of rows; "
         f"{scaled(advanced, count)} rows differ ({rows_list(listed, count)}): a wrong total, "
-        "or a part in another unit. Information only: check these rows."
+        f"or a part in another unit. The step recalculates {target.name} on the rows where it "
+        f"differs by more than 1 %; it needs the parts read as numbers (Types).{warning}"
     )
+    step = _total_step(target, parts, kind, y)
     advanced.add(
         "A-12",
-        "I",
+        "S",
         [target, *parts],
         f"{target.name} is not {formula} on {scaled(advanced, count)} rows",
         reason,
+        step,
         cells=count,
         examples=[
             (
@@ -1191,6 +1906,299 @@ def _total_suggestion(
             )
             for p in positions[:LISTED].tolist()
         ],
+    )
+
+
+# --- A value of the group on each of its rows (A-18) ---------------------------------------------
+
+HEADER_SHARE = 0.95  # N33: the measure is constant in this share of the key's groups of 2 rows +
+HEADER_GROUPS = 20  # … with at least this many such groups
+HEADER_KEYS = 3  # keys tried at most
+HEADER_ROLES = ("identifier", "order_key")  # a record's key (not a customer's: a dimension)
+NOT_SUMMED = ("age", "rating", "year", "month", "weekday", "hour", "duration")
+
+
+def _header_keys(advanced: Advanced) -> list[Column]:
+    """N33: a key shared by rows (dvf's id_mutation): an identifier by its role or its name,
+    repeated, filled on nearly every row."""
+    rows = max(advanced.context.rows, 1)
+    found = []
+    for column in advanced.context.columns:
+        view = column.view
+        role = view.role if view is not None else None
+        code = semantics.code_by_name(column.name)
+        named = code is not None and code.kind == "identifier"
+        if role == "customer_key" or not (role in HEADER_ROLES or named):
+            continue
+        if column.nonnull < 0.95 * rows or not HEADER_GROUPS <= column.distinct <= 0.9 * rows:
+            continue
+        found.append(column)
+    return sorted(found, key=lambda c: c.distinct)[:HEADER_KEYS]
+
+
+def _summed(column: Column) -> bool:
+    """A measure one adds up over rows: not a percentage, a ratio, an age, a rating."""
+    view_role = column.view.role if column.view else None
+    role = column.role.id if column.role is not None else None
+    if percent(column) or semantics.is_ratio(column.name):
+        return False
+    return role not in NOT_SUMMED and view_role not in NOT_SUMMED
+
+
+def repeated_values(advanced: Advanced) -> None:
+    """N33 (A-18): a measure equal on every row of a key's group (dvf: valeur_fonciere on each
+    line of its id_mutation, 226 lines for one sale) is a value of the group: a sum over rows counts
+    it once per row. Information only (no step can keep it on one row of each group)."""
+    measures = [c for c in _measures(advanced) if _summed(c) and c.distinct >= 10]
+    if not measures:
+        return
+    connection = advanced.context.connection
+    for key in _header_keys(advanced):
+        name = ident(key.name)
+        tests = [c for c in measures if c is not key]
+        if not tests:
+            continue
+        flags = ", ".join(
+            f"count(DISTINCT {ident(c.name)}) = 1 AND count({ident(c.name)}) = count(*) AS c{i}"
+            for i, c in enumerate(tests)
+        )
+        counts = ", ".join(
+            f"count(*) FILTER (WHERE c{i}), sum(n) FILTER (WHERE c{i})" for i in range(len(tests))
+        )
+        row = connection.execute(
+            f"SELECT count(*), {counts} FROM (SELECT count(*) AS n, {flags} FROM {SAMPLE} "
+            f"WHERE {name} IS NOT NULL GROUP BY {name} HAVING count(*) > 1)"
+        ).fetchone()
+        assert row is not None
+        groups = int(row[0])
+        if groups < HEADER_GROUPS:
+            continue
+        for index, column in enumerate(tests):
+            constant, cells = int(row[1 + 2 * index]), int(row[2 + 2 * index] or 0)
+            if constant < HEADER_SHARE * groups:
+                continue
+            _repeated_suggestion(advanced, key, column, groups, constant, cells)
+
+
+def _repeated_suggestion(
+    advanced: Advanced, key: Column, column: Column, groups: int, constant: int, cells: int
+) -> None:
+    measure, name = ident(column.name), ident(key.name)
+    top = advanced.context.connection.execute(
+        f"SELECT CAST({name} AS VARCHAR), count(*), {as_text(column.name, column.dtype)} "
+        f"FROM {SAMPLE} WHERE {name} IS NOT NULL GROUP BY ALL HAVING count(*) > 1 AND "
+        f"count(DISTINCT {measure}) = 1 ORDER BY 2 DESC, 1 LIMIT 3"
+    ).fetchall()
+    if not top:
+        return
+    largest, size, value = top[0]
+    advanced.add(
+        "A-18",
+        "I",
+        [column, key],
+        f"{column.name} repeats on every row of its {key.name}",
+        f"{column.name} is the same on every row of its {key.name} ({n(int(size))} rows for "
+        f"{largest}, {value} each; {constant / groups:.0%} of the {scaled(advanced, groups)} "
+        f"{key.name} with several rows): a value of the {key.name}, not of the row. A sum over "
+        f"rows counts it once per row: sum it once per {key.name} (group by {key.name} first, "
+        "then add up). Not changed.",
+        cells=cells,
+        examples=[
+            (f"{key.name} {r[0]}: {n(int(r[1]))} rows", f"{column.name} {r[2]}") for r in top
+        ],
+        key="header",
+    )
+
+
+# --- Two columns that say the same thing (A-19) ---------------------------------------------------
+
+REDUNDANT_ROWS = 50  # N34: filled rows at least
+REDUNDANT_BATCH = 40  # columns (or pairs) per query: a wide file stays a few short queries
+REDUNDANT_PAIRS = 200  # … and past this many pairs to compare, their partitions first
+REDUNDANT_UNIQUE = 0.95  # … a column with more distinct values names its rows (an identifier)
+EPOCH = (1e8, 4e9)  # seconds since 1970 between 1973 and 2096
+
+
+def _redundant_candidates(advanced: Advanced) -> list[Column]:
+    found = []
+    for column in advanced.context.columns:
+        view = column.view
+        role = view.role if view is not None else None
+        if (view is not None and view.type == "identifier") or role in semantics.KEY_ROLES:
+            continue
+        if column.nonnull < REDUNDANT_ROWS or column.distinct < 2:
+            continue
+        found.append(column)
+    return found
+
+
+def _batches(items: list[Any]) -> list[list[Any]]:
+    return [items[i : i + REDUNDANT_BATCH] for i in range(0, len(items), REDUNDANT_BATCH)]
+
+
+def _one_row(advanced: Advanced, parts: str, source: str = SAMPLE) -> tuple[Any, ...]:
+    row = advanced.context.connection.execute(f"SELECT {parts} FROM {source}").fetchone()
+    assert row is not None
+    return row
+
+
+def redundant_columns(advanced: Advanced) -> None:
+    """N34 (A-19): columns one to one on every row of the sample, with the same blanks (adult's
+    education and education-num, chicago's timestamp and its label): the same information twice.
+    A copy, or a text or a number that reads back to the other column (a date written as text,
+    seconds since 1970), is removed if ticked (S, `drop_columns`); otherwise an information:
+    which one to keep (codes or labels) is a choice."""
+    columns = _redundant_candidates(advanced)
+    # the profile first (no query): one to one columns have the same blanks on the whole file and
+    # about as many distinct values (an estimate: within a quarter)
+    by_filled: dict[int, list[Column]] = defaultdict(list)
+    for column in columns:
+        by_filled[column.nonnull].append(column)
+    columns = [
+        c
+        for members in by_filled.values()
+        for c in members
+        if any(o is not c and 0.8 <= o.distinct / c.distinct <= 1.25 for o in members)
+    ]
+    if len(columns) < 2:
+        return
+    by_size: dict[tuple[int, int], list[Column]] = defaultdict(list)
+    for batch in _batches(columns):
+        row = _one_row(
+            advanced,
+            ", ".join(f"count(DISTINCT {ident(c.name)}), count({ident(c.name)})" for c in batch),
+        )
+        for index, column in enumerate(batch):
+            distinct, filled = int(row[2 * index]), int(row[2 * index + 1])
+            if distinct >= 2 and filled >= REDUNDANT_ROWS and distinct < REDUNDANT_UNIQUE * filled:
+                by_size[(distinct, filled)].append(column)
+    pairs = [
+        (a, b, size[0])
+        for size, members in by_size.items()
+        for i, a in enumerate(members)
+        for b in members[i + 1 :]
+    ]
+    if len(pairs) > REDUNDANT_PAIRS:
+        # many alike columns (a wide file of categories): first the rows each value groups, one
+        # number per column (the first row of each row's value, hashed with the row and summed,
+        # never XOR-ed); one to one columns part the rows alike, only those are compared
+        signature: dict[str, int] = {}
+        alike = [c for members in by_size.values() if len(members) > 1 for c in members]
+        for batch in _batches(alike):
+            firsts = ", ".join(
+                f"min({ROW}) OVER (PARTITION BY {ident(c.name)}) AS f{i}"
+                for i, c in enumerate(batch)
+            )
+            sums = ", ".join(f"sum(hash({ROW}, f{i}))" for i in range(len(batch)))
+            row = _one_row(advanced, sums, f"(SELECT {ROW}, {firsts} FROM {SAMPLE})")
+            signature.update({c.name: int(row[i]) for i, c in enumerate(batch)})
+        pairs = [(a, b, d) for a, b, d in pairs if signature[a.name] == signature[b.name]]
+    if not pairs:
+        return
+    checked: list[Any] = []
+    for batch in _batches(pairs):
+        checked += _one_row(
+            advanced,
+            ", ".join(
+                f"count(DISTINCT ({ident(a.name)}, {ident(b.name)})), "
+                f"count(*) FILTER (WHERE ({ident(a.name)} IS NULL) <> ({ident(b.name)} IS NULL))"
+                for a, b, _ in batch
+            ),
+        )
+    parent: dict[str, str] = {}
+
+    def find(name: str) -> str:
+        while parent.get(name, name) != name:
+            name = parent[name]
+        return name
+
+    values: dict[str, int] = {}
+    for index, (a, b, distinct) in enumerate(pairs):
+        if int(checked[2 * index]) == distinct and int(checked[2 * index + 1]) == 0:
+            root_a, root_b = find(a.name), find(b.name)
+            if root_a != root_b:
+                parent[max(root_a, root_b)] = min(root_a, root_b)
+            values[a.name] = values[b.name] = distinct
+    groups: dict[str, list[Column]] = defaultdict(list)
+    for column in columns:
+        if column.name in values:
+            groups[find(column.name)].append(column)
+    for members in groups.values():
+        members.sort(key=lambda c: c.position)
+        _redundant_suggestion(advanced, members, values[members[0].name])
+
+
+def _reads_back(advanced: Advanced, keep: Column, drop: Column) -> str | None:
+    """How `drop` is `keep` written another way, checked on every sampled row: a copy, a date
+    written as text, seconds since 1970; None when it is not (codes and labels)."""
+    a, b = ident(keep.name), ident(drop.name)
+    tests: list[tuple[str, str]] = [
+        (
+            "a copy of {keep}",
+            f"{as_text(keep.name, keep.dtype)} IS DISTINCT FROM {as_text(drop.name, drop.dtype)}",
+        ),
+    ]
+    if is_temporal(keep.dtype):
+        stamp = f"CAST({a} AS TIMESTAMP)"
+        text_date = date_expr(advanced, drop) if is_text(drop.dtype) else None
+        if text_date is not None:
+            tests.append(
+                (
+                    "{keep} written as text",
+                    f"CAST({stamp} AS DATE) IS DISTINCT FROM ({text_date})",
+                )
+            )
+        if is_number(drop.dtype):
+            epoch = f"make_timestamp(CAST({b} AS BIGINT) * 1000000)"
+            tests.append(
+                (
+                    "{keep} in seconds since 1970",
+                    f"{b} NOT BETWEEN {EPOCH[0]} AND {EPOCH[1]} "
+                    f"OR {epoch} IS DISTINCT FROM {stamp}",
+                )
+            )
+    for how, differs in tests:
+        (count,) = advanced.context.one(
+            f"SELECT count(*) FILTER (WHERE {a} IS NOT NULL AND ({differs})) FROM {SAMPLE}"
+        )
+        if not int(count):
+            return how
+    return None
+
+
+def _redundant_suggestion(advanced: Advanced, members: list[Column], distinct: int) -> None:
+    first, others = members[0], members[1:]
+    for keep in sorted(members, key=lambda c: (not is_temporal(c.dtype), c.position)):
+        for drop in (c for c in members if c is not keep):
+            how = _reads_back(advanced, keep, drop) if len(members) == 2 else None
+            if how is None:
+                continue
+            how = how.format(keep=keep.name)
+            advanced.add(
+                "A-19",
+                "S",
+                [drop, keep],
+                f"Remove {drop.name}: {how}",
+                f"{drop.name} is {how} (checked on every row of the sample, "
+                f"{n(distinct)} values one to one, the same blanks): the same information twice. "
+                f"Removed if you tick it; {keep.name} stays. A filter or a KPI may name it.",
+                m.DropColumns(id=_id(), columns=[drop.name]),
+                examples=[(drop.name, None)],
+                key="copy",
+            )
+            return
+    names = ", ".join(c.name for c in others)
+    advanced.add(
+        "A-19",
+        "I",
+        members,
+        f"{names} {'holds' if len(others) == 1 else 'hold'} the same information as {first.name}",
+        f"{', '.join(c.name for c in members)}: {n(distinct)} values one to one on every row of "
+        f"the sample, with the same blanks ({first.name} → {others[0].name}). One can go if you "
+        "keep the correspondence elsewhere; which one to keep (codes or labels) is a choice. "
+        "Not changed.",
+        examples=[(c.name, None) for c in members],
+        key="same",
     )
 
 
@@ -1243,28 +2251,18 @@ def near_duplicates(advanced: Advanced) -> None:
     keys = [c for c in context.columns if c.name not in trivial and c.nonnull]
     if len(keys) < NEAR_KEYS or not any(_anchor(advanced, c) for c in keys):
         return  # C-26: without a date or a key, equal rows may be two customers alike
-    empty = " AND ".join(basic._blank(c) for c in context.columns)
+    empty = " AND ".join(basic._empty(c) for c in context.columns)
     normalized = ", ".join(_normalized(c) for c in keys)
     every = ", ".join(ident(c.name) for c in context.columns)
-    rows, near, exact = (
-        int(v)
-        for v in context.one(
-            f"SELECT count(*), count(DISTINCT row({normalized})), count(DISTINCT row({every})) "
-            f"FROM {context.source} WHERE NOT ({empty})"
-        )
-    )
+    rows, near, near_groups = _groups(advanced, normalized, empty)
+    if (rows - near) > NEAR_SHARE * rows or near == rows:
+        return  # too many to be typos, or none (then no exact copy either)
+    exact, exact_groups = _groups(advanced, every, empty)[1:]
     extra = exact - near
-    if extra <= 0 or (rows - near) > NEAR_SHARE * rows:
+    if extra <= 0:
         return
-    pairs = context.connection.execute(
-        f"SELECT file_row_number, first_row FROM (SELECT file_row_number, "
-        f"min(file_row_number) OVER (PARTITION BY row({normalized})) AS first_row, "
-        f"min(file_row_number) OVER (PARTITION BY row({every})) AS first_copy "
-        f"FROM {advanced.rows_source} WHERE NOT ({empty})) "
-        f"WHERE file_row_number <> first_row AND first_copy = file_row_number "
-        f"ORDER BY file_row_number LIMIT 3"
-    ).fetchall()
-    examples = [_near_example(advanced, int(row), int(first)) for row, first in pairs]
+    pairs = _near_pairs(near_groups, exact_groups)
+    examples = _near_examples(advanced, pairs)
     ignored = sorted(trivial)
     apart = (
         f" apart from {', '.join(ignored[:4])} ({', '.join(sorted(set(trivial.values())))})"
@@ -1291,20 +2289,55 @@ def near_duplicates(advanced: Advanced) -> None:
     )
 
 
-def _near_example(advanced: Advanced, row: int, first: int) -> tuple[str, str]:
+def _groups(advanced: Advanced, key: str, empty: str) -> tuple[int, int, list[list[int]]]:
+    """N44: the rows with a value (not empty), how many distinct `row(key)` they hold, and the
+    rows of each value held twice or more: one hash aggregation, where two `count(DISTINCT row(…))`
+    and two windows sorting every row on all its columns took several times longer on wide
+    files."""
+    rows, distinct, groups = advanced.context.one(
+        "SELECT coalesce(sum(k), 0), count(*), list(r) FILTER (WHERE k > 1) FROM (SELECT "
+        f"count(*) AS k, list(file_row_number) AS r FROM {advanced.rows_source} WHERE NOT "
+        f"({empty}) GROUP BY row({key}))"
+    )
+    return int(rows), int(distinct), [[int(r) for r in group] for group in groups or []]
+
+
+def _near_pairs(near: list[list[int]], exact: list[list[int]]) -> list[tuple[int, int]]:
+    """The first three rows (in the file's order) that repeat an earlier row once normalized
+    without being an exact copy of an earlier row, each with the first row of its group."""
+    first_row = {r: min(rows) for rows in near for r in rows}
+    first_copy = {r: min(rows) for rows in exact for r in rows}
+    found = [r for r, first in first_row.items() if r != first and first_copy.get(r, r) == r]
+    return [(r, first_row[r]) for r in sorted(found)[:3]]
+
+
+def _near_examples(advanced: Advanced, pairs: list[tuple[int, int]]) -> list[tuple[str, str]]:
+    """'row 53: brands 'X'' → 'same as row 52 (brands 'x')', the rows read in one query."""
+    if not pairs:
+        return []
     columns = advanced.context.columns
     texts = ", ".join(as_text(c.name, c.dtype) for c in columns)
-    found = advanced.context.connection.execute(
-        f"SELECT file_row_number, {texts} FROM {advanced.rows_source} WHERE file_row_number IN "
-        f"({row}, {first}) ORDER BY file_row_number"
-    ).fetchall()
-    if len(found) < 2:
-        return (row_label(row), row_label(first))
-    original, copy = found[0][1:], found[1][1:]
-    differ = [(c.name, a, b) for c, a, b in zip(columns, original, copy, strict=True) if a != b][:3]
-    shown = ", ".join(f"{name} {q(str(b))}" for name, _, b in differ)
-    before = ", ".join(f"{name} {q(str(a))}" for name, a, _ in differ)
-    return (f"{row_label(row)}: {shown}", f"same as {row_label(first)} ({before})")
+    wanted = sorted({r for pair in pairs for r in pair})
+    found = {
+        int(row[0]): row[1:]
+        for row in advanced.context.connection.execute(
+            f"SELECT file_row_number, {texts} FROM {advanced.rows_source} WHERE file_row_number "
+            f"IN ({', '.join(str(r) for r in wanted)}) ORDER BY file_row_number"
+        ).fetchall()
+    }
+    examples = []
+    for row, first in pairs:
+        if row not in found or first not in found:
+            examples.append((row_label(row), row_label(first)))
+            continue
+        original, copy = found[min(row, first)], found[max(row, first)]
+        differ = [
+            (c.name, a, b) for c, a, b in zip(columns, original, copy, strict=True) if a != b
+        ][:3]
+        shown = ", ".join(f"{name} {q(str(b))}" for name, _, b in differ)
+        before = ", ".join(f"{name} {q(str(a))}" for name, a, _ in differ)
+        examples.append((f"{row_label(row)}: {shown}", f"same as {row_label(first)} ({before})"))
+    return examples
 
 
 # --- Entry ---------------------------------------------------------------------------------------
@@ -1320,18 +2353,106 @@ def profile(
 def run(
     context: Context, rows_source: str, basic_found: list[CleanSuggestion]
 ) -> list[CleanSuggestion]:
+    # they import this module
+    from quantilo.cleaning.rules import distributions, entities, formats, linkage, shapes
+
+    context.close()  # the Basic rules' table of values: not read here
     advanced = Advanced(context, rows_source, basic_found)
     if not context.rows or not context.columns:
         return []
-    spellings(advanced)
+    checks: list[tuple[str, Callable[[Advanced], None]]] = [
+        ("A-14", shapes.dates),
+        ("A-01 to A-03", spellings),
+        ("A-21", _synonyms),
+        ("A-04", shapes.codes),
+        ("F-02", formats.check_digits),
+        ("F-04", formats.countries),
+        ("F-01", formats.phones),
+        ("F-05", formats.quantities),
+    ]
+    sampled: list[tuple[str, Callable[[Advanced], None]]] = [
+        ("A-05", units),
+        ("A-07", distributions.noise),
+        ("A-06", distributions.outliers),
+        ("A-15", near_duplicates),
+        ("A-16", linkage.fellegi_sunter),
+        ("A-20", entities.entities),
+        ("A-17", linkage.mostly_empty),
+        ("A-18", repeated_values),
+        ("A-19", redundant_columns),
+        ("A-10", dependencies),
+        ("A-11", date_order),
+        ("A-12", totals),
+        ("A-13", ages),
+        ("A-08", distributions.benford),
+        ("A-09", distributions.last_digits),
+    ]
+    _checks(advanced, checks)
     make_sample(advanced)
     try:
-        units(advanced)
-        near_duplicates(advanced)
-        dependencies(advanced)
-        date_order(advanced)
-        totals(advanced)
-        ages(advanced)
+        _checks(advanced, sampled)
     finally:
         context.connection.execute(f"DROP TABLE IF EXISTS {SAMPLE}")
+    _budget_note(advanced)
     return sorted(advanced.found, key=lambda s: s.order)
+
+
+def _synonyms(advanced: Advanced) -> None:
+    """N30 (A-21); imported here because rules/synonyms.py imports this module."""
+    from quantilo.cleaning.rules import synonyms
+
+    synonyms.business(advanced)
+
+
+def _checks(advanced: Advanced, checks: list[tuple[str, Callable[[Advanced], None]]]) -> None:
+    for rule, check in checks:
+        if advanced.out_of_time():  # N44: the time budget spent, the rest is named in a note
+            advanced.late_checks.append(rule)
+        else:
+            check(advanced)
+
+
+def _budget_note(advanced: Advanced) -> None:
+    """N44: an information naming what the bounds left out on a wide or slow file."""
+    columns = [*advanced.unchecked, *advanced.late_columns]
+    if not columns and not advanced.late_checks:
+        return
+    seconds = f"{TIME_BUDGET:g} s"
+    parts = []
+    if advanced.unchecked:
+        parts.append(
+            f"{n(len(advanced.unchecked))} category text columns not checked for near spellings "
+            f"(A-01 to A-03): there are more than {SPELLING_COLUMNS}, and the {SPELLING_COLUMNS} "
+            "with the fewest distinct values per row were checked."
+        )
+    if advanced.late_columns:
+        parts.append(
+            f"{n(len(advanced.late_columns))} more not checked for near spellings: the time limit "
+            f"({seconds}) was reached."
+        )
+    if advanced.late_checks:
+        parts.append(
+            f"Checks not run, the time limit ({seconds}) reached: "
+            + ", ".join(advanced.late_checks)
+            + "."
+        )
+    shown = ", ".join(columns[:LISTED]) + (
+        f" and {n(len(columns) - LISTED)} more" if len(columns) > LISTED else ""
+    )
+    if columns:
+        parts.append(f"Open them one by one to check them: {shown}.")
+    why = "time limit" if advanced.late_columns or advanced.late_checks else "too many columns"
+    title = (
+        f"{n(len(columns))} columns not checked ({why}): open them one by one"
+        if columns
+        else f"{len(advanced.late_checks)} checks not run (time limit)"
+    )
+    advanced.add(
+        "A-00",
+        "I",
+        [],
+        title,
+        " ".join(parts),
+        examples=[(name, None) for name in columns],
+        key="budget",
+    )

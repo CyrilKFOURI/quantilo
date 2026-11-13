@@ -55,6 +55,14 @@ export function columnsFor(agg: Agg, columns: Column[]): Column[] {
 
 export const dateColumns = (columns: Column[]) =>
   columns.filter((c) => !c.excluded && c.type === "datetime");
+
+/** 048 bis: the dates in the order R-SUG-17 prefers (the event's date first, birth dates last);
+ *  a date the server did not rank (a derived one) keeps its place after the ranked ones. */
+export function rankedDates(dates: Column[], order: { name: string }[] | undefined): Column[] {
+  if (!order?.length) return dates;
+  const rank = new Map(order.map((d, i) => [d.name, i]));
+  return [...dates].sort((a, b) => (rank.get(a.name) ?? order.length) - (rank.get(b.name) ?? order.length));
+}
 export const splitColumns = (columns: Column[]) =>
   columns.filter((c) => !c.excluded && SPLITS.has(c.type));
 

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readTokens } from "../../charts/theme";
 import { column, roles } from "../../test/columns";
 import fixtures from "../../test/experiments.json";
+import interpret from "../../test/interpret.json";
 import { dataset, health, mockApi } from "../../test/mockApi";
 import { renderAt } from "../../test/render";
 import { linkTarget } from "../agent/links";
@@ -26,6 +27,7 @@ function setup(
   analyze: (body: { unit?: string | null; expected?: unknown }) => unknown = (body) => (body.unit ? byUser : loose),
   logged: unknown = noDecisions,
   found: unknown = candidates,
+  extra: Record<string, unknown> = {},
 ) {
   return mockApi({
     "GET /health": health,
@@ -43,6 +45,7 @@ function setup(
     "POST /modules/experiments/datasets/d1/evaluate-policy": (body: { propensity?: string | null; learn?: boolean }) =>
       body.learn ? learnt : body.propensity ? evaluation : estimated,
     "GET /modules/ml/datasets/d1/runs": [],
+    ...extra,
   });
 }
 
@@ -205,7 +208,7 @@ describe("Experiments page", () => {
     const evaluations = () => calls.filter((c) => c.key === "POST /modules/experiments/datasets/d1/evaluate-policy");
     expect(evaluations().every((c) => !(c.body as { learn?: boolean }).learn)).toBe(true);
 
-    const advanced = screen.getByText("Advanced · Every estimator and saved models").closest("details") as HTMLDetailsElement;
+    const advanced = screen.getByText("Advanced · Every estimator, saved models and matched groups").closest("details") as HTMLDetailsElement;
     advanced.open = true;
     const table = screen.getByRole("table", { name: "Policies by estimator" });
     expect(within(table).getByText("Always sms")).toBeInTheDocument();
@@ -217,6 +220,47 @@ describe("Experiments page", () => {
 
     fireEvent.change(screen.getByRole("combobox", { name: "Propensity" }), { target: { value: "" } });
     expect(await screen.findByText(/Observational: valid only if no hidden factor drove the decisions/)).toBeInTheDocument();
+  });
+
+  it("offers matched groups under Advanced with the rule's reason, and matches only when asked (123)", async () => {
+    const offered = { ...evaluation, matching: interpret.matchingOffer };
+    const calls = setup(undefined, decisions, candidates, {
+      "POST /modules/experiments/datasets/d1/evaluate-policy": offered,
+      "POST /modules/experiments/datasets/d1/matching": interpret.matched,
+    });
+    renderAt("/d/d1/experiments?tab=policies");
+    expect(await screen.findByRole("heading", { name: "Diagnostics" })).toBeInTheDocument();
+    const advanced = screen.getByText("Advanced · Every estimator, saved models and matched groups").closest("details") as HTMLDetailsElement;
+    advanced.open = true;
+    expect(screen.getByRole("heading", { name: "Matched groups" })).toBeInTheDocument();
+    expect(screen.getByText(interpret.matchingOffer.reason)).toBeInTheDocument();
+    const matchings = () => calls.filter((c) => c.key === "POST /modules/experiments/datasets/d1/matching");
+    expect(matchings()).toHaveLength(0);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Treated" }), { target: { value: "sms" } });
+    // 123 bis: DAME searches the sets of covariates (R-MAT-09)
+    fireEvent.change(screen.getByRole("combobox", { name: "Order of drops" }), { target: { value: "dame" } });
+    fireEvent.click(screen.getByRole("button", { name: "Match the units" }));
+    expect(await screen.findByText(interpret.matched.sentence)).toBeInTheDocument();
+    expect(matchings()[0]?.body).toMatchObject({ treatment: "offer", outcome: "converted", treated: "sms", bins: 4, method: "dame" });
+    expect(screen.getByText(interpret.matched.warnings[0] as string)).toBeInTheDocument();
+    const groups = screen.getByRole("table", { name: /^Matched groups \(/ });
+    expect(within(groups).getByText(interpret.matched.groups[0]?.conditions.join(" · ") as string)).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Balance: treated vs control" })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Levels: the covariates each level matches on" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Effect of the treatment in each matched group" })).toBeInTheDocument();
+  });
+
+  it("says why matched groups do not apply (R-MAT-01)", async () => {
+    const reason = "Matched groups compare a treatment with its control: 3 actions here, two are needed.";
+    setup(undefined, decisions, candidates, {
+      "POST /modules/experiments/datasets/d1/evaluate-policy": { ...evaluation, matching: { available: false, reason } },
+    });
+    renderAt("/d/d1/experiments?tab=policies");
+    expect(await screen.findByRole("heading", { name: "Diagnostics" })).toBeInTheDocument();
+    (screen.getByText("Advanced · Every estimator, saved models and matched groups").closest("details") as HTMLDetailsElement).open = true;
+    expect(screen.getByText(reason)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Match the units" })).toBeNull();
   });
 
   it("hides the Policies tab when the data is not a log of decisions", async () => {

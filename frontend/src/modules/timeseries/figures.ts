@@ -8,6 +8,7 @@ import type {
 } from "../../api/client";
 import type { Figure } from "../../charts/Plot";
 import { withAlpha } from "../../charts/figures";
+import { t } from "../../lib/i18n";
 
 const legend: Partial<Layout> = {
   showlegend: true,
@@ -38,7 +39,7 @@ export function overviewFigure(
   rolled: string,
   extra: { window: number; mean: (number | null)[]; name?: string }[] = [],
   smoothed: SmoothTrace[] = [],
-  filledName = "Filled by Kalman",
+  filledName = t("fig.ts.filledByKalman"),
 ): Figure {
   return (tokens) => {
     const color = tokens.palette[0] ?? tokens.date;
@@ -79,7 +80,7 @@ export function overviewFigure(
         {
           type: "scatter",
           mode: "lines",
-          name: "± 1σ band",
+          name: t("fig.band1Sigma"),
           x: periods,
           y: edge(1),
           fill: "tonexty",
@@ -102,7 +103,7 @@ export function overviewFigure(
           width: 1.25,
         },
         marker: { size: 4 },
-        hovertemplate: `%{x}<br>${what}: %{y:,.4g}<br>%{customdata:,} rows<extra></extra>`,
+        hovertemplate: `%{x}<br>${what}: %{y:,.4g}<br>%{customdata:,} ${t("fig.rows")}<extra></extra>`,
       } as Data);
     }
     if (rolling && layers.mean) {
@@ -118,7 +119,7 @@ export function overviewFigure(
     }
     // the extra means follow the "Rolling means" layer, like the first one
     (layers.mean ? extra : []).forEach((line, i) => {
-      const name = line.name ?? `${line.window}-period mean`;
+      const name = line.name ?? t("fig.ts.periodMean", { window: String(line.window) });
       data.push({
         type: "scatter",
         mode: "lines",
@@ -232,7 +233,7 @@ export function profileFigure(profile: SeasonalProfile, what: string): Figure {
           hovertemplate: `${label}<br>%{y:,.4g}<br>${
             profile.deviation[i] === null
               ? ""
-              : `${(profile.deviation[i] ?? 0) >= 0 ? "+" : ""}${(profile.deviation[i] ?? 0).toFixed(1)} % vs average`
+              : t("fig.ts.vsAverage", { value: `${(profile.deviation[i] ?? 0) >= 0 ? "+" : ""}${(profile.deviation[i] ?? 0).toFixed(1)}` })
           }<extra></extra>`,
         }) as Data,
     ),
@@ -288,21 +289,21 @@ export function decompositionFigure(
       color: string;
       bars?: boolean;
     }[] = [
-      { name: "Observed", y: observed, color: tokens.ink2 },
+      { name: t("fig.tail.observed"), y: observed, color: tokens.ink2 },
       {
-        name: "Trend",
+        name: t("fig.ts.trend"),
         y: parts.trend,
         color: tokens.palette[0] ?? tokens.date,
       },
       ...parts.seasonal.map((y, i) => ({
         name:
           parts.seasonal.length > 1
-            ? `Seasonal (${parts.seasons[i]})`
-            : "Seasonal",
+            ? t("fig.ts.seasonalOf", { season: String(parts.seasons[i]) })
+            : t("fig.ts.seasonal"),
         y,
         color: tokens.palette[1 + i] ?? tokens.numeric,
       })),
-      { name: "Remainder", y: parts.resid, color: tokens.ink3, bars: true },
+      { name: t("fig.ts.remainder"), y: parts.resid, color: tokens.ink3, bars: true },
     ];
     const gap = 0.04;
     const size = (1 - gap * (rows.length - 1)) / rows.length;
@@ -332,6 +333,75 @@ export function decompositionFigure(
       } as Data;
     });
     layout.xaxis = { type: "date", anchor: `y${rows.length}` as "y" };
+    return { data, layout };
+  };
+}
+
+/** One component of a structural fit, as the components chart draws it (028 A6 story 4). */
+export type ComponentRow = {
+  name: string;
+  kind: "trend" | "season" | "holidays" | "driver";
+  values: number[];
+};
+
+/** Trend, each season, the holidays and each driver of a Prophet-like fit, stacked on one time
+ * axis over the fitted history and the forecast; a dotted line marks the forecast's start.
+ * Holidays are bars (one spike per holiday), the rest lines. */
+export function componentsFigure(
+  periods: string[],
+  future: string[],
+  rows: ComponentRow[],
+): Figure {
+  return (tokens) => {
+    const x = [...periods, ...future];
+    const gap = 0.05;
+    const size = (1 - gap * (rows.length - 1)) / rows.length;
+    const layout: Partial<Layout> & Record<string, unknown> = {
+      showlegend: false,
+      hovermode: "x unified",
+      bargap: 0,
+    };
+    const data: Data[] = rows.map((row, i) => {
+      const axis = i === 0 ? "" : String(i + 1);
+      const top = 1 - i * (size + gap);
+      const color =
+        row.kind === "trend"
+          ? (tokens.palette[0] ?? tokens.date)
+          : (tokens.palette[i % 8] ?? tokens.numeric);
+      layout[`yaxis${axis}`] = {
+        domain: [Math.max(0, top - size), top],
+        ...title(row.name),
+        zeroline: row.kind !== "trend",
+      };
+      const bars = row.kind === "holidays";
+      return {
+        type: bars ? "bar" : "scatter",
+        mode: "lines",
+        name: row.name,
+        x,
+        y: row.values,
+        xaxis: "x",
+        yaxis: `y${axis}` as "y",
+        line: { color, width: 1.5 },
+        marker: { color },
+        hovertemplate: `${row.name}: %{y:,.4g}<extra></extra>`,
+      } as Data;
+    });
+    layout.xaxis = { type: "date", anchor: `y${rows.length}` as "y" };
+    const start = future[0];
+    if (start)
+      layout.shapes = [
+        {
+          type: "line",
+          xref: "x",
+          yref: "paper",
+          x0: start,
+          x1: start,
+          y0: 0,
+          y1: 1,
+          line: { color: tokens.ink3, width: 1, dash: "dot" },
+        },
+      ];
     return { data, layout };
   };
 }

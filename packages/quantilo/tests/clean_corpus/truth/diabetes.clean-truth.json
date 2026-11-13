@@ -1,0 +1,16 @@
+{
+ "label": "diabetes",
+ "corpus": "data-corpus",
+ "path": "health/uci_diabetes_130/diabetic_data.csv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-04:race:maybe", "verdict": "correct", "why": "'?' is the file's code for 'missing' (7 columns) (mode S)", "op": "null_values"},
+  {"id": "B-04:weight:maybe", "verdict": "correct", "why": "'?' is the file's code for 'missing' (7 columns) (mode S)", "op": "null_values"},
+  {"id": "B-04:payer_code:maybe", "verdict": "correct", "why": "'?' is the file's code for 'missing' (7 columns) (mode S)", "op": "null_values"},
+  {"id": "B-04:medical_specialty:maybe", "verdict": "correct", "why": "'?' is the file's code for 'missing' (7 columns) (mode S)", "op": "null_values"},
+  {"id": "B-04:diag_1:maybe", "verdict": "correct", "why": "'?' is the file's code for 'missing' (7 columns) (mode S)", "op": "null_values"},
+  {"id": "B-04:diag_2:maybe", "verdict": "correct", "why": "'?' is the file's code for 'missing' (7 columns) (mode S)", "op": "null_values"},
+  {"id": "B-04:diag_3:maybe", "verdict": "correct", "why": "'?' is the file's code for 'missing' (7 columns) (mode S)", "op": "null_values"}
+ ]
+}

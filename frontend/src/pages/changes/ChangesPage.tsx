@@ -212,12 +212,28 @@ function Relation({ sentence, version }: { sentence: string; version: FamilyVers
           <p className="text-xs text-ink-3">{t("changes.versus.steps", { version: versionName(version.seq) })}</p>
           <ol className="mt-0.5 list-decimal space-y-0.5 pl-5 text-xs text-ink-2">
             {active.slice(0, LISTED_STEPS).map((step) => (
-              <li key={step.id}>{describeStep(step)}</li>
+              <li key={step.id}>
+                {describeStep(step)}
+                {/* N03: a reliable fix Clean applied by default */}
+                {step.origin === "auto" && <span className="text-ink-3"> · {t("clean.steps.origin.auto")}</span>}
+              </li>
             ))}
           </ol>
           {active.length > LISTED_STEPS && (
             <p className="mt-0.5 pl-5 text-xs text-ink-3">{t("changes.moreReasons", { count: String(active.length - LISTED_STEPS) })}</p>
           )}
+          {active.some((step) => step.origin === "auto") && <p className="mt-0.5 text-xs text-ink-3">{t("clean.changes.automatic")}</p>}
+          {/* N46: who did what, when, and what it changed, kept as a file */}
+          <p className="mt-1 text-xs text-ink-3">
+            {t("clean.journal.changes")}{" "}
+            <a href={`/api/v1/modules/clean/versions/${version.dataset_id}/journal/markdown`} download className="text-accent hover:underline">
+              Markdown
+            </a>
+            {" · "}
+            <a href={`/api/v1/modules/clean/versions/${version.dataset_id}/journal/html`} download className="text-accent hover:underline">
+              HTML
+            </a>
+          </p>
         </div>
       )}
     </section>

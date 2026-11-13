@@ -47,6 +47,9 @@ FORECAST_LABELS = {
     "tsb": "TSB",
     "adida": "ADIDA",
     "combination": "Combination",
+    "sarimax": "SARIMAX",
+    "prophet_like": "Prophet-like",
+    "stlf": "STLF",
 }
 DEFAULT_FORECAST = ("naive", "seasonal_naive", "ets_auto", "arima_auto")
 AGG_LABELS = {
@@ -105,7 +108,7 @@ def columns_read(step: Step) -> list[str]:
     elif isinstance(step, TimeSeriesStep):
         a = step.analysis
         found = [c for c in (a.time, a.value, a.group) if c]
-        found += [d.column for d in a.drivers or [] if d.kind != "calendar"]
+        found += [d.column for d in a.drivers or [] if d.kind not in ("calendar", "holidays")]
     elif isinstance(step, MlStep):
         found = [step.target, *_validation_columns(step), *_condition_columns(step.conditions)]
     else:

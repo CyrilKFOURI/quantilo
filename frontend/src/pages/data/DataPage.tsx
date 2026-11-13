@@ -9,6 +9,7 @@ import { DataTable, type TableColumn } from "../../features/data/DataTable";
 import { ExportMenu } from "../../features/data/ExportMenu";
 import { useTableLayout } from "../../features/data/useTableLayout";
 import { JoinButton } from "../../features/joins/JoinDialog";
+import { JoinLineage } from "../../features/joins/JoinLineage";
 import { ConditionEditor } from "../../features/filters/ConditionEditor";
 import { NoRows } from "../../features/filters/NoRows";
 import { useFilters } from "../../features/filters/useFilters";
@@ -19,7 +20,7 @@ import { Folded } from "../../features/text/Folded";
 import { formatCount } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { Dialog } from "../../ui/Dialog";
-import { ErrorNote, TextInput } from "../../ui/fields";
+import { Checkbox, ErrorNote, TextInput } from "../../ui/fields";
 import { Popover } from "../../ui/Popover";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Loading } from "../../ui/Loading";
@@ -66,9 +67,11 @@ export function DataPage() {
       return next;
     });
 
+  // 099 bis (R-PIN-17): the table narrowed to the pinned rows, a choice under Advanced · Pinned rows
+  const [pinnedOnly, setPinnedOnly] = useState(false);
   const view: RowsView = useMemo(
-    () => ({ mode: search.mode ?? "first", search: search.q ?? "", sort: search.sort ?? null, desc: Boolean(search.desc) }),
-    [search.mode, search.q, search.sort, search.desc],
+    () => ({ mode: search.mode ?? "first", search: search.q ?? "", sort: search.sort ?? null, desc: Boolean(search.desc), pinned: pinnedOnly }),
+    [search.mode, search.q, search.sort, search.desc, pinnedOnly],
   );
   const [first] = useRowBlocks(datasetId, view, [0], ready);
   const total = first?.data?.total ?? 0;
@@ -101,6 +104,7 @@ export function DataPage() {
         <h1 className="text-xl font-semibold tracking-tight">{t("data.title")}</h1>
         <p className="mt-1 text-ink-2">{t("data.description")}</p>
       </header>
+      {ready && <JoinLineage datasetId={datasetId} />}
 
       <div className="flex flex-wrap items-center gap-3">
         <SegmentedControl
@@ -157,7 +161,20 @@ export function DataPage() {
           hint={pins.data?.pins.length ? t("pins.advancedCount", { count: formatCount(pins.data.pins.length) }) : t("pins.advancedHint")}
           onOpenChange={setPinning}
         >
-          <PinPanel datasetId={datasetId} selected={[...selected]} onClearSelection={() => setSelected(new Set())} hint={t("pins.dataHint")} />
+          <PinPanel
+            datasetId={datasetId}
+            selected={[...selected]}
+            onClearSelection={() => setSelected(new Set())}
+            hint={t("pins.dataHint")}
+            footer={
+              pins.data?.pins.some((p) => p.found) || pinnedOnly ? (
+                <div className="space-y-1 border-t border-line pt-2">
+                  <Checkbox checked={pinnedOnly} onChange={(e) => setPinnedOnly(e.target.checked)} label={t("pins.onlyPinned")} />
+                  <p className="max-w-prose text-xs text-ink-3">{t("pins.onlyPinnedHint")}</p>
+                </div>
+              ) : null
+            }
+          />
         </Folded>
       )}
 

@@ -1,0 +1,136 @@
+# N30 (audit 2026-11-12, § 4.3): business synonyms, written by hand. Extending them = editing this
+# file (no code change). Every use shows its reason; nothing here is guessed by a model.
+
+# --- Words of column names (R-SYN-01) ----------------------------------------------------------
+# A term of the trade written another way, read as a word the roles know (roles.toml) before the
+# role is matched. `words` are compared as the name's words (case, accents and punctuation
+# ignored: "Qté" is "qte"). `alone = false`: only in a name of two words or more ("CA HT",
+# "CA_2023", "PU TTC"), since the short word alone is something else too ("ca" is calcium in a
+# medical file, California in an address); with `beside`, one of the other words must be one of
+# those (or a number: a year): "serum_ca" stays calcium. `reason` closes the detection's reason.
+
+[[name]]
+words = ["chiffre d'affaires", "chiffre affaires", "chiffre d affaire", "chiffre affaire"]
+means = "revenue"
+reason = "'chiffre d'affaires' is French for revenue"
+
+[[name]]
+words = ["ca"]
+means = "revenue"
+alone = false
+beside = ["ht", "ttc", "net", "brut", "total", "annuel", "mensuel", "trimestriel", "cumul",
+          "cumule", "realise", "prev", "previsionnel", "objectif", "n", "mois", "annee",
+          "millions", "million", "k", "keur", "meur", "euros", "eur", "client", "clients",
+          "magasin", "produit", "region", "vendeur", "agence", "export", "france"]
+reason = "'CA' beside another word is short for chiffre d'affaires (revenue)"
+
+[[name]]
+words = ["qte", "qtes", "qtt"]
+means = "quantity"
+reason = "'Qté' is short for quantité (quantity)"
+
+[[name]]
+words = ["pu"]
+means = "unit price"
+alone = false
+beside = ["ht", "ttc", "net", "brut", "eur", "euros", "achat", "vente", "remise", "moyen"]
+reason = "'PU' beside another word is short for prix unitaire (unit price)"
+
+[[name]]
+words = ["mnt"]
+means = "montant"
+alone = false
+beside = ["ht", "ttc", "net", "brut", "total", "tva", "facture", "commande", "remise", "paye",
+          "regle", "du", "eur", "euros"]
+reason = "'Mnt' beside another word is short for montant (amount)"
+
+[[name]]
+words = ["ttc"]
+means = "montant"
+reason = "'TTC' (toutes taxes comprises) is an amount with taxes"
+
+[[name]]
+words = ["amt"]
+means = "amount"
+reason = "'amt' is short for amount"
+
+[[name]]
+words = ["nbre"]
+means = "nombre"
+reason = "'nbre' is short for nombre (a count)"
+
+[[name]]
+words = ["pcs"]
+means = "quantity"
+reason = "'pcs' is short for pieces (a quantity)"
+
+# --- Values (A-21) -----------------------------------------------------------------------------
+# Spellings of one answer in a domain. Clean › Advanced proposes to merge them (mode S, never
+# ticked) when a column holds two members of a group; values are compared without case or
+# accents (B-03 already handles those). `context`: the column must also hold at least
+# `min_context` of these values, so it is a column of that domain ('NR' alone is not a rating).
+# A member written { value = "m", with = ["f"] } counts only beside one of `with`: 'M' is male
+# beside 'F' (English, French 'masculin'), but female ('mujer') beside Spanish 'H'.
+
+[[values]]
+id = "film_rating"
+label = "film ratings"
+reason = "the same rating under two names"
+context = ["G", "PG", "PG-13", "R", "NC-17", "TV-G", "TV-PG", "TV-14", "TV-MA", "TV-Y", "TV-Y7",
+           "Approved", "Passed", "X", "GP"]
+min_context = 2
+groups = [
+  ["Not Rated", "Unrated", "NR", "Non classé", "Sans classement"],
+]
+
+[[values]]
+id = "sex"
+label = "sex"
+reason = "the same sex written in two ways or two languages"
+groups = [
+  ["Male", "Man", "Men", "Masculine", "Homme", "Hommes", "Masculin", "Hombre", "Masculino",
+   "Männlich", "Mann", "Maschio", "Uomo",
+   { value = "M", with = ["F", "Female", "Femme", "Féminin"] },
+   { value = "H", with = ["F", "Femme", "Féminin"] }],
+  ["Female", "Woman", "Women", "Feminine", "Femme", "Femmes", "Féminin", "Mujer", "Femenino",
+   "Weiblich", "Frau", "Femmina", "Donna",
+   { value = "F", with = ["M", "H", "Male", "Homme", "Masculin"] }],
+]
+
+[[values]]
+id = "not_measured"
+label = "tests"
+reason = "both say the test was not done"
+groups = [
+  ["Not measured", "Not tested", "Not done", "Not performed", "Non mesuré", "Non réalisé",
+   "Non fait", "Non dosé"],
+]
+
+[[values]]
+id = "payment"
+label = "payment methods"
+reason = "the same payment method under two names"
+context = ["Cash", "Cheque", "Check", "Transfer", "PayPal", "Espèces", "Chèque", "Virement",
+           "Prélèvement", "Credit card", "Debit card", "Card", "Carte bancaire", "CB"]
+min_context = 2
+groups = [
+  ["Carte bancaire", "Carte bleue", "CB", "Card", "Bank card"],
+  ["Cheque", "Check"],
+  ["Cash", "Espèces", "Liquide"],
+  ["Transfer", "Bank transfer", "Wire transfer", "Virement", "Virement bancaire"],
+]
+
+[[values]]
+id = "order_status"
+label = "order statuses"
+reason = "the same status in two spellings or two languages"
+context = ["Delivered", "Shipped", "Pending", "Completed", "Returned", "Livré", "Livrée", "Expédié",
+           "Expédiée", "En attente", "En cours", "Retourné", "Cancelled", "Canceled", "Annulé"]
+min_context = 2
+groups = [
+  ["Cancelled", "Canceled", "Annulé", "Annulée"],
+  ["Delivered", "Livré", "Livrée"],
+  ["Shipped", "Expédié", "Expédiée"],
+  ["Returned", "Retourné", "Retournée"],
+  ["Pending", "En attente"],
+]

@@ -5,9 +5,12 @@ import { api, reportFileUrl } from "../../api/client";
 import { useActiveFilters } from "../../api/filters";
 
 const downloaded = new Set<string>();
+/** 025, R-REP-17: the reports asked for the print preview are not downloaded when they are done. */
+const forPreview = new Set<string>();
 
 /** The dataset's HTML report (025): start it over the active filters, follow it, download it once
- * done. The job id lives in the query cache, so the Overview and Data pages share it. */
+ * done (or keep it for the print preview, R-REP-17). The job id lives in the query cache, so the
+ * Overview and Data pages share it. */
 export function useReport(datasetId: string) {
   const client = useQueryClient();
   const filters = useActiveFilters(datasetId);
@@ -28,8 +31,10 @@ export function useReport(datasetId: string) {
     retry: false,
   });
   const start = useMutation({
-    mutationFn: () => api.reportStart(datasetId, filters),
-    onSuccess: (started) => {
+    // the flag only tells onSuccess what the report is for (download or preview)
+    mutationFn: (preview: boolean) => (void preview, api.reportStart(datasetId, filters)),
+    onSuccess: (started, preview) => {
+      if (preview) forPreview.add(started.id);
       client.setQueryData(["report-jobs", started.id], started);
       client.setQueryData(key, started.id);
     },
@@ -42,7 +47,7 @@ export function useReport(datasetId: string) {
 
   const current = jobId ? job.data : undefined;
   useEffect(() => {
-    if (current?.status !== "done" || downloaded.has(current.id)) return;
+    if (current?.status !== "done" || downloaded.has(current.id) || forPreview.has(current.id)) return;
     downloaded.add(current.id);
     const link = document.createElement("a");
     link.href = reportFileUrl(current.id);
@@ -58,9 +63,26 @@ export function useReport(datasetId: string) {
     error:
       start.error?.message ??
       (current?.status === "failed" ? current.error : null),
-    start: () => start.mutate(),
+    start: () => start.mutate(false),
+    /** R-REP-17: a report for the print preview (the finished one when its filters still hold). */
+    startPreview: () => start.mutate(true),
     cancel: () => {
       if (current) cancel.mutate(current.id);
     },
   };
+}
+
+/** R-REP-17: the HTML of a finished report, read for the print preview. */
+export function useReportHtml(jobId: string | null) {
+  return useQuery({
+    queryKey: ["report-html", jobId],
+    queryFn: async () => {
+      const response = await fetch(reportFileUrl(jobId ?? ""));
+      if (!response.ok) throw new Error(`The report could not be read (${response.status}).`);
+      return response.text();
+    },
+    enabled: Boolean(jobId),
+    staleTime: Infinity,
+    retry: false,
+  });
 }

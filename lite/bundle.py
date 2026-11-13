@@ -20,14 +20,18 @@ PARTS = {
     "samples": ROOT / "samples",
 }
 SKIPPED = {"__pycache__", "static"}
-# Not in Pyodide's distribution; installed with micropip from the site itself.
-WHEELS = ["openpyxl", "et-xmlfile", "pydantic-settings", "python-dotenv"]
+# Not in Pyodide's distribution; installed with micropip from the site itself. holidays (028 A5,
+# public holidays as a forecast driver): pure Python, its only dependency python-dateutil comes
+# with Pyodide's pandas; pinned to the engine's locked version.
+WHEELS = ["openpyxl", "et-xmlfile", "pydantic-settings", "python-dotenv", "holidays==0.108"]
 
 
 def pack(out: Path) -> int:
-    count = 1
+    count = 0
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.write(ROOT / "lite/boot.py", "boot.py")
+        for name in ("boot.py", "vision_gate.py"):
+            archive.write(ROOT / "lite" / name, name)
+            count += 1
         for prefix, folder in PARTS.items():
             for path in sorted(folder.rglob("*")):
                 if path.is_file() and not SKIPPED.intersection(path.relative_to(folder).parts):

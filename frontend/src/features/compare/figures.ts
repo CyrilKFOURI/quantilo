@@ -3,6 +3,7 @@ import type { Data, Layout } from "plotly.js-dist-min";
 import type { Comparison } from "../../api/client";
 import { formatNumber, withAlpha } from "../../charts/figures";
 import type { ChartTokens } from "../../charts/theme";
+import { t } from "../../lib/i18n";
 
 type Built = { data: Data[]; layout?: Partial<Layout> };
 type Figure = (tokens: ChartTokens) => Built;
@@ -74,7 +75,7 @@ export function scatterFigure(
       traces.push({
         type: "scattergl",
         mode: "markers",
-        name: "rows",
+        name: t("fig.rows"),
         x: points.x,
         y: points.y,
         marker: {
@@ -93,7 +94,7 @@ export function scatterFigure(
       traces.push({
         type: "scatter",
         mode: "lines",
-        name: "Linear fit",
+        name: t("fig.compare.linearFit"),
         x: [low, high],
         y: [
           line.intercept + line.slope * low,
@@ -151,7 +152,7 @@ export function densityFigure(result: Comparison): Figure {
             outlinewidth: 0,
             tickfont: { size: 10, color: tokens.ink3 },
           },
-          hovertemplate: "%{x:,.3g}, %{y:,.3g}<br>%{z:,} rows<extra></extra>",
+          hovertemplate: `%{x:,.3g}, %{y:,.3g}<br>%{z:,} ${t("fig.rows")}<extra></extra>`,
         } as Data,
       ],
       layout: {
@@ -182,7 +183,7 @@ export function scatter3dFigure(result: Comparison): Figure {
       return {
         type: "scatter3d",
         mode: "markers",
-        name: label ?? "rows",
+        name: label ?? t("fig.rows"),
         x: index.map((i) => points.x[i]),
         y: index.map((i) => points.y[i]),
         z: index.map((i) => points.z?.[i]),
@@ -243,7 +244,7 @@ function coloredGroups(result: Comparison, view: GroupView, tokens: ChartTokens,
           width: 6,
         },
         customdata: groups.map((g) => [g.n, formatNumber(g.ci_low), formatNumber(g.ci_high), intervalMethod(g)]),
-        hovertemplate: `${level} · %{${vertical ? "x" : "y"}}<br>mean %{${vertical ? "y" : "x"}:,.4g}<br>95% CI %{customdata[1]} – %{customdata[2]} (%{customdata[3]})<br>n = %{customdata[0]:,}<extra></extra>`,
+        hovertemplate: `${level} · %{${vertical ? "x" : "y"}}<br>${t("fig.mean")} %{${vertical ? "y" : "x"}:,.4g}<br>${t("fig.compare.ci95")} %{customdata[1]} – %{customdata[2]} (%{customdata[3]})<br>n = %{customdata[0]:,}<extra></extra>`,
       } as Data;
     }
     if (view === "violin") {
@@ -323,7 +324,7 @@ export function groupsFigure(result: Comparison, view: GroupView): Figure {
             formatNumber(g.ci_high),
             intervalMethod(g),
           ]),
-          hovertemplate: `%{${vertical ? "x" : "y"}}<br>mean %{${vertical ? "y" : "x"}:,.4g}<br>95% CI %{customdata[1]} – %{customdata[2]} (%{customdata[3]})<br>n = %{customdata[0]:,}<extra></extra>`,
+          hovertemplate: `%{${vertical ? "x" : "y"}}<br>${t("fig.mean")} %{${vertical ? "y" : "x"}:,.4g}<br>${t("fig.compare.ci95")} %{customdata[1]} – %{customdata[2]} (%{customdata[3]})<br>n = %{customdata[0]:,}<extra></extra>`,
         } as Data,
       ];
     } else if (view === "violin") {
@@ -417,7 +418,7 @@ export function contingencyFigure(result: Comparison, view: TableView): Figure {
             showscale: false,
             xgap: 2,
             ygap: 2,
-            hovertemplate: `${result.x}: %{x}<br>${result.y}: %{y}<br>%{z:,} rows<extra></extra>`,
+            hovertemplate: `${result.x}: %{x}<br>${result.y}: %{y}<br>%{z:,} ${t("fig.rows")}<extra></extra>`,
           } as Data,
         ],
         layout: {
@@ -448,7 +449,7 @@ export function contingencyFigure(result: Comparison, view: TableView): Figure {
               color: colors.get(row),
               line: { color: tokens.surface, width: 1 },
             },
-            hovertemplate: `${row}<br>%{x}: %{y:.1f}% (%{customdata:,} rows)<extra></extra>`,
+            hovertemplate: `${row}<br>%{x}: %{y:.1f}% (%{customdata:,} ${t("fig.rows")})<extra></extra>`,
           }) as Data,
       ),
       layout: {
@@ -482,8 +483,8 @@ export function timelineFigure(
     const time = result.time;
     const what = time ? `${time.aggregate} ${numeric}` : numeric;
     const rolled = time?.window
-      ? `${time.window}-${time.period} rolling mean`
-      : "rolling mean";
+      ? t("fig.compare.rollingMeanOf", { window: String(time.window), period: t(`time.period.${time.period}`) })
+      : t("fig.compare.rollingMean");
     const data: Data[] = [];
     for (const series of result.series) {
       const color = single
@@ -522,7 +523,7 @@ export function timelineFigure(
             fillcolor: withAlpha(color, 0.15),
             line: { width: 0 },
             hoverinfo: "skip",
-            name: "± 1σ band",
+            name: t("fig.band1Sigma"),
           } as Data,
         );
       }
@@ -542,14 +543,14 @@ export function timelineFigure(
             width: 1.25,
           },
           marker: { size: 4 },
-          hovertemplate: `${series.label ? `${series.label}<br>` : ""}%{x}<br>${what}: %{y:,.4g}<br>%{customdata:,} rows<extra></extra>`,
+          hovertemplate: `${series.label ? `${series.label}<br>` : ""}%{x}<br>${what}: %{y:,.4g}<br>%{customdata:,} ${t("fig.rows")}<extra></extra>`,
         } as Data);
       }
       if (hasRolling && layers.has("mean")) {
         data.push({
           type: "scatter",
           mode: "lines",
-          name: single ? rolled : `${name} · mean`,
+          name: single ? rolled : `${name} · ${t("fig.mean")}`,
           legendgroup: name,
           showlegend: single || !layers.has("values"),
           x: series.periods,
@@ -589,13 +590,13 @@ export function dateCountsFigure(result: Comparison): Figure {
             x: series.periods,
             y: series.values,
             line: { color: colors.get(series.label ?? ""), width: 1 },
-            hovertemplate: `${series.label}<br>%{x}: %{y:,} rows<extra></extra>`,
+            hovertemplate: `${series.label}<br>%{x}: %{y:,} ${t("fig.rows")}<extra></extra>`,
           }) as Data,
       ),
       layout: {
         ...legend,
         xaxis: { type: "date", nticks: 8, tickangle: 0 },
-        yaxis: axisTitle("rows"),
+        yaxis: axisTitle(t("fig.rows")),
       },
     };
   };

@@ -2,6 +2,7 @@ import { FileDown } from "lucide-react";
 
 import { t } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
+import { ReportPreview } from "./ReportPreview";
 import { useReport } from "./useReport";
 
 /** Progress of a running report, its Cancel, or why it failed (shared by Overview and Data). */
@@ -56,14 +57,18 @@ export function ReportButton({ datasetId }: { datasetId: string }) {
   const report = useReport(datasetId);
   return (
     <span className="flex flex-col items-end gap-1">
-      <Button
-        icon={FileDown}
-        onClick={report.start}
-        disabled={report.running}
-        title={t("report.hint")}
-      >
-        {t("report.export")}
-      </Button>
+      <span className="flex flex-wrap items-center justify-end gap-1">
+        {/* 025, R-REP-17: the print preview, then the browser's print dialog (PDF) */}
+        <ReportPreview report={report} />
+        <Button
+          icon={FileDown}
+          onClick={report.start}
+          disabled={report.running}
+          title={t("report.hint")}
+        >
+          {t("report.export")}
+        </Button>
+      </span>
       <ReportProgress report={report} />
     </span>
   );

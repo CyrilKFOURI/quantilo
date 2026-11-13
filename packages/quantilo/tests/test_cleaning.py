@@ -87,7 +87,8 @@ def test_trap_suggestions_say_why_with_their_numbers(traps: dx.Dataset) -> None:
         assert suggestion.reason and suggestion.title
         assert suggestion.step is not None
         assert suggestion.step.suggestion == suggestion.id
-        assert suggestion.step.origin == ("auto" if suggestion.mode == "A" else "suggested")
+        # N03: "automatic" only for a reliable rule (the catalogue's `auto`)
+        assert suggestion.step.origin == ("auto" if suggestion.auto else "suggested")
 
 
 def test_trap_file_cleaned_child(traps: dx.Dataset, tmp_path: Path) -> None:

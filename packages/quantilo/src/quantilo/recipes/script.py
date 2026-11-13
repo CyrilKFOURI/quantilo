@@ -7,6 +7,7 @@ text that ends up in comments has its line breaks removed.
 
 import math
 import pprint
+import re
 import unicodedata
 from typing import Any
 
@@ -42,10 +43,19 @@ def literal(value: Any) -> str:
     return pprint.pformat(check(value), width=88, sort_dicts=False)
 
 
+# PEP 263: "coding:" or "coding=" in one of a file's first two comment lines sets how Python decodes
+# the whole file; a dataset named "x coding=utf-7" would turn "+AAo-" into a line break and its
+# next words into code. Generated scripts declare UTF-8 on their first line (ENCODING_LINE) and a
+# comment never carries the pattern.
+ENCODING_LINE = "# -*- coding: utf-8 -*-"
+_CODING = re.compile(r"coding([:=])")
+
+
 def comment(text: str) -> str:
-    """One comment line: line breaks and other control characters become spaces."""
+    """One comment line: line breaks and other control characters become spaces, and an encoding
+    declaration (PEP 263) is broken up."""
     clean = "".join(" " if unicodedata.category(c) in ("Cc", "Cf", "Zl", "Zp") else c for c in text)
-    return f"# {clean}"
+    return "# " + _CODING.sub(lambda match: "coding " + match.group(1), clean)
 
 
 def file_stem(name: str) -> str:
@@ -83,6 +93,7 @@ def to_python(recipe: Recipe, path: str = "data.csv") -> str:
     steps = [s for s in ordered(recipe.steps) if s.enabled]
     stem = file_stem(recipe.name)
     lines = [
+        ENCODING_LINE,
         comment(f"Recipe “{recipe.name}”, version {recipe.version}, exported from Quantilo."),
         comment(f"Made on {recipe.source or 'a dataset'}; replays it with the quantilo"),
         comment("library, then prints its key figures as JSON:"),

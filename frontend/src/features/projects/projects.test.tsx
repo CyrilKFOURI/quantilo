@@ -41,8 +41,8 @@ function setup(projects: Project[], extra: Record<string, unknown> = {}) {
     "GET /modules/clean/lineage": lineage,
     "GET /projects": projects,
     "POST /projects/move": (body: unknown) => {
-      const { dataset_ids, project_id } = body as { dataset_ids: string[]; project_id: string | null };
-      return moveLocally(projects, dataset_ids, project_id);
+      const { dataset_ids, project_id, from_project_id } = body as { dataset_ids: string[]; project_id: string | null; from_project_id?: string | null };
+      return moveLocally(projects, dataset_ids, project_id, from_project_id ?? null);
     },
     ...extra,
   });
@@ -101,6 +101,7 @@ describe("home page with projects (087)", () => {
     expect(calls.find((call) => call.key === "POST /projects/move")?.body).toEqual({
       dataset_ids: ["d1", "d2"],
       project_id: "p1",
+      from_project_id: null, // C1: from Not in a project
     });
     expect(await screen.findByText("3 datasets")).toBeInTheDocument();
   });
@@ -130,6 +131,7 @@ describe("home page with projects (087)", () => {
       expect(calls.find((call) => call.key === "POST /projects/move")?.body).toEqual({
         dataset_ids: ["d4"],
         project_id: "p1",
+        from_project_id: null,
       }),
     );
   });
@@ -172,7 +174,7 @@ describe("top bar (087)", () => {
     });
     renderAt("/d/d3/columns");
     const crumb = await screen.findByRole("link", { name: "Churn" });
-    expect(crumb).toHaveAttribute("href", "/?project=p1");
+    expect(crumb).toHaveAttribute("href", "/projects/p1"); // C1: the project's own page
     const switcher = await screen.findByRole("combobox", { name: "Switch dataset" });
     const group = within(switcher).getByRole("group", { name: "In Churn" });
     // the original only: its cleaned version is reached from it

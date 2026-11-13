@@ -1,9 +1,11 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 from quantilo.filters.model import Condition, parse_filters
+from quantilo.interpret.rashomon import OptimalTree
 from quantilo.segments.engine import RowValue, SegmentPlan, SegmentRequest
+from quantilo.segments.tree import SegmentTree
 from quantilo.text.distinctive import DistinctiveWords
 
 from app.modules.segments.service import (
@@ -124,6 +126,41 @@ def rename(dataset_id: str, run_id: str, body: Names, service: Service) -> Segme
 def tsne(dataset_id: str, run_id: str, service: Service) -> SegmentJob:
     """Draw the map with t-SNE (at most 5,000 rows), in the background."""
     return service.start_tsne(dataset_id, run_id)
+
+
+@router.post("/datasets/{dataset_id}/runs/{run_id}/map/{method}", status_code=202)
+def extra_map(
+    dataset_id: str, run_id: str, method: Literal["pacmap", "trimap"], service: Service
+) -> SegmentJob:
+    """Draw the map with PaCMAP or TriMAP (122, optional extra `interpret`), in the background;
+    409 with the reason when the extra cannot run here (R-XAI-10)."""
+    return service.start_map(dataset_id, run_id, method)
+
+
+class TreeRequest(BaseModel):
+    depth: int | None = Field(default=None, ge=1, le=6, description="Levels; 3 by default.")
+    leaves: int | None = Field(default=None, ge=2, le=20, description="Leaves; 8 by default.")
+
+
+@router.post("/datasets/{dataset_id}/runs/{run_id}/tree")
+def describe_tree(dataset_id: str, run_id: str, body: TreeRequest, service: Service) -> SegmentTree:
+    """Describe segments with a tree (124, Advanced): a sparse tree that predicts each row's
+    segment, its fidelity on rows it did not learn from, and each segment's rules."""
+    return service.tree(dataset_id, run_id, body.depth, body.leaves)
+
+
+class OptimalSegmentRequest(BaseModel):
+    segment: int = Field(ge=0, description="The segment, against all the others.")
+    depth: int = Field(default=3, ge=1, le=5)
+
+
+@router.post("/datasets/{dataset_id}/runs/{run_id}/tree/optimal")
+def optimal_segment_tree(
+    dataset_id: str, run_id: str, body: OptimalSegmentRequest, service: Service
+) -> OptimalTree:
+    """124 bis (R-SGT-06, extra `interpret`): GOSDT's optimal tree for one segment against the
+    others; 409 with the reason (R-XAI-10) when the extra cannot run here."""
+    return service.optimal_tree(dataset_id, run_id, body.segment, body.depth)
 
 
 @router.get("/datasets/{dataset_id}/runs/{run_id}/words")

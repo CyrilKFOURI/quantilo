@@ -195,7 +195,7 @@ def test_survival_from_a_duration_and_an_event(con) -> None:
     assert result.rows == 42 and result.events == 30 and result.censored == 12
     assert "differ" in (result.sentence or "")
     single = du.survival(con, "data", setup, columns)
-    assert len(single.curves) == 1 and single.sentence.startswith("Half reach the event")
+    assert len(single.curves) == 1 and (single.sentence or "").startswith("Half reach the event")
 
 
 def test_survival_from_two_dates_censors_open_ends(con) -> None:

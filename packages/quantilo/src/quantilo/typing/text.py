@@ -14,6 +14,7 @@ from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from quantilo.reasons import say
 from quantilo.typing.knowledge_base import KnowledgeBase
 
 WORD = re.compile(r"[^\W_]+")  # letters or digits, any script
@@ -154,12 +155,17 @@ def language_reason(measures: TextMeasures, kb: KnowledgeBase) -> str | None:
     if measures.language is None:
         return None
     if measures.language != MIXED:
-        return f"language: {language_label(measures, kb)} ({measures.language_share:.0%} of texts)"
+        return say(
+            "TYP.language",
+            "language: {language} ({share} of texts)",
+            language=language_label(measures, kb),
+            share=f"{measures.language_share:.0%}",
+        )
     shares = ", ".join(
         f"{(kb.language(language_id) or kb.languages[0]).label} {share:.0%}"
         for language_id, share in measures.languages[:3]
     )
-    return f"mixed languages: {shares}"
+    return say("TYP.languages", "mixed languages: {shares}", shares=shares)
 
 
 def stopwords_for(measures: TextMeasures | None, kb: KnowledgeBase) -> frozenset[str]:

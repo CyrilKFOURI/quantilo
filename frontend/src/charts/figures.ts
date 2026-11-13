@@ -3,6 +3,7 @@ import type { Data, Layout } from "plotly.js-dist-min";
 import type { AnalysisType, Chart } from "../api/client";
 import { formatCount } from "../lib/format";
 import type { ChartTokens } from "./theme";
+import { t } from "../lib/i18n";
 
 /** Display rules (docs/VISUALS.md). */
 export const HORIZONTAL_LABEL_LENGTH = 12;
@@ -34,10 +35,10 @@ function share(count: number, total: number): string {
 export function categoryBars(chart: Chart, options: { includeMissing?: boolean } = {}): Bar[] {
   const bars: Bar[] = chart.bars.map((bar) => ({ label: bar.label, count: bar.count }));
   if (chart.others && chart.others.count > 0) {
-    bars.push({ label: `Others (${formatCount(chart.others.categories)})`, count: chart.others.count, muted: true });
+    bars.push({ label: `${t("fig.chart.others")} (${formatCount(chart.others.categories)})`, count: chart.others.count, muted: true });
   }
   if ((options.includeMissing ?? true) && chart.missing > 0) {
-    bars.push({ label: "(missing)", count: chart.missing, muted: true });
+    bars.push({ label: t("fig.chart.missing"), count: chart.missing, muted: true });
   }
   return bars;
 }
@@ -64,7 +65,7 @@ export function barsFigure(chart: Chart, type: AnalysisType): (tokens: ChartToke
       y: horizontal ? labels : counts,
       customdata: custom,
       marker: { color: colors, opacity: bars.map((bar) => (bar.muted ? 0.55 : 1)) },
-      hovertemplate: `%{customdata[0]}<br>%{${horizontal ? "x" : "y"}:,} rows · %{customdata[1]}<extra></extra>`,
+      hovertemplate: `%{customdata[0]}<br>%{${horizontal ? "x" : "y"}:,} ${t("fig.rows")} · %{customdata[1]}<extra></extra>`,
     } as Data;
     const layout: Partial<Layout> = horizontal
       ? {
@@ -96,7 +97,7 @@ export function pieFigure(chart: Chart): (tokens: ChartTokens) => Built {
           textinfo: "label+percent",
           textposition: "outside",
           textfont: { color: tokens.ink2, size: 11 },
-          hovertemplate: "%{label}<br>%{value:,} rows · %{percent}<extra></extra>",
+          hovertemplate: `%{label}<br>%{value:,} ${t("fig.rows")} · %{percent}<extra></extra>`,
         } as Data,
       ],
       layout: { margin: { l: 24, r: 24, t: 16, b: 16 } },
@@ -104,7 +105,7 @@ export function pieFigure(chart: Chart): (tokens: ChartTokens) => Built {
   };
 }
 
-export function histogramFigure(chart: Chart, type: AnalysisType, unit = "rows"): (tokens: ChartTokens) => Built {
+export function histogramFigure(chart: Chart, type: AnalysisType, unit = t("fig.rows")): (tokens: ChartTokens) => Built {
   return (tokens) => {
     const centers = chart.bins.map((bin) => (bin.start + bin.end) / 2);
     const widths = chart.bins.map((bin) => bin.end - bin.start);
@@ -153,7 +154,7 @@ export function boxFigure(chart: Chart, type: AnalysisType): (tokens: ChartToken
           x: box.outlier_values,
           y: box.outlier_values.map(() => "values"),
           marker: { color, size: 6, opacity: 0.6 },
-          hovertemplate: "%{x:,}<extra>outlier</extra>",
+          hovertemplate: `%{x:,}<extra>${t("fig.outlier")}</extra>`,
         } as Data,
       ],
       layout: { yaxis: { visible: false }, xaxis: { showgrid: true } },
@@ -175,14 +176,14 @@ export function timelineFigure(chart: Chart): (tokens: ChartTokens) => Built {
           line: { color: tokens.date, width: 2 },
           fill: "tozeroy",
           fillcolor: withAlpha(tokens.date, 0.15),
-          hovertemplate: "%{x}<br>%{y:,} rows<extra></extra>",
+          hovertemplate: `%{x}<br>%{y:,} ${t("fig.rows")}<extra></extra>`,
         } as Data)
       : ({
           type: "bar",
           x,
           y,
           marker: { color: tokens.date },
-          hovertemplate: "%{x}<br>%{y:,} rows<extra></extra>",
+          hovertemplate: `%{x}<br>%{y:,} ${t("fig.rows")}<extra></extra>`,
         } as Data);
     // Period labels ("2024-03", "2024-03-18", "2024") are dates: a date axis spaces its ticks.
     return { data: [trace], layout: { xaxis: { type: "date", nticks: 6, tickangle: 0 } } };

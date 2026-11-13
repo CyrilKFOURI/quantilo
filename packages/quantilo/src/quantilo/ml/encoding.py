@@ -281,15 +281,24 @@ class PastSmooth(BaseEstimator, TransformerMixin):
     mean (`kind="mean"`, last `window` observations) or EWMA (span `window`) of the entity's
     values **shifted by `shift` observations**: the row's own period and the `shift - 1` before
     it never count. Past values come from the rows transformed and from the history kept at
-    fitting (the last `window + shift` periods of each entity): values only, never the target."""
+    fitting (the last `window + shift` periods of each entity). `keep_value=False` (063 bis,
+    R-LAG-03, the target's own past): only the shifted mean comes out, never the value."""
+
+    keep_value = True  # models saved before 063 bis
 
     def __init__(
-        self, kind: str = "mean", window: int = 5, shift: int = 1, entity: bool = True
+        self,
+        kind: str = "mean",
+        window: int = 5,
+        shift: int = 1,
+        entity: bool = True,
+        keep_value: bool = True,
     ) -> None:
         self.kind = kind
         self.window = window
         self.shift = shift
         self.entity = entity
+        self.keep_value = keep_value
 
     def _parts(self, X) -> tuple[np.ndarray, pd.MultiIndex]:
         """Each row's value, and its (entity, period key)."""
@@ -331,8 +340,13 @@ class PastSmooth(BaseEstimator, TransformerMixin):
         else:
             past = grouped.rolling(self.window, min_periods=1).mean()
         past = cast(pd.Series, past).droplevel(0)
-        return np.column_stack([value, past.reindex(rows).to_numpy(dtype=float)])
+        shifted_past = past.reindex(rows).to_numpy(dtype=float)
+        if not self.keep_value:
+            return shifted_past[:, None]
+        return np.column_stack([value, shifted_past])
 
     def get_feature_names_out(self, input_features=None):
         name = input_features[0] if input_features is not None and len(input_features) else "x0"
+        if not self.keep_value:
+            return np.asarray([f"{name}_past_{self.kind}"], dtype=object)
         return np.asarray([name, f"{name}_past_{self.kind}"], dtype=object)

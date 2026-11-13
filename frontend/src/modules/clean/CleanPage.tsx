@@ -11,10 +11,15 @@ import { InfoTip } from "../../ui/InfoTip";
 import { Loading } from "../../ui/Loading";
 import { Tabs } from "../../ui/Tabs";
 import {
+  dismissalsOf,
+  hiddenOf,
+  useAdvanced,
   useCancelJob,
+  useChecks,
   useCleanJob,
   useCleanSettings,
   useDraft,
+  useExpertResults,
   useFamily,
   useLineage,
   usePreview,
@@ -26,9 +31,14 @@ import {
   type Step,
   type Suggestion,
 } from "./api";
+import { ChecksNotice, ChecksPanel } from "./Checks";
+import { FacetPanel } from "./Facet";
+import { QualityProvider } from "./ColumnQuality";
 import { PinnedColumn } from "./PinnedColumn";
 import type { CleanSearch, CleanTab } from "./search";
-import { historyOf, push, redo, undo, withSuggestion, withoutSuggestion, type History } from "./steps";
+import { ReviewContext, type Replace } from "./context";
+import { reviewKey } from "./keys";
+import { historyOf, push, redo, replaceStep, undo, withSuggestion, withoutSuggestion, type History } from "./steps";
 import { StepsEditor } from "./StepsEditor";
 import { SuggestionsList } from "./Suggestions";
 import { Versions } from "./Versions";
@@ -69,10 +79,13 @@ function Editor({ datasetId, name }: { datasetId: string; name: string }) {
   const settings = useCleanSettings();
   const [asked, setAsked] = useState(false);
   const off = settings.data?.mode === "off" && !asked;
+  // N03: the reliable fixes are applied in the draft (never saved by themselves), and listed first
+  const applied = settings.data?.mode === "apply" || settings.data?.mode === "auto";
   const suggestions = useSuggestions(datasetId, settings.isFetched && !off);
   const draft = useDraft(datasetId, settings.isFetched);
   const columns = useColumns(datasetId, true);
   const family = useFamily(datasetId);
+  const checks = useChecks(datasetId); // N31: the declared checks, run when the data changed
   const lineage = useLineage();
   const saveDraft = useSaveDraft(datasetId);
   const reset = useResetDraft(datasetId);
@@ -95,9 +108,11 @@ function Editor({ datasetId, name }: { datasetId: string; name: string }) {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z" || typing(event.target)) return;
+      // N42: u undoes too, as Ctrl+Z (no modifier, not in a field, no dialog open)
+      const bare = event.key === "u" && reviewKey(event);
+      if (!bare && (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z" || typing(event.target))) return;
       event.preventDefault();
-      const next = event.shiftKey ? redo(history) : undo(history);
+      const next = event.shiftKey && !bare ? redo(history) : undo(history);
       if (next !== history) {
         setLocal({ base: server, history: next });
         saveDraft.mutate(next.present);
@@ -109,7 +124,11 @@ function Editor({ datasetId, name }: { datasetId: string; name: string }) {
 
   const whole = usePreview(datasetId, server ? steps : undefined, null);
   const problems = whole.data?.problems ?? {};
-  const found = suggestions.data?.suggestions ?? [];
+  const basic = suggestions.data?.suggestions ?? [];
+  // the Advanced and Expert suggestions once asked for (cache only), for the place of a ticked step
+  const advanced = useAdvanced(datasetId, false).data?.suggestions ?? [];
+  const expert = Object.values(useExpertResults(datasetId)).flatMap((result) => result?.suggestions ?? []);
+  const found = [...basic, ...advanced, ...expert];
   const nextSeq = Math.max(0, ...(family.data?.versions ?? []).map((version) => version.seq)) + 1;
   const go = (next: CleanTab) => void navigate({ to: ".", search: next === "suggestions" ? {} : { tab: next }, replace: true });
 
@@ -119,6 +138,19 @@ function Editor({ datasetId, name }: { datasetId: string; name: string }) {
   const tickMany = (many: Suggestion[], on: boolean) => {
     const ids = new Set(many.map((suggestion) => suggestion.id));
     update(on ? many.reduce((all, suggestion) => withSuggestion(all, suggestion, found), steps) : steps.filter((step) => !step.suggestion || !ids.has(step.suggestion)));
+  };
+
+  // N38: a merge reviewed value by value writes its step as it stands (null: out of the draft)
+  const replace: Replace = (suggestion, step) => {
+    if (!step) return update(withoutSuggestion(steps, suggestion.id));
+    const there = steps.find((other) => other.suggestion === suggestion.id);
+    update(there ? replaceStep(steps, { ...step, id: there.id } as Step) : withSuggestion(steps, { ...suggestion, step }, found));
+  };
+
+  // N05: a dismissal takes the steps of what it hides out of the draft (one change, Ctrl+Z)
+  const hide = (ids: string[]) => {
+    const gone = new Set(ids);
+    if (steps.some((step) => step.suggestion && gone.has(step.suggestion))) update(steps.filter((step) => !step.suggestion || !gone.has(step.suggestion)));
   };
 
   if (draft.isError) return <ErrorNote>{draft.error.message}</ErrorNote>;
@@ -138,7 +170,7 @@ function Editor({ datasetId, name }: { datasetId: string; name: string }) {
         preview={whole}
         problems={Object.keys(problems).length}
         nextSeq={nextSeq}
-        fixes={suggestions.data ? found.length : off ? 0 : null}
+        fixes={suggestions.data ? basic.length : off ? 0 : null}
         onReview={tab === "suggestions" ? null : () => go("suggestions")}
         automatic={server.automatic && (local.base !== server || history.past.length === 0)}
         onReset={() => reset.mutate()}
@@ -148,13 +180,16 @@ function Editor({ datasetId, name }: { datasetId: string; name: string }) {
         onSaved={() => go("versions")}
       />
       {saveDraft.isError && <ErrorNote>{saveDraft.error.message}</ErrorNote>}
+      {/* N37: each column's quality bar follows the draft, wherever the page shows one */}
+      <QualityProvider quality={suggestions.data?.quality} found={found} steps={steps}>
       <Tabs
         label={t("clean.tabs")}
         value={tab}
         onChange={go}
         items={[
-          { value: "suggestions", label: t("clean.tab.suggestions"), badge: suggestions.data ? String(found.length) : undefined },
+          { value: "suggestions", label: t("clean.tab.suggestions"), badge: suggestions.data ? String(basic.length) : undefined },
           { value: "steps", label: t("clean.tab.steps"), badge: String(steps.length) },
+          { value: "checks", label: t("clean.tab.checks"), badge: checks.data?.checks.length ? String(checks.data.report?.failed || checks.data.checks.length) : undefined },
           { value: "versions", label: t("clean.tab.versions"), badge: family.data ? String(family.data.versions.length) : undefined },
         ]}
       >
@@ -171,7 +206,18 @@ function Editor({ datasetId, name }: { datasetId: string; name: string }) {
           ) : !suggestions.data ? (
             <Loading label={t("clean.loadingSuggestions")} className="h-48 rounded-lg" />
           ) : (
-            <SuggestionsList suggestions={found} steps={steps} onToggle={toggle} onTickMany={tickMany} />
+            <ReviewContext.Provider value={{ datasetId, steps, found, onReplace: replace, onHide: hide }}>
+              <ChecksNotice datasetId={datasetId} onOpen={() => go("checks")} />
+              <SuggestionsList
+                datasetId={datasetId}
+                suggestions={basic}
+                steps={steps}
+                applied={applied}
+                dismissed={{ dismissals: dismissalsOf(suggestions.data), hidden: hiddenOf(suggestions.data) }}
+                onToggle={toggle}
+                onTickMany={tickMany}
+              />
+            </ReviewContext.Provider>
           ))}
         {tab === "steps" && (
           <div className="space-y-4">
@@ -183,12 +229,26 @@ function Editor({ datasetId, name }: { datasetId: string; name: string }) {
               columns={(columns.data ?? []).map((column) => column.name)}
               onChange={update}
             />
+            {/* N40: a column's values, a selection of them turned into a step (folded) */}
+            <FacetPanel datasetId={datasetId} steps={steps} columns={(columns.data ?? []).map((column) => column.name)} onChange={update} />
             {/* 099: the labels of pinned rows as a column, under Advanced */}
             <PinnedColumn datasetId={datasetId} steps={steps} columns={(columns.data ?? []).map((column) => column.name)} onChange={update} />
           </div>
         )}
-        {tab === "versions" && <Versions family={family.data} originalName={originalName} />}
+        {tab === "checks" && <ChecksPanel datasetId={datasetId} columns={(columns.data ?? []).map((column) => column.name)} />}
+        {tab === "versions" && (
+          <Versions
+            datasetId={datasetId}
+            family={family.data}
+            originalName={originalName}
+            onReplay={(adapted) => {
+              update(adapted); // C-43: one change, Ctrl+Z gives the draft back
+              go("steps");
+            }}
+          />
+        )}
       </Tabs>
+      </QualityProvider>
     </div>
   );
 }

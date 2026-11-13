@@ -4,13 +4,14 @@ import type { SyntheticColumnDetail, SyntheticPair, SyntheticReport, SyntheticRu
 import type { Figure } from "../../charts/Plot";
 import { withAlpha } from "../../charts/figures";
 import type { ChartTokens } from "../../charts/theme";
+import { t } from "../../lib/i18n";
 
 /** One fixed look per set on the whole page: real = solid dark grey, synthetic = accent outline
  *  (and dashed lines), so the two never depend on colour alone (spec 023, section 7). */
 export function looks(tokens: ChartTokens) {
   return {
-    real: { name: "Real", color: tokens.ink2, fill: withAlpha(tokens.ink2, 0.45) },
-    synthetic: { name: "Synthetic", color: tokens.accent, fill: withAlpha(tokens.accent, 0.12) },
+    real: { name: t("fig.syn.real"), color: tokens.ink2, fill: withAlpha(tokens.ink2, 0.45) },
+    synthetic: { name: t("fig.syn.synthetic"), color: tokens.accent, fill: withAlpha(tokens.accent, 0.12) },
   };
 }
 
@@ -31,7 +32,7 @@ function bars(tokens: ChartTokens, x: (string | number)[], real: number[], synth
       y: real,
       width,
       marker: { color: look.real.fill, line: { width: 0 } },
-      hovertemplate: "%{x}<br>real %{y:.1%}<extra></extra>",
+      hovertemplate: `%{x}<br>${t("fig.syn.realLower")} %{y:.1%}<extra></extra>`,
     } as Data,
     {
       type: "bar",
@@ -40,7 +41,7 @@ function bars(tokens: ChartTokens, x: (string | number)[], real: number[], synth
       y: synthetic,
       width,
       marker: { color: look.synthetic.fill, line: { color: look.synthetic.color, width: 1.5 } },
-      hovertemplate: "%{x}<br>synthetic %{y:.1%}<extra></extra>",
+      hovertemplate: `%{x}<br>${t("fig.syn.syntheticLower")} %{y:.1%}<extra></extra>`,
     } as Data,
   ];
 }
@@ -55,7 +56,7 @@ export function histogramFigure(detail: SyntheticColumnDetail, dates: boolean): 
     const width = dates ? widths.map((w) => w * 1000) : widths;
     return {
       data: bars(tokens, x, detail.histogram?.real ?? [], detail.histogram?.synthetic ?? [], width),
-      layout: { ...legend, barmode: "overlay", bargap: 0, yaxis: { ...percentAxis, ...axisTitle("Share of rows") } },
+      layout: { ...legend, barmode: "overlay", bargap: 0, yaxis: { ...percentAxis, ...axisTitle(t("fig.shareOfRows")) } },
     };
   };
 }
@@ -75,7 +76,7 @@ export function ecdfFigure(detail: SyntheticColumnDetail, dates: boolean): Figur
           x: x(ecdf?.real_x ?? []),
           y: ecdf?.levels ?? [],
           line: { color: look.real.color, width: 2, shape: "hv" },
-          hovertemplate: "%{x}<br>real %{y:.0%} below<extra></extra>",
+          hovertemplate: t("fig.syn.hoverRealBelow"),
         } as Data,
         {
           type: "scatter",
@@ -84,10 +85,10 @@ export function ecdfFigure(detail: SyntheticColumnDetail, dates: boolean): Figur
           x: x(ecdf?.synthetic_x ?? []),
           y: ecdf?.levels ?? [],
           line: { color: look.synthetic.color, width: 2, dash: "dash", shape: "hv" },
-          hovertemplate: "%{x}<br>synthetic %{y:.0%} below<extra></extra>",
+          hovertemplate: t("fig.syn.hoverSyntheticBelow"),
         } as Data,
       ],
-      layout: { ...legend, yaxis: { ...percentAxis, ...axisTitle("Share of rows below") } },
+      layout: { ...legend, yaxis: { ...percentAxis, ...axisTitle(t("fig.syn.shareBelow")) } },
     };
   };
 }
@@ -107,7 +108,7 @@ export function levelsFigure(detail: SyntheticColumnDetail): Figure {
           y,
           x: rows.map((r) => r.real_share),
           marker: { color: look.real.fill },
-          hovertemplate: "%{y}<br>real %{x:.1%}<extra></extra>",
+          hovertemplate: `%{y}<br>${t("fig.syn.realLower")} %{x:.1%}<extra></extra>`,
         } as Data,
         {
           type: "bar",
@@ -116,7 +117,7 @@ export function levelsFigure(detail: SyntheticColumnDetail): Figure {
           y,
           x: rows.map((r) => r.synthetic_share),
           marker: { color: look.synthetic.fill, line: { color: look.synthetic.color, width: 1.5 } },
-          hovertemplate: "%{y}<br>synthetic %{x:.1%}<extra></extra>",
+          hovertemplate: `%{y}<br>${t("fig.syn.syntheticLower")} %{x:.1%}<extra></extra>`,
         } as Data,
       ],
       layout: { ...legend, barmode: "group", bargap: 0.25, xaxis: { ...percentAxis, showgrid: true }, yaxis: { showgrid: false } },
@@ -269,11 +270,11 @@ export function dcrFigure(histogram: NonNullable<SyntheticReport["privacy"]["his
       data: [
         {
           type: "bar",
-          name: "Held-out real rows",
+          name: t("fig.syn.heldOut"),
           x,
           y: histogram.holdout,
           marker: { color: look.real.fill },
-          hovertemplate: "distance %{x:.2f}<br>held-out %{y:.1%}<extra></extra>",
+          hovertemplate: t("fig.syn.hoverHeldOut"),
         } as Data,
         {
           type: "bar",
@@ -281,15 +282,15 @@ export function dcrFigure(histogram: NonNullable<SyntheticReport["privacy"]["his
           x,
           y: histogram.synthetic,
           marker: { color: look.synthetic.fill, line: { color: look.synthetic.color, width: 1.5 } },
-          hovertemplate: "distance %{x:.2f}<br>synthetic %{y:.1%}<extra></extra>",
+          hovertemplate: t("fig.syn.hoverDcrSynthetic"),
         } as Data,
       ],
       layout: {
         ...legend,
         barmode: "overlay",
         bargap: 0,
-        xaxis: axisTitle("Distance to the closest training row"),
-        yaxis: { ...percentAxis, ...axisTitle("Share of rows") },
+        xaxis: axisTitle(t("fig.syn.distance")),
+        yaxis: { ...percentAxis, ...axisTitle(t("fig.shareOfRows")) },
       },
     };
   };
@@ -330,7 +331,7 @@ export function meanSpreadFigure(points: SyntheticReport["overview"]["mean_sprea
           textfont: { size: 10, color: tokens.ink2 },
           customdata: points.map((p) => p.column),
           marker: { color: look.synthetic.fill, size: 9, line: { color: look.synthetic.color, width: 1.5 } },
-          hovertemplate: `%{customdata}<br>real ${which} %{x:,.4g}<br>synthetic ${which} %{y:,.4g}<extra></extra>`,
+          hovertemplate: which === "mean" ? t("fig.syn.hoverMean") : t("fig.syn.hoverStd"),
           showlegend: false,
         } as Data,
       ],
@@ -368,7 +369,7 @@ export function pcaFigure(pca: NonNullable<SyntheticReport["overview"]["pca"]>):
           hoverinfo: "skip",
         } as Data,
       ],
-      layout: { ...legend, xaxis: axisTitle(`Component 1 (${percent(0)})`), yaxis: axisTitle(`Component 2 (${percent(1)})`) },
+      layout: { ...legend, xaxis: axisTitle(t("fig.seg.component", { n: "1", share: percent(0) })), yaxis: axisTitle(t("fig.seg.component", { n: "2", share: percent(1) })) },
     };
   };
 }
@@ -407,8 +408,8 @@ export function acfFigure(column: SequenceReport["columns"][number]): Figure {
       ],
       layout: {
         ...legend,
-        xaxis: { ...axisTitle("Lag (steps)"), dtick: 1 },
-        yaxis: { range: [-1, 1], zeroline: true, zerolinecolor: tokens.ink3, ...axisTitle("Autocorrelation") },
+        xaxis: { ...axisTitle(t("fig.syn.lagSteps")), dtick: 1 },
+        yaxis: { range: [-1, 1], zeroline: true, zerolinecolor: tokens.ink3, ...axisTitle(t("fig.syn.autocorrelation")) },
       },
     };
   };
@@ -435,7 +436,7 @@ export function samplesFigure(sample: SequenceReport["samples"][number]): Figure
       );
     return {
       data: [...lines(sample.real, "real"), ...lines(sample.synthetic, "synthetic")],
-      layout: { ...legend, xaxis: axisTitle("Step"), yaxis: axisTitle(sample.column) },
+      layout: { ...legend, xaxis: axisTitle(t("fig.syn.step")), yaxis: axisTitle(sample.column) },
     };
   };
 }

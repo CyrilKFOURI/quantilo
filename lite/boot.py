@@ -3,6 +3,7 @@
 The frontend's requests to /api/... are handed to `handle()` by the lite worker
 (frontend/src/lite/worker.ts), which calls the FastAPI app directly through ASGI.
 WebAssembly has no threads: background jobs and sync routes run inline.
+Vision waits for Pillow, loaded by the worker when first needed (vision_gate.py, 119).
 """
 
 import concurrent.futures
@@ -76,9 +77,14 @@ async def _run_sync_inline(func, *args, abandon_on_cancel=False, cancellable=Non
 # File and streaming responses read through anyio's worker threads.
 anyio.to_thread.run_sync = _run_sync_inline
 
+import vision_gate  # noqa: E402
+
+# 119, R-VIS-WEB-04: Pillow is not loaded at the start; Vision is mounted by `enable_vision()`.
+vision_gate.defer()
+
 from app.config import Settings  # noqa: E402
 from app.core.jobs import InlineJobRunner  # noqa: E402
-from app.main import create_app  # noqa: E402
+from app.main import API_PREFIX, create_app  # noqa: E402
 
 app = create_app(
     Settings(
@@ -91,6 +97,19 @@ app = create_app(
     job_runner=InlineJobRunner(),
 )
 _lifespan = None
+
+
+def enable_vision() -> None:
+    """Called by the worker once Pillow is loaded (R-VIS-WEB-04)."""
+    vision_gate.enable(app, API_PREFIX)
+
+
+def upload_folder(name: str) -> str:
+    """A new folder under the workspace's uploads for a folder of images picked in the page (119):
+    the worker writes its files there, and it is imported like any upload."""
+    folder = app.state.datasets.new_upload_path(name)
+    folder.mkdir(parents=True, exist_ok=True)
+    return str(folder)
 
 
 async def start() -> None:

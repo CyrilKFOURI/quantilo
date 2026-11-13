@@ -3,6 +3,7 @@ import type { Data, Layout } from "plotly.js-dist-min";
 import type { Chart, Law, NumericProfile } from "../../api/client";
 import { formatNumber, withAlpha } from "../../charts/figures";
 import type { ChartTokens } from "../../charts/theme";
+import { t } from "../../lib/i18n";
 
 type Built = { data: Data[]; layout?: Partial<Layout> };
 type Bar = { label: string; count: number };
@@ -26,10 +27,10 @@ export function kdeFigure(profile: NumericProfile): (tokens: ChartTokens) => Bui
           line: { color: tokens.numeric, width: 2, shape: "spline" },
           fill: "tozeroy",
           fillcolor: withAlpha(tokens.numeric, 0.15),
-          hovertemplate: "%{x:,.4g}<br>density %{y:.3g}<extra></extra>",
+          hovertemplate: t("fig.variable.hoverDensity"),
         } as Data,
       ],
-      layout: { yaxis: { title: { text: "Density", font: { size: 11 } } } },
+      layout: { yaxis: { title: { text: t("fig.variable.density"), font: { size: 11 } } } },
     };
   };
 }
@@ -46,7 +47,7 @@ export function ecdfFigure(profile: NumericProfile): (tokens: ChartTokens) => Bu
           x: curve.x,
           y: curve.y,
           line: { color: tokens.numeric, width: 2, shape: "hv" },
-          hovertemplate: "%{y:.0%} of values ≤ %{x:,.4g}<extra></extra>",
+          hovertemplate: t("fig.variable.hoverEcdf"),
         } as Data,
       ],
       layout: { yaxis: { tickformat: ".0%", range: [0, 1.02] } },
@@ -79,12 +80,12 @@ export function qqFigure(
           x: theoretical,
           y: sample,
           marker: { color: tokens.numeric, size: 8, line: { color: tokens.surface, width: 1 } },
-          hovertemplate: "theoretical %{x:.3g}<br>observed %{y:,.4g}<extra></extra>",
+          hovertemplate: t("fig.variable.hoverQq"),
         } as Data,
       ],
       layout: {
         xaxis: { title: { text: axisLabel, font: { size: 11 } }, showgrid: true },
-        yaxis: { title: { text: "Observed quantiles", font: { size: 11 } } },
+        yaxis: { title: { text: t("fig.variable.observedQuantiles"), font: { size: 11 } } },
       },
     };
   };
@@ -121,7 +122,7 @@ export function boxFromProfile(profile: NumericProfile): (tokens: ChartTokens) =
           x: outliers,
           y: outliers.map(() => "values"),
           marker: { color: tokens.numeric, size: 6, opacity: 0.5 },
-          hovertemplate: "%{x:,}<extra>outlier</extra>",
+          hovertemplate: `%{x:,}<extra>${t("fig.outlier")}</extra>`,
         } as Data,
       ],
       layout: { yaxis: { visible: false }, xaxis: { showgrid: true } },
@@ -155,13 +156,13 @@ export function lawsFigure(chart: Pick<Chart, "bins">, grid: number[], laws: Law
     const width = chart.bins[0] ? chart.bins[0].end - chart.bins[0].start : 1;
     const bars: Data = {
       type: "bar",
-      name: "Data",
+      name: t("fig.variable.data"),
       x: chart.bins.map((bin) => (bin.start + bin.end) / 2),
       y: chart.bins.map((bin) => bin.count),
       width: chart.bins.map((bin) => bin.end - bin.start),
       marker: { color: withAlpha(tokens.ink3, 0.35), line: { color: tokens.surface, width: 1 } },
       customdata: chart.bins.map((bin) => [formatNumber(bin.start), formatNumber(bin.end)]),
-      hovertemplate: "%{customdata[0]} – %{customdata[1]}<br>%{y:,} rows<extra></extra>",
+      hovertemplate: `%{customdata[0]} – %{customdata[1]}<br>%{y:,} ${t("fig.rows")}<extra></extra>`,
     } as Data;
     const curves = laws.map(
       (law, index) =>
@@ -172,7 +173,7 @@ export function lawsFigure(chart: Pick<Chart, "bins">, grid: number[], laws: Law
           x: grid,
           y: law.density.map((d) => d * valueCount * (law.discrete ? Math.max(1, Math.round(width)) : width)),
           line: { color: tokens.palette[index], width: 2, shape: law.discrete ? "hvh" : "spline" },
-          hovertemplate: `${law.label}<br>%{x:,.4g}: %{y:,.0f} expected<extra></extra>`,
+          hovertemplate: `${law.label}<br>%{x:,.4g}: %{y:,.0f} ${t("fig.variable.expected")}<extra></extra>`,
         }) as Data,
     );
     return { data: [bars, ...curves], layout: { ...legend, bargap: 0 } };
@@ -249,14 +250,14 @@ export function calendarFigure(days: Bar[]): (tokens: ChartTokens) => Built {
             [1, tokens.date],
           ],
           showscale: false,
-          hovertemplate: "%{text}<br>%{z:,} rows<extra></extra>",
+          hovertemplate: `%{text}<br>%{z:,} ${t("fig.rows")}<extra></extra>`,
         } as Data,
       ],
       layout: {
         xaxis: { type: "date", showgrid: false, nticks: 8 },
         yaxis: {
           tickvals: [0, 2, 4, 6],
-          ticktext: ["Mon", "Wed", "Fri", "Sun"],
+          ticktext: [t("fig.part.mon"), t("fig.part.wed"), t("fig.part.fri"), t("fig.part.sun")],
           autorange: "reversed",
           showgrid: false,
         },

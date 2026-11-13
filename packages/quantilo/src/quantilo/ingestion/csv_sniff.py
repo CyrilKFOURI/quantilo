@@ -5,30 +5,30 @@ import hashlib
 import re
 import tempfile
 from pathlib import Path
+from typing import cast
 
 import duckdb
 
+from quantilo.ingestion import encodings
 from quantilo.ingestion.options import CsvOptions, Encoding
 from quantilo.ingestion.sql import lit
 
 SAMPLE_BYTES = 256 * 1024
 DECIMAL_COMMA = re.compile(r"(?<![\d.,])\d+,\d+(?![\d.,])")
 DECIMAL_DOT = re.compile(r"(?<![\d.,])\d+\.\d+(?![\d.,])")
-C1_BYTES = re.compile(rb"[\x80-\x9f]")
+C1_BYTES = encodings.C1_BYTES
 
 
 def detect_encoding(path: Path) -> Encoding:
-    raw = path.read_bytes()[:SAMPLE_BYTES]
-    if raw.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
-        return "utf-16"
-    try:
-        # Incremental decoding tolerates a multi-byte character cut by the sample boundary.
-        codecs.getincrementaldecoder("utf-8")().decode(raw, final=False)
-        return "utf-8"
-    except UnicodeDecodeError:
-        # Bytes 0x80-0x9F are control codes in latin-1 but curly quotes, dashes and € in the
-        # Windows code page Excel exports with: DuckDB's latin-1 reader refuses them.
-        return "windows-1252" if C1_BYTES.search(raw) else "latin-1"
+    return cast(Encoding, encoding_evidence(path).encoding)
+
+
+def encoding_evidence(path: Path) -> encodings.Evidence:
+    """N28 (R-ING-08): the encoding and, when it is not plain UTF-8, why. Bytes 0x80-0x9F are
+    control codes in Latin-1 but curly quotes, dashes and € in the Windows code page Excel
+    exports with (DuckDB's Latin-1 reader refuses them); Mac Roman and DOS put letters there."""
+    with path.open("rb") as handle:
+        return encodings.detect(handle.read(SAMPLE_BYTES))
 
 
 _copies_dir: Path | None = None
@@ -43,17 +43,19 @@ def private_dir() -> Path:
     return _copies_dir
 
 
-def utf8_copy(path: Path) -> Path:
-    """A UTF-8 copy of a Windows-1252 file, which DuckDB only reads through an extension it
-    downloads (the app stays offline). Kept while the source is unchanged, so a preview and
-    the import that follows convert it once; the import deletes it."""
+def utf8_copy(path: Path, encoding: str = "windows-1252") -> Path:
+    """A UTF-8 copy of a file in an encoding DuckDB only reads through an extension it downloads
+    (the app stays offline): Windows-1252, and N28's (`encodings.NATIVE` are read directly).
+    Kept while the source is unchanged, so a preview and the import that follows convert it
+    once; the import deletes it."""
     stat = path.stat()
-    key = hashlib.sha1(f"{path.resolve()}|{stat.st_size}|{stat.st_mtime_ns}".encode()).hexdigest()
+    stamp = f"{path.resolve()}|{stat.st_size}|{stat.st_mtime_ns}|{encoding}"
+    key = hashlib.sha1(stamp.encode()).hexdigest()
     folder = private_dir()
     target = folder / f"{key[:16]}.csv"
     if target.exists():
         return target
-    decoder = codecs.getincrementaldecoder("cp1252")(errors="replace")
+    decoder = codecs.getincrementaldecoder(encodings.codec(encoding))(errors="replace")
     with tempfile.NamedTemporaryFile(
         "w", encoding="utf-8", newline="", dir=folder, suffix=".partial", delete=False
     ) as copy:
@@ -71,14 +73,16 @@ def utf8_copy(path: Path) -> Path:
 
 
 def readable_path(path: Path, encoding: Encoding) -> tuple[Path, Encoding]:
-    """The file and encoding DuckDB reads: the UTF-8 copy for Windows-1252."""
-    return (utf8_copy(path), "utf-8") if encoding == "windows-1252" else (path, encoding)
+    """The file and encoding DuckDB reads: the UTF-8 copy for the encodings it does not read."""
+    if encoding in encodings.NATIVE:
+        return path, encoding
+    return utf8_copy(path, encoding), "utf-8"
 
 
 def detect_decimal(path: Path, encoding: Encoding, delimiter: str) -> str:
     if delimiter == ",":
         return "."
-    text = path.read_bytes()[:SAMPLE_BYTES].decode(encoding, errors="ignore")
+    text = path.read_bytes()[:SAMPLE_BYTES].decode(encodings.codec(encoding), errors="ignore")
     commas = len(DECIMAL_COMMA.findall(text))
     dots = len(DECIMAL_DOT.findall(text))
     return "," if commas > dots else "."
@@ -91,7 +95,7 @@ def space_fields(path: Path, encoding: Encoding) -> int | None:
     """R-ING-02 (092): the number of fields when the first lines all split into the same number
     (at least 2) of non-empty fields on single spaces, as in UCI's `german.data`."""
     raw = path.read_bytes()[:SAMPLE_BYTES]
-    text = raw.decode("cp1252" if encoding == "windows-1252" else encoding, errors="replace")
+    text = raw.decode(encodings.codec(encoding), errors="replace")
     lines = text.splitlines()
     if len(raw) == SAMPLE_BYTES and len(lines) > 1:
         lines = lines[:-1]  # the last line may be cut by the sample
@@ -109,9 +113,10 @@ def sniff_csv(path: Path) -> CsvOptions:
 
 def sniff_dialect(path: Path) -> tuple[CsvOptions, list[str]]:
     """The dialect, and a sentence per rule that chose it (092: R-ING-02, R-ING-03)."""
-    encoding = detect_encoding(path)
+    evidence = encoding_evidence(path)
+    encoding = cast(Encoding, evidence.encoding)
     readable, read_as = readable_path(path, encoding)
-    notes: list[str] = []
+    notes: list[str] = [evidence.reason] if evidence.reason else []
     connection = duckdb.connect()
     try:
         source = f"sniff_csv({lit(str(readable))}, encoding={lit(read_as)})"

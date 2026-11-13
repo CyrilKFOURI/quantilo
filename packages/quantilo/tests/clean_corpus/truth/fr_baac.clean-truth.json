@@ -1,0 +1,13 @@
+{
+ "label": "fr_baac",
+ "corpus": "data-corpus",
+ "path": "transport/fr_accidents_baac_2024/caract-2024.csv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-01:adr", "verdict": "correct", "why": "the change is blanks only", "op": "normalize_spaces"},
+  {"id": "B-05:adr", "verdict": "correct", "why": "the cp1252 -> UTF-8 round trip checked", "op": "map_values"},
+  {"id": "B-04:adr", "verdict": "correct", "why": "a word for 'missing' in this file", "op": "null_values"},
+  {"id": "B-07:mois", "verdict": "correct", "why": "numbers stored as text, every value read", "op": "change_type"}
+ ]
+}

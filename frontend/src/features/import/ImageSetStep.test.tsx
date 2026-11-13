@@ -107,4 +107,37 @@ describe("image set import step (106)", () => {
     expect(request.path).toBe("/s/pets");
     expect(request.options.ignore_rules).toEqual(["R-VIS-LAY-01"]);
   });
+
+  it("reads a labels file given in the step (c3, R-VIS-LAB-05)", async () => {
+    const calls = mockApi({
+      "GET /health": health,
+      "GET /datasets": [],
+      "GET /samples": [{ name: "pets", path: "/s/pets", format: "images", size: 1 }],
+      "POST /sources/preview": tablePreview,
+      "POST /images/preview": (body: unknown) => {
+        const options = (body as { options: { ignore_rules: string[]; labels: string | null } }).options;
+        return { ...imagePreview(options.ignore_rules), label_file: options.labels ? "labels.csv" : null };
+      },
+      "POST /images/import": {
+        dataset: dataset({ id: "d9", format: "images", status: "importing" }),
+        job: { id: "j1", status: "running", progress: 0.1, message: "Starting" },
+        reused: false,
+      },
+      "GET /jobs/j1": { id: "j1", status: "running", progress: 0.3, message: "Reading images: 3 of 11" },
+    });
+    renderAt("/");
+    fireEvent.click(await screen.findByRole("button", { name: "pets" }));
+    fireEvent.click(await screen.findByText("Labels file"));
+    fireEvent.change(screen.getByRole("textbox", { name: "Path of the file" }), { target: { value: "C:/data/labels.csv" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Label column" }), { target: { value: "breed" } });
+    fireEvent.click(screen.getByRole("button", { name: "Read with this file" }));
+    expect(await screen.findByText("labels.csv read (R-VIS-LAB-01)")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Import 11 images" }));
+    await waitFor(() => expect(calls.some((call) => call.key === "POST /images/import")).toBe(true));
+    const request = calls.find((call) => call.key === "POST /images/import")?.body as {
+      options: { labels: string; label_column: string };
+    };
+    expect(request.options.labels).toBe("C:/data/labels.csv");
+    expect(request.options.label_column).toBe("breed");
+  });
 });

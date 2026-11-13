@@ -35,6 +35,8 @@
   "pins.marked": "Pinned: {label}",
   "pins.selectRow": "Select row {row} to pin it",
   "pins.dataHint": "Click row numbers in the table to select rows.",
+  "pins.onlyPinned": "Pinned rows only",
+  "pins.onlyPinnedHint": "The table, its count and the exports keep only the pinned rows found, with the filters still applied (R-PIN-17).",
   "pins.unusualHint": "Tick rows in the table above to select them.",
   "pins.cleanHint": "Row numbers as the Data page shows them.",
   "pins.compare.title": "What distinguishes pinned rows",

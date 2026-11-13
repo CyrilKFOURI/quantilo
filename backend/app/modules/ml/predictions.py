@@ -525,6 +525,71 @@ class PredictionService:
 
     # --- Explaining one predicted row ------------------------------------------------------
 
+    def card_row(self, dataset_id: str, prediction_id: str, row: int) -> Any:
+        """R-XAI-18 (121 bis): the run's scorecard (5 conditions, points from -5 to 5) read on
+        one predicted row; the card is computed once and kept next to the run."""
+        from quantilo.interpret import risk_score as scores
+
+        from app.modules.ml import interpret
+
+        found = self._row(dataset_id, prediction_id)
+        if not found["source_id"]:
+            raise MlError("The predicted dataset was deleted since.", "no_source")
+        run = self.ml.run(dataset_id, found["run_id"])
+        if run.task != "binary":
+            raise MlError(
+                "R-XAI-05: a scorecard gives the risk of one event: it needs a run with two "
+                "classes.",
+                "not_binary",
+            )
+        cards = interpret.scorecard(
+            self.ml, dataset_id, found["run_id"], scores.CONDITIONS, scores.BOUND
+        )
+        card = self.card(dataset_id, found["run_id"])
+        source, views, _ = self._source(found["source_id"])
+        connection = duckdb.connect()
+        try:
+            frame = use.one_row(connection, source, card, views, row)
+        finally:
+            connection.close()
+        if frame.empty:
+            raise MlError("This row is not in the data.", "no_row")
+        try:
+            return scores.card_row(cards, frame, row)
+        except scores.RiskScoreError as error:
+            raise MlError(str(error), "no_scorecard") from None
+
+    def counterfactual_row(
+        self, dataset_id: str, prediction_id: str, row: int, request: Any
+    ) -> Any:
+        """R-XAI-21 (125 bis): what would change one predicted row, judged on that data."""
+        from quantilo.ml.counterfactual import CounterfactualError
+
+        found = self._row(dataset_id, prediction_id)
+        if not found["source_id"]:
+            raise MlError("The predicted dataset was deleted since.", "no_source")
+        card = self.card(dataset_id, found["run_id"])
+        source, views, _ = self._source(found["source_id"])
+        pipeline = self._pipeline(dataset_id, found["run_id"])
+        connection = duckdb.connect()
+        try:
+            return use.counterfactual_row(
+                connection,
+                source,
+                pipeline,
+                card,
+                views,
+                row,
+                request.editable,
+                request.target_class,
+                request.target_value,
+                request.max_changes,
+            )
+        except CounterfactualError as error:
+            raise MlError(str(error), "no_counterfactual") from None
+        finally:
+            connection.close()
+
     def explain_row(self, dataset_id: str, prediction_id: str, row: int) -> use.RowExplanation:
         """Why the model predicts what it does for one predicted row (`row`: 0-based)."""
         found = self._row(dataset_id, prediction_id)

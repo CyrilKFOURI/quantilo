@@ -1,0 +1,11 @@
+{
+  "clean.op.parse_quantity": "Lire des quantités avec unité",
+  "clean.opHint.parse_quantity": "« 12 kg », « 500 g », « 12 x 33 cl » lus comme des nombres en grammes, litres ou mètres, dans de nouvelles colonnes ; l'unité telle qu'écrite dans une autre.",
+  "clean.describe.quantity": "Quantités de {column} → {to}",
+  "clean.field.toGrams": "Colonne des grammes",
+  "clean.field.toLitres": "Colonne des litres",
+  "clean.field.toMetres": "Colonne des mètres",
+  "clean.field.unitTo": "Colonne de l'unité",
+  "clean.field.notMade": "non créée",
+  "clean.field.why.quantity": "Chaque valeur va dans la colonne de son genre, dans son unité de base : mg, g, kg, lb, oz → grammes ; ml, cl, dl, l, fl oz → litres ; mm, cm, m, km → mètres. « 12 x 33 cl » vaut 3,96 litres. Laissez un nom vide pour écarter ce genre ; une unité inconnue reste vide."
+}

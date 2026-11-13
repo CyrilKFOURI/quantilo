@@ -53,6 +53,7 @@ from quantilo.ingestion.layout.reshape import (
     key_value,
     numbered_groups,
     period_columns,
+    running_balance,
     sparse_groups,
     transposed,
 )
@@ -637,6 +638,7 @@ def finalize(
     # restructurings (K)
     facts = Facts(grid, [r for r in clean_rows if r not in set(totals)], columns, header)
     hits.extend(derived_columns(facts))
+    hits.extend(running_balance(facts))  # K5 (C1)
     kv = key_value(facts, bool(header_rows)) or transposed(facts)
     for proposal in (sparse_groups(facts), period_columns(facts), numbered_groups(facts), kv):
         if proposal is not None:

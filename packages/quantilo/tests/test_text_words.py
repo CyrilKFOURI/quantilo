@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 import quantilo
+from quantilo.errors import ExplorerError
 from quantilo.text.distinctive import MIN_TEXTS, distinctive
 from quantilo.text.service import TextError, TextService, words_between
 from quantilo.text.tokens import stop_words, words
@@ -78,7 +79,7 @@ def test_compare_text_with_a_number_fails(tmp_path) -> None:
     data = corpus()
     data["score"] = [i * 0.37 for i in range(len(data))]
     ds = quantilo.from_pandas(data, "num", cache_dir=tmp_path)
-    with pytest.raises(quantilo.errors.ExplorerError, match="R-WRD-06"):
+    with pytest.raises(ExplorerError, match="R-WRD-06"):
         ds.compare("score", "review")
 
 

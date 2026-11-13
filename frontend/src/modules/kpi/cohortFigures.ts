@@ -4,6 +4,7 @@ import type { CohortResult, FunnelResult } from "../../api/client";
 import { withAlpha } from "../../charts/figures";
 import type { ChartTokens } from "../../charts/theme";
 import { formatShare } from "./format";
+import { t } from "../../lib/i18n";
 
 type Built = { data: Data[]; layout?: Partial<Layout> };
 
@@ -44,7 +45,7 @@ export function cohortFigure(result: CohortResult): (tokens: ChartTokens) => Bui
           text: z.map((row) => row.map((v) => (v === null ? "" : formatShare(v)))),
           texttemplate: "%{text}",
           textfont: { size: 10, color: tokens.ink1 },
-          hovertemplate: `%{y} · %{x} ${result.grain === "month" ? "months" : "weeks"}: %{text}<extra></extra>`,
+          hovertemplate: result.grain === "month" ? t("fig.kpi.hoverMonths") : t("fig.kpi.hoverWeeks"),
           showscale: false,
           xgap: 2,
           ygap: 2,
@@ -66,8 +67,8 @@ export function newReturningFigure(result: CohortResult): (tokens: ChartTokens) 
     const opacity = result.periods.map((p) => (p.partial ? 0.45 : 1));
     return {
       data: [
-        { type: "bar", name: "New", x, y: result.periods.map((p) => p.new), marker: { color: first, opacity }, hovertemplate: "%{x}: %{y:,} new<extra></extra>" } as Data,
-        { type: "bar", name: "Returning", x, y: result.periods.map((p) => p.returning), marker: { color: second, opacity }, hovertemplate: "%{x}: %{y:,} returning<extra></extra>" } as Data,
+        { type: "bar", name: t("fig.kpi.new"), x, y: result.periods.map((p) => p.new), marker: { color: first, opacity }, hovertemplate: t("fig.kpi.hoverNew") } as Data,
+        { type: "bar", name: t("fig.kpi.returning"), x, y: result.periods.map((p) => p.returning), marker: { color: second, opacity }, hovertemplate: t("fig.kpi.hoverReturning") } as Data,
       ],
       layout: {
         barmode: "stack",

@@ -28,7 +28,7 @@ const changes = {
 
 const step = (id: string, op: string, extra: Record<string, unknown> = {}) => ({ id, op, enabled: true, origin: "rule", rule: null, suggestion: null, ...extra });
 const steps = [
-  step("s1", "normalize_spaces", { columns: ["city"] }),
+  step("s1", "normalize_spaces", { columns: ["city"], origin: "auto" }),
   step("s2", "drop_duplicates", { keys: null, keep: "first" }),
   step("s3", "change_case", { columns: ["brand"], case: "title" }),
   step("s4", "remove_invisible", { columns: ["notes"] }),
@@ -87,6 +87,8 @@ describe("Changes of a cleaned version (095)", () => {
     expect(asked(calls, "v1").every((call) => call.params.get("vs") === "d1")).toBe(true);
     expect(screen.getByText("Cleaning steps of Cleaned v1")).toBeInTheDocument();
     expect(screen.getByText("Trim extra spaces · city")).toBeInTheDocument();
+    expect(screen.getByText("· automatic")).toBeInTheDocument(); // N03: a reliable fix applied by default
+    expect(screen.getByText("Steps marked automatic are the reliable fixes Clean applied by default.")).toBeInTheDocument();
     expect(screen.getByText("Remove duplicate rows")).toBeInTheDocument();
     expect(screen.getByText("… and 1 more")).toBeInTheDocument(); // 5 active steps, 4 listed
     expect((screen.getByRole("combobox") as HTMLSelectElement).value).toBe("d1");

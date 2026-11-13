@@ -13,7 +13,9 @@ from quantilo.filters.model import Condition
 from quantilo.timeseries import autocorrelation as ac
 from quantilo.timeseries import breaks as br
 from quantilo.timeseries import drivers as dv
+from quantilo.timeseries import forecast as fc
 from quantilo.timeseries import groups as gr
+from quantilo.timeseries import public_holidays as ph
 from quantilo.timeseries import residuals as rs
 from quantilo.timeseries import smoothing as sm
 from quantilo.timeseries import stationarity as st
@@ -38,6 +40,7 @@ from quantilo.timeseries.service import (
 )
 
 DriverItems = Sequence["dv.Driver | str | Mapping[str, Any]"]
+TuningItem = fc.Tuning | Mapping[str, Any]
 
 
 class TimeSeries:
@@ -133,14 +136,25 @@ class TimeSeries:
         order: tuple[int, int, int] = (1, 1, 1),
         seasonal_order: tuple[int, int, int] = (0, 0, 0),
         drivers: DriverItems | None = None,
+        holidays: str | None = None,
+        tuning: TuningItem | None = None,
     ) -> SeriesForecast:
         """Naive models, ETS, ARIMA… validated on rolling origins and ranked by MASE (waits for
-        every model). `drivers`: outside variables used by `sarimax`, `tslm` and `gbm_lags`, as
+        every model); `prophet_like` and `stlf` handle several seasons (daily, hourly data).
+        `drivers`: outside variables used by `sarimax`, `tslm`, `gbm_lags` and `prophet_like`, as
         `Driver("visits")` (past only), `Driver("price", known=True)` (future values from the
         file), `Driver("weekday", kind="calendar")`, `Driver("holiday", kind="flag")`; a plain
-        column name is a past-only driver."""
+        column name is a past-only driver. `holidays="FR"` (or `"US-CA"`, a subdivision): the
+        country's public holidays as a driver known in advance (hourly, daily or weekly series;
+        `drivers().holidays` proposes a country). `tuning`: `Tuning(max_p=5, criterion="bic",
+        gbm_grid="small", changepoint_scale=0.1, time_limit=30)` or the same as a dict.
+        AI models (028 phase B, the forecast-ai extra): `chronos_bolt_tiny`, `chronos_bolt_small`,
+        `chronos_bolt_base`, `chronos_2` (uses the drivers too), `timesfm_2p5` (pretrained: their
+        weights first, `quantilo.timeseries.ai.download(key, confirm=True)`), `nhits`, `nbeats`
+        (trained here, 500 periods or more); one that cannot run gives its reason in its row."""
+        found = with_holidays(as_drivers(drivers), holidays)
         job = self._service.start_forecast(
-            *self._args(), horizon, models, order, seasonal_order, as_drivers(drivers)
+            *self._args(), horizon, models, order, seasonal_order, found, as_tuning(tuning)
         )
         while job.status == "running":
             clock.sleep(0.05)
@@ -159,6 +173,8 @@ class TimeSeries:
         model: str = "tslm",
         horizon: int | None = None,
         changes: Sequence["dv.ScenarioChange | Mapping[str, Any]"] | None = None,
+        holidays: str | None = None,
+        tuning: TuningItem | None = None,
     ) -> DriverForecast:
         """One driver model's forecast with other future values for the known-in-advance
         drivers: `future={"price": [9.9, 9.9, 12.0, …]}` (one value per forecast period), or
@@ -167,7 +183,13 @@ class TimeSeries:
             c if isinstance(c, dv.ScenarioChange) else dv.ScenarioChange(**c) for c in changes or []
         ]
         return self._service.forecast_with_drivers(
-            *self._args(), as_drivers(drivers) or [], future, model, horizon, found or None
+            *self._args(),
+            with_holidays(as_drivers(drivers), holidays) or [],
+            future,
+            model,
+            horizon,
+            found or None,
+            as_tuning(tuning),
         )
 
     def groups(self) -> GroupsSetup:
@@ -213,3 +235,17 @@ def as_drivers(items: DriverItems | None) -> list[dv.Driver] | None:
         else:
             found.append(dv.Driver(**item))
     return found
+
+
+def with_holidays(drivers: list[dv.Driver] | None, holidays: str | None) -> list[dv.Driver] | None:
+    """The drivers plus the public holidays of `holidays` ("FR", "US-CA")."""
+    if not holidays:
+        return drivers
+    country, subdiv = ph.parse(holidays)
+    return [*(drivers or []), dv.Driver(country, "holidays", True, subdiv=subdiv)]
+
+
+def as_tuning(tuning: "fc.Tuning | Mapping[str, Any] | None") -> fc.Tuning | None:
+    if tuning is None or isinstance(tuning, fc.Tuning):
+        return tuning
+    return fc.Tuning(**tuning)

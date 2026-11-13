@@ -24,6 +24,7 @@ from app.modules.agent.engine.loop import (
     Turn,
     TurnEvent,
     TurnResult,
+    Verdict,
 )
 from app.modules.agent.engine.messages import Block, Message, user_text
 from app.modules.agent.engine.prompt import ColumnBrief, system_prompt, turn_context
@@ -44,8 +45,18 @@ from app.modules.agent.repository import (
     NoteError,
     NoteRepository,
 )
-from app.modules.agent.settings import AUTO, EFFORTS, AgentSettings, KeyStatus, SettingsStore
+from app.modules.agent.settings import (
+    AUTO,
+    EFFORTS,
+    MAX_UNMASKED,
+    SHARING,
+    AgentSettings,
+    KeyStatus,
+    RowsSharing,
+    SettingsStore,
+)
 from app.modules.agent.tools import AppServices
+from app.modules.agent.tools.rows import Mask, SampleRows, personal_columns
 
 CONTEXT = re.compile(r"^<app_context>.*?</app_context>\s*", re.DOTALL)
 NEW_TITLE = "New conversation"
@@ -56,6 +67,15 @@ BUDGET_REACHED = (
     "This conversation reached its budget: raise it in the assistant settings or start a new one."
 )
 NOT_INSTALLED = "The assistant needs its SDKs: run `uv sync --extra agent` in backend/."
+ROWS_OFF = (
+    "Row sharing is turned off in the assistant settings (Never): no row can be shown. Go on with "
+    "statistics (count_rows, profile_column, compare_columns); if rows are really needed, tell "
+    "the user they can allow row sharing in the assistant settings."
+)
+ROWS_DISMISSED = (
+    "The user declined to share these rows. Go on with statistics and do not ask for rows again "
+    "in this turn."
+)
 
 
 class AgentError(AppError):
@@ -69,6 +89,7 @@ class Pending:
 
     decided: threading.Event = field(default_factory=threading.Event)
     approved: bool = False
+    unmask: frozenset[str] = frozenset()  # rows: personal columns shown unmasked, this time only
 
 
 @dataclass
@@ -79,28 +100,70 @@ class Run:
     events: "queue.Queue[Any]" = field(default_factory=queue.Queue)
     stop: threading.Event = field(default_factory=threading.Event)
     pending: dict[str, Pending] = field(default_factory=dict)
+    # raw rows (R-AG-P2), set from the settings when the turn starts
+    dataset_id: str = ""
+    conditions: list[Condition] = field(default_factory=list)
+    rows_sharing: RowsSharing = "never"
+    unmasked: frozenset[str] = frozenset()  # personal columns the settings let through
 
-    def gate(self, tool: Tool[Any], call: Block) -> Decision:
-        """Asks the user before a tool that changes the app (R-AG-P4); waits for the answer."""
-        if tool.kind != "write":  # raw rows need the data-sharing setting (026c): not yet
+    def gate(self, tool: Tool[Any], call: Block) -> Decision | Verdict:
+        """Asks the user before a tool that changes the app (R-AG-P4) or, by the data-sharing
+        level, one that reads rows (R-AG-P2); waits for the answer."""
+        if tool.kind == "rows":
+            return self._rows_gate(tool, call)
+        if tool.kind != "write":
             return "deny"
         try:
             text = tool.confirmation(tool.parse(call.input))
         except ToolError:
             return "deny"
+        waiting = self._ask(call, {"tool": tool.name, "text": text})
+        return "allow" if waiting is not None and waiting.approved else "deny"
+
+    def _rows_gate(self, tool: Tool[Any], call: Block) -> Verdict:
+        if self.rows_sharing == "never" or not isinstance(tool, SampleRows):
+            return Verdict(False, ROWS_OFF)
+        if self.rows_sharing == "allow":
+            return Verdict(True, unmasked=self.unmasked)
+        try:
+            args = tool.parse(call.input)
+            wanted = tool.request(ToolContext(self.dataset_id, self.conditions), args)
+        except ToolError as error:  # a wrong column: the model reads why, nothing is asked
+            return Verdict(False, str(error))
+        masked = [name for name in wanted.masked if name not in self.unmasked]
+        waiting = self._ask(
+            call,
+            {
+                "tool": tool.name,
+                "text": tool.confirmation(args),
+                "rows": {
+                    "count": wanted.rows,
+                    "columns": wanted.columns,
+                    "masked": [{"name": n, "mask": wanted.masked[n]} for n in masked],
+                    "filtered": bool(self.conditions or args.conditions),
+                },
+            },
+        )
+        if waiting is None or not waiting.approved:
+            return Verdict(False, ROWS_DISMISSED)
+        return Verdict(True, unmasked=self.unmasked | (waiting.unmask & set(masked)))
+
+    def _ask(self, call: Block, card: dict[str, Any]) -> Pending | None:
+        """Shows a card and waits for the user's decision; None when none came (timeout, Stop)."""
         call_id = call.call_id or ""
         waiting = Pending()
         self.pending[call_id] = waiting
-        self.events.put({"type": "confirm", "id": call_id, "tool": tool.name, "text": text})
+        self.events.put({"type": "confirm", "id": call_id, **card})
         decided = waiting.decided.wait(timeout=CONFIRM_TIMEOUT)
         self.pending.pop(call_id, None)
-        return "allow" if decided and waiting.approved and not self.stop.is_set() else "deny"
+        return waiting if decided and not self.stop.is_set() else None
 
-    def decide(self, call_id: str, approved: bool) -> bool:
+    def decide(self, call_id: str, approved: bool, unmask: list[str] | None = None) -> bool:
         waiting = self.pending.get(call_id)
         if waiting is None:
             return False
         waiting.approved = approved
+        waiting.unmask = frozenset(unmask or [])
         waiting.decided.set()
         return True
 
@@ -150,8 +213,13 @@ class AgentService:
         effort: str | None = None,
         budget_usd: float | None = None,
         api_key: str | None = None,
+        rows_sharing: str | None = None,
     ) -> tuple[AgentSettings, Vendor, KeyStatus]:
         current = self.store.load()
+        if rows_sharing is not None:
+            if rows_sharing not in SHARING:
+                raise AgentError(f"Unknown sharing level {rows_sharing!r}.", "unknown_sharing")
+            current.rows_sharing = rows_sharing  # type: ignore[assignment]
         if provider is not None:
             if provider not in (AUTO, *BY_ID):
                 raise AgentError(f"Unknown provider {provider!r}.", "unknown_provider")
@@ -227,6 +295,31 @@ class AgentService:
         except ProviderError as error:
             raise AgentError(error.message, f"key_{error.kind}") from error
         raise AgentError("The model gave no answer.", "key_other")
+
+    # --- raw rows (R-AG-P2) ---------------------------------------------------------------------
+
+    def personal_columns(self, dataset_id: str) -> list[tuple[str, Mask, bool]]:
+        """The dataset's personal columns: name, mask, and whether the user shares it unmasked."""
+        self.services.columns.ready(dataset_id)
+        shared = set(self.store.load().unmasked.get(dataset_id, []))
+        found = personal_columns(self.services, dataset_id)
+        return [(name, mask, name in shared) for name, mask in found.items()]
+
+    def set_unmasked(self, dataset_id: str, names: list[str]) -> list[tuple[str, Mask, bool]]:
+        """Which personal columns of the dataset leave unmasked; the others stay masked."""
+        self.services.columns.ready(dataset_id)
+        personal = personal_columns(self.services, dataset_id)
+        unknown = [name for name in names if name not in personal]
+        if unknown:
+            raise AgentError(f"{unknown[0]!r} is not a personal column.", "not_personal")
+        current = self.store.load()
+        kept = list(dict.fromkeys(names))[:MAX_UNMASKED]
+        if kept:
+            current.unmasked[dataset_id] = kept
+        else:
+            current.unmasked.pop(dataset_id, None)
+        self.store.save(current)
+        return self.personal_columns(dataset_id)
 
     # --- conversations --------------------------------------------------------------------------
 
@@ -304,9 +397,12 @@ class AgentService:
                 run.decide(call_id, approved=False)
         return run is not None
 
-    def confirm(self, conversation_id: str, call_id: str, approved: bool) -> None:
+    def confirm(
+        self, conversation_id: str, call_id: str, approved: bool, unmask: list[str] | None = None
+    ) -> None:
+        """The user's answer to a card; `unmask`: personal columns shown unmasked, this once."""
         run = self._runs.get(conversation_id)
-        if run is None or not run.decide(call_id, approved):
+        if run is None or not run.decide(call_id, approved, unmask):
             raise AgentError("Nothing is waiting for this decision.", "unknown_confirmation", 404)
 
     def events(self, run: Run, heartbeat: float = 15.0) -> Iterator[dict[str, Any] | None]:
@@ -340,6 +436,9 @@ class AgentService:
             if not self.sdk_available(vendor):
                 emit(_error("not_installed", NOT_INSTALLED))
                 return
+            run.dataset_id, run.conditions = conversation.dataset_id, conditions
+            run.rows_sharing = settings.rows_sharing
+            run.unmasked = frozenset(settings.unmasked.get(conversation.dataset_id, []))
             key, _ = self.store.key(vendor)
             try:
                 model = self.model_in_use(settings, vendor) if key or not vendor.needs_key else ""

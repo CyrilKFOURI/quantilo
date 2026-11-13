@@ -93,12 +93,14 @@ class AnalyzeTimeSeries(Tool[SeriesInput]):
 
 class DriverInput(BaseModel):
     column: str = Field(
-        description="A numeric or yes/no column; for kind=calendar: weekday, month or month_end."
+        description="A numeric or yes/no column; for kind=calendar: weekday, month or month_end; "
+        "for kind=holidays: the country's ISO code (FR, US)."
     )
-    kind: Literal["column", "flag", "calendar"] = Field(
+    kind: Literal["column", "flag", "calendar", "holidays"] = Field(
         "column",
-        description="column: a column aggregated per period; flag: a 0/1 column (holidays, "
-        "events); calendar: day of week, month or end of month.",
+        description="column: a column aggregated per period; flag: a 0/1 column (events); "
+        "calendar: day of week, month or end of month; holidays: the public holidays of a "
+        "country (hourly, daily or weekly series only).",
     )
     known: bool = Field(
         False,
@@ -111,9 +113,12 @@ class DriverInput(BaseModel):
         "value repeated.",
     )
     value: float | None = Field(None, description="The constant, when future=constant.")
+    subdiv: str | None = Field(
+        None, description="kind=holidays: a subdivision code (CA for California), if any."
+    )
 
     def driver(self) -> dv.Driver:
-        return dv.Driver(self.column, self.kind, self.known, self.future, self.value)
+        return dv.Driver(self.column, self.kind, self.known, self.future, self.value, self.subdiv)
 
 
 DRIVER_DEFAULTS = ["naive", "seasonal_naive", "ets_auto", "arima_auto", "tslm", "sarimax"]
@@ -141,7 +146,13 @@ class ForecastInput(SeriesInput):
     models: list[str] | None = Field(
         None,
         description="Model keys; empty: naive, seasonal_naive, ets_auto, arima_auto (with "
-        "drivers, also tslm and sarimax). Only sarimax, tslm and gbm_lags use drivers.",
+        "drivers, also tslm and sarimax). Only sarimax, tslm, gbm_lags, prophet_like and "
+        "chronos_2 use drivers. Several seasons (daily, hourly data): prophet_like, stlf. "
+        "AI models (optional extra, only if already downloaded: you cannot download one, "
+        "the user confirms it in the page or Settings > Models): chronos_bolt_tiny, "
+        "chronos_bolt_small, chronos_bolt_base, chronos_2, timesfm_2p5 (pretrained, good on "
+        "short series), nhits, nbeats (trained, 500 periods or more). A missing one returns "
+        "its reason in its row.",
     )
     drivers: list[DriverInput] = Field(
         default_factory=list,
@@ -158,7 +169,8 @@ class Forecast(Tool[ForecastInput]):
         "Forecast a series: baseline (naive, seasonal naive) and statistical models (ETS, auto "
         "ARIMA) scored by rolling-origin validation, the best refitted with prediction "
         "intervals. Drivers (other columns, calendar, 0/1 flags) feed SARIMAX, the linear "
-        "regression and gradient boosting; the result says whether each driver helps. With a "
+        "regression, gradient boosting and the Prophet-like model; the result says whether "
+        "each driver helps. With a "
         "group and every_group=true, every series of the group at once (best model per "
         "series); reconcile makes stores add up to regions and the total. Needs at least 10 "
         "periods. Analyse the series first."

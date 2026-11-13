@@ -15,6 +15,7 @@ def setup(app: FastAPI) -> None:
     app.state.clean = CleanService(app.state.columns, app.state.workspace)
     app.state.datasets.after_import.append(app.state.clean.after_import)
     app.state.versions.lineages.append(app.state.clean.row_link)  # rows paired in Changes (095)
+    app.state.pins.lineages.append(app.state.clean.row_link)  # pins followed (099 bis, R-PIN-16)
 
 
 __all__ = ["agent_tools", "router", "setup"]

@@ -11,6 +11,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any, cast
 
+from quantilo.typing.knowledge_base.synonyms import load_synonyms
 from quantilo.typing.types import ANALYSIS_TYPES, AnalysisType
 
 DIRECTORY = Path(__file__).parent
@@ -22,6 +23,11 @@ MEASURE_ROLES = ("month", "weekday", "hour", "year", "age", "duration", "latitud
                  "propensity", "weight")  # fmt: skip
 # "BIN #", "Job #" (exported as "bin__"), "N° dossier": a number sign says a number (R-TYP-04).
 NUMBER_SIGN = re.compile(r"(#|n[°º]\.?|__)\s*$|^\s*(#|n[°º])", re.IGNORECASE)
+# R-TYP-13 (fix3): a note in brackets closing the name ("Spending Score (1-100)", "Income (k$)")
+# gives a range or a unit; the name ends before it.
+NAME_NOTE = re.compile(r"\s*(\([^()]*\)|\[[^\[\]]*\])\s*$")
+# R-TYP-14 (fix3): the amount word that says no money by itself ("total ads" counts ads).
+GENERIC_AMOUNT_WORD = "total"
 
 
 def name_tokens(name: str) -> tuple[str, ...]:
@@ -29,6 +35,24 @@ def name_tokens(name: str) -> tuple[str, ...]:
     spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", name)
     ascii_name = unicodedata.normalize("NFKD", spaced).encode("ascii", "ignore").decode()
     return tuple(token for token in re.split(r"[^a-z0-9]+", ascii_name.lower()) if token)
+
+
+def name_note(name: str) -> str | None:
+    """R-TYP-13: the bracketed notes closing a name ('(1-100)'), None without any."""
+    core = name
+    while (shorter := NAME_NOTE.sub("", core)) != core:
+        core = shorter
+    note = name[len(core) :].strip()
+    return note if note and name_tokens(core) else None
+
+
+def name_length(tokens: tuple[str, ...], name: str) -> int:
+    """How many of the name's words come before its closing bracketed notes (R-TYP-13)."""
+    note = name_note(name)
+    if note is None:
+        return len(tokens)
+    core = name_tokens(name.rstrip()[: -len(note)])
+    return len(core) if tokens[: len(core)] == core else len(tokens)
 
 
 def head_word(name: str, function_words: frozenset[str] | None = None) -> str | None:
@@ -118,6 +142,8 @@ class KnowledgeBase:
     aggregate_group_words: frozenset[str] = frozenset()
     # 060 (R-FUN-01): known funnels, each stage with its spellings, in order
     funnels: tuple[tuple[tuple[str, ...], ...], ...] = ()
+    # N12 (B-13): country name (lowercased) → length of its postal codes, digits only
+    postal_lengths: tuple[tuple[str, int], ...] = ()
 
     def language(self, language_id: str | None) -> Language | None:
         return next((item for item in self.languages if item.id == language_id), None)
@@ -125,14 +151,20 @@ class KnowledgeBase:
     def role(self, role_id: str | None) -> Role | None:
         return next((role for role in self.roles if role.id == role_id), None)
 
-    def match_role(self, column_name: str) -> Role | None:
+    def match_role(self, column_name: str, notes: bool = True) -> Role | None:
         """Best role whose name appears in the column name.
 
         Prefer the longest match, then the one ending on the last word: in "long_description"
         the head noun is "description", so the column is free text, not a longitude. Then the one
         starting the name (092, R-TYP-08): "PercentSalaryHike" is a percentage, not a salary.
+        The last word is the one before a closing note in brackets (R-TYP-13): "Spending Score
+        (1-100)" is a score, not a spending; `notes=False` reads the whole name.
         """
         tokens = name_tokens(column_name)
+        length = name_length(tokens, column_name) if notes else len(tokens)
+        # N30 (R-SYN-01): a business synonym read as the word the roles know ('Qté', 'CA HT')
+        tokens, _, longer = load_synonyms().expand(tokens)
+        length += longer
         best: tuple[int, int, int, int] | None = None
         best_role: Role | None = None
         for index, role in enumerate(self.roles):
@@ -147,11 +179,27 @@ class KnowledgeBase:
                 for start in range(len(tokens) - len(name) + 1):
                     if tokens[start : start + len(name)] != name:
                         continue
-                    ends_last = int(start + len(name) == len(tokens))
+                    ends_last = int(start + len(name) == length)
                     score = (len(name), ends_last, int(start == 0), -index)
                     if best is None or score > best:
                         best, best_role = score, role
         return best_role
+
+    def only_total(self, name: str) -> bool:
+        """R-TYP-14: 'total' is the name's only amount word, beside other words ("total ads",
+        "Total Bags"): the name says a sum of something, not money."""
+        tokens = name_tokens(name)
+        tokens = tokens[: name_length(tokens, name)]
+        amount = self.role("amount")
+        if amount is None or GENERIC_AMOUNT_WORD not in tokens or len(tokens) < 2:
+            return False
+        found = {
+            phrase
+            for phrase in amount.names
+            for start in range(len(tokens) - len(phrase) + 1)
+            if tokens[start : start + len(phrase)] == phrase
+        }
+        return found == {(GENERIC_AMOUNT_WORD,)}
 
     def name_code(self, name: str) -> tuple[str, str] | None:
         """("code" | "category", word) when the name's head word says that whole numbers name
@@ -259,6 +307,11 @@ def load() -> KnowledgeBase:
         funnels=tuple(
             tuple(tuple(word.lower() for word in stage) for stage in item["stages"])
             for item in vocabulary.get("funnel", [])
+        ),
+        postal_lengths=tuple(
+            (country.strip().lower(), int(item["length"]))
+            for item in vocabulary.get("postal_length", [])
+            for country in item["countries"]
         ),
     )
 

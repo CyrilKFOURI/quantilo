@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { column, roles } from "../../test/columns";
 import { dataset, health, mockApi } from "../../test/mockApi";
 import { renderAt } from "../../test/render";
+import { loadLocale } from "../../lib/i18n";
 
 const columns = [
   column({ name: "price", position: 0 }),
@@ -198,6 +199,38 @@ describe("Columns page", () => {
     const notes = await screen.findByRole("region", { name: "Columns read by a rule" });
     expect(within(notes).getByText(/^dep: 1% of values, such as 2A/)).toBeInTheDocument();
     expect(within(notes).getByText(/Check that your data was read correctly/)).toBeInTheDocument();
+  });
+  it("writes the detection reasons in French from their codes (M02)", async () => {
+    await loadLocale("fr");
+    try {
+      const reason = "1% of values, such as 2A, 2B, cannot be read as numbers: kept as text so that no value is lost (R-TYP-01)";
+      mockApi({
+        "GET /health": health,
+        "GET /datasets/d1": dataset({ types_reviewed_at: null }),
+        "GET /datasets/d1/columns": [
+          column({
+            name: "dep",
+            position: 0,
+            type: "categorical_nominal",
+            detected_type: "categorical_nominal",
+            reasons: [reason, "57 distinct values, e.g. 75, 13, 2A"],
+            reason_details: [
+              { text: reason, code: "R-TYP-01", vars: { share: "1%", examples: "2A, 2B" } },
+              { text: "57 distinct values, e.g. 75, 13, 2A", code: "TYP.distinct", vars: { count: "57", examples: "75, 13, 2A" } },
+            ],
+          }),
+        ],
+        "GET /column-roles": roles,
+      });
+      renderAt("/d/d1/columns");
+
+      expect(await screen.findByText(/57 valeurs distinctes, par ex\. 75, 13, 2A/)).toBeInTheDocument();
+      expect(screen.queryByText(/distinct values/)).toBeNull();
+      const notes = screen.getAllByText(/^dep: 1% des valeurs, comme 2A, 2B, ne se lisent pas comme des nombres/);
+      expect(notes.length).toBeGreaterThan(0);
+    } finally {
+      await loadLocale("en");
+    }
   });
 });
 

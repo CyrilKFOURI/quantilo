@@ -28,20 +28,45 @@ import {
   DriverResults,
   DriverSuggestion,
   DriversPanel,
+  driverLabel,
+  shownDrivers,
   usableDrivers,
 } from "./Drivers";
 import { EveryGroup } from "./EveryGroup";
+import { componentsFigure } from "./figures";
+import { ForecastOptions } from "./ForecastOptions";
+import {
+  aiBadge,
+  aiReasons,
+  aiTitle,
+  useAiModels,
+  useDownloadModel,
+  useStopDownload,
+  type AiModel,
+  type ModelSuggestion,
+} from "./forecastAi";
+import { DownloadDialog, DownloadProgress } from "./ModelDownload";
 import { MethodsRow, useMethods } from "./Methods";
 import { ScenariosPanel } from "./Scenarios";
-import type { StoredScenario } from "./search";
+import {
+  forecastTuning,
+  type StoredScenario,
+  type TimeSeriesSearch,
+} from "./search";
 
 type Result = NonNullable<ForecastJob["result"]>;
 type ModelResult = Result["results"][number];
 type Verdict = { text: string; tone: "ok" | "none"; detail?: string } | null;
 
 const NO_SCENARIOS: StoredScenario[] = [];
+const NO_SEARCH: TimeSeriesSearch = {};
 const HORIZONS = [3, 6, 8, 12, 24, 30, 52, 90];
 const INTERMITTENT = ["croston", "sba", "tsb", "adida"];
+/** Models with several seasons, suggested when the history covers two cycles or more (028 A6). */
+const SEVERAL_SEASONS = ["prophet_like", "stlf"];
+const CYCLE_NAMES = new Set(["daily", "weekly", "yearly"]);
+const cycleName = (name: string) =>
+  CYCLE_NAMES.has(name) ? t(`ts.cycle.${name}` as MessageKey) : name;
 const modelName = (key: string) => t(`tsm.${key}` as MessageKey);
 
 function forecastFigure(
@@ -230,6 +255,62 @@ function downloadCsv(result: Result, model: ModelResult) {
   URL.revokeObjectURL(link.href);
 }
 
+/** The components of a Prophet-like fit (trend, seasons, holidays, drivers), as rows of the
+ * components chart, over the periods they cover. */
+function componentsOf(result: Result, model: ModelResult) {
+  const periods = result.periods.slice(model.components_start);
+  return {
+    periods,
+    rows: model.components.map((c) => ({
+      kind: c.kind,
+      values: c.values,
+      name:
+        c.kind === "trend"
+          ? t("fig.ts.trend")
+          : c.kind === "season"
+            ? cycleName(c.name)
+            : driverLabel(c.name),
+    })),
+  };
+}
+
+/** 028 B2, B4: the engine's rule on the series' length, with its numbers; the button ticks the
+ *  model (or asks for its download), or the reason it cannot run here is shown instead. */
+function AiSuggestion({
+  suggestion,
+  chosen,
+  reason,
+  onAdd,
+}: {
+  suggestion: ModelSuggestion;
+  chosen: string[];
+  reason: (key: string) => string | undefined;
+  onAdd: (key: string) => void;
+}) {
+  const key = suggestion.models[0];
+  if (!key || chosen.includes(key)) return null;
+  const why = reason(key);
+  const text =
+    suggestion.kind === "short_series"
+      ? t("fcai.suggest.short", {
+          periods: String(suggestion.periods),
+          threshold: String(suggestion.threshold),
+        })
+      : t("fcai.suggest.long", { periods: String(suggestion.periods) });
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-line bg-surface-1 px-3 py-2 text-[13px]">
+      <span className="text-ink-1">{text}</span>
+      {why ? (
+        <span className="text-xs text-ink-3">{why}</span>
+      ) : (
+        <Button variant="ghost" onClick={() => onAdd(key)}>
+          {t("fcai.suggest.try", { title: aiTitle(key) })}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 const percent = (value: number | null | undefined) =>
   value === null || value === undefined ? "—" : `${(value * 100).toFixed(0)} %`;
 
@@ -245,6 +326,9 @@ export function ForecastSection({
   onPickSeries = () => {},
   drivers: chosenDrivers,
   onDrivers: setDrivers,
+  search = NO_SEARCH,
+  onOptions = () => {},
+  periods,
 }: {
   datasetId: string;
   params: SeriesParams;
@@ -260,8 +344,40 @@ export function ForecastSection({
   /** The chosen drivers, kept by the page so a saved analysis keeps them (030). */
   drivers: DriverSpec[];
   onDrivers: (drivers: DriverSpec[]) => void;
+  /** The page's URL: the ⚙ Options of the models (028 A7) live there. */
+  search?: TimeSeriesSearch;
+  onOptions?: (patch: Partial<TimeSeriesSearch>) => void;
+  /** Periods of the series: the trained networks need 500 (028 B4). */
+  periods?: number;
 }) {
   const [models, setModels] = useMethods("forecast");
+  const aiModels = useAiModels();
+  const download = useDownloadModel();
+  const stopDownload = useStopDownload();
+  const [asking, setAsking] = useState<AiModel | null>(null);
+  const aiByKey = useMemo(
+    () => new Map((aiModels.data?.models ?? []).map((m) => [m.key, m])),
+    [aiModels.data],
+  );
+  const aiUnavailable = useMemo(
+    () => aiReasons(aiModels.data?.models, periods),
+    [aiModels.data, periods],
+  );
+  /** 028 B1: a pretrained model without its weights asks for the download before it is ticked. */
+  const pickModel = (key: string) => {
+    const found = aiByKey.get(key);
+    if (found?.pretrained && found.state === "needs_download") {
+      if (found.download !== "running") setAsking(found);
+      return true;
+    }
+    return false;
+  };
+  const addSuggested = (key: string) => {
+    if (!pickModel(key)) setModels([...models, key]);
+  };
+  const downloading = models
+    .map((key) => aiByKey.get(key))
+    .filter((m): m is AiModel => Boolean(m && m.pretrained && m.download !== "idle" && m.state !== "ready"));
   const [horizon, setHorizon] = useState<number | null>(null);
   const [order, setOrder] = useState("1,1,1");
   const [seasonalOrder, setSeasonalOrder] = useState("0,1,1");
@@ -271,6 +387,7 @@ export function ForecastSection({
   const [allMetrics, setAllMetrics] = useState(false);
   const [scoring, setScoring] = useState(false);
   const [driversOpen, setDriversOpen] = useState(false);
+  const [components, setComponents] = useState(false);
   const start = useStartForecast(datasetId);
   const cancel = useCancelForecast();
   const job = useForecastJob(jobId);
@@ -282,8 +399,10 @@ export function ForecastSection({
     { horizon: String(h) },
   ).data;
   const drivers = usableDrivers(chosenDrivers, candidates);
+  const listed = shownDrivers(chosenDrivers, candidates);
+  const tuning = useMemo(() => forecastTuning(search), [search]);
   const addDriver = (driver: DriverSpec) => {
-    setDrivers([...drivers, driver]);
+    setDrivers([...listed, driver]);
     setDriversOpen(true);
   };
 
@@ -299,11 +418,13 @@ export function ForecastSection({
             : {}),
         },
         drivers,
+        tuning,
       },
       { onSuccess: (started) => setJobId(started.id) },
     );
 
   const state = job.data;
+  const waiting = downloading.some((m) => m.download === "running");
   const running = state?.status === "running" || start.isPending;
   const result = state?.status === "done" ? state.result : null;
   const shown = result
@@ -329,10 +450,26 @@ export function ForecastSection({
       result && shown?.backtests.length ? backtestFigure(result, shown) : null,
     [result, shown],
   );
+  const parts = useMemo(
+    () => (result && shown?.components?.length ? componentsOf(result, shown) : null),
+    [result, shown],
+  );
+  const partsFigure = useMemo(
+    () =>
+      result && parts
+        ? componentsFigure(parts.periods, result.future, parts.rows)
+        : null,
+    [result, parts],
+  );
   const demand = result?.demand?.intermittent ? result.demand : null;
   const missingIntermittent = INTERMITTENT.filter(
     (key) => !models.includes(key),
   );
+  const cycles = result?.cycles ?? [];
+  const missingSeasons =
+    cycles.length >= 2
+      ? SEVERAL_SEASONS.filter((key) => !models.includes(key))
+      : [];
 
   return (
     <div className="space-y-3">
@@ -376,11 +513,33 @@ export function ForecastSection({
             </label>
           </>
         )}
-        <Button variant="primary" onClick={run} disabled={running}>
+        <Button variant="primary" onClick={run} disabled={running || waiting}>
           {running ? t("ts.forecast.running") : t("ts.forecast.run")}
         </Button>
       </div>
-      <MethodsRow section="forecast" chosen={models} onChange={setModels} />
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <MethodsRow
+          section="forecast"
+          chosen={models}
+          onChange={setModels}
+          unavailable={aiUnavailable}
+          onPick={pickModel}
+          tag={(key) => aiBadge(aiByKey.get(key))}
+        />
+        <ForecastOptions models={models} search={search} onChange={onOptions} />
+      </div>
+      <DownloadProgress models={downloading} onStop={(key) => stopDownload.mutate(key)} />
+      {download.isError && <ErrorNote>{download.error.message}</ErrorNote>}
+      {asking && (
+        <DownloadDialog
+          model={asking}
+          onClose={() => setAsking(null)}
+          onConfirm={(key) => {
+            download.mutate(key);
+            if (!models.includes(key)) setModels([...models, key]);
+          }}
+        />
+      )}
       <DriverSuggestion
         candidates={candidates}
         drivers={drivers}
@@ -388,7 +547,7 @@ export function ForecastSection({
       />
       <DriversPanel
         candidates={candidates}
-        drivers={drivers}
+        drivers={listed}
         onChange={setDrivers}
         open={driversOpen}
         onOpenChange={setDriversOpen}
@@ -471,6 +630,31 @@ export function ForecastSection({
               )}
             </div>
           )}
+          {result.suggestions?.map((suggestion) => (
+            <AiSuggestion
+              key={suggestion.kind}
+              suggestion={suggestion}
+              chosen={models}
+              reason={(key) => aiUnavailable[key]}
+              onAdd={addSuggested}
+            />
+          ))}
+          {missingSeasons.length > 0 && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-line bg-surface-1 px-3 py-2 text-[13px]">
+              <span className="text-ink-1">
+                {t("ts.cycles.found", {
+                  count: String(cycles.length),
+                  cycles: cycles.map(cycleName).join(", "),
+                })}
+              </span>
+              <Button
+                variant="ghost"
+                onClick={() => setModels([...models, ...missingSeasons])}
+              >
+                {t("ts.cycles.add")}
+              </Button>
+            </div>
+          )}
           <div className="rounded-lg border border-line bg-surface-1 p-3">
             <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="text-ink-3">
@@ -514,6 +698,32 @@ export function ForecastSection({
                       figure={scoringFigure}
                       height={320}
                       label={t("ts.backtest.show")}
+                    />
+                  </>
+                )}
+              </div>
+            )}
+            {partsFigure && parts && (
+              <div className="mt-2 border-t border-line pt-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => setComponents(!components)}
+                >
+                  {components
+                    ? t("ts.components.hide")
+                    : t("ts.components.show")}
+                </Button>
+                {components && (
+                  <>
+                    <p className="mt-1 text-xs text-ink-3">
+                      {t("ts.components.explain", {
+                        model: shown.info ?? modelName(shown.key),
+                      })}
+                    </p>
+                    <Plot
+                      figure={partsFigure}
+                      height={Math.max(220, 110 * parts.rows.length)}
+                      label={t("ts.components.show")}
                     />
                   </>
                 )}
@@ -625,7 +835,10 @@ export function ForecastSection({
                           </span>
                         )}
                         {model.error && (
-                          <span className="block text-xs text-ink-3">
+                          <span
+                            className={`block text-xs ${model.timed_out ? "text-warn" : "text-ink-3"}`}
+                          >
+                            {model.timed_out && `${t("ts.fopt.timedOut")} · `}
                             {model.error}
                           </span>
                         )}
@@ -708,6 +921,7 @@ export function ForecastSection({
               periods={result.periods}
               values={result.history}
               what={what}
+              tuning={tuning}
               scenarios={scenarios}
               model={scenarioModel}
               onChange={onScenarios}

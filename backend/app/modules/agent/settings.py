@@ -9,7 +9,7 @@ one is set and shows its last four characters."""
 import contextlib
 import json
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Literal, get_args
 
@@ -18,7 +18,10 @@ from app.modules.agent.providers.vendors import BY_ID, PREFERENCE, VENDORS, Vend
 
 EFFORTS: tuple[Effort, ...] = get_args(Effort)
 KeySource = Literal["env", "file", "none"]
+RowsSharing = Literal["never", "ask", "allow"]
+SHARING: tuple[RowsSharing, ...] = get_args(RowsSharing)
 AUTO = "auto"
+MAX_UNMASKED = 200  # personal columns let through unmasked, per dataset
 
 
 @dataclass
@@ -28,6 +31,10 @@ class AgentSettings:
     base_url: str | None = None  # "custom" vendor only
     effort: Effort = "high"  # Claude only
     budget_usd: float = 1.0  # per conversation (R-AG-B2)
+    # Raw rows (sample_rows, R-AG-P2). "never" by default, not the spec's "ask": the assistant
+    # keeps the V1 promise of never seeing a row until the user opts in.
+    rows_sharing: RowsSharing = "never"
+    unmasked: dict[str, list[str]] = field(default_factory=dict)  # dataset id → column names
 
 
 @dataclass(frozen=True)
@@ -71,6 +78,15 @@ class SettingsStore:
         budget = raw.get("budget_usd")
         if isinstance(budget, int | float) and 0 < budget <= 100:
             found.budget_usd = float(budget)
+        if raw.get("rows_sharing") in SHARING:
+            found.rows_sharing = raw["rows_sharing"]
+        unmasked = raw.get("unmasked")
+        if isinstance(unmasked, dict):
+            found.unmasked = {
+                str(dataset): [n for n in names if isinstance(n, str)][:MAX_UNMASKED]
+                for dataset, names in unmasked.items()
+                if isinstance(names, list) and names
+            }
         return found
 
     def save(self, settings: AgentSettings) -> None:

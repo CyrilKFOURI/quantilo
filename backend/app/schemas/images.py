@@ -147,6 +147,7 @@ class ImageIndexOut(BaseModel):
     dominant_colour: list[str | None]
     decode_error: list[str | None]
     decision: list[Literal["exclude", "keep"] | None]
+    label_original: list[str | None]  # c3, R-VED-02: the import's label, once a label was edited
     width: list[int | None]
     height: list[int | None]
     file_bytes: list[int | None]
@@ -171,22 +172,44 @@ class ImageIndexOut(BaseModel):
     decode_ok: list[bool | None]
     excluded: list[bool | None]
     rule_excluded: list[bool | None]
+    pinned: list[bool | None]  # c3, R-VED-03
     has_mask: list[bool]
     issues: list[list[str]]
     date_taken: list[str | None]
 
 
 class ImageDecisionsIn(BaseModel):
-    """108: decisions to merge into the draft, by the image's `rel_path` (exact copies share their
-    `image_id`); None leaves an image to its rules again."""
+    """108 and c3: edits to merge into the draft, by the image's `rel_path` (exact copies share
+    their `image_id`). Decisions: None leaves an image to its rules again. Labels (R-VED-01): None
+    gives it back the import's label. Pins (R-VED-03): False or None unpins. Thresholds
+    (R-VQT-02): the whole set of thresholds the rules will use, replaced."""
 
-    decisions: dict[str, Literal["exclude", "keep"] | None] = Field(max_length=100_000)
+    decisions: dict[str, Literal["exclude", "keep"] | None] = Field(
+        default_factory=dict, max_length=100_000
+    )
+    labels: dict[str, str | None] = Field(default_factory=dict, max_length=100_000)
+    pins: dict[str, bool | None] = Field(default_factory=dict, max_length=100_000)
+    thresholds: dict[str, float] | None = None
+
+
+class PendingOut(BaseModel):
+    decisions: int
+    labels: int
+    pins: int
+    thresholds: int
 
 
 class ImageDecisionsOut(BaseModel):
     draft: dict[str, Literal["exclude", "keep"]]
     applied: dict[str, Literal["exclude", "keep"]]
+    labels_draft: dict[str, str] = Field(default_factory=dict)
+    labels_applied: dict[str, str] = Field(default_factory=dict)
+    pins_draft: dict[str, bool] = Field(default_factory=dict)
+    pins_applied: dict[str, bool] = Field(default_factory=dict)
+    thresholds_draft: dict[str, float] = Field(default_factory=dict)
+    thresholds_applied: dict[str, float] = Field(default_factory=dict)
     pending: int
+    pending_by: PendingOut
     version: int | None
 
 
@@ -194,3 +217,21 @@ class ImageDecisionsApplied(BaseModel):
     version: int | None
     excluded: int
     decided: int
+    relabelled: int = 0
+    pinned: int = 0
+    reassessed: bool = False  # the R-VQ rules ran again (labels or thresholds changed)
+
+
+class QualityPreviewIn(BaseModel):
+    thresholds: dict[str, float] = Field(default_factory=dict)
+
+
+class QualityPreviewOut(BaseModel):
+    """R-VQT-01: what the R-VQ rules would say with these thresholds, nothing written; `counts`
+    (images by rule) next to `current_counts` (what the saved report says)."""
+
+    quality: QualityOut
+    counts: dict[str, int]
+    current_counts: dict[str, int]
+    current_flagged: int
+    current_excluded: int

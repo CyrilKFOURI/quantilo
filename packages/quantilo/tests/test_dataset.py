@@ -179,3 +179,13 @@ def test_to_pandas_reads_every_column_in_its_type(traps: dx.Dataset) -> None:
     assert len(frame) == 600
     assert frame["price_eur"].dtype.kind == "f"  # "79,50" read as 79.5
     assert frame["is_active"].dtype.kind == "b" or str(frame["is_active"].dtype) == "boolean"
+
+
+def test_jupyter_shows_the_columns_and_the_first_rows(tmp_path: Path) -> None:
+    frame = pd.DataFrame({"city": ["Lyon", "<b>Nice</b>", None], "sales": [1.5, 2.0, 3.25]})
+    ds = dx.from_pandas(frame, "shops", cache_dir=tmp_path)
+    html = ds._repr_html_()
+    assert "<strong>shops</strong>: 3 rows" in html and "2 columns" in html
+    assert "<code>sales</code>" in html and "First 3 rows" in html
+    assert "&lt;b&gt;Nice&lt;/b&gt;" in html and "<b>Nice</b>" not in html  # escaped
+    assert "3.25" in html

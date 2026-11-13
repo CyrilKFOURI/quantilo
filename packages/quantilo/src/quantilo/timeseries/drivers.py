@@ -1,12 +1,14 @@
 """Drivers of a forecast (028 A4): outside variables that may explain the series.
 
-A driver is a column of the file aggregated to the series' period, a calendar variable, or a 0/1
-flag (holidays, events). It is either **known in advance** (a planned price: its future values
-are given) or **past only** (visits: it enters lagged by the horizon h, so the forecast of a
-period only uses driver values at least h periods older; no leakage from the future).
+A driver is a column of the file aggregated to the series' period, a calendar variable, the public
+holidays of a country (028 A5, `public_holidays.py`), or a 0/1 flag (events). It is either
+**known in advance** (a planned price: its future values are given) or **past only** (visits: it
+enters lagged by the horizon h, so the forecast of a period only uses driver values at least h
+periods older; no leakage from the future).
 
-SARIMAX, the linear regression (TSLM) and gradient boosting on lags use them; every driver model
-is also scored without any driver and without each one, on the same rolling origins.
+SARIMAX, the linear regression (TSLM), gradient boosting on lags and the Prophet-like model use
+them; every driver model is also scored without any driver and without each one, on the same
+rolling origins.
 """
 
 import dataclasses
@@ -19,10 +21,11 @@ import numpy as np
 
 from quantilo.errors import ExplorerError
 from quantilo.timeseries import forecast as fc
+from quantilo.timeseries import public_holidays as ph
 from quantilo.timeseries import series as ts
 from quantilo.variable.source import clean
 
-Kind = Literal["column", "flag", "calendar"]
+Kind = Literal["column", "flag", "calendar", "holidays"]
 Future = Literal["file", "constant", "last"]
 CalendarPart = Literal["weekday", "month", "month_end"]
 
@@ -44,14 +47,17 @@ class DriverError(ExplorerError):
 
 @dataclass(frozen=True)
 class Driver:
-    """One driver as asked for. `column`: a column of the file, or for a calendar driver one of
-    `weekday`, `month`, `month_end`. Calendar drivers and flags are always known in advance."""
+    """One driver as asked for. `column`: a column of the file, for a calendar driver one of
+    `weekday`, `month`, `month_end`, for public holidays the country's ISO code (`FR`) with its
+    optional `subdiv` (`US` + `CA`). Calendar drivers, holidays and flags are always known in
+    advance."""
 
     column: str
     kind: Kind = "column"
     known: bool = False  # known in advance; past only otherwise (lagged by the horizon)
     future: Future = "file"  # where the future values come from, when known in advance
     value: float | None = None  # the constant, when future = "constant"
+    subdiv: str | None = None  # public holidays of a subdivision (state, region)
 
     @property
     def in_advance(self) -> bool:
@@ -91,6 +97,9 @@ class DriverSet:
     repeat_last: list[int] = field(default_factory=list)  # validation repeats their last value
     notes: list[str] = field(default_factory=list)
     lag: int = 0  # of the past-only drivers
+    # The same drivers with each public holiday on its own column (the Prophet-like model gives
+    # each holiday its own effect); None without a holidays driver.
+    expanded: "DriverSet | None" = None
 
     def window(self, size: int, steps: int) -> tuple[np.ndarray, np.ndarray]:
         """Inputs of a model trained on the first `size` periods and forecasting `steps`."""
@@ -112,14 +121,15 @@ class DriverSet:
             if at is None:
                 raise DriverError(f"{name!r} is not one of the drivers.")
             info = self.infos[at]
-            if info.kind == "calendar" or info.lag:
-                what = "a calendar variable" if info.kind == "calendar" else "past only"
+            if info.kind in ("calendar", "holidays") or info.lag:
+                what = "a calendar variable" if info.kind != "column" else "past only"
                 raise DriverError(f"{name!r} is {what}: its future values cannot be changed.")
             if len(given) != len(future):
                 raise DriverError(f"{name!r} needs {len(future)} future values, got {len(given)}.")
             future[:, self.groups[at][0]] = np.asarray(given, dtype=float)
             infos[at] = dataclasses.replace(info, future_values=[float(v) for v in given])
-        return dataclasses.replace(self, infos=infos, future=future)
+        expanded = self.expanded.with_future(values) if self.expanded else None
+        return dataclasses.replace(self, infos=infos, future=future, expanded=expanded)
 
 
 # --- Building the inputs -------------------------------------------------------------------------
@@ -149,13 +159,18 @@ def build(
     moments: list[datetime],
     future_moments: list[datetime],
     period: ts.Period,
+    separate: bool = False,
 ) -> DriverSet:
     """The model inputs of the drivers: `raw` holds the aggregated columns (flags included),
-    `moments` the starts of the series' periods, `future_moments` those of the forecast."""
+    `moments` the starts of the series' periods, `future_moments` those of the forecast.
+    `separate`: one column per public holiday (the `expanded` set, built alongside)."""
     if len(drivers) > MAX_DRIVERS:
         raise DriverError(f"At most {MAX_DRIVERS} drivers.")
-    if len({(d.kind == "calendar", d.column) for d in drivers}) < len(drivers):
+    origin = {"calendar": "calendar", "holidays": "holidays"}
+    if len({(origin.get(d.kind, "file"), d.column) for d in drivers}) < len(drivers):
         raise DriverError("A driver is listed twice.")
+    if sum(d.kind == "holidays" for d in drivers) > 1:
+        raise DriverError("One public holiday calendar at most.")
     n, h = len(moments), len(future_moments)
     history: list[np.ndarray] = []
     future: list[np.ndarray] = []
@@ -177,6 +192,25 @@ def build(
         infos.append(info)
 
     for driver in drivers:
+        if driver.kind == "holidays":
+            country, subdiv = driver.column.upper(), driver.subdiv
+            past, ahead, _, said = ph.flags(
+                country, subdiv, moments, future_moments, period, separate
+            )
+            notes.extend(said)
+            name = ph.label(country, subdiv)
+            one = ahead.shape[1] == 1 and not separate
+            info = DriverInfo(
+                country,
+                "holidays",
+                True,
+                "calendar",
+                0,
+                name,
+                _numbers(ahead[:, 0]) if one else [],
+            )
+            add(past, ahead, info)
+            continue
         if driver.kind == "calendar":
             add(
                 calendar_columns(driver.column, moments, period),
@@ -264,7 +298,7 @@ def build(
         info = DriverInfo(driver.column, "column", True, source, 0, driver.column, _numbers(ahead))
         add(past, ahead, info, repeat)
 
-    return DriverSet(
+    found = DriverSet(
         infos,
         np.column_stack(history) if history else np.empty((n, 0)),
         np.column_stack(future) if future else np.empty((h, 0)),
@@ -273,6 +307,9 @@ def build(
         notes,
         h if any(info.lag for info in infos) else 0,
     )
+    if not separate and any(d.kind == "holidays" for d in drivers):
+        found.expanded = build(drivers, raw, moments, future_moments, period, separate=True)
+    return found
 
 
 def _numbers(values: np.ndarray) -> list[float | None]:
@@ -286,38 +323,62 @@ class Bound:
     """A driver model seen as a plain model `(y, h, season)`: the training length tells which
     driver rows it may see. `keep` = the drivers given to it (all by default). Columns that do
     not vary over the training window are left out; past-only drivers drop the first h periods
-    (their lagged values do not exist there)."""
+    (their lagged values do not exist there). A model marked `separate_holidays` (Prophet-like)
+    gets each public holiday on its own column."""
 
     def __init__(
         self, model: Callable[..., fc.Prediction], drivers: DriverSet, keep: list[int] | None = None
     ) -> None:
         self.model = model
-        self.drivers = drivers
+        separate = bool(getattr(model, "separate_holidays", False))
+        self.drivers = drivers.expanded if separate and drivers.expanded else drivers
         self.keep = list(range(len(drivers.infos))) if keep is None else keep
         self.final: fc.Prediction | None = None
 
     def __call__(self, y: np.ndarray, h: int, season: int | None) -> fc.Prediction:
+        drivers = self.drivers
         size = len(y)
-        seen, ahead = self.drivers.window(size, h)
-        trim = self.drivers.lag if any(self.drivers.infos[i].lag for i in self.keep) else 0
+        seen, ahead = drivers.window(size, h)
+        trim = drivers.lag if any(drivers.infos[i].lag for i in self.keep) else 0
         if trim and size - trim < 10:
             raise fc.ModelError("Too few periods once the past-only drivers are lagged.")
         y_fit, seen = y[trim:], seen[trim:]
-        columns = [c for i in self.keep for c in self.drivers.groups[i]]
+        columns = [c for i in self.keep for c in drivers.groups[i]]
         active = [c for c in columns if np.ptp(seen[:, c]) > 0]
         if active:
             prediction = self.model(y_fit, h, season, seen[:, active], ahead[:, active])
             used = sum(
-                any(c in active for c in self.drivers.groups[i])
-                for i in range(len(self.drivers.infos))
+                any(c in active for c in drivers.groups[i]) for i in range(len(drivers.infos))
             )
             prediction.info = f"{prediction.info} + {used} driver{'s' if used > 1 else ''}"
             prediction.exog = active
+            if prediction.exog_effects is not None:
+                prediction.components.extend(_driver_components(prediction, drivers, active))
         else:
             prediction = self.model(y_fit, h, season)
-        if size >= len(self.drivers.history):
+        prediction.start = trim
+        if size >= len(drivers.history):
             self.final = prediction
         return prediction
+
+
+def _driver_components(
+    prediction: fc.Prediction, drivers: DriverSet, active: list[int]
+) -> list[fc.Component]:
+    """What each driver adds to the fit and the forecast (Prophet-like components): the sum of
+    its columns' effects."""
+    effects = prediction.exog_effects
+    if effects is None:
+        return []
+    found = []
+    for info, group in zip(drivers.infos, drivers.groups, strict=True):
+        at = [active.index(c) for c in group if c in active]
+        if not at:
+            continue
+        values = np.sum(effects[:, at], axis=1)
+        kind: Literal["holidays", "driver"] = "holidays" if info.kind == "holidays" else "driver"
+        found.append(fc.Component(info.label, kind, [float(v) for v in values]))
+    return found
 
 
 def _effect(
@@ -346,19 +407,21 @@ def run(
     drivers: DriverSet,
     cancelled: Callable[[], bool] = lambda: False,
     step: Callable[[], None] = lambda: None,
+    limit: float | None = None,
 ) -> fc.ModelResult:
     """Score a driver model with every driver, then without any and without each one (same
     origins), and report each driver's coefficient or importance. `step` is called after each
-    of the `extra_runs` comparisons (progress)."""
+    of the `extra_runs` comparisons (progress). `limit`: seconds for each of these validations
+    (028 A7); a comparison over it gives no MASE."""
     bound = Bound(model, drivers)
-    result = fc.run_model(key, bound, y, h, season)
+    result = fc.run_model(key, bound, y, h, season, limit)
     result.uses_drivers = True
     if result.scores is None or result.scores.mase is None or not drivers.infos:
         return result
 
     def mase(keep: list[int]) -> float | None:
         try:
-            return fc.evaluate(y, Bound(model, drivers, keep), h, season).mase
+            return fc.evaluate(y, Bound(model, drivers, keep), h, season, limit).mase
         except (fc.ModelError, ValueError, np.linalg.LinAlgError):
             return None
         finally:
@@ -372,7 +435,7 @@ def run(
         without = (
             result.mase_without_drivers if count == 1 else mase([j for j in range(count) if j != i])
         )
-        coefficient, p_value, importance = _effect(bound.final, drivers.groups[i])
+        coefficient, p_value, importance = _effect(bound.final, bound.drivers.groups[i])
         result.drivers.append(
             fc.DriverEffect(
                 info.label,
@@ -412,7 +475,7 @@ def forecast_with_drivers(
     """The final forecast of a driver model with given future driver values (scenarios, spec 039
     story 6): `future` maps a known-in-advance driver column to one value per forecast period;
     drivers left out keep their values. Intervals are the model's own (approximate for gradient
-    boosting: no validation is run)."""
+    boosting and the Prophet-like model: no validation is run)."""
     chosen = drivers.with_future(future) if future else drivers
     return Bound(model, chosen)(y, h, season)
 

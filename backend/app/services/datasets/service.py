@@ -23,14 +23,17 @@ from quantilo.ingestion.preview import (
     ColumnInfo,
     Preview,
     TableChoice,
+    TableStack,
     detection_of,
     document_choices,
     preview_source,
     sheet_choices,
+    stack_groups,
 )
 from quantilo.ingestion.sources import (
     DOCUMENT_FORMATS,
     SourceFile,
+    detect_format,
     fingerprint,
     list_source_files,
 )
@@ -116,6 +119,13 @@ class DatasetService:
     def preview(self, raw_path: str, options: SourceOptions) -> Preview:
         return preview_source(self.resolve(raw_path), options)
 
+    def stacks(self, raw_path: str) -> list[TableStack]:
+        """S1 (C1): the tables of a workbook that share their columns, read on demand."""
+        path = self.resolve(raw_path)
+        if not path.is_file() or detect_format(path) != "excel":
+            return []
+        return stack_groups(path)
+
     def original(self, raw_path: str, sheet: str | None) -> Original:
         """The left pane of the import screen: a sheet's cells, or a document's first lines."""
         path = self.resolve(raw_path)
@@ -138,11 +148,25 @@ class DatasetService:
         tables: list[tuple[str, str | None]],
         options: ImportOptions,
         name: str | None = None,
+        stack: bool = False,
     ) -> tuple[SourceRecord, list[tuple[DatasetRecord, JobRecord | None]]]:
         """Import the chosen tables of one file (table id, dataset name) as one source: a
-        workbook's tables (080b) or a document's linked tables (085), each a dataset."""
+        workbook's tables (080b) or a document's linked tables (085), each a dataset. `stack`
+        (S1, C1): tables of one workbook that share their columns make one dataset instead."""
         if not tables:
             raise AppError("Choose at least one table.", code="no_table", status_code=422)
+        if stack:
+            ids = [table_id for table_id, _ in tables]
+            group = next((g for g in self.stacks(raw_path) if set(ids) <= set(g.tables)), None)
+            if group is None or len(ids) < 2:
+                raise AppError(
+                    "These tables do not share their columns: they cannot be stacked (S1).",
+                    code="not_stackable",
+                    status_code=422,
+                )
+            ordered = [table_id for table_id in group.tables if table_id in set(ids)]
+            options = options.model_copy(update={"stack": ordered, "table": None})
+            tables = [(ordered[0], tables[0][1])]
         path = self.resolve(raw_path)
         if not path.is_file():
             raise IngestionError("A source of several tables is a single file.")
@@ -183,6 +207,10 @@ class DatasetService:
             layout = json.dumps(choice, default=lambda o: o.__dict__) if choice else None
             table_options = options.model_copy(update={"table": table_id})
             fallback = f"{source.name} - {choice.name.split(' - ', 1)[-1]}" if choice else None
+            if options.stack:  # S1: one dataset of the stacked tables
+                locator = " + ".join(options.stack)[:2_000]
+                table_options = options
+                fallback = f"{source.name} - stacked"
             record, job = self.start_import(
                 raw_path,
                 table_name or fallback or f"{source.name} - {table_id}",

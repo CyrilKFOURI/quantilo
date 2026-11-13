@@ -17,6 +17,7 @@ import { HelpPage } from "../pages/help/HelpPage";
 import { HomePage, validateHomeSearch } from "../pages/home/HomePage";
 import { LegalPage } from "../pages/legal/LegalPage";
 import { ModelPage } from "../pages/model/ModelPage";
+import { ProjectPage } from "../pages/project/ProjectPage";
 import { NotFoundPage } from "../pages/not-found/NotFoundPage";
 import { OverviewPage } from "../pages/overview/OverviewPage";
 import { RecipePage, validateRecipeSearch } from "../pages/recipes/RecipePage";
@@ -88,6 +89,12 @@ export function createAppRouter({
     component: LegalPage,
   });
   // 088: the model of a project (relations between its datasets), reached from the project
+  // C1: a project's own page (its tables, its images, the columns that name them)
+  const projectRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/projects/$projectId",
+    component: ProjectPage,
+  });
   const modelRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/projects/$projectId/model",
@@ -171,6 +178,7 @@ export function createAppRouter({
       settingsRoute,
       helpRoute,
       legalRoute,
+      projectRoute,
       modelRoute,
       recipesRoute,
       recipeRoute,

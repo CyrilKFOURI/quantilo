@@ -31,6 +31,9 @@ KEY_TYPES = frozenset(
 NUMERIC = frozenset({"numeric_continuous", "numeric_discrete"})
 MAX_KEY_LENGTH = 64  # R-KEY-02: a longer text is prose, not a code
 PAIR_COLUMNS = 12  # R-KEY-03: pairs searched among the first 12 eligible columns (66 pairs)
+TRIPLE_COLUMNS = 8  # C1 (R-KEY-03b): triples among the first 8 key-like columns (56 triples)
+MAX_KEY_COLUMNS = 4  # C1: a relation joins 1 to 4 columns on each side
+Match = Literal["exact", "normalized"]
 # `approx_count_distinct` can be 10 to 15 % off (DuckDB 1.x, the Pyodide build): every test made
 # on it leaves this margin, and the decisions themselves use exact counts
 APPROX_ERROR = 0.2
@@ -184,10 +187,25 @@ def canonical(column: ColumnView, kind: Kind) -> str:
     return clean_text(column.name)
 
 
-def key_expression(table: TableInput, columns: list[str], kinds: dict[str, Kind]) -> str:
-    """One canonical value for one or two columns (NULL when any part is empty)."""
+def normalized(text_sql: str) -> str:
+    """C1 (R-REL-14): a text compared without case, accents, punctuation or extra spaces
+    ('ALFKI' = 'alfki', 'Café-Paris ' = 'cafe paris'); NULL stays NULL, '' becomes NULL."""
+    plain = f"strip_accents(lower({text_sql}))"
+    return f"nullif(trim(regexp_replace({plain}, '[^a-z0-9]+', ' ', 'g')), '')"
+
+
+def key_expression(
+    table: TableInput, columns: list[str], kinds: dict[str, Kind], match: Match = "exact"
+) -> str:
+    """One canonical value for one to four columns (NULL when any part is empty). `normalized`
+    (R-REL-14) compares the text parts without case, accents or punctuation."""
     views = {view.name: view for view in table.columns}
     parts = [canonical(views[name], kinds[name]) for name in columns]
+    if match == "normalized":
+        parts = [
+            normalized(part) if kinds[name] == "text" else part
+            for part, name in zip(parts, columns, strict=True)
+        ]
     if len(parts) == 1:
         return parts[0]
     return " || chr(31) || ".join(f"({part})" for part in parts)
@@ -220,6 +238,8 @@ def profile_table(connection: duckdb.DuckDBPyConnection, table: TableInput) -> T
     keys = [CandidateKey([p.name]) for p in single]
     if not keys and rows:
         keys = _pairs(connection, table, relation, [p for p in profiles if p.linkable], rows)
+    if not keys and rows:  # C1 (R-KEY-03b): a key of three columns
+        keys = _pairs(connection, table, relation, [p for p in profiles if p.linkable], rows, 3)
     profile_out = TableProfile(table.id, table.name, rows, profiles, keys)
     _choose_primary(profile_out, table)
     primary = profile_out.primary_key
@@ -305,6 +325,7 @@ def _pairs(
     relation: str,
     linkable: list[ColumnProfile],
     rows: int,
+    size: int = 2,
 ) -> list[CandidateKey]:
     """R-KEY-03: a key of two columns when no single column is one, among the columns whose name,
     type or role says key (an order line: `orderID` + `productID`)."""
@@ -314,19 +335,19 @@ def _pairs(
         if p.present == rows
         and p.distinct > 1
         and (names.has_key_word(p.name) or p.type == "identifier" or p.role in KEY_ROLES)
-    ][:PAIR_COLUMNS]
-    pairs = list(itertools.combinations(pool, 2))
+    ][: PAIR_COLUMNS if size == 2 else TRIPLE_COLUMNS]
+    pairs = list(itertools.combinations(pool, size))
     if not pairs:
         return []
     kinds: dict[str, Kind] = {p.name: p.kind for p in pool if p.kind}
     parts = [
-        f"count(DISTINCT {key_expression(table, [a.name, b.name], kinds)}) AS c{index}"
-        for index, (a, b) in enumerate(pairs)
+        f"count(DISTINCT {key_expression(table, [c.name for c in group], kinds)}) AS c{index}"
+        for index, group in enumerate(pairs)
     ]
     result = connection.execute(f"SELECT {', '.join(parts)} FROM {relation}").fetchone() or ()
     return [
-        CandidateKey([a.name, b.name])
-        for (a, b), distinct in zip(pairs, result, strict=False)
+        CandidateKey([c.name for c in group])
+        for group, distinct in zip(pairs, result, strict=False)
         if int(distinct or 0) == rows
     ]
 
@@ -359,6 +380,10 @@ def _choose_primary(profile: TableProfile, table: TableInput) -> None:
     best.reasons.append(Reason("R-KEY-01", text))
     if len(columns) == 2:
         best.reasons.append(Reason("R-KEY-03", "no single column is unique: a key of two columns"))
+    elif len(columns) == 3:
+        best.reasons.append(
+            Reason("R-KEY-03b", "no single column or pair is unique: a key of three columns")
+        )
     elif any(names.has_key_word(c.name) or names.names_table(c.name, table.name) for c in columns):
         best.reasons.append(Reason("R-KEY-04", "its name says it is the table's key"))
     elif any(c.type == "identifier" for c in columns):
@@ -376,8 +401,8 @@ def link_kinds(
     child: TableInput, child_columns: list[str], parent: TableInput, parent_columns: list[str]
 ) -> tuple[dict[str, Kind], dict[str, Kind]] | Reason:
     """The kinds to compare a child's columns with a parent's key (R-REL-03), or why not."""
-    if len(child_columns) != len(parent_columns) or not 1 <= len(child_columns) <= 2:
-        return Reason("R-KEY-03", "a relation joins one or two columns on each side")
+    if len(child_columns) != len(parent_columns) or not 1 <= len(child_columns) <= MAX_KEY_COLUMNS:
+        return Reason("R-KEY-03", f"a relation joins 1 to {MAX_KEY_COLUMNS} columns on each side")
     child_views = {view.name: view for view in child.columns}
     parent_views = {view.name: view for view in parent.columns}
     child_kinds: dict[str, Kind] = {}

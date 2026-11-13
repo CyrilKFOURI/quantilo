@@ -8,6 +8,9 @@ when the Vision module opens, not at the first preview).
 - R-VIS-SRC-02: a ZIP (not an Office file) whose members are images for at least half.
 - R-VIS-SRC-03: a Parquet file with an image column (`struct<bytes, path>`, R-VIS-HF-01): offered
   as an image set, the table import stays one click away (Hugging Face `datasets`).
+- R-VIS-SRC-04: a folder with no image file whose Parquet files hold an image column, for at least
+  half of them (the Hugging Face layout `data/train-...parquet`, `test-...`, `validation-...`):
+  imported as one image set, each file's split read from its name (R-VIS-LAY-06).
 
 The content is checked at the import, by signature (R-IMG-01): a name only routes the screen.
 """
@@ -29,6 +32,7 @@ IMAGE_SUFFIXES = frozenset(
 SCAN_LIMIT = 2_000
 SCAN_DEPTH = 6
 IMAGE_SHARE = 0.5
+PARQUET_LIMIT = 200  # R-VIS-SRC-04: schemas read at most (a schema is a few kilobytes)
 
 ImageSourceKind = Literal["folder", "zip", "parquet"]
 
@@ -46,8 +50,9 @@ def _hidden(name: str) -> bool:
     return name.startswith((".", "__MACOSX")) or name.lower() == "thumbs.db"
 
 
-def _scan_folder(root: Path) -> tuple[int, int]:
+def _scan_folder(root: Path) -> tuple[int, int, list[Path]]:
     images = files = 0
+    parquets: list[Path] = []
     stack = [(root, 0)]
     while stack and files < SCAN_LIMIT:
         folder, depth = stack.pop()
@@ -64,9 +69,11 @@ def _scan_folder(root: Path) -> tuple[int, int]:
             elif entry.is_file(follow_symlinks=False):
                 files += 1
                 images += Path(entry.name).suffix.lower() in IMAGE_SUFFIXES
+                if Path(entry.name).suffix.lower() in (".parquet", ".pq"):
+                    parquets.append(Path(entry.path))
                 if files >= SCAN_LIMIT:
                     break
-    return images, files
+    return images, files, parquets
 
 
 def _has_image_column(path: Path) -> bool:
@@ -87,7 +94,7 @@ def _has_image_column(path: Path) -> bool:
 def image_source(path: Path) -> ImageSource | None:
     """The image-set reading of `path` by R-VIS-SRC-01 to 03, or None."""
     if path.is_dir():
-        images, files = _scan_folder(path)
+        images, files, parquets = _scan_folder(path)
         if images and images >= IMAGE_SHARE * files:
             more = "+" if files >= SCAN_LIMIT else ""
             return ImageSource(
@@ -97,6 +104,17 @@ def image_source(path: Path) -> ImageSource | None:
                 f"{images:,}{more} of its {files:,}{more} files are images (R-VIS-SRC-01): it is "
                 "imported as an image set, one row per image.",
                 images,
+            )
+        held = sum(_has_image_column(p) for p in parquets[:PARQUET_LIMIT]) if not images else 0
+        if held and held >= IMAGE_SHARE * min(len(parquets), PARQUET_LIMIT):
+            return ImageSource(
+                "folder",
+                "R-VIS-SRC-04",
+                "folder of Parquet files with an image column",
+                f"{held:,} of its {len(parquets):,} Parquet files hold an image column "
+                "(R-VIS-SRC-04, the Hugging Face layout): it is imported as one image set, each "
+                "file's split read from its name (R-VIS-LAY-06).",
+                0,
             )
         return None
     if not path.is_file():

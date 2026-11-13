@@ -312,3 +312,18 @@ def test_words_of_several_classes_name_the_class_they_raise() -> None:
     assert (
         "probability of angry" in words[0].sentence or "probability of happy" in words[0].sentence
     )
+
+
+def test_words_of_letter_groups_are_read_as_whole_words() -> None:
+    """R-XAI-22: a column cut into letters for the model is explained by its whole words."""
+    chars = prep.Choices(columns={"review": prep.ColumnChoice(encoding="chars")})
+    trained = train(
+        REVIEWS, FIELDS, TARGET, "binary", "random_forest", None, N, False, choices=chars
+    )
+    x = cast(pd.DataFrame, REVIEWS[["review", "price"]])
+
+    words = explainer.words(trained.pipeline, x, "binary", "yes")
+
+    terms = [w.term for w in [*words[0].up, *words[0].down]]
+    assert terms and all(" " not in t and t.isalpha() and len(t) >= 2 for t in terms)
+    assert {"refund", "broken"} & {w.term for w in words[0].up[:5]}

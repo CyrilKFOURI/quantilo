@@ -16,6 +16,7 @@ CODE_WORDS = frozenset(
         *("id", "ids", "uuid", "guid", "code", "codes", "key", "ref", "zip", "zipcode"),
         *("postcode", "insee", "siren", "siret", "fips", "sku", "ean", "isbn", "pid"),
         "matricule",
+        *("iban", "gtin", "upc"),  # N21: identifiers with a check digit (cleaning/rules/formats.py)
     ]
 )
 # S-01: a number word last ("patient_nbr"); first it is a count ("number_of_persons").

@@ -60,7 +60,22 @@ export function groupVerdict(result: GroupForecast): string {
       wins: String(result.global_model.wins),
       series: String(result.global_model.series),
     })}`;
+  // 028 B3, B4: AI models run on every series at once
+  for (const batch of result.batch_models ?? [])
+    if (!batch.error)
+      text += ` ${t("ts.groups.batchWins", {
+        title: modelName(batch.model),
+        wins: String(batch.wins),
+        series: String(batch.series),
+      })}`;
   return text;
+}
+
+/** Why an AI model did not run on every group (extra, weights, too few groups). */
+export function batchNotes(result: GroupForecast): string[] {
+  return (result.batch_models ?? [])
+    .filter((batch) => batch.error)
+    .map((batch) => t("ts.groups.batchSkipped", { title: modelName(batch.model), reason: batch.error ?? "" }));
 }
 
 /** One small chart: the history in grey, the forecast in the first palette color, its 95 % band. */
@@ -128,7 +143,7 @@ function bestFigure(result: GroupForecast): Figure {
           textposition: "outside",
           textfont: { color: tokens.ink2, size: 11 },
           marker: { color: tokens.palette[0] ?? tokens.ink1 },
-          hovertemplate: "%{y}: %{x} series<extra></extra>",
+          hovertemplate: t("fig.ts.hoverSeriesCount"),
           cliponaxis: false,
         } as Data,
       ],
@@ -355,9 +370,9 @@ function Results({
   return (
     <div className="space-y-4">
       <p className="font-medium text-ink-1">{groupVerdict(result)}</p>
-      {result.notes.length > 0 && (
+      {result.notes.length + batchNotes(result).length > 0 && (
         <ul className="space-y-0.5 text-[13px] text-ink-2">
-          {result.notes.map((note) => (
+          {[...result.notes, ...batchNotes(result)].map((note) => (
             <li key={note}>{note}</li>
           ))}
         </ul>

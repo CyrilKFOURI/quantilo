@@ -109,6 +109,11 @@ class SourceImportRequest(BaseModel):
     name: str | None = None  # the source's name; each table gets "<name> - <table>"
     options: ImportOptions = Field(default_factory=lambda: ImportOptions())
     project_id: str | None = None  # 087, R-PRJ-05: every table goes in this project
+    stack: bool = False  # S1 (C1): tables sharing their columns, stacked into one dataset
+
+
+class StacksRequest(BaseModel):
+    path: str
 
 
 class SourceOut(BaseModel):

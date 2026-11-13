@@ -31,6 +31,8 @@ class ToolContext:
     conditions: list[Condition] = field(default_factory=list)  # the user's active filters
     cancelled: Callable[[], bool] = lambda: False
     progress: Callable[[str, float | None], None] = lambda message, share: None
+    # `rows` tools only: the personal columns the user let through unmasked for this call
+    unmasked: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)

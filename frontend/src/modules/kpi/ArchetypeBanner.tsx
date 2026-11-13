@@ -6,7 +6,8 @@ import { t } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
 import { Checkbox } from "../../ui/fields";
 import { InfoTip } from "../../ui/InfoTip";
-import { splitReason } from "./SuggestionChips";
+import { archetypeMessage, kpiName } from "./names";
+import { kpiReasons, splitReason } from "./SuggestionChips";
 
 type Suggested = KpiSuggestions["kpis"][number];
 
@@ -36,12 +37,13 @@ export function ArchetypeBanner({
   if (hidden || pack.length === 0) return null;
   const picked = pack.filter((k) => !left.has(k.name));
   const why = archetype.reasons.map((r) => splitReason(r).text).join(" ");
+  const message = archetypeMessage(archetype);
   return (
-    <div className="space-y-2 border-l-2 border-accent pl-3" role="region" aria-label={archetype.message}>
+    <div className="space-y-2 border-l-2 border-accent pl-3" role="region" aria-label={message}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="inline-flex items-center gap-1.5 text-[13px] text-ink-1">
           <LayoutGrid size={13} strokeWidth={1.75} aria-hidden className="text-ink-2" />
-          {archetype.message}
+          {message}
           <InfoTip text={why} label={t("kpi.archetype.why")} />
         </span>
         {saved !== null ? (
@@ -66,7 +68,7 @@ export function ArchetypeBanner({
             {pack.map((kpi) => (
               <li key={kpi.name} className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                 <Checkbox
-                  label={kpi.name}
+                  label={kpiName(kpi)}
                   checked={!left.has(kpi.name)}
                   onChange={(e) => {
                     const next = new Set(left);
@@ -76,7 +78,7 @@ export function ArchetypeBanner({
                   }}
                   className="text-[13px]"
                 />
-                {kpi.reasons[0] && <span className="min-w-0 text-xs text-ink-3">{splitReason(kpi.reasons[0]).text}</span>}
+                {kpi.reasons[0] && <span className="min-w-0 text-xs text-ink-3">{splitReason(kpiReasons(kpi)[0] ?? "").text}</span>}
               </li>
             ))}
           </ul>
@@ -84,7 +86,7 @@ export function ArchetypeBanner({
             variant="primary"
             disabled={picked.length === 0 || saving}
             onClick={() =>
-              void onSave(picked.map((k) => ({ name: k.name, definition: k.definition }))).then(() => {
+              void onSave(picked.map((k) => ({ name: kpiName(k), definition: k.definition }))).then(() => {
                 setSaved(picked.length);
                 setOpen(false);
               })

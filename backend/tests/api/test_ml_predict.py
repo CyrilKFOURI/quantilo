@@ -235,6 +235,32 @@ def test_one_predicted_row_is_explained(
     assert explained["steps"] and explained["scale"] == "log-odds"
 
 
+def test_a_predicted_row_gets_the_scorecard_and_a_counterfactual(
+    client: TestClient, trained: tuple[str, str, Path], tmp_path: Path
+) -> None:
+    """121 bis (R-XAI-18) and 125 bis (R-XAI-21) on a row of new data."""
+    dataset, run, _ = trained
+    source = import_path(client, write(month(12).drop(columns="churn"), tmp_path / "card.csv"))
+    found = predict(client, dataset, run, source, [])
+    url = f"{BASE}/datasets/{dataset}/predictions/{found['id']}/rows/2"
+
+    card = client.get(f"{url}/scorecard")
+    assert card.status_code == 200, card.text
+    body = card.json()
+    assert body["row"] == 2 and "R-XAI-18" in body["sentence"]
+    assert body["total"] == sum(line["points"] for line in body["lines"])
+
+    changed = client.post(f"{url}/counterfactual", json={"max_changes": 2})
+    assert changed.status_code == 200, changed.text
+    answer = changed.json()
+    assert answer["row"] == 2 and len(answer["changes"]) <= 2
+    assert "R-XAI-21" in answer["plausibility"]
+    missing = client.post(
+        f"{BASE}/datasets/{dataset}/predictions/{found['id']}/rows/99999/counterfactual", json={}
+    )
+    assert missing.status_code == 422
+
+
 def test_the_exported_model_has_no_rows_and_its_script_predicts_like_the_app(
     client: TestClient, trained: tuple[str, str, Path], tmp_path: Path
 ) -> None:

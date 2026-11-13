@@ -65,6 +65,7 @@ def tiny(kind: bb.Kind = "vit") -> bb.Backbone:
 def test_scaled_batch_and_cpu_plan():
     assert budgets.scaled_batch(64, None) == 64
     assert budgets.scaled_batch(64, 6144) == 64 and budgets.scaled_batch(64, 8192) == 64
+    assert budgets.scaled_batch(16, 6141) == 16  # the RTX 4050 Laptop reports 6,141 MiB
     assert budgets.scaled_batch(64, 4096) == 32  # 42.7 -> 32
     assert budgets.scaled_batch(64, 2048) == 16 and budgets.scaled_batch(1, 1024) == 1
     spec = bb.BACKBONES["dinov2_s14"]
@@ -195,7 +196,11 @@ def test_embed_image_set_aligns_with_the_table(tmp_path):
 
     # two images a class: R-VQ-14 (class too small) would leave them all out
     images = image_set(
-        folder, workspace=tmp_path / "ws", dataset_id="pets", thumbnails=False, ignore_rules=("R-VQ-14",)
+        folder,
+        workspace=tmp_path / "ws",
+        dataset_id="pets",
+        thumbnails=False,
+        ignore_rules=("R-VQ-14",),
     )
     result = embedding.embed_image_set(images, tiny("cnn"), device="cpu")
     assert result.vectors.shape == (images.n_images, 6)
@@ -228,7 +233,7 @@ def test_load_fills_a_timm_network_from_a_verified_safetensors_file(
     loads into the network built at 224 px: head dropped, positions resampled, strict check."""
     if deep.missing():
         pytest.skip("the vision extra is not installed")
-    import timm
+    import timm  # pyright: ignore[reportMissingImports]
     from safetensors.torch import save_file
 
     source = timm.create_model(architecture, pretrained=False)

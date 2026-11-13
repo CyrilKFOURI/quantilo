@@ -27,6 +27,7 @@ from quantilo.segments.engine import (
     UnusualRows,
 )
 from quantilo.segments.projection import SegmentMap
+from quantilo.segments.tree import SegmentTree
 from quantilo.segments.unusual import UnusualRow
 
 if TYPE_CHECKING:
@@ -62,11 +63,19 @@ class FittedSegments:
     and the map. Every field of the result is an attribute (`found.k`, `found.segments`)."""
 
     def __init__(
-        self, source: "Dataset", engine: SegmentsEngine, fitted: Fitted, request: SegmentRequest
+        self,
+        source: "Dataset",
+        engine: SegmentsEngine,
+        fitted: Fitted,
+        request: SegmentRequest,
+        dataset_id: str | None = None,
+        conditions: list[Condition] | None = None,
     ) -> None:
         self._source = source
         self._engine = engine
         self._fitted = fitted
+        self._id = dataset_id
+        self._conditions = list(conditions or [])
         self.request = request
         self.result = fitted.result
 
@@ -114,6 +123,46 @@ class FittedSegments:
             self.result.tsne = self._engine.tsne(self.result, self._fitted.drawn)
         return self.result.tsne
 
+    def extra_map(self, method: str = "pacmap") -> SegmentMap:
+        """The map drawn with PaCMAP or TriMAP (122, optional extra `interpret`)."""
+        if method not in self.result.maps:
+            self.result.maps[method] = self._engine.extra_map(
+                self.result, self._fitted.drawn, method
+            )
+        return self.result.maps[method]
+
+    def describe_tree(self, depth: int | None = None, leaves: int | None = None) -> SegmentTree:
+        """Describe segments with a tree (124): a sparse tree (greedy CART, pruned by
+        cross-validation) that predicts each row's segment, its fidelity on rows it did not
+        learn from, and each segment's rules. 3 levels and 8 leaves by default, more when there
+        are more than 8 segments."""
+        if self._id is None:
+            raise SegmentsError("This segmentation does not know its dataset.", "tree")
+        return self._engine.describe_tree(
+            self._id,
+            self._conditions,
+            self.request,
+            self.result,
+            self._fitted.labels,
+            depth,
+            leaves,
+        )
+
+    def optimal_tree(self, segment: int, depth: int = 3) -> Any:
+        """124 bis (R-SGT-06, extra `interpret`): GOSDT's optimal tree for one segment against the
+        others; refused with its reason (R-XAI-10) when the extra cannot run here."""
+        if self._id is None:
+            raise SegmentsError("This segmentation does not know its dataset.", "tree")
+        return self._engine.optimal_segment(
+            self._id,
+            self._conditions,
+            self.request,
+            self.result,
+            self._fitted.labels,
+            segment,
+            depth,
+        )
+
     def to_dataset(self, name: str | None = None) -> "Dataset":
         """The (filtered) rows with a `segment` column (the segments' names), as a new
         dataset; the source is not changed."""
@@ -160,7 +209,9 @@ class Segments:
         """Try k = 2 to 10 (unless k is set), keep the k the scores agree on, check stability
         on 10 subsamples, describe each segment."""
         fitted = self._engine.segment(self._id, self._conditions, self.request)
-        return FittedSegments(self._source, self._engine, fitted, self.request)
+        return FittedSegments(
+            self._source, self._engine, fitted, self.request, self._id, self._conditions
+        )
 
 
 def request(

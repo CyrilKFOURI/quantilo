@@ -98,6 +98,8 @@ class Choices(BaseModel):
     rare_rows: int = Field(default=10, ge=1, le=100_000)
     one_hot_limit: int = Field(default=15, ge=2, le=200)
     target_smoothing: float = Field(default=10.0, ge=0, le=10_000)
+    # 063 bis (R-LAG-03): the target's own past, shifted, as one more input (ordered rows only)
+    target_lag: Literal["none", "past_mean", "past_ewm"] = "none"
     outliers: Outliers = "none"
     imbalance: Imbalance = "auto"
     selection: list[SelectionChoice] = Field(default_factory=list, max_length=8)
@@ -221,6 +223,7 @@ class Preparation:
     distance: bool = False  # prepared for distances between rows (no target)
     folds: enc.TargetFolds | None = None  # how target encodings are cross-fitted (R-CAT-08)
     order: "Order | None" = None  # ordered rows: what the lags follow (R-LAG-01)
+    target: str | None = None  # 063 bis: the target, read by its own lag (R-LAG-03)
 
     def __post_init__(self) -> None:
         # each row's fold key, set by the training (not a field: never sent nor saved)
@@ -405,6 +408,8 @@ def decide(
     custom = choices.model_dump(exclude={"columns"}) != GLOBAL_DEFAULTS or any(
         d.manual for d in decisions
     )
+    if choices.target_lag != "none":
+        warnings.append(target_lag_sentence(choices.target_lag, target.name, order))
     return Preparation(
         decisions,
         excluded=sum(not d.use for d in decisions if d.column != target.name),
@@ -413,6 +418,25 @@ def decide(
         warnings=warnings,
         folds=folds,
         order=order,
+        target=target.name,
+    )
+
+
+def target_lag_sentence(kind: str, target: str, order: "Order | None") -> str:
+    """R-LAG-03 said in the preparation: what the target's lag reads, or why it is refused."""
+    if order is None:
+        return (
+            "R-LAG-02 · Past values of the target need ordered rows: choose panel walk-forward "
+            "or a time-based split in Validation. Not applied."
+        )
+    what = "mean" if kind == "past_mean" else "exponentially weighted mean"
+    per = f", per {order.entity}" if order.entity else ""
+    unit = "previous periods" if order.grain == "period" else f"previous {order.grain}s"
+    return (
+        f"R-LAG-03 · Adds the {what} of the {order.window} {unit} of {target}{per}, shifted by "
+        f"{order.shift}: each row reads the target of periods already known, never its own. The "
+        "held-out scores are then one-step-ahead, and new data needs the target column, filled "
+        "for the past periods and empty for the ones to predict."
     )
 
 
@@ -1708,6 +1732,17 @@ def build(
         else:
             steps = _category_steps(d, preparation, rows, task, drop_first)
         transformers.append((f"c{len(transformers)}", Pipeline(steps), columns))
+    order = preparation.order
+    if lags_target(preparation) and order is not None and preparation.target is not None:
+        kind = "mean" if choices.target_lag == "past_mean" else "ewm"
+        lag = enc.PastSmooth(
+            kind, order.window, order.shift, entity=order.entity is not None, keep_value=False
+        )
+        columns = [preparation.target, *([order.entity] if order.entity else []), order.period]
+        steps = [("past", lag), ("impute", SimpleImputer(strategy="median"))]
+        if any(d.scaling not in (None, "none") for d in preparation.used if d.type in NUMERIC):
+            steps.append(("scale", StandardScaler()))
+        transformers.append((f"c{len(transformers)}", Pipeline(steps), columns))
     return ColumnTransformer(transformers, remainder="drop", verbose_feature_names_out=False)
 
 
@@ -1719,13 +1754,27 @@ def fitted_step(transformer: Any, column: str) -> Any:
     return None
 
 
+def lags_target(preparation: Preparation) -> bool:
+    """063 bis (R-LAG-03): the target's own lag is asked for and the rows are ordered."""
+    return (
+        preparation.choices.target_lag != "none"
+        and preparation.order is not None
+        and preparation.target is not None
+        and not preparation.distance
+    )
+
+
 def context_columns(preparation: Preparation) -> list[str]:
-    """Columns the pipeline reads without making them inputs: the order of a lag (R-LAG-01)."""
+    """Columns the pipeline reads without making them inputs: the order of a lag (R-LAG-01), and
+    the target itself when its past is an input (R-LAG-03, only shifted)."""
     order = preparation.order
-    if order is None or not any(d.transform in LAGS for d in preparation.used):
+    own = lags_target(preparation)
+    if order is None or not (own or any(d.transform in LAGS for d in preparation.used)):
         return []
     used = {d.column for d in preparation.used}
     wanted = [*([order.entity] if order.entity else []), order.period]
+    if own and preparation.target is not None:
+        wanted.insert(0, preparation.target)
     return [c for c in wanted if c not in used]
 
 

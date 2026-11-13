@@ -93,6 +93,9 @@ export function RunReport({ recipeId, runId }: { recipeId: string; runId: string
                       {figureKindLabel(figure.kind)}
                       {figure.detail ? ` · ${figure.detail}` : ""}
                     </span>
+                    {figure.goal && (
+                      <span className={`block text-xs ${figure.crossed ? "font-medium text-ink-1" : "text-ink-2"}`}>{figure.goal}</span>
+                    )}
                   </td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-ink-1">{formatNumber(figure.value)}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-ink-2">{formatNumber(figure.previous)}</td>

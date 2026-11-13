@@ -90,3 +90,14 @@ def test_heatmap_colours_follow_the_sign() -> None:
     assert "var(--chart-8) 50%" in drawn  # negative: red pole
     assert "var(--chart-1) 100%" in drawn  # the diagonal
     assert drawn.index(">b</text>") < drawn.index(">a</text>")  # clustered order
+
+
+def test_print_sheet_and_running_header_escape_the_name() -> None:
+    """025, R-REP-16: A4, sections on new pages, cards never cut; the name in CSS is data."""
+    from quantilo.report.html import CSS, _css_string, _running_header
+
+    assert "size: A4" in CSS and "break-before: page" in CSS and "print-color-adjust: exact" in CSS
+    header = _running_header('a "b"</style><script>', "2026-11-12")
+    assert "</style>" not in header and "<script>" not in header
+    assert header.startswith("@page { @top-left { content: ")
+    assert _css_string('x"y') == r'"x\22 y"'

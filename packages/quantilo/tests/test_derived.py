@@ -2,6 +2,7 @@
 """058: derived columns of text and lists of choices."""
 
 import random
+from collections.abc import Sequence
 
 import duckdb
 import pandas as pd
@@ -56,7 +57,7 @@ def ds(tmp_path_factory: pytest.TempPathFactory) -> quantilo.Dataset:
     return quantilo.from_pandas(frame(), "reviews", cache_dir=tmp_path_factory.mktemp("cache"))
 
 
-def values(spec: DerivedSpec, texts: list[str | None]) -> list:
+def values(spec: DerivedSpec, texts: Sequence[str | None]) -> list:
     con = duckdb.connect()
     con.execute("CREATE TABLE t (i INTEGER, src VARCHAR)")
     con.executemany("INSERT INTO t VALUES (?, ?)", list(enumerate(texts)))
@@ -152,10 +153,10 @@ def test_with_derived_adds_only_what_is_named(ds: quantilo.Dataset) -> None:
 
 def test_filters_on_derived(ds: quantilo.Dataset) -> None:
     questions = ds.where("review › Has question", "in", [True])
-    expected = int(frame()["review"].fillna("").str.contains("?", regex=False).sum())
+    expected = sum(isinstance(t, str) and "?" in t for t in frame()["review"].to_numpy())
     assert len(questions) == expected > 0
     empty = ds.where("review › Empty", "in", [True])
-    assert len(empty) == int(frame()["review"].isna().sum())
+    assert len(empty) == int(frame()["review"].isna().to_numpy().sum())
     where = where_for(ds.types, [Condition(column="review › Length", op="gt", value=40)])
     con = duckdb.connect()
     count = con.execute(f"SELECT count(*) FROM {scoped_source(str(ds.path), where)}").fetchone()

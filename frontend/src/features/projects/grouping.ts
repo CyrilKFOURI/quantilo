@@ -16,15 +16,17 @@ export function familyIds(row: FamilyRow, rows: FamilyRow[]): string[] {
 
 /** The rows (families in the order of the list) split by project: projects in the server's order
  *  (by name, R-PRJ-09), then Not in a project. A version always sits in its original's group
- *  (R-PRJ-04), whatever the list of members says. */
+ *  (R-PRJ-04), whatever the list of members says. C1: a dataset in several projects is listed
+ *  under each of them. */
 export function groupByProject(rows: FamilyRow[], projects: Project[]): ProjectGroup[] {
-  const projectOfRoot = new Map<string, Project>();
-  for (const project of projects) for (const id of project.dataset_ids) projectOfRoot.set(id, project);
+  const projectsOfRoot = new Map<string, Project[]>();
+  for (const project of projects) for (const id of project.dataset_ids) projectsOfRoot.set(id, [...(projectsOfRoot.get(id) ?? []), project]);
   const groups = new Map<string, ProjectGroup>(projects.map((project) => [project.id, { project, rows: [] }]));
   const none: ProjectGroup = { project: null, rows: [] };
   for (const row of rows) {
-    const project = projectOfRoot.get(row.version?.parentId ?? row.dataset.id);
-    (project ? groups.get(project.id)! : none).rows.push(row);
+    const found = projectsOfRoot.get(row.version?.parentId ?? row.dataset.id) ?? [];
+    if (found.length === 0) none.rows.push(row);
+    for (const project of found) groups.get(project.id)!.rows.push(row);
   }
   return [...groups.values(), none];
 }

@@ -29,7 +29,8 @@ import { GROUPS, StatTable, statRow } from "../../features/variable/StatTable";
 import { ChartView } from "../../features/variable-grid/ChartView";
 import { ViewSwitch } from "../../features/variable-grid/ViewSwitch";
 import { formatCount } from "../../lib/format";
-import { t } from "../../lib/i18n";
+import { roleName, t } from "../../lib/i18n";
+import { columnReasons } from "../../lib/i18n/reasons";
 import { useStoredState } from "../../lib/useStoredState";
 import { Button } from "../../ui/Button";
 import { ErrorNote } from "../../ui/fields";
@@ -100,12 +101,12 @@ export function VariablePage() {
                   <TypeBadge
                     type={column.type}
                     detectedType={column.detected_type}
-                    reasons={column.reasons}
+                    reasons={columnReasons(column)}
                     role={column.role}
                     onChange={(type: AnalysisType) => update.mutate([{ name: column.name, type }])}
                   />
                 </div>
-                {column.role_label && <span>{column.role_label}</span>}
+                {column.role_label && <span>{roleName(column.role, column.role_label)}</span>}
               </div>
             )}
           </div>

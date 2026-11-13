@@ -235,3 +235,41 @@ def test_logged_decisions_detected_and_evaluated(client: TestClient, tmp_path: P
 def test_ab_test_is_not_logged_decisions(client: TestClient, ab: str) -> None:
     found = client.get(f"{BASE}/datasets/{ab}/decisions").json()
     assert not found["detected"]
+
+
+def test_matched_groups_offered_then_computed(client: TestClient, tmp_path: Path) -> None:
+    """123: the Policies evaluation says whether matched groups can compare the two actions
+    (R-MAT-01); the matching route groups the units exactly on their covariates (FLAME)."""
+    dataset = import_path(client, decisions_log(tmp_path / "decisions.csv"))
+    evaluated = client.post(
+        f"{BASE}/datasets/{dataset}/evaluate-policy",
+        json={"action": "offer", "reward": "converted"},
+    ).json()
+    assert evaluated["matching"]["available"] and "R-MAT-01" in evaluated["matching"]["reason"]
+    found = client.post(
+        f"{BASE}/datasets/{dataset}/matching",
+        json={"treatment": "offer", "outcome": "converted", "treated": "sms"},
+    )
+    assert found.status_code == 200, found.text
+    result = found.json()
+    assert result["treated"] == "sms" and result["control"] == "email" and result["kind"] == "rate"
+    assert [e["key"] for e in result["effects"]] == ["naive", "ate", "att"]
+    assert result["levels"][0]["level"] == 1 and result["groups"][0]["rows"]
+    assert {c["column"] for c in result["covariates"]} == {"propensity", "age", "region"}
+    assert result["warnings"][0].startswith("Observational")
+    # 123 bis: DAME (R-MAT-09), and the region's pair of values (R-MAT-10)
+    dame = client.post(
+        f"{BASE}/datasets/{dataset}/matching",
+        json={"treatment": "offer", "outcome": "converted", "treated": "sms", "method": "dame"},
+    )
+    assert dame.status_code == 200, dame.text
+    assert "DAME" in dame.json()["method"]
+    refused = client.post(
+        f"{BASE}/datasets/{dataset}/matching", json={"treatment": "age", "outcome": "converted"}
+    )
+    assert refused.status_code == 422
+    unknown = client.post(
+        f"{BASE}/datasets/{dataset}/matching",
+        json={"treatment": "offer", "outcome": "converted", "covariates": ["customer_id"]},
+    )
+    assert unknown.status_code == 422 and "cannot describe" in unknown.json()["error"]["message"]

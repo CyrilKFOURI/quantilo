@@ -5,6 +5,8 @@ import { Plot, type PointClick } from "../../charts/Plot";
 import { formatNumber } from "../../charts/figures";
 import { formatBytes, formatCount } from "../../lib/format";
 import { t, type MessageKey } from "../../lib/i18n";
+import { LITE } from "../../lite/flag";
+import { BLUR_SHARPNESS } from "../../lite/images";
 import { Checkbox } from "../../ui/fields";
 import { InfoTip } from "../../ui/InfoTip";
 import { histogramFigure, labelsFigure, sizeFigure } from "./figures";
@@ -23,6 +25,8 @@ import {
 } from "./model";
 
 const CHART_HEIGHT = 168;
+// R-VQ-04's absolute blur threshold: 100 at 512 pixels, 300 at the browser's 256 (R-VIS-WEB-02)
+const BLUR = LITE ? BLUR_SHARPNESS : 100;
 const HISTOGRAMS: { measure: Measure; title: MessageKey; unit: MessageKey }[] = [
   { measure: "brightness", title: "vision.measure.brightness", unit: "vision.stats.unit.brightness" },
   { measure: "contrast", title: "vision.measure.contrast", unit: "vision.stats.unit.contrast" },
@@ -112,10 +116,11 @@ export function measureSentence(measure: Measure, sorted: readonly number[]): st
   if (median === null || low === null || high === null) return t("vision.stats.noValue");
   const vars = { median: formatNumber(median), low: formatNumber(low), high: formatNumber(high) };
   if (measure === "sharpness") {
-    const blurry = sorted.filter((value) => value < 100).length;
+    const blurry = sorted.filter((value) => value < BLUR).length;
     return t(blurry > 0 ? "vision.stats.sentence.sharpnessLow" : "vision.stats.sentence.sharpness", {
       ...vars,
       count: formatCount(blurry),
+      threshold: formatCount(BLUR),
     });
   }
   return t("vision.stats.sentence.measure", vars);

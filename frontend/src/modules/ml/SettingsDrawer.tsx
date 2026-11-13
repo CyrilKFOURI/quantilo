@@ -9,6 +9,7 @@ import { Checkbox, Select, TextInput } from "../../ui/fields";
 import { InfoTip } from "../../ui/InfoTip";
 import { Tabs } from "../../ui/Tabs";
 import { LITE } from "../../lite/flag";
+import { groupName } from "./catalogText";
 import { disabledOptions, isVisible, type Values } from "./rules";
 
 /** Training rows by default: 200,000, and 50,000 in the browser version (R-WEB-01, 102). */
@@ -249,7 +250,7 @@ export function SettingsDrawer({
                 <div className="space-y-4">
                   {groups.map((group) => (
                     <section key={group} className="space-y-2.5">
-                      <h3 className="text-[11px] font-medium tracking-wide text-ink-3 uppercase">{group}</h3>
+                      <h3 className="text-[11px] font-medium tracking-wide text-ink-3 uppercase">{groupName(group)}</h3>
                       {modelSettings.filter((s) => s.group === group).map(field)}
                     </section>
                   ))}

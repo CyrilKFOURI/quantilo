@@ -39,8 +39,8 @@ export function DatasetSwitcher({ datasetId, name }: { datasetId: string; name: 
   return (
     <span className="flex min-w-0 items-center gap-1.5">
       <Link
-        to="/"
-        search={{ project: project.id }}
+        to="/projects/$projectId"
+        params={{ projectId: project.id }}
         className="max-w-48 shrink truncate text-ink-3 hover:text-accent max-sm:hidden"
         title={t("projects.openTitle", { name: project.name })}
       >

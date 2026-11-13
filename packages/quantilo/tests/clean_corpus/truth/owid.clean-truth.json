@@ -1,0 +1,9 @@
+{
+ "label": "owid",
+ "corpus": "data-corpus",
+ "path": "climate/owid_co2/owid-co2-data.csv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+ ]
+}

@@ -15,7 +15,9 @@ import { loadPlotly } from "./charts/Plot";
 import { startLite } from "./lite/bridge";
 import { EngineGate } from "./lite/EngineGate";
 import { LITE } from "./lite/flag";
+import { loadLocale } from "./lib/i18n";
 import { installPaletteStyles } from "./lib/palettes";
+import { languagePreference, readPreference } from "./lib/preferences";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing #root element");
@@ -23,20 +25,31 @@ installPaletteStyles();
 
 if (LITE) {
   // Browser-only build: Python runs in a worker; addresses use # (a static host has no routes).
+  // The engine starts while the texts load: it does not wait for the language.
   startLite();
-  createRoot(root).render(
-    <StrictMode>
-      <EngineGate>
-        <App router={createAppRouter({ history: createHashHistory() })} />
-      </EngineGate>
-    </StrictMode>,
-  );
-} else {
-  createRoot(root).render(
-    <StrictMode>
-      <App router={createAppRouter()} />
-    </StrictMode>,
-  );
+}
+
+// French texts (127) are read before the first render; a failed read leaves the English ones.
+void loadLocale(readPreference(languagePreference))
+  .catch(() => undefined)
+  .then(() => render(root));
+
+function render(root: HTMLElement) {
+  if (LITE) {
+    createRoot(root).render(
+      <StrictMode>
+        <EngineGate>
+          <App router={createAppRouter({ history: createHashHistory() })} />
+        </EngineGate>
+      </StrictMode>,
+    );
+  } else {
+    createRoot(root).render(
+      <StrictMode>
+        <App router={createAppRouter()} />
+      </StrictMode>,
+    );
+  }
 }
 
 // plotly.js takes ~2 s to read: do it while the first page is read, not at the first chart.

@@ -1,0 +1,9 @@
+{
+ "label": "fr_rne_maires",
+ "corpus": "data-corpus",
+ "path": "public_admin/fr_rne_maires/elus-maire.csv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+ ]
+}

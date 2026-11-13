@@ -141,7 +141,7 @@ function barsFigure(lags: number[], values: number[], band: number): Figure {
               : tokens.ink3,
           ),
         },
-        hovertemplate: "lag %{x}: %{y:.3f}<extra></extra>",
+        hovertemplate: t("fig.ts.hoverLag"),
       } as Data,
       {
         type: "scatter",
@@ -155,7 +155,7 @@ function barsFigure(lags: number[], values: number[], band: number): Figure {
     layout: {
       showlegend: false,
       bargap: 0.35,
-      xaxis: { title: { text: "lag", font: { size: 11 } } },
+      xaxis: { title: { text: t("fig.ts.lag"), font: { size: 11 } } },
       yaxis: { range: [-1, 1] },
     },
   });

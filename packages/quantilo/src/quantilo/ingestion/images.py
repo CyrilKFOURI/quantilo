@@ -697,14 +697,115 @@ def _boxes(src: _Source, start: int, end: int) -> list[tuple[bytes, int, int]]:
     return found
 
 
+def _uint(data: bytes, at: int, size: int) -> int | None:
+    """A big-endian unsigned integer of 0, 4 or 8 bytes (an `iloc` field), None when short."""
+    if size == 0:
+        return 0
+    if size not in (4, 8) or at + size > len(data):
+        return None
+    return int.from_bytes(data[at : at + size], "big")
+
+
+def _exif_item(src: _Source, start: int, end: int) -> int | None:
+    """C1 (R-IMG-04): the id of the `Exif` item of a HEIF / AVIF `meta` box (its `iinf`)."""
+    for kind, s1, e1 in _boxes(src, start, end):
+        if kind != b"iinf":
+            continue
+        head = src.read(s1, 8)
+        if len(head) < 6:
+            return None
+        first = s1 + (6 if head[0] == 0 else 8)  # version, flags, then a 16- or 32-bit count
+        for infe, s2, e2 in _boxes(src, first, e1):
+            data = src.read(s2, min(e2 - s2, 16))
+            if infe != b"infe" or len(data) < (12 if data[:1] == b"" else 14) or data[0] < 2:
+                continue
+            if data[0] == 2:
+                item, item_type = struct.unpack(">H", data[4:6])[0], data[8:12]
+            else:
+                item, item_type = struct.unpack(">I", data[4:8])[0], data[10:14]
+            if item_type == b"Exif":
+                return item
+    return None
+
+
+def _item_bytes(src: _Source, start: int, end: int, wanted: int) -> bytes | None:
+    """The first extent of item `wanted`, located in the file by `iloc` (construction method 0
+    only: data stored elsewhere in the file), 65,536 bytes at most."""
+    for kind, s1, e1 in _boxes(src, start, end):
+        if kind != b"iloc":
+            continue
+        data = src.read(s1, min(e1 - s1, 65_536))
+        if len(data) < 8:
+            return None
+        version = data[0]
+        offset_size, length_size = data[4] >> 4, data[4] & 0x0F
+        base_size, index_size = data[5] >> 4, (data[5] & 0x0F) if version in (1, 2) else 0
+        wide = version == 2  # 32-bit item count and ids
+        at = 10 if wide else 8
+        count = int.from_bytes(data[6:at], "big")
+        for _ in range(min(count, 10_000)):
+            id_size = 4 if wide else 2
+            if at + id_size > len(data):
+                return None
+            item = int.from_bytes(data[at : at + id_size], "big")
+            at += id_size
+            method = 0
+            if version in (1, 2):
+                method = struct.unpack(">H", data[at : at + 2])[0] & 0x0F
+                at += 2
+            at += 2  # data reference index
+            base = _uint(data, at, base_size)
+            at += base_size
+            if at + 2 > len(data) or base is None:
+                return None
+            extents = struct.unpack(">H", data[at : at + 2])[0]
+            at += 2
+            first: tuple[int, int] | None = None
+            for index in range(extents):
+                at += index_size
+                offset = _uint(data, at, offset_size)
+                length = _uint(data, at + offset_size, length_size)
+                at += offset_size + length_size
+                if offset is None or length is None:
+                    return None
+                if index == 0:
+                    first = (offset, length)
+            if item == wanted:
+                if method != 0 or first is None:
+                    return None
+                offset, length = first
+                return src.read(base + offset, min(length or (src.size - base - offset), 65_536))
+        return None
+    return None
+
+
+def _heif_exif(src: _Source, start: int, end: int, d: _Draft) -> None:
+    """C1: the EXIF of a HEIF / AVIF file, without a decoder: the `Exif` item of `meta` (iinf),
+    found in the file (iloc); its payload starts with the offset of the TIFF header."""
+    item = _exif_item(src, start, end)
+    if item is None:
+        return
+    payload = _item_bytes(src, start, end, item)
+    if not payload or len(payload) < 12:
+        d.note("The EXIF of this file could not be located: camera and date left empty.")
+        return
+    skip = 4 + struct.unpack(">I", payload[:4])[0]
+    if payload[skip : skip + 2] not in (b"MM", b"II"):  # some writers point at "Exif\0\0"
+        skip = payload.find(b"MM\x00*") if b"MM\x00*" in payload else payload.find(b"II*\x00")
+    if skip < 0:
+        d.note("The EXIF of this file could not be read: camera and date left empty.")
+        return
+    _exif(_Window(payload[skip:]), d)
+
+
 def _heif(src: _Source, d: _Draft, major: bytes) -> None:
     d.animated = major in _SEQUENCE_BRANDS
     d.frames = None if d.animated else 1
-    d.note("EXIF in HEIF and AVIF files is not read yet.")
     largest = 0
     for kind, start, end in _boxes(src, 0, src.size):
         if kind != b"meta":
             continue
+        _heif_exif(src, start + 4, end, d)  # C1: EXIF without pillow-heif (R-IMG-04)
         for iprp, s1, e1 in _boxes(src, start + 4, end):  # meta is a full box
             if iprp != b"iprp":
                 continue

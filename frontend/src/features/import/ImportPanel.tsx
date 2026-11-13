@@ -4,7 +4,7 @@ import { useRef, useState, type DragEvent } from "react";
 import { useSamples, useUpload } from "../../api/hooks";
 import { t } from "../../lib/i18n";
 import { LITE } from "../../lite/flag";
-import { LockBadge } from "../../lite/Locked";
+import { ImageFolderButton, useImageFolder } from "../../lite/ImageFolder";
 import { Button } from "../../ui/Button";
 import { ErrorNote } from "../../ui/fields";
 import { BrowseDialog } from "./BrowseDialog";
@@ -33,16 +33,22 @@ export function ImportPanel({
   const [source, setSource] = useState<string | null>(null);
   const upload = useUpload();
   const samples = useSamples();
+  // 119: in the browser version, a folder or several images are copied into the page first
+  const folder = useImageFolder(setSource);
 
   const sendFile = (file: File | undefined) => {
     if (!file) return;
     upload.mutate(file, { onSuccess: (result) => setSource(result.path) });
   };
+  const sendFiles = (files: File[]) => {
+    if (LITE && files.length > 1) folder.pick(files);
+    else sendFile(files[0]);
+  };
 
   const onDrop = (event: DragEvent) => {
     event.preventDefault();
     setDragging(false);
-    sendFile(event.dataTransfer.files[0]);
+    sendFiles(Array.from(event.dataTransfer.files));
   };
 
   return (
@@ -63,6 +69,8 @@ export function ImportPanel({
         <p className="text-sm font-medium text-ink-1">
           {upload.isPending
             ? t("import.uploading", { name: upload.variables.name })
+            : folder.copying !== null
+              ? t("lite.imageFolderCopying", { count: folder.copying.toLocaleString("en-US") })
             : dragging
               ? t("import.dropActive")
               : t("import.drop")}
@@ -78,13 +86,8 @@ export function ImportPanel({
           </Button>
           <span className="text-xs text-ink-3">{t("import.or")}</span>
           {LITE ? (
-            // The browser cannot read folders on disk: the file picker is the way in.
-            <span title={t("lite.locked")}>
-              <Button icon={FolderOpen} disabled>
-                {t("import.browse")}
-                <LockBadge className="ml-1" />
-              </Button>
-            </span>
+            // The browser cannot read folders on disk: it reads the folder the user picks (119).
+            <ImageFolderButton folder={folder} disabled={upload.isPending} />
           ) : (
             <Button icon={FolderOpen} onClick={() => setBrowsing(true)}>
               {t("import.browse")}
@@ -97,9 +100,10 @@ export function ImportPanel({
           ref={inputRef}
           type="file"
           accept={ACCEPT_ALL}
+          multiple={LITE}
           className="hidden"
           onChange={(event) => {
-            sendFile(event.target.files?.[0]);
+            sendFiles(Array.from(event.target.files ?? []));
             event.target.value = "";
           }}
         />
@@ -108,6 +112,11 @@ export function ImportPanel({
       {upload.isError && (
         <div className="mt-3">
           <ErrorNote>{upload.error.message}</ErrorNote>
+        </div>
+      )}
+      {folder.error && (
+        <div className="mt-3">
+          <ErrorNote>{folder.error}</ErrorNote>
         </div>
       )}
 

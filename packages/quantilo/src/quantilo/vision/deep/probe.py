@@ -200,6 +200,35 @@ def _normalise(x: np.ndarray) -> np.ndarray:
     return x / np.maximum(np.linalg.norm(x, axis=1, keepdims=True), 1e-12)
 
 
+def knn_proba(
+    x_train: np.ndarray,
+    coded: np.ndarray,
+    n_classes: int,
+    x_test: np.ndarray,
+    k: int = K_NEIGHBOURS,
+    temperature: float = TEMPERATURE,
+    block: int = 1024,
+) -> tuple[np.ndarray, np.ndarray]:
+    """R-VDP-08 on unit vectors: (probabilities, the 5 nearest training rows of each test row).
+    `coded` holds each training row's class number."""
+    kk = int(min(k, len(x_train)))
+    proba = np.zeros((len(x_test), n_classes))
+    nearest = np.zeros((len(x_test), min(SHOWN_NEIGHBOURS, kk)), dtype=int)
+    for start in range(0, len(x_test), block):
+        sims = x_test[start : start + block] @ x_train.T
+        top = np.argpartition(-sims, kk - 1, axis=1)[:, :kk]
+        top_sims = np.take_along_axis(sims, top, axis=1)
+        order = np.argsort(-top_sims, axis=1)
+        top = np.take_along_axis(top, order, axis=1)
+        top_sims = np.take_along_axis(top_sims, order, axis=1)
+        weights = np.exp((top_sims - top_sims[:, :1]) / temperature)  # stable softmax weights
+        for c in range(n_classes):
+            proba[start : start + len(top), c] = (weights * (coded[top] == c)).sum(axis=1)
+        nearest[start : start + len(top)] = top[:, : nearest.shape[1]]
+    proba /= proba.sum(axis=1, keepdims=True)
+    return proba, nearest
+
+
 def knn_probe(
     x_train: Any,
     y_train: Any,
@@ -224,20 +253,7 @@ def knn_probe(
     index = {label: i for i, label in enumerate(classes)}
     coded = np.array([index[v] for v in ytr])
     kk = int(min(k, len(ytr)))
-    proba = np.zeros((len(xte), len(classes)))
-    nearest = np.zeros((len(xte), min(SHOWN_NEIGHBOURS, kk)), dtype=int)
-    for start in range(0, len(xte), block):
-        sims = xte[start : start + block] @ xtr.T
-        top = np.argpartition(-sims, kk - 1, axis=1)[:, :kk]
-        top_sims = np.take_along_axis(sims, top, axis=1)
-        order = np.argsort(-top_sims, axis=1)
-        top = np.take_along_axis(top, order, axis=1)
-        top_sims = np.take_along_axis(top_sims, order, axis=1)
-        weights = np.exp((top_sims - top_sims[:, :1]) / temperature)  # stable softmax weights
-        for c in range(len(classes)):
-            proba[start : start + len(top), c] = (weights * (coded[top] == c)).sum(axis=1)
-        nearest[start : start + len(top)] = top[:, : nearest.shape[1]]
-    proba /= proba.sum(axis=1, keepdims=True)
+    proba, nearest = knn_proba(xtr, coded, len(classes), xte, kk, temperature, block)
     report = vm.classification_report(
         yte, proba=proba, labels=classes, y_train=ytr, groups=groups, bootstrap=bootstrap, seed=seed
     )

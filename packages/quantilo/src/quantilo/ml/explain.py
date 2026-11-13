@@ -396,11 +396,30 @@ def shap_values(
         return None, why
     phi, base, scale = found
     owner = origins(pipeline)
-    texts = set(textual.steps_of(pipeline))
     columns = list(dict.fromkeys(owner))
     grouped = np.zeros((len(xs), len(columns)))
     for j, column in enumerate(owner):
         grouped[:, columns.index(column)] += phi[:, j]
+    texts = set(textual.steps_of(pipeline))
+    file_rows = [int(v) for v in rows[picked]]
+    summary = summarise(grouped, columns, xs, file_rows, texts, method, scale, base, note)
+    summary.positive = positive if task == "binary" else None
+    return summary, None
+
+
+def summarise(
+    grouped: np.ndarray,
+    columns: list[str],
+    xs: pd.DataFrame,
+    file_rows: list[int],
+    texts: set[str],
+    method: str,
+    scale: str,
+    base: float,
+    note: str | None = None,
+) -> Shap:
+    """SHAP values per dataset column (rows × columns) as the beeswarm and the waterfalls read
+    them: the strongest columns, then "Other features"; shared with 126's permutation SHAP."""
     strength = np.abs(grouped).mean(axis=0)
     order = np.argsort(-strength)
     features: list[ShapFeature] = []
@@ -436,20 +455,17 @@ def shap_values(
     labels = [
         [_label(xs.iloc[i][c]) if c in xs.columns else "" for c in columns] for i in range(len(xs))
     ]
-    return (
-        Shap(
-            method,
-            scale,
-            base,
-            positive if task == "binary" else None,
-            [int(v) for v in rows[picked]],
-            features,
-            columns,
-            [[float(v) for v in row] for row in grouped],
-            labels,
-            note,
-        ),
+    return Shap(
+        method,
+        scale,
+        base,
         None,
+        file_rows,
+        features,
+        columns,
+        [[float(v) for v in row] for row in grouped],
+        labels,
+        note,
     )
 
 
@@ -680,6 +696,8 @@ def _linear_words(
     model = pipeline.named_steps.get("model")
     if isinstance(model, CalibratedClassifierCV | OneVsRestClassifier):
         return None
+    if step.features.analyzer == "chars":  # letter groups weigh nothing a reader can use
+        return None
     coef = getattr(model, "coef_", None)
     if coef is None:
         return None
@@ -725,6 +743,20 @@ def _linear_words(
     )
 
 
+def _whole_words(values: Any) -> tuple[list[str], Any] | None:
+    """Which rows contain each whole word (R-XAI-22), cut like the word analyzer (lowercase,
+    accents stripped), one word at a time."""
+    from sklearn.feature_extraction.text import CountVectorizer
+
+    options = {**textual.settings("words"), "ngram_range": (1, 1)}
+    try:
+        vectorizer = CountVectorizer(**options, binary=True)
+        matrix = vectorizer.fit_transform(textual.texts(values))
+    except ValueError:  # no word in the texts
+        return None
+    return [str(word) for word in vectorizer.get_feature_names_out()], matrix.astype(float)
+
+
 def _contrast_words(
     pipeline: Pipeline,
     xs: pd.DataFrame,
@@ -753,7 +785,15 @@ def _contrast_words(
                 output = "probability of the class it raises most"
     except (ValueError, TypeError, AttributeError):
         return None
+    terms = step.features.vocabulary
     present = (tfidf > 0).astype(float)
+    if step.features.analyzer == "chars":
+        # R-XAI-22: a short label is cut into groups of 3 to 5 letters for the model ("whi",
+        # "mug "); the reading is made on its whole words, which a person can check.
+        words = _whole_words(xs[step.column])
+        if words is None:
+            return None
+        terms, present = words
     counts = np.asarray(present.sum(axis=0), dtype=float).ravel()
     with_sum = np.asarray(present.T @ predicted, dtype=float)  # terms × outputs
     total = predicted.sum(axis=0)
@@ -769,7 +809,6 @@ def _contrast_words(
         effect = gaps[:, 0]
     share = counts / max(n, 1)
     score = np.where(eligible, np.abs(effect) * share, 0.0)
-    terms = step.features.vocabulary
     up, down = _ranked(terms, effect, share, score, towards)
     if not up and not down:
         return None

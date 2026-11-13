@@ -41,6 +41,11 @@ export type PolicyLearning = Complete<Schemas["PolicyLearning"]>;
 export type PolicyQini = PolicyLearning["qini"][number];
 export type PolicyEvaluation = Complete<Schemas["PolicyEvaluation"]>;
 export type PolicyEstimate = PolicyEvaluation["policies"][number];
+export type MatchingOffer = NonNullable<PolicyEvaluation["matching"]>;
+export type MatchedGroups = Complete<Schemas["MatchedGroups"]>;
+export type MatchedGroup = MatchedGroups["groups"][number];
+/** 123: what Matched groups sends: the treatment and the outcome are required. */
+export type MatchingRequest = Pick<Schemas["MatchingRequest"], "treatment" | "outcome"> & Partial<Omit<Schemas["MatchingRequest"], "treatment" | "outcome">>;
 /** What the Policies tab sends: the action and the reward are required. */
 export type DecisionsRequest = Pick<Schemas["DecisionsRequest"], "action" | "reward"> & Partial<Omit<Schemas["DecisionsRequest"], "action" | "reward">>;
 
@@ -63,6 +68,8 @@ export const experimentsApi = {
   decisions: fetchLoggedDecisions,
   evaluatePolicy: (id: string, body: DecisionsRequest, filters?: Parameters<typeof filtersParam>[0]) =>
     request<PolicyEvaluation>("POST", `${BASE}/datasets/${id}/evaluate-policy${query(filters)}`, body),
+  matching: (id: string, body: MatchingRequest, filters?: Parameters<typeof filtersParam>[0]) =>
+    request<MatchedGroups>("POST", `${BASE}/datasets/${id}/matching${query(filters)}`, body),
 };
 
 /** The analysis follows the page filters; the previous result stays shown while the next loads. */
@@ -130,6 +137,19 @@ export function useEvaluatePolicy(id: string, body: DecisionsRequest | null) {
   return useQuery({
     queryKey: ["datasets", id, "experiments", "evaluate-policy", body, filters],
     queryFn: () => experimentsApi.evaluatePolicy(id, body as DecisionsRequest, filters),
+    enabled: Boolean(body),
+    staleTime: Infinity,
+    placeholderData: (previous) => previous,
+    retry: false,
+  });
+}
+
+/** 123: matched groups (FLAME), asked only once the user starts the matching ("Advanced"). */
+export function useMatchedGroups(id: string, body: MatchingRequest | null) {
+  const filters = useActiveFilters(id);
+  return useQuery({
+    queryKey: ["datasets", id, "experiments", "matching", body, filters],
+    queryFn: () => experimentsApi.matching(id, body as MatchingRequest, filters),
     enabled: Boolean(body),
     staleTime: Infinity,
     placeholderData: (previous) => previous,

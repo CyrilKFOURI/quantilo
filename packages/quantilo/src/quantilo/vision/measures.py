@@ -155,11 +155,15 @@ def _level(histogram: np.ndarray, q: float) -> int:
 
 
 def measure(
-    image: Image.Image, *, side: int = MEASURE_SIDE, seed: int = 0, prepared: bool = False
+    image: Image.Image, *, side: int | None = None, seed: int = 0, prepared: bool = False
 ) -> ImageMeasures:
-    """The § 3.4 measures of an image (any mode; RGB is used). `prepared=True` when `image` is
-    already the working copy (`working_copy(image, side)`). The percentiles are read on the
-    256-level histogram (steps of 1/255)."""
+    """The § 3.4 measures of an image (any mode; RGB is used). `side`: 512 pixels, 256 in the
+    browser version (R-VIS-WEB-02). `prepared=True` when `image` is already the working copy
+    (`working_copy(image, side)`). The percentiles are read on the 256-level histogram (steps of
+    1/255)."""
+    from quantilo.vision import browser
+
+    side = browser.measure_side(side)
     copy = image if prepared and image.mode == "RGB" else working_copy(image, side)
     rgb = np.asarray(copy, dtype=np.uint8)
     y = rgb.astype(np.float32) @ _REC601.astype(np.float32)  # 0-255

@@ -170,7 +170,7 @@ def test_two_numbers_interacting_propose_centring(homes):
     assert "at the mean of `age`" in area_c.sentence
     assert centred.terms[0].sentence.startswith("With every number at its mean")
     frame = _frame(homes)
-    mean = float(frame["price"].mean())
+    mean = float(frame["price"].to_numpy(dtype=float).mean())
     assert centred.terms[0].estimate == pytest.approx(mean, rel=0.05)
 
 
@@ -209,8 +209,9 @@ def test_reference_and_deviation_coding(homes):
     assert "chosen in the settings" in chosen.references[0].reason
     deviation = homes.regression("price", ["city"], coding="deviation")
     frame = _frame(homes)
-    means = frame.groupby("city")["price"].mean()
-    grand = float(means.mean())  # unweighted average of the levels
+    city, price = frame["city"].to_numpy().astype(str), frame["price"].to_numpy(dtype=float)
+    means = {level: float(price[city == level].mean()) for level in np.unique(city)}
+    grand = float(np.mean(list(means.values())))  # unweighted average of the levels
     for term in deviation.terms[1:]:
         level = term.level
         assert level is not None
@@ -275,3 +276,38 @@ def test_partial_plot_slope_is_the_coefficient(homes):
     assert "curve included" in curved.sentence and "straight part" in curved.sentence
     city = homes.regression_partial("city", "price", ["area", "city"])
     assert not city.available
+
+
+@pytest.mark.parametrize("term", ["spline:area", "interaction:area|age", "interaction:area|city"])
+def test_partial_plot_slope_stays_the_coefficient_with_curves_and_interactions(homes, term):
+    # fix3 (kc_house): with `sqft_living × waterfront` the plot said 213 for a coefficient of 199,
+    # its curve and its interactions were not taken out with the other columns
+    found = homes.regression("price", ["area", "age", "city"], terms=[term])
+    plot = homes.regression_partial("area", "price", ["area", "age", "city"], terms=[term])
+    area = next(t for t in found.terms if t.term == "area")
+    assert plot.slope == pytest.approx(area.estimate, rel=1e-8)
+
+
+def test_the_intercept_says_where_a_trend_starts(homes):
+    # fix3 (kc_house, `yr_built` read as a date): "with every column at 0" was read at 1900
+    found = homes.regression("price", ["area"], terms=["trend:sold"])
+    intercept = found.terms[0]
+    assert "but `sold › Trend` at 2020" in intercept.sentence
+    frame = _frame(homes)
+    sold = pd.to_datetime(frame["sold"])
+    years = sold.dt.year + (sold.dt.day_of_year - 1 + sold.dt.hour / 24) / np.where(
+        sold.dt.is_leap_year, 366, 365
+    )
+    x = sm.add_constant(np.column_stack([frame["area"], years.to_numpy(dtype=float) - 2020]))
+    expected = sm.OLS(frame["price"].to_numpy(), x).fit()
+    assert intercept.estimate == pytest.approx(expected.params[0], rel=1e-6)
+
+
+def test_a_falling_elasticity_says_lowers(tmp_path):
+    rng = np.random.default_rng(4)
+    x = rng.lognormal(3, 0.5, 400)
+    frame = pd.DataFrame({"y": np.exp(5 - 0.4 * np.log(x) + rng.normal(0, 0.1, 400)), "x": x})
+    ds = dx.from_pandas(frame, "falling", cache_dir=tmp_path)
+    found = ds.regression("y", ["x"], terms=["log:x"], family="log_ols")
+    term = next(t for t in found.terms if t.term == "log(x)")
+    assert term.sentence.startswith("A 1 % rise in `x` lowers `y` by about 0.3")

@@ -104,8 +104,8 @@ export function ProjectGroup({
               )}
               {project && !open ? (
                 <Link
-                  to="/"
-                  search={{ project: project.id }}
+                  to="/projects/$projectId"
+                  params={{ projectId: project.id }}
                   className="min-w-0 truncate text-[13px] font-medium text-ink-1 hover:text-accent"
                   title={t("projects.openTitle", { name })}
                 >
@@ -257,7 +257,7 @@ function ProjectMenu({
         <Menu.Content align="end" sideOffset={4} className={menuClass}>
           {!open && (
             <Menu.Item asChild className={itemClass}>
-              <Link to="/" search={{ project: project.id }}>
+              <Link to="/projects/$projectId" params={{ projectId: project.id }}>
                 <FolderOpen size={14} strokeWidth={1.5} className="text-ink-3" aria-hidden />
                 {t("projects.open")}
               </Link>
@@ -285,28 +285,42 @@ function ProjectMenu({
   );
 }
 
-/** "Move to…" of a dataset: the way to move without dragging (keyboard, phone, tablet). */
+/** "Move to…" of a dataset: the way to move without dragging (keyboard, phone, tablet). C1: a
+ *  dataset may be in several projects: "Move to" takes it out of the group it is shown in
+ *  (`current`), "Also add to" keeps its other projects (`memberOf`). With `label`, a button for the
+ *  ticked datasets. */
 export function MoveToMenu({
   name,
   current,
+  memberOf = [],
   projects,
+  label,
   onMove,
+  onAdd,
   onNew,
 }: {
   name: string;
   current: string | null;
+  memberOf?: string[];
   projects: Project[];
+  label?: string;
   onMove: (projectId: string | null) => void;
+  onAdd?: (projectId: string) => void;
   onNew: () => void;
 }) {
   const choices: { id: string | null; label: string }[] = [
     ...projects.map((project) => ({ id: project.id, label: project.name })),
     { id: null, label: t("projects.none") },
   ];
+  const others = projects.filter((project) => !memberOf.includes(project.id) && project.id !== current);
   return (
     <Menu.Root>
       <Menu.Trigger asChild>
-        <Button variant="ghost" icon={FolderInput} iconOnly aria-label={t("projects.moveDataset", { name })} title={t("projects.moveTo")} />
+        {label ? (
+          <Button icon={FolderInput}>{label}</Button>
+        ) : (
+          <Button variant="ghost" icon={FolderInput} iconOnly aria-label={t("projects.moveDataset", { name })} title={t("projects.moveTo")} />
+        )}
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Content align="end" sideOffset={4} className={menuClass}>
@@ -328,6 +342,18 @@ export function MoveToMenu({
               </Menu.Item>
             );
           })}
+          {onAdd && current !== null && others.length > 0 && (
+            <>
+              <Menu.Separator className="my-1 h-px bg-line" />
+              <Menu.Label className="px-2.5 pt-1.5 pb-1 text-xs text-ink-3">{t("projects.alsoAddTo")}</Menu.Label>
+              {others.map((project) => (
+                <Menu.Item key={`add-${project.id}`} className={itemClass} onSelect={() => onAdd(project.id)}>
+                  <Plus size={13} strokeWidth={1.5} className="shrink-0 text-ink-3" aria-hidden />
+                  <span className="truncate">{project.name}</span>
+                </Menu.Item>
+              ))}
+            </>
+          )}
           <Menu.Separator className="my-1 h-px bg-line" />
           <Menu.Item className={itemClass} onSelect={onNew}>
             <Plus size={14} strokeWidth={1.5} className="text-ink-3" aria-hidden />

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import type { CsvOptions, Preview, SourceOptions } from "../../api/client";
 import { useImportDataset, useJob, usePreview } from "../../api/hooks";
 import { baseName, formatCount } from "../../lib/format";
-import { t } from "../../lib/i18n";
+import { t, type MessageKey } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
 import { Checkbox, ErrorNote, Field, ProgressBar, Select, TextInput } from "../../ui/fields";
@@ -15,11 +15,11 @@ import { PreviewTable } from "./PreviewTable";
 import { IMPORT_STEPS } from "./steps";
 import { importStepFor } from "./stepTypes";
 
-const DELIMITERS = [
-  { value: ",", label: "Comma  ," },
-  { value: ";", label: "Semicolon  ;" },
-  { value: "\t", label: "Tab" },
-  { value: "|", label: "Pipe  |" },
+const DELIMITERS: { value: string; label: MessageKey }[] = [
+  { value: ",", label: "fig.import.comma" },
+  { value: ";", label: "fig.import.semicolon" },
+  { value: "\t", label: "fig.import.tab" },
+  { value: "|", label: "fig.import.pipe" },
 ];
 
 type ImportDialogProps = {
@@ -47,7 +47,10 @@ export function ImportDialog({ path, onClose, onImported, project = null }: Impo
   // 080b: "simple" keeps whole sheets, "tables" opens the tables of a workbook on demand
   const [mode, setMode] = useState<"auto" | "simple" | "tables">("auto");
 
-  const sourceOptions: SourceOptions = { csv, sheets, files, folder_mode: folderMode };
+  // R-LOG-11 (C1): a text log read with the user's line pattern, applied on Enter or "Read"
+  const [logPattern, setLogPattern] = useState<string | null>(null);
+  const [patternDraft, setPatternDraft] = useState("");
+  const sourceOptions: SourceOptions = { csv, sheets, files, folder_mode: folderMode, ...(logPattern ? { log_pattern: logPattern } : {}) };
   const preview = usePreview(path, sourceOptions);
   const importDataset = useImportDataset();
   const job = useJob(jobId);
@@ -198,6 +201,28 @@ export function ImportDialog({ path, onClose, onImported, project = null }: Impo
               <CsvSettings value={(csv ?? data?.csv) as CsvOptions} onChange={setCsv} />
             )}
 
+            {(data?.format === "log" || logPattern) && (
+              <Field label={t("preview.log.pattern")}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <TextInput
+                    className="w-80 max-w-full font-mono"
+                    placeholder="{time} [{level}] {message}"
+                    value={patternDraft}
+                    aria-describedby="log-pattern-hint"
+                    onChange={(event) => setPatternDraft(event.target.value)}
+                    onKeyDown={(event) => event.key === "Enter" && setLogPattern(patternDraft.trim() || null)}
+                  />
+                  <Button onClick={() => setLogPattern(patternDraft.trim() || null)}>{t("preview.log.read")}</Button>
+                  {logPattern && (
+                    <Button variant="ghost" onClick={() => { setLogPattern(null); setPatternDraft(""); }}>
+                      {t("preview.log.known")}
+                    </Button>
+                  )}
+                </div>
+                <p id="log-pattern-hint" className="mt-1 max-w-prose text-xs text-ink-3">{t("preview.log.hint")}</p>
+              </Field>
+            )}
+
             {data?.format === "excel" && (data.tables?.length ?? 0) > 0 && (
               <div className="flex h-(--control-h) items-center self-end">
                 <Button variant="ghost" onClick={() => setMode("tables")}>
@@ -305,7 +330,7 @@ function CsvSettings({ value, onChange }: { value: CsvOptions; onChange: (v: Csv
         >
           {DELIMITERS.map((option) => (
             <option key={option.value} value={option.value}>
-              {option.label}
+              {t(option.label)}
             </option>
           ))}
         </Select>
@@ -321,6 +346,12 @@ function CsvSettings({ value, onChange }: { value: CsvOptions; onChange: (v: Csv
           <option value="latin-1">Latin-1</option>
           <option value="windows-1252">Windows-1252</option>
           <option value="utf-16">UTF-16</option>
+          {/* N28 (R-ING-08): read through a UTF-8 copy, nothing downloaded */}
+          <option value="utf-16-be">UTF-16 BE</option>
+          <option value="utf-32">UTF-32</option>
+          <option value="iso-8859-15">ISO-8859-15</option>
+          <option value="mac-roman">Mac Roman</option>
+          <option value="cp850">DOS (CP850)</option>
         </Select>
       </Field>
       <Field label={t("preview.decimal")}>
@@ -330,8 +361,8 @@ function CsvSettings({ value, onChange }: { value: CsvOptions; onChange: (v: Csv
             onChange({ ...value, decimal: event.target.value as CsvOptions["decimal"] })
           }
         >
-          <option value=".">Dot  1.5</option>
-          <option value=",">Comma  1,5</option>
+          <option value=".">{t("fig.import.decimalDot")}</option>
+          <option value=",">{t("fig.import.decimalComma")}</option>
         </Select>
       </Field>
       <div className="flex h-(--control-h) items-center">

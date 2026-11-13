@@ -3,6 +3,7 @@ import type { Data, Layout } from "plotly.js-dist-min";
 import { withAlpha } from "../../charts/figures";
 import type { ChartTokens } from "../../charts/theme";
 import type { BanditReplay, BanditSimulation, ExperimentCumulative, ExperimentMetricResult, MetricKind, PolicyQini, SampleSize } from "./api";
+import { t } from "../../lib/i18n";
 
 /* The Experiments page's charts (twins: quantilo/plots/experiments.py). A variant
    keeps its colour everywhere: the i-th variant after the control takes the i-th palette colour;
@@ -76,13 +77,13 @@ export function intervalsFigure(metric: ExperimentMetricResult): (tokens: ChartT
         textfont: { size: 11, color: tokens.ink2 },
         marker: { color, size: 10, line: { color: tokens.surface, width: 2 } },
         customdata: [[c.control, low === null ? "—" : short(low), high === null ? "—" : short(high), p === null ? "—" : p.toPrecision(3)]],
-        hovertemplate: `${c.variant} vs %{customdata[0]}<br>difference %{x:,.3g}${unit(kind)}<br>CI [%{customdata[1]} ; %{customdata[2]}]<br>p = %{customdata[3]}<extra></extra>`,
+        hovertemplate: t("fig.exp.hoverInterval", { variant: c.variant, unit: unit(kind) }),
       } as Data);
     });
     return {
       data,
       layout: {
-        xaxis: { ...axisTitle(`Difference to the control${axisUnit(kind)}`), range: withZero(ends), showgrid: true, zeroline: true, zerolinecolor: tokens.ink3, zerolinewidth: 1 },
+        xaxis: { ...axisTitle(t("fig.exp.differenceToControl", { unit: axisUnit(kind) })), range: withZero(ends), showgrid: true, zeroline: true, zerolinecolor: tokens.ink3, zerolinewidth: 1 },
         yaxis: { type: "category", showgrid: false, autorange: "reversed", categoryorder: "array", categoryarray: labels },
         margin: { t: 12 },
       },
@@ -115,7 +116,7 @@ export function cumulativeFigure(cumulative: ExperimentCumulative): (tokens: Cha
         {
           type: "scatter",
           mode: "lines",
-          name: `${line.variant} − control`,
+          name: t("fig.exp.minusControl", { variant: line.variant }),
           x: line.periods,
           y: scaled(line.diff),
           line: { color, width: 2 },
@@ -125,7 +126,7 @@ export function cumulativeFigure(cumulative: ExperimentCumulative): (tokens: Cha
     });
     const layout: Partial<Layout> = {
       xaxis: { type: "date", nticks: 6, tickangle: 0 },
-      yaxis: { ...axisTitle(`Cumulative difference${axisUnit(kind)}`), zeroline: true, zerolinecolor: tokens.ink3, zerolinewidth: 1 },
+      yaxis: { ...axisTitle(t("fig.exp.cumulativeDifference", { unit: axisUnit(kind) })), zeroline: true, zerolinecolor: tokens.ink3, zerolinewidth: 1 },
       hovermode: "x unified",
     };
     return { data, layout: cumulative.lines.length > 1 ? { ...layout, ...LEGEND } : layout };
@@ -142,7 +143,7 @@ export function sampleSizeFigure(plan: SampleSize): (tokens: ChartTokens) => Bui
     const suffix = relative ? " %" : "";
     const color = tokens.palette[0] ?? tokens.ink1;
     const target = Math.abs((relative ? plan.effect_relative : plan.effect_absolute) ?? 0) * factor;
-    const hover = `%{x:,} units per group<br>detects ±%{y:.3g}${suffix}`;
+    const hover = t("fig.exp.hoverSampleSize", { suffix });
     return {
       data: [
         { type: "scatter", mode: "lines", x: points.map((p) => p.per_group), y, line: { color, width: 2 }, hovertemplate: `${hover}<extra></extra>` } as Data,
@@ -151,16 +152,16 @@ export function sampleSizeFigure(plan: SampleSize): (tokens: ChartTokens) => Bui
           mode: "markers+text",
           x: [plan.control],
           y: [target],
-          text: [`Your plan: ${plan.control.toLocaleString("en-US")} per group`],
+          text: [t("fig.exp.yourPlan", { count: plan.control.toLocaleString("en-US") })],
           textposition: "top right",
           textfont: { size: 11, color: tokens.ink1 },
           marker: { color, size: 10, line: { color: tokens.surface, width: 2 } },
-          hovertemplate: `${hover}<extra>plan</extra>`,
+          hovertemplate: `${hover}<extra>${t("fig.exp.plan")}</extra>`,
         } as Data,
       ],
       layout: {
-        xaxis: { ...axisTitle("Units per group (control)"), type: "log", showgrid: true },
-        yaxis: { ...axisTitle(`Smallest detectable lift${relative ? " (%)" : ""}`), rangemode: "tozero" },
+        xaxis: { ...axisTitle(t("fig.exp.unitsPerGroup")), type: "log", showgrid: true },
+        yaxis: { ...axisTitle(t("fig.exp.smallestLift", { unit: relative ? " (%)" : "" })), rangemode: "tozero" },
         margin: { t: 12 },
       },
     };
@@ -169,7 +170,7 @@ export function sampleSizeFigure(plan: SampleSize): (tokens: ChartTokens) => Bui
 
 /* --- Bandit view (049) ------------------------------------------------------------------------ */
 
-const regretAxis = (kind: string) => `Cumulative regret${kind === "rate" ? " (conversions)" : ""}`;
+const regretAxis = (kind: string) => (kind === "rate" ? t("fig.exp.regretConversions") : t("fig.exp.regret"));
 
 /** The share of each period's units a bandit would have sent to each variant: the control in the
  *  neutral ink (the reference), the other variants in their colour. */
@@ -189,7 +190,7 @@ export function banditSharesFigure(replay: BanditReplay): (tokens: ChartTokens) 
     ),
     layout: {
       xaxis: { type: "date", nticks: 6, tickangle: 0 },
-      yaxis: { ...axisTitle("Bandit's share of the units (%)"), range: [0, 100] },
+      yaxis: { ...axisTitle(t("fig.exp.banditShare")), range: [0, 100] },
       hovermode: "x unified",
       ...LEGEND,
     },
@@ -201,20 +202,20 @@ function regretLines(x: (string | number)[], fixed: number[], bandit: number[], 
     {
       type: "scatter",
       mode: "lines",
-      name: "Fixed split",
+      name: t("fig.exp.fixedSplit"),
       x,
       y: fixed,
       line: { color: tokens.ink3, width: 2, dash: "dot" },
-      hovertemplate: "Fixed split: %{y:,.3g}<extra></extra>",
+      hovertemplate: t("fig.exp.hoverFixedSplit"),
     } as Data,
     {
       type: "scatter",
       mode: "lines",
-      name: "Bandit",
+      name: t("fig.exp.bandit"),
       x,
       y: bandit,
       line: { color: tokens.palette[0] ?? tokens.ink1, width: 2 },
-      hovertemplate: "Bandit: %{y:,.3g}<extra></extra>",
+      hovertemplate: t("fig.exp.hoverBandit"),
     } as Data,
   ];
 }
@@ -256,7 +257,7 @@ export function banditSimulationFigure(simulation: BanditSimulation): (tokens: C
         ...regretLines(x, simulation.regret_fixed, simulation.regret_bandit, tokens),
       ],
       layout: {
-        xaxis: { ...axisTitle("Units in the test"), showgrid: true },
+        xaxis: { ...axisTitle(t("fig.exp.unitsInTest")), showgrid: true },
         yaxis: { ...axisTitle(regretAxis(simulation.kind)), rangemode: "tozero" },
         hovermode: "x unified",
         ...LEGEND,
@@ -272,7 +273,14 @@ export type PolicyPoint = { label: string; value: number | null; low: number | n
 
 /** Each policy's value with its interval, the reference (the logged decisions, or giving everyone
  *  the best variant) as a dotted vertical line. */
-export function policyValuesFigure(points: PolicyPoint[], kind: string, reference: number | null): (tokens: ChartTokens) => Built {
+export function policyValuesFigure(
+  points: PolicyPoint[],
+  kind: string,
+  reference: number | null,
+  title = t("fig.exp.valuePerUnit", { unit: kind === "rate" ? " (%)" : "" }),
+  /** One colour for every point (123: the matched groups are not variants). */
+  oneColor = false,
+): (tokens: ChartTokens) => Built {
   return (tokens) => {
     const k = kind === "rate" ? 100 : 1;
     const suffix = kind === "rate" ? " %" : "";
@@ -280,7 +288,7 @@ export function policyValuesFigure(points: PolicyPoint[], kind: string, referenc
     const labels = shown.map((p) => p.label);
     const data: Data[] = [];
     shown.forEach((p, i) => {
-      const color = variantColor(tokens, i);
+      const color = variantColor(tokens, oneColor ? 0 : i);
       if (p.low !== null && p.high !== null)
         data.push({
           type: "scatter",
@@ -297,7 +305,7 @@ export function policyValuesFigure(points: PolicyPoint[], kind: string, referenc
         y: [p.label],
         marker: { color, size: 10, line: { color: tokens.surface, width: 2 } },
         customdata: [[p.low === null ? "—" : short(p.low * k), p.high === null ? "—" : short(p.high * k)]],
-        hovertemplate: `${p.label}: %{x:,.3g}${suffix}<br>CI [%{customdata[0]} ; %{customdata[1]}]<extra></extra>`,
+        hovertemplate: t("fig.exp.hoverPolicy", { policy: p.label, suffix }),
       } as Data);
     });
     const shapes: Partial<Layout>["shapes"] =
@@ -307,7 +315,7 @@ export function policyValuesFigure(points: PolicyPoint[], kind: string, referenc
     return {
       data,
       layout: {
-        xaxis: { ...axisTitle(`Value per unit${kind === "rate" ? " (%)" : ""}`), showgrid: true },
+        xaxis: { ...axisTitle(title), showgrid: true },
         yaxis: { type: "category", showgrid: false, autorange: "reversed", categoryorder: "array", categoryarray: labels, automargin: true },
         shapes,
         margin: { t: 12 },
@@ -327,25 +335,25 @@ export function qiniFigure(curve: PolicyQini, kind: string): (tokens: ChartToken
         {
           type: "scatter",
           mode: "lines",
-          name: "Random targeting",
+          name: t("fig.exp.randomTargeting"),
           x,
           y: curve.random.map((v) => v * k),
           line: { color: tokens.ink3, width: 2, dash: "dot" },
-          hovertemplate: "Random: %{y:,.3g}<extra></extra>",
+          hovertemplate: t("fig.exp.hoverRandom"),
         } as Data,
         {
           type: "scatter",
           mode: "lines",
-          name: `Ranked by predicted gain from ${curve.variant}`,
+          name: t("fig.exp.ranked", { variant: curve.variant }),
           x,
           y: curve.gains.map((v) => v * k),
           line: { color: tokens.palette[0] ?? tokens.ink1, width: 2 },
-          hovertemplate: "Ranked: %{y:,.3g}<extra></extra>",
+          hovertemplate: t("fig.exp.hoverRanked"),
         } as Data,
       ],
       layout: {
-        xaxis: { ...axisTitle(`Share of the units given ${curve.variant} (%)`), range: [0, 100], showgrid: true },
-        yaxis: { ...axisTitle(`Gain per unit${kind === "rate" ? " (pts)" : ""}`), zeroline: true, zerolinecolor: tokens.ink3, zerolinewidth: 1 },
+        xaxis: { ...axisTitle(t("fig.exp.shareGiven", { variant: curve.variant })), range: [0, 100], showgrid: true },
+        yaxis: { ...axisTitle(t("fig.exp.gainPerUnit", { unit: kind === "rate" ? " (pts)" : "" })), zeroline: true, zerolinecolor: tokens.ink3, zerolinewidth: 1 },
         hovermode: "x unified",
         ...LEGEND,
       },

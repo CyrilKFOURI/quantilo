@@ -2,15 +2,9 @@ name: Browser version
 
 # Checks that the browser-only version builds (Python runs in the page through Pyodide, no server:
 # frontend/src/lite, lite/). It is published on Vercel only (quantilo-app.vercel.app), one link.
+# Manual only: the lite build is run locally before every Vercel deploy, so a run on each
+# push only spent Actions minutes.
 on:
-  push:
-    branches: [master]
-    paths:
-      - "frontend/**"
-      - "lite/**"
-      - "backend/app/**"
-      - "packages/quantilo/src/**"
-      - "samples/**"
   workflow_dispatch:
 
 permissions:

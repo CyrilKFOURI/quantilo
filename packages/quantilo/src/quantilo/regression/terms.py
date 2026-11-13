@@ -998,7 +998,9 @@ def partial(
     linear = [j for j in own if recipes[j].kind == "num"]
     if not linear:
         return PartialPlot(column, False, f"`{column}` has no straight term left in the model.")
-    others = [j for j in range(x.shape[1]) if j not in own and name not in uses(recipes[j])]
+    # Frisch-Waugh-Lovell (fix3): every other column of the design is taken out, its curve and its
+    # interactions included, so the slope is the coefficient of its straight term
+    others = [j for j in range(x.shape[1]) if j != linear[0]]
     root = np.sqrt(weights) if weights is not None else np.ones(len(y))
     z = x[:, others] * root[:, None]
 
@@ -1038,7 +1040,10 @@ def partial(
         if _is_log(name):
             text += f" The second plot shows it in the units of `{source}`."
     if any(name in uses(r) and uses(r) != {name} for r in recipes):
-        text += " Its interactions are left out of the component."
+        text += (
+            " Its interactions are taken out too: the slope is the one where they are 0. They are"
+            " left out of the component."
+        )
     return PartialPlot(
         source,
         True,

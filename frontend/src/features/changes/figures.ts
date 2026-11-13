@@ -4,13 +4,14 @@ import type { DateChange, Shift } from "../../api/client";
 import type { Figure } from "../../charts/Plot";
 import { withAlpha } from "../../charts/figures";
 import type { ChartTokens } from "../../charts/theme";
+import { t } from "../../lib/i18n";
 
 /** One fixed look per version on the whole page: before = solid grey, after = accent outline,
  *  so the two never depend on colour alone (twin: quantilo/plots/changes.py). */
 export function looks(tokens: ChartTokens) {
   return {
-    before: { name: "Before", color: tokens.ink2, fill: withAlpha(tokens.ink2, 0.45) },
-    after: { name: "After", color: tokens.accent, fill: withAlpha(tokens.accent, 0.12) },
+    before: { name: t("fig.changes.before"), color: tokens.ink2, fill: withAlpha(tokens.ink2, 0.45) },
+    after: { name: t("fig.changes.after"), color: tokens.accent, fill: withAlpha(tokens.accent, 0.12) },
   };
 }
 
@@ -35,14 +36,14 @@ function pair(
       name: look.before.name,
       [other]: before,
       marker: { color: look.before.fill, line: { width: 0 } },
-      hovertemplate: `%{${axis}}<br>before %{${other}:.1%}<extra></extra>`,
+      hovertemplate: `%{${axis}}<br>${t("fig.changes.beforeLower")} %{${other}:.1%}<extra></extra>`,
     } as Data,
     {
       ...common,
       name: look.after.name,
       [other]: after,
       marker: { color: look.after.fill, line: { color: look.after.color, width: 1.5 } },
-      hovertemplate: `%{${axis}}<br>after %{${other}:.1%}<extra></extra>`,
+      hovertemplate: `%{${axis}}<br>${t("fig.changes.afterLower")} %{${other}:.1%}<extra></extra>`,
     } as Data,
   ];
 }
@@ -62,7 +63,7 @@ export function shiftFigure(shift: Shift): Figure {
           ...legend,
           barmode: "overlay",
           bargap: 0,
-          yaxis: { ...percentAxis, title: { text: "Share of values", font: { size: 11 } } },
+          yaxis: { ...percentAxis, title: { text: t("fig.changes.shareOfValues"), font: { size: 11 } } },
         },
       };
     }
@@ -98,7 +99,7 @@ export function periodsFigure(dates: DateChange): Figure {
           x: dates.periods,
           y: dates.before_counts,
           marker: { color: look.before.fill },
-          hovertemplate: "%{x}<br>before %{y:,} rows<extra></extra>",
+          hovertemplate: t("fig.changes.hoverBeforeRows"),
         } as Data,
         {
           type: "bar",
@@ -106,7 +107,7 @@ export function periodsFigure(dates: DateChange): Figure {
           x: dates.periods,
           y: dates.after_counts,
           marker: { color: look.after.fill, line: { color: look.after.color, width: 1.5 } },
-          hovertemplate: "%{x}<br>after %{y:,} rows<extra></extra>",
+          hovertemplate: t("fig.changes.hoverAfterRows"),
         } as Data,
       ],
       layout: {
@@ -114,7 +115,7 @@ export function periodsFigure(dates: DateChange): Figure {
         barmode: "group",
         bargap: 0.2,
         xaxis: { type: "category" },
-        yaxis: { title: { text: "Rows", font: { size: 11 } }, rangemode: "tozero" },
+        yaxis: { title: { text: t("fig.Rows"), font: { size: 11 } }, rangemode: "tozero" },
       },
     };
   };

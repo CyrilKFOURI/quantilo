@@ -22,6 +22,13 @@ agent = ["anthropic>=2", "openai>=3"]
 # Deep vision (114): frozen DINOv2 / ResNet backbones, linear probe and kNN (torch, torchvision,
 # timm). Not in the default Docker image: docker build --build-arg QUANTILO_EXTRAS="agent vision".
 vision = ["quantilo[vision]"]
+# AI forecasting models (028 phase B): Chronos-Bolt, Chronos-2, TimesFM 2.5, N-HiTS / N-BEATS.
+# Optional and heavy (torch); weights downloaded on confirmation into <home>/models.
+# Docker: docker build --build-arg QUANTILO_EXTRAS="agent forecast-ai".
+forecast-ai = ["quantilo[forecast-ai]"]
+# Readable models (122): GOSDT, TreeFARMS, PaCMAP, TriMAP. Optional and heavy; gosdt has no wheel
+# for Python 3.13 (its options stay greyed with that reason in a 3.13 environment).
+interpret = ["quantilo[interpret]"]
 
 [dependency-groups]
 dev = [

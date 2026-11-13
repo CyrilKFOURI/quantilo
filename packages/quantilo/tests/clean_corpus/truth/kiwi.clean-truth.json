@@ -1,0 +1,14 @@
+{
+ "label": "kiwi",
+ "corpus": "excel-corpus",
+ "path": "owner/Kiwi_Market_TAM_Exits.xlsx",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-04:column_9", "verdict": "correct", "why": "a word for 'missing' in this file", "op": "null_values"},
+  {"id": "B-04:column_5", "verdict": "correct", "why": "'n/d' is 'non disponible' (judged 2026-11-13 for N01, on the proposal of N07)", "op": "null_values"},
+  {"id": "B-04:column_6", "verdict": "correct", "why": "'n/d' is 'non disponible' (judged 2026-11-13 for N01, on the proposal of N07)", "op": "null_values"},
+  {"id": "B-04:column_7", "verdict": "correct", "why": "'n/d' is 'non disponible' (judged 2026-11-13 for N01, on the proposal of N07)", "op": "null_values"},
+  {"id": "B-04:column_8", "verdict": "correct", "why": "'n/d' is 'non disponible' (judged 2026-11-13 for N01, on the proposal of N07)", "op": "null_values"}
+ ]
+}

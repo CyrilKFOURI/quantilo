@@ -193,7 +193,9 @@ def test_b04_a_majority_na_in_few_levels_may_be_a_category(tmp_path: Path) -> No
     assert "B-04:pool_qc" not in found
     assert found["B-04:pool_qc:maybe"].mode == "S"
     assert "most frequent" in found["B-04:pool_qc:maybe"].reason
-    assert found["B-04:remark"].mode == "A"  # a minority NA among many values stays sure
+    # N06 (audit 2026-11-12): a bare 'NA' is never sure any more, even as a minority
+    assert "B-04:remark" not in found
+    assert found["B-04:remark:maybe"].mode == "S"
 
 
 def test_b04_weak_tokens_and_suppressed_numbers(tmp_path: Path) -> None:

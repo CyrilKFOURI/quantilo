@@ -14,6 +14,7 @@ from typing import Any, Protocol
 from quantilo import semantics
 from quantilo.kpi.definition import Definition, Goal, Group, Measure, Ratio, Time
 from quantilo.kpi.rules import measure_label, ratio_label
+from quantilo.reasons import say
 from quantilo.typing.knowledge_base import load, name_tokens
 from quantilo.typing.types import AnalysisType
 
@@ -75,7 +76,15 @@ DATE_TIERS: tuple[frozenset[str], ...] = (
         ]
     ),
     frozenset(),  # every other name ("date", "timestamp", "week")
-    frozenset({"ship", "shipped", "shipping", "shipment", "delivery", "delivered", "dispatch"}),
+    frozenset(
+        [
+            *("ship", "shipped", "shipping", "shipment", "delivery", "delivered", "dispatch"),
+            # R-SUG-33: an end (contract, subscription) is filled for some rows only and dates an
+            # exit, not the activity: read after the other dates
+            *("end", "ended", "fin", "closed", "churn", "churned", "cancelled", "canceled"),
+            *("termination", "terminated", "resiliation", "expiry", "expiration", "expires"),
+        ]
+    ),
     frozenset({"updated", "update", "modified", "modification", "last", "changed", "edited"}),
 )
 NEVER_DATES: frozenset[str] = frozenset({"birth", "birthday", "dob", "born", "naissance"})
@@ -126,6 +135,19 @@ WEIGHTS = {
 SECOND_AMOUNT, COST = 84, 75
 WEIGHTS["R-SUG-28"] = 52  # 093: a measure without a role, averaged
 WEIGHTS["R-SUG-31"] = 83  # 061: an amount against its target column
+WEIGHTS["R-SUG-32"] = 80  # 093 bis: a price per square foot (a price over a surface)
+PRICE_WORDS: frozenset[str] = frozenset(["price", "prix", "value", "valeur", "saleprice"])
+# R-SUG-32: the area a price is read against, the living one first, land and annexes last
+LIVING_WORDS: frozenset[str] = frozenset(
+    ["living", "liv", "habitable", "bati", "built", "above", "floor", "flr", "interior", "reelle"]
+)
+ANNEX_WORDS: frozenset[str] = frozenset(
+    ["lot", "land", "terrain", "garage", "bsmt", "basement", "porch", "deck", "pool", "mas", "vnr"]
+)
+FEET_WORDS: frozenset[str] = frozenset(["sqft", "sf", "feet", "foot", "footage"])
+METRE_WORDS: frozenset[str] = frozenset(
+    ["m2", "sqm", "meters", "metres", "surface", "surfaces", "superficie"]
+)
 MEASURES = 2  # R-SUG-28: measures without a role suggested at most
 MIN_MEASURE_LEVELS = 20  # R-SUG-28: fewer distinct values look like levels or codes
 MEASURE_ROLES = frozenset(["amount", "cost", "quantity", "unit_price", "target", *LEVEL_ROLES])
@@ -332,6 +354,57 @@ def _date_tier(column: Column) -> int | None:
     return 1
 
 
+@dataclass
+class DateChoice:
+    """A date column of the Builder's *Over time* list, in the order of R-SUG-17 (048 bis)."""
+
+    name: str
+    tier: int | None  # 0 the event's date … 3 an update; None a birth date, never a time axis
+    reason: str
+
+
+TIER_WORDS = (
+    "the date of the event itself (order, transaction, creation…)",
+    "a date column",
+    "a later step (shipping, delivery, an end)",
+    "an update date, read last",
+)
+
+
+def rank_dates(columns: Sequence[Column]) -> list[DateChoice]:
+    """R-SUG-17 bis (048): every date column in the order the rule prefers, each with its reason;
+    birth dates come last, marked as never a time axis. The Builder lists them in this order."""
+    dates = [c for c in columns if c.type == "datetime"]
+    ranked = sorted(
+        (
+            (tier, -_filled(c), i, c)
+            for i, c in enumerate(dates)
+            if (tier := _date_tier(c)) is not None
+        ),
+        key=lambda item: item[:3],
+    )
+    found: list[DateChoice] = []
+    for position, (tier, filled, _, column) in enumerate(ranked):
+        best = "R-SUG-17 · Preferred: " if position == 0 else "R-SUG-17 · "
+        found.append(
+            DateChoice(
+                column.name,
+                tier,
+                f"{best}{TIER_WORDS[tier]}, {-filled:.0%} filled",
+            )
+        )
+    for column in dates:
+        if _date_tier(column) is None:
+            found.append(
+                DateChoice(
+                    column.name,
+                    None,
+                    "R-SUG-17 · A birth date: an attribute of the person, never a time axis",
+                )
+            )
+    return found
+
+
 def choose_date(columns: Sequence[Column]) -> tuple[Column | None, str | None]:
     """The date a KPI is read at: the order's, then any other, then shipping, then updates."""
     dates = [c for c in columns if c.type == "datetime"]
@@ -346,21 +419,28 @@ def choose_date(columns: Sequence[Column]) -> tuple[Column | None, str | None]:
     never = [c.name for c in dates if _date_tier(c) is None]
     if not ranked:
         if never:
-            return None, f"R-SUG-17 · No time axis: {', '.join(never)} is a birth date"
+            return None, say(
+                "R-SUG-17.none",
+                "R-SUG-17 · No time axis: {never} is a birth date",
+                never=", ".join(never),
+            )
         return None, None
     tier, _, _, chosen = ranked[0]
-    others = [item[3].name for item in ranked[1:3]]
+    others = " and ".join(item[3].name for item in ranked[1:3])
+    said = say("R-SUG-17", "R-SUG-17 · Over {date}: ", date=chosen.name)
     if not others:
-        why = "the only date column"
+        said += say("R-SUG-17.only", "the only date column")
     elif tier == 0:
-        why = f"the date of the event itself, preferred to {' and '.join(others)}"
+        said += say(
+            "R-SUG-17.event", "the date of the event itself, preferred to {dates}", dates=others
+        )
     elif ranked[1][0] > tier:
-        why = f"preferred to {' and '.join(others)}, a later step"
+        said += say("R-SUG-17.later", "preferred to {dates}, a later step", dates=others)
     else:
-        why = f"the best-filled date, before {' and '.join(others)}"
+        said += say("R-SUG-17.filled", "the best-filled date, before {dates}", dates=others)
     if never:
-        why += f"; {', '.join(never)} is never a time axis"
-    return chosen, f"R-SUG-17 · Over {chosen.name}: {why}"
+        said += say("R-SUG-17.never", "; {never} is never a time axis", never=", ".join(never))
+    return chosen, said
 
 
 # --- Suggestions ---------------------------------------------------------------------------------
@@ -426,7 +506,11 @@ def _plain_measures(
         for c in columns
         if c.type in NUMBERS
         and c.name not in used
-        and (c.role is None or (c.role == "amount" and not is_money(c, columns)))
+        and (
+            c.role is None
+            or c.role == "surface"  # 093 bis: an area is averaged too (R-SUG-28)
+            or (c.role == "amount" and not is_money(c, columns))
+        )
         and c.role not in NOT_MEASURES
         and not semantics.is_date_part(c.name)
         and code_of(c) is None
@@ -513,7 +597,7 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
             "R-SUG-01",
             "Rows",
             [Measure(id="m1", agg="count")],
-            "R-SUG-01 · Counts the rows: the volume of records, always available",
+            say("R-SUG-01", "R-SUG-01 · Counts the rows: the volume of records, always available"),
             [],
             WEIGHTS["R-SUG-01"],
         )
@@ -521,13 +605,21 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
     amounts = [c for c in _numbers(columns, ("amount",)) if not is_level(c)][:2]
     costs = _numbers(columns, ("cost",))[:1]
     for index, column in enumerate(amounts):
-        reason = f"R-SUG-02 · {column.name} is an amount that adds up over rows: summed"
+        reason = say(
+            "R-SUG-02",
+            "R-SUG-02 · {column} is an amount that adds up over rows: summed",
+            column=column.name,
+        )
         weight = WEIGHTS["R-SUG-02"] if index == 0 else SECOND_AMOUNT
         found.append(
             _Candidate("R-SUG-02", "", [sums(column)], reason, [column], weight, None, True, column)
         )
     for column in costs:
-        reason = f"R-SUG-02 · {column.name} is a cost: costs add up over rows, so it is summed"
+        reason = say(
+            "R-SUG-02.cost",
+            "R-SUG-02 · {column} is a cost: costs add up over rows, so it is summed",
+            column=column.name,
+        )
         found.append(
             _Candidate("R-SUG-02", "", [sums(column)], reason, [column], COST, None, True, column)
         )
@@ -557,12 +649,27 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
     for column in [c for c in _numbers(columns, ("amount", "unit_price")) if is_level(c)][:1]:
         percent = sorted(_tokens(column) & PERCENT_WORDS)
         if column.role == "unit_price":
-            what = "a unit price"
-        elif percent:
-            what = f"a percentage (its name says {percent[0]})"  # KPI-7
+            reason = say(
+                "R-SUG-09.unit",
+                "R-SUG-09 · {column} is a unit price: averaged, as a sum of prices means nothing",
+                column=column.name,
+            )
+        elif percent:  # KPI-7
+            reason = say(
+                "R-SUG-09.percent",
+                "R-SUG-09 · {column} is a percentage (its name says {word}): averaged, as a sum "
+                "of prices means nothing",
+                column=column.name,
+                word=percent[0],
+            )
         else:
-            what = f"a price or level (its name says {sorted(_tokens(column) & LEVEL_WORDS)[0]})"
-        reason = f"R-SUG-09 · {column.name} is {what}: averaged, as a sum of prices means nothing"
+            reason = say(
+                "R-SUG-09",
+                "R-SUG-09 · {column} is a price or level (its name says {word}): averaged, as a "
+                "sum of prices means nothing",
+                column=column.name,
+                word=sorted(_tokens(column) & LEVEL_WORDS)[0],
+            )
         measure, more = _averaged(column, quantities)
         found.append(
             _Candidate(
@@ -579,7 +686,11 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
             )
         )
     for column in quantities:
-        reason = f"R-SUG-03 · {column.name} is a quantity: units add up, so it is summed"
+        reason = say(
+            "R-SUG-03",
+            "R-SUG-03 · {column} is a quantity: units add up, so it is summed",
+            column=column.name,
+        )
         found.append(
             _Candidate(
                 "R-SUG-03", "", [sums(column)], reason, [column], WEIGHTS["R-SUG-03"], single=column
@@ -590,6 +701,7 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
     flow = (amounts or costs or [None])[0]
     quantity = quantities[0] if quantities else None
     found += _margins(columns)
+    found += _per_area(columns)
     orders = _keys(columns, "order_key")[:1]
     customers = _keys(columns, "customer_key")[:1]
     if orders and customers and facts and facts.twins(orders[0].name, customers[0].name):
@@ -602,9 +714,12 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
         distinct = Measure(id="m2", agg="distinct", column=order.name)
         lines = _valid(order)
         if _distinct(order) < REPEATED * lines:
-            reason = (
-                f"R-SUG-11 · {order.name} names the order: {_count(_distinct(order))} orders "
-                f"over {_count(lines)} rows"
+            reason = say(
+                "R-SUG-11",
+                "R-SUG-11 · {column} names the order: {orders} orders over {rows} rows",
+                column=order.name,
+                orders=_count(_distinct(order)),
+                rows=_count(lines),
             )
             found.append(
                 _Candidate(
@@ -618,9 +733,13 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
             )
         if flow is not None:
             measures, ratio = ratio_of(sums(flow), distinct)
-            reason = (
-                f"R-SUG-12 · {flow.name} ÷ distinct {order.name}: the average value of an order "
-                f"({_count(_distinct(order))} orders)"
+            reason = say(
+                "R-SUG-12",
+                "R-SUG-12 · {flow} ÷ distinct {order}: the average value of an order ({orders} "
+                "orders)",
+                flow=flow.name,
+                order=order.name,
+                orders=_count(_distinct(order)),
             )
             found.append(
                 _Candidate(
@@ -636,8 +755,11 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
             )
         if quantity is not None:
             measures, ratio = ratio_of(sums(quantity), distinct)
-            reason = (
-                f"R-SUG-13 · {quantity.name} ÷ distinct {order.name}: how many units an order holds"
+            reason = say(
+                "R-SUG-13",
+                "R-SUG-13 · {quantity} ÷ distinct {order}: how many units an order holds",
+                quantity=quantity.name,
+                order=order.name,
             )
             found.append(
                 _Candidate(
@@ -652,9 +774,12 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
             )
     if flow is not None and quantity is not None:
         measures, ratio = ratio_of(sums(flow), Measure(id="m2", agg="sum", column=quantity.name))
-        reason = (
-            f"R-SUG-14 · Σ {flow.name} ÷ Σ {quantity.name}: the average price paid per unit, "
-            "weighted by the units (a ratio of sums, not a mean of prices)"
+        reason = say(
+            "R-SUG-14",
+            "R-SUG-14 · Σ {flow} ÷ Σ {quantity}: the average price paid per unit, weighted by "
+            "the units (a ratio of sums, not a mean of prices)",
+            flow=flow.name,
+            quantity=quantity.name,
         )
         found.append(
             _Candidate(
@@ -669,9 +794,13 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
             )
         )
     for customer in customers:
-        reason = (
-            f"R-SUG-10 · {customer.name} names the customer: {_count(_distinct(customer))} "
-            f"distinct customers over {_count(_valid(customer))} rows"
+        reason = say(
+            "R-SUG-10",
+            "R-SUG-10 · {column} names the customer: {customers} distinct customers over {rows} "
+            "rows",
+            column=customer.name,
+            customers=_count(_distinct(customer)),
+            rows=_count(_valid(customer)),
         )
         found.append(
             _Candidate(
@@ -687,9 +816,13 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
             measures, ratio = ratio_of(
                 sums(flow), Measure(id="m2", agg="distinct", column=customer.name)
             )
-            reason = (
-                f"R-SUG-15 · {flow.name} ÷ distinct {customer.name}: what one customer brings "
-                f"({_count(_distinct(customer))} customers)"
+            reason = say(
+                "R-SUG-15",
+                "R-SUG-15 · {flow} ÷ distinct {customer}: what one customer brings ({customers} "
+                "customers)",
+                flow=flow.name,
+                customer=customer.name,
+                customers=_count(_distinct(customer)),
             )
             found.append(
                 _Candidate(
@@ -748,11 +881,14 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
     booleans.sort(key=lambda c: not (_tokens(c) & outcomes))  # 053: "Churn" before "Partner"
     if booleans:
         column = booleans[0]
-        reason = f"R-SUG-06 · {column.name} is yes or no: the share of yes"
+        reason = say(
+            "R-SUG-06", "R-SUG-06 · {column} is yes or no: the share of yes", column=column.name
+        )
         if _tokens(column) & outcomes:
-            reason = (
-                f"R-SUG-06 · {column.name} is yes or no and its name says an outcome: "
-                "the share of yes"
+            reason = say(
+                "R-SUG-06.outcome",
+                "R-SUG-06 · {column} is yes or no and its name says an outcome: the share of yes",
+                column=column.name,
             )
         found.append(
             _Candidate(
@@ -776,9 +912,16 @@ def _candidates(columns: Sequence[Column], facts: Facts | None) -> list[_Candida
     for column in levels:
         what = "a ratio (its name says 'per')" if is_ratio(column) else _article(column.role)
         reason = (
-            f"R-SUG-07 · {column.name}: averaged, as for any {column.role}"
+            say(
+                "R-SUG-07.any",
+                "R-SUG-07 · {column}: averaged, as for any {role}",
+                column=column.name,
+                role=column.role,
+            )
             if _tokens(column) == {column.role}
-            else f"R-SUG-07 · {column.name} is {what}: averaged"
+            else say(
+                "R-SUG-07", "R-SUG-07 · {column} is {what}: averaged", column=column.name, what=what
+            )
         )
         measure, more = _averaged(column, quantities if column.role in WEIGHTED_ROLES else [])
         found.append(
@@ -810,9 +953,24 @@ def _plain(columns: Sequence[Column], used: set[str], facts: Facts | None) -> li
     found: list[_Candidate] = []
     keys = repeated_keys(columns)
     for column in _plain_measures(columns, used, facts):
+        what = (
+            "a surface"
+            if column.role == "surface"
+            else "a measure without a role (no amount, quantity or price)"
+        )
         reason = (
-            f"R-SUG-28 · {column.name} is a measure without a role (no amount, quantity or "
-            "price): averaged, as its sum rarely means anything"
+            say(
+                "R-SUG-28.surface",
+                "R-SUG-28 · {column} is a surface: averaged, as its sum rarely means anything",
+                column=column.name,
+            )
+            if column.role == "surface"
+            else say(
+                "R-SUG-28",
+                "R-SUG-28 · {column} is a measure without a role (no amount, quantity or price): "
+                "averaged, as its sum rarely means anything",
+                column=column.name,
+            )
         )
         agg = "mean"
         more: list[str] = []
@@ -827,8 +985,7 @@ def _plain(columns: Sequence[Column], used: set[str], facts: Facts | None) -> li
         if key is not None and facts is not None:
             agg = "median"
             reason = (
-                f"R-SUG-28 · {column.name} is a measure without a role (no amount, quantity or "
-                "price): its median, as its sum rarely means anything"
+                f"R-SUG-28 · {column.name} is {what}: its median, as its sum rarely means anything"
             )
             share = facts.fixes(key.name, column.name) or 0.0
             more.append(
@@ -855,10 +1012,12 @@ def _averaged(column: Column, quantities: list[Column]) -> tuple[Measure, list[s
     if not quantities:
         return Measure(id="m1", agg="mean", column=column.name), []
     weight = quantities[0]
-    reason = (
-        f"R-SUG-23 · Weighted by {weight.name}: Σ({column.name} x {weight.name}) ÷ "
-        f"Σ {weight.name}, so a value on 100 units counts 100 times (rows without a positive "
-        f"{weight.name} are left out)"
+    reason = say(
+        "R-SUG-23",
+        "R-SUG-23 · Weighted by {weight}: Σ({column} x {weight}) ÷ Σ {weight}, so a value on 100 "
+        "units counts 100 times (rows without a positive {weight} are left out)",
+        weight=weight.name,
+        column=column.name,
     )
     measure = Measure(id="m1", agg="weighted_mean", column=column.name, weight=weight.name)
     return measure, [reason]
@@ -877,9 +1036,12 @@ def _margins(columns: Sequence[Column]) -> list[_Candidate]:
             Measure(id="m1", agg="sum", column=revenue.name),
             Measure(id="m2", agg="sum", column=cost.name),
         ]
-        reason = (
-            f"R-SUG-20 · {revenue.name} and the cost {cost.name}: the margin "
-            f"(Σ {revenue.name} - Σ {cost.name}) ÷ Σ {revenue.name}, in percent"
+        reason = say(
+            "R-SUG-20",
+            "R-SUG-20 · {revenue} and the cost {cost}: the margin (Σ {revenue} - Σ {cost}) ÷ "
+            "Σ {revenue}, in percent",
+            revenue=revenue.name,
+            cost=cost.name,
         )
         found.append(
             _Candidate(
@@ -899,9 +1061,12 @@ def _margins(columns: Sequence[Column]) -> list[_Candidate]:
             Measure(id="m1", agg="sum", column=profit.name),
             Measure(id="m2", agg="sum", column=revenue.name),
         ]
-        reason = (
-            f"R-SUG-21 · {profit.name} is what is left of {revenue.name}: "
-            f"Σ {profit.name} ÷ Σ {revenue.name} is the margin, in percent"
+        reason = say(
+            "R-SUG-21",
+            "R-SUG-21 · {profit} is what is left of {revenue}: Σ {profit} ÷ Σ {revenue} is the "
+            "margin, in percent",
+            profit=profit.name,
+            revenue=revenue.name,
         )
         found.append(
             _Candidate(
@@ -916,6 +1081,62 @@ def _margins(columns: Sequence[Column]) -> list[_Candidate]:
             )
         )
     return found
+
+
+def _surfaces(columns: Sequence[Column]) -> list[Column]:
+    """R-SUG-32: surfaces (role `surface`), the living area first, then any, land and annexes last;
+    at equal rank the best-filled, then the first."""
+    found = [
+        (1 - bool(_tokens(c) & LIVING_WORDS) + bool(_tokens(c) & ANNEX_WORDS), -_filled(c), i, c)
+        for i, c in enumerate(columns)
+        if c.type in NUMBERS and c.role == "surface" and code_of(c) is None
+    ]
+    return [item[3] for item in sorted(found, key=lambda item: item[:3])]
+
+
+def area_unit(column: Column) -> str:
+    """'sq ft' for a name in feet (sqft, SF), 'm²' for metres or a French surface, else the name."""
+    tokens = _tokens(column)
+    if tokens & FEET_WORDS:
+        return "sq ft"
+    if tokens & METRE_WORDS:
+        return "m²"
+    return column.name
+
+
+def _per_area(columns: Sequence[Column]) -> list[_Candidate]:
+    """R-SUG-32 (093 bis, KPI-3): a price beside a surface gives the price per square foot (or m²),
+    Σ price ÷ Σ surface: each sale weighs by its size, so a studio does not count like a house."""
+    surfaces = _surfaces(columns)
+    prices = [c for c in _numbers(columns, ("amount",)) if _tokens(c) & PRICE_WORDS]
+    if not surfaces or not prices:
+        return []
+    price, surface = prices[0], surfaces[0]
+    unit = area_unit(surface)
+    others = [c.name for c in surfaces[1:3]]
+    chosen = f" ({surface.name} preferred to {' and '.join(others)})" if others else ""
+    reason = (
+        f"R-SUG-32 · {price.name} is a price and {surface.name} a surface{chosen}: "
+        f"Σ {price.name} ÷ Σ {surface.name}, the price of one {unit} weighted by size "
+        "(an average of row ratios would let a small one weigh as much as a large one)"
+    )
+    measures = [
+        Measure(id="m1", agg="sum", column=price.name),
+        Measure(id="m2", agg="sum", column=surface.name),
+    ]
+    name = f"{price.name} per {unit}"
+    return [
+        _Candidate(
+            "R-SUG-32",
+            name,
+            measures,
+            reason,
+            [price, surface],
+            WEIGHTS["R-SUG-32"],
+            Ratio(numerator="m1", denominator="m2", label=name[:80]),
+            True,
+        )
+    ]
 
 
 def _levels(column: Column) -> list[str]:
@@ -942,10 +1163,27 @@ def _shares(columns: Sequence[Column], orders: list[Column]) -> list[_Candidate]
             opposite = [lowered[word] for word in lowered if word in other]
             if not tracked or not opposite:
                 continue
-            counted = f"distinct {key.name}" if key else "rows"
             reason = (
-                f"R-SUG-22 · {column.name} is a status ({', '.join(tracked)} against "
-                f"{', '.join(opposite)}): the share of {counted} that are {' or '.join(tracked)}"
+                say(
+                    "R-SUG-22.key",
+                    "R-SUG-22 · {column} is a status ({tracked} against {opposite}): the share of "
+                    "distinct {key} that are {states}",
+                    column=column.name,
+                    tracked=", ".join(tracked),
+                    opposite=", ".join(opposite),
+                    key=key.name,
+                    states=" or ".join(tracked),
+                )
+                if key
+                else say(
+                    "R-SUG-22",
+                    "R-SUG-22 · {column} is a status ({tracked} against {opposite}): the share of "
+                    "rows that are {states}",
+                    column=column.name,
+                    tracked=", ".join(tracked),
+                    opposite=", ".join(opposite),
+                    states=" or ".join(tracked),
+                )
             )
             measure = Measure(
                 id="m1",
@@ -970,12 +1208,17 @@ def _delays(columns: Sequence[Column]) -> list[_Candidate]:
     if not starts or not ends:
         return []
     start, end = starts[0], ends[0]
-    reason = f"R-SUG-24 · {start.name} then {end.name}: the average number of days between the two"
+    reason = say(
+        "R-SUG-24",
+        "R-SUG-24 · {start} then {end}: the average number of days between the two",
+        start=start.name,
+        end=end.name,
+    )
     measure = Measure(id="m1", agg="mean", column=start.name, until=end.name)
     return [_Candidate("R-SUG-24", "", [measure], reason, [start, end], WEIGHTS["R-SUG-24"])]
 
 
-def _score(candidate: _Candidate, has_date: bool) -> tuple[int, str]:
+def _score(candidate: _Candidate, has_date: bool) -> tuple[int, list[str]]:
     # A key is known by its whole name; its type's confidence only says it has many levels.
     confidence = min(
         (
@@ -989,14 +1232,33 @@ def _score(candidate: _Candidate, has_date: bool) -> tuple[int, str]:
     filled = min((_filled(c) for c in candidate.columns), default=1.0)
     factor = CONFIDENCE.get(confidence, 1.0) * filled * (1.0 if has_date else NO_DATE)
     score = round(candidate.weight * factor)
-    parts = [f"weight {candidate.weight} for this kind of KPI"]
+    parts: list[str] = [
+        say("R-SUG-16.weight", "weight {weight} for this kind of KPI", weight=candidate.weight)
+    ]
     if confidence != "high":
-        parts.append(f"{confidence}-confidence type (x{CONFIDENCE.get(confidence, 1.0):g})")
+        parts.append(
+            say(
+                "R-SUG-16.confidence",
+                "{confidence}-confidence type (x{factor})",
+                confidence=confidence,
+                factor=f"{CONFIDENCE.get(confidence, 1.0):g}",
+            )
+        )
     if filled < 1:
-        parts.append(f"{filled:.0%} of values filled")
+        parts.append(say("R-SUG-16.filled", "{share} of values filled", share=f"{filled:.0%}"))
     if not has_date:
-        parts.append(f"no date column (x{NO_DATE:g})")
-    return score, f"R-SUG-16 · Score {score}/100: {', '.join(parts)}"
+        parts.append(say("R-SUG-16.no_date", "no date column (x{penalty})", penalty=f"{NO_DATE:g}"))
+    return score, parts
+
+
+def _score_reason(score: int, parts: list[str]) -> str:
+    """R-SUG-16: the score and what made it, parts separated by commas."""
+    said: str = say("R-SUG-16", "R-SUG-16 · Score {score}/100: ", score=score)
+    for index, part in enumerate(parts):
+        if index:
+            said += say("SEP.comma", ", ")
+        said += part
+    return said
 
 
 def suggest(columns: Sequence[Column], facts: Facts | None = None) -> list[Suggestion]:
@@ -1009,8 +1271,11 @@ def suggest(columns: Sequence[Column], facts: Facts | None = None) -> list[Sugge
     currencies = [c for c in columns if c.role == "currency" and _distinct(c) >= 2][:1]
 
     scored: list[tuple[int, int, _Candidate, list[str]]] = []
+    score_parts: dict[int, list[str]] = {}  # R-SUG-16: what made each score, to halve it
     for order, candidate in enumerate(_candidates(columns, facts)):
-        score, score_reason = _score(candidate, time is not None)
+        score, parts = _score(candidate, time is not None)
+        score_parts[order] = parts
+        score_reason = _score_reason(score, parts)
         reasons = [candidate.reason, score_reason, *candidate.more]
         if date_reason:
             reasons.append(date_reason)
@@ -1035,8 +1300,16 @@ def suggest(columns: Sequence[Column], facts: Facts | None = None) -> list[Sugge
             if twin is not None:
                 r = facts.corr(single.name, twin.name) or 0.0
                 halved = score // 2
-                reasons[1] = reasons[1].replace(f"Score {score}/100", f"Score {halved}/100", 1)
-                reasons.append(f"R-SUG-16 · Moves with {twin.name} (r = {r:.2f}): score halved")
+                reasons[1] = _score_reason(halved, score_parts[order])
+                reasons.append(
+                    say(
+                        "R-SUG-16.twin",
+                        "R-SUG-16 · Moves with {column} (r = {r}): score halved",
+                        column=twin.name,
+                        r=f"{r:.2f}",
+                    )
+                )
+
                 score = halved
                 scored[index] = (score, order, candidate, reasons)
             kept.append(single)
@@ -1051,8 +1324,13 @@ def suggest(columns: Sequence[Column], facts: Facts | None = None) -> list[Sugge
             kpi_groups = [Group(column=currency.name)]
             reasons = [
                 *reasons,
-                f"R-SUG-19 · Split by {currency.name}: amounts in {_distinct(currency)} "
-                "currencies are never added together",
+                say(
+                    "R-SUG-19",
+                    "R-SUG-19 · Split by {column}: amounts in {count} currencies are never added "
+                    "together",
+                    column=currency.name,
+                    count=_distinct(currency),
+                ),
             ]
         definition = Definition(
             measures=candidate.measures,

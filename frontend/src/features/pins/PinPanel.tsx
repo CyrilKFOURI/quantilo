@@ -181,6 +181,7 @@ export function PinPanel({
           </section>
         </div>
       )}
+      {pins.data?.parent && <p className="max-w-prose text-xs text-ink-2">{pins.data.parent}</p>}
       {footer}
     </div>
   );

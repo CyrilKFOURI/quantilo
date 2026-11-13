@@ -1,0 +1,6 @@
+{
+  "clean.field.onlyRows": "Seulement les lignes où",
+  "clean.field.why.onlyRows": "Les lignes qui ne remplissent pas toutes les conditions gardent leur valeur (un code postal belge ou suisse a 4 chiffres par nature). Aucune condition : toutes les lignes.",
+  "clean.field.headerRow": "Ligne des noms",
+  "clean.field.why.headerRow": "Comptée à partir de 1 dans l'ordre du fichier. Les lignes au-dessus quittent le tableau avec elle (une note au-dessus du vrai en-tête)."
+}

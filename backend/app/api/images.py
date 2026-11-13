@@ -19,6 +19,8 @@ from app.schemas.images import (
     ImagePreviewRequest,
     ImageReportOut,
     ImageSetOptions,
+    QualityPreviewIn,
+    QualityPreviewOut,
     QualityRuleOut,
 )
 from app.services.image_sets import FileKind, ImageImportOptions, ImageSetService
@@ -74,10 +76,12 @@ def import_image_set(
 
 @router.get("/images/rules")
 def quality_rules() -> list[QualityRuleOut]:
-    """The R-VQ catalogue (105): title, reason, effect and default thresholds of each rule."""
+    """The R-VQ catalogue (105): title, reason, effect and default thresholds of each rule (in the
+    browser version, R-VQ-04's blur threshold at 256 pixels, R-VIS-WEB-02)."""
+    from quantilo.vision import browser
     from quantilo.vision.quality import RULES, QualityThresholds
 
-    defaults = QualityThresholds()
+    defaults = browser.quality_thresholds(None, browser.measure_side()) or QualityThresholds()
     return [
         QualityRuleOut(
             code=rule.code,
@@ -88,6 +92,19 @@ def quality_rules() -> list[QualityRuleOut]:
         )
         for rule in RULES.values()
     ]
+
+
+@router.get("/images/thresholds")
+def quality_thresholds() -> dict[str, float]:
+    """c3, R-VQT-01: every threshold of the R-VQ rules with its default (rules' and set-wide ones,
+    such as `min_relative`); in the browser version, R-VQ-04's blur threshold at 256 pixels."""
+    from dataclasses import asdict
+
+    from quantilo.vision import browser
+    from quantilo.vision.quality import QualityThresholds
+
+    defaults = browser.quality_thresholds(None, browser.measure_side()) or QualityThresholds()
+    return {name: float(value) for name, value in asdict(defaults).items()}
 
 
 @router.get("/datasets/{dataset_id}/images/report")
@@ -112,8 +129,12 @@ def image_decisions(dataset_id: str, service: ImageSets) -> ImageDecisionsOut:
 def set_image_decisions(
     dataset_id: str, body: ImageDecisionsIn, service: ImageSets
 ) -> ImageDecisionsOut:
-    """Merge decisions into the draft (`exclude`, `keep`, or null: back to the rules)."""
-    return ImageDecisionsOut.model_validate(service.set_decisions(dataset_id, body.decisions))
+    """Merge edits into the draft: decisions (`exclude`, `keep`, or null: back to the rules),
+    labels (null: the import's label), pins, and the quality thresholds (c3)."""
+    found = service.set_decisions(
+        dataset_id, body.decisions, body.labels, body.pins, body.thresholds
+    )
+    return ImageDecisionsOut.model_validate(found)
 
 
 @router.delete("/datasets/{dataset_id}/images/decisions")
@@ -124,8 +145,18 @@ def discard_image_decisions(dataset_id: str, service: ImageSets) -> ImageDecisio
 
 @router.post("/datasets/{dataset_id}/images/decisions/apply")
 def apply_image_decisions(dataset_id: str, service: ImageSets) -> ImageDecisionsApplied:
-    """Save the draft as a new version of the set (031): Changes compares it with the previous."""
+    """Save the draft as a new version of the set (031): Changes compares it with the previous.
+    The R-VQ rules run again when labels or thresholds changed (c3)."""
     return ImageDecisionsApplied.model_validate(service.apply_decisions(dataset_id))
+
+
+@router.post("/datasets/{dataset_id}/images/quality/preview")
+def preview_image_quality(
+    dataset_id: str, body: QualityPreviewIn, service: ImageSets
+) -> QualityPreviewOut:
+    """R-VQT-01: the R-VQ rules run again with these thresholds on the table (no image decoded),
+    with the labels of the draft; nothing is written."""
+    return QualityPreviewOut.model_validate(service.preview_quality(dataset_id, body.thresholds))
 
 
 def _serve(service: ImageSetService, dataset_id: str, image_id: str, kind: FileKind):

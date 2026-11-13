@@ -6,24 +6,36 @@ from typing import Any
 import duckdb
 
 from quantilo.catalog import ColumnView
+from quantilo.cleaning import catalogue, quality
 from quantilo.cleaning import model as m
 from quantilo.cleaning.rules import advanced, basic
 from quantilo.cleaning.suggestion import CleanSuggestion
 from quantilo.ingestion.sql import lit
 
-RULES_VERSION = 4  # bump when a rule changes, to ignore cached suggestions (2: B-20, B-21; 3: impact, risk; 4: Advanced)
+# bump when a rule changes, to ignore cached suggestions (2: B-20, B-21; 3: impact, risk;
+# 4: Advanced; 5: set_cells, drop_rows and the Expert layer, 101; 6: B1, A-04, A-06 to A-09,
+# A-14, A-16, A-17, the conditional step and the M5 transformations)
+RULES_VERSION = 21  # M02: reasons carry their code and vars
 
 
 def suggest(
     connection: duckdb.DuckDBPyConnection, parquet_path: str, views: list[ColumnView]
 ) -> list[CleanSuggestion]:
     """Every Basic suggestion, in the order their steps run (C-06); step ids s1, s2… follow it."""
+    return suggest_and_measure(connection, parquet_path, views)[0]
+
+
+def suggest_and_measure(
+    connection: duckdb.DuckDBPyConnection, parquet_path: str, views: list[ColumnView]
+) -> tuple[list[CleanSuggestion], list[quality.ColumnQuality]]:
+    """The Basic suggestions and, from the same profile (N37), every column's quality."""
     context = basic.profile(connection, f"read_parquet({lit(parquet_path)})", views)
-    found = basic.run(context)
+    measured = quality.measure(context)
+    found = catalogue.annotate(basic.run(context))
     for number, suggestion in enumerate(found, start=1):
         if suggestion.step is not None:
             suggestion.step.id = f"s{number}"
-    return found
+    return found, measured
 
 
 def suggest_advanced(
@@ -37,20 +49,21 @@ def suggest_advanced(
     if basic_found is None:
         basic_found = suggest(connection, parquet_path, views)
     context, rows_source = advanced.profile(connection, parquet_path, views)
-    found = advanced.run(context, rows_source, basic_found)
+    found = catalogue.annotate(advanced.run(context, rows_source, basic_found))
     for number, suggestion in enumerate(found, start=len(basic_found) + 1):
         if suggestion.step is not None:
             suggestion.step.id = f"s{number}"
     return found
 
 
-def default_steps(suggestions: list[CleanSuggestion]) -> list[Any]:
-    """The draft Clean opens with: the automatic (mode A) suggestions, ticked (C-03); one to review
-    is never ticked by default (096, CL-02)."""
+def default_steps(suggestions: list[CleanSuggestion], auto_only: bool = False) -> list[Any]:
+    """The mode A suggestions' steps, ticked (C-03); one to review never is (096, CL-02).
+    `auto_only` (N02, N03): only those the catalogue measured as reliable (`auto`), the draft Clean
+    opens with in the automatic mode (the default) and the steps of an automatic version."""
     return [
         s.step.model_copy()
         for s in suggestions
-        if s.mode == "A" and s.risk == "safe" and s.step is not None
+        if s.mode == "A" and s.risk == "safe" and s.step is not None and (s.auto or not auto_only)
     ]
 
 

@@ -10,6 +10,7 @@ import { Checkbox } from "../../ui/fields";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { ErrorsTab } from "./Errors";
 import { ExplainTab, RowExplanation } from "./Explain";
+import { hasScorecard, ScorecardTab } from "./Scorecard";
 import { periodVerdict, PeriodsTab } from "./PanelResults";
 import { Panel, ScoreBand } from "./ResultParts";
 import { IntervalNote } from "./IntervalNote";
@@ -25,8 +26,8 @@ import {
   learningCurveFigure,
 } from "./figures";
 
-type Tab = "performance" | "periods" | "features" | "explain" | "errors" | "predictions";
-const TABS = ["performance", "periods", "features", "explain", "errors", "predictions"] as const;
+type Tab = "performance" | "periods" | "features" | "explain" | "errors" | "scorecard" | "predictions";
+const TABS = ["performance", "periods", "features", "explain", "errors", "scorecard", "predictions"] as const;
 const pct = (value: number | null | undefined, digits = 0) =>
   value === null || value === undefined ? "—" : `${(value * 100).toFixed(digits)} %`;
 
@@ -87,7 +88,10 @@ export function Results({ run, datasetId }: { run: MlRun; datasetId: string }) {
       <SegmentedControl
         label={t("ml.tabs")}
         value={tab}
-        options={(run.panel ? TABS : TABS.filter((value) => value !== "periods")).map((value) => ({ value, label: t(`ml.tab.${value}`) }))}
+        options={TABS.filter((value) => (value !== "periods" || run.panel) && (value !== "scorecard" || hasScorecard(run))).map((value) => ({
+          value,
+          label: value === "scorecard" && run.task !== "binary" ? t("ml.tab.readable") : t(`ml.tab.${value}`),
+        }))}
         onChange={setTab}
       />
       {tab === "performance" &&
@@ -110,6 +114,7 @@ export function Results({ run, datasetId }: { run: MlRun; datasetId: string }) {
       {tab === "features" && <Features run={run} datasetId={datasetId} />}
       {tab === "explain" && <ExplainTab run={run} datasetId={datasetId} />}
       {tab === "errors" && <ErrorsTab run={run} datasetId={datasetId} />}
+      {tab === "scorecard" && hasScorecard(run) && <ScorecardTab run={run} datasetId={datasetId} />}
       {tab === "predictions" && <Predictions run={run} datasetId={datasetId} />}
     </div>
   );
@@ -122,8 +127,8 @@ function ScoreTiles({ run }: { run: MlRun }) {
       <ScoreBand
         items={[
           { label: "R²", value: formatNumber(r.r2), explain: t("ml.explain.r2") },
-          { label: "MAE", value: formatNumber(r.mae), note: `avg ${formatNumber(r.baseline_mae)}`, explain: t("ml.explain.mae") },
-          { label: "RMSE", value: formatNumber(r.rmse), note: `avg ${formatNumber(r.baseline_rmse)}`, explain: t("ml.explain.rmse") },
+          { label: "MAE", value: formatNumber(r.mae), note: t("fig.ml.avg", { value: formatNumber(r.baseline_mae) }), explain: t("ml.explain.mae") },
+          { label: "RMSE", value: formatNumber(r.rmse), note: t("fig.ml.avg", { value: formatNumber(r.baseline_rmse) }), explain: t("ml.explain.rmse") },
           { label: t("ml.vsAverage"), value: pct(r.skill), explain: t("ml.explain.skill") },
           ...(r.mape !== null ? [{ label: "MAPE", value: `${r.mape.toFixed(1)} %` }] : []),
         ]}
@@ -149,7 +154,7 @@ function ScoreTiles({ run }: { run: MlRun }) {
           : []),
         { label: "F1 (macro)", value: formatNumber(c.f1_macro), explain: t("ml.explain.f1") },
         ...(c.roc_auc !== null ? [{ label: "ROC AUC", value: formatNumber(c.roc_auc), explain: t("ml.explain.auc") }] : []),
-        ...(c.log_loss !== null ? [{ label: "Log loss", value: formatNumber(c.log_loss), explain: t("ml.explain.logloss") }] : []),
+        ...(c.log_loss !== null ? [{ label: t("fig.ml.logLoss"), value: formatNumber(c.log_loss), explain: t("ml.explain.logloss") }] : []),
       ]}
     />
   );
@@ -282,17 +287,17 @@ function ClassificationPerformance({ run }: { run: MlRun }) {
       {c.roc && c.pr && c.calibration && (
         <>
           <Panel title={t("ml.roc")}>
-            <Plot figure={curveFigure(c.roc.x, c.roc.y, "False positive rate", "True positive rate", "diagonal")} height={HEIGHT} label={t("ml.roc")} />
+            <Plot figure={curveFigure(c.roc.x, c.roc.y, t("fig.ml.fpr"), t("fig.ml.tpr"), "diagonal")} height={HEIGHT} label={t("ml.roc")} />
           </Panel>
           <Panel title={t("ml.pr")}>
             <Plot
-              figure={curveFigure(c.pr.x, c.pr.y, "Recall", "Precision", "flat", binary ? binary.truth.filter((v) => v === 1).length / (binary.truth.length || 1) : 0)}
+              figure={curveFigure(c.pr.x, c.pr.y, t("fig.ml.recall"), t("fig.ml.precision"), "flat", binary ? binary.truth.filter((v) => v === 1).length / (binary.truth.length || 1) : 0)}
               height={HEIGHT}
               label={t("ml.pr")}
             />
           </Panel>
           <Panel title={t("ml.calibration")}>
-            <Plot figure={curveFigure(c.calibration.x, c.calibration.y, "Predicted probability", "Observed share", "diagonal")} height={HEIGHT} label={t("ml.calibration")} />
+            <Plot figure={curveFigure(c.calibration.x, c.calibration.y, t("fig.ml.predictedProbability"), t("fig.ml.observedShare"), "diagonal")} height={HEIGHT} label={t("ml.calibration")} />
           </Panel>
         </>
       )}
@@ -302,8 +307,8 @@ function ClassificationPerformance({ run }: { run: MlRun }) {
               <Plot
                 figure={classCurvesFigure(
                   c.class_curves.map((k) => ({ name: k.auc === null ? k.label : `${k.label} · AUC ${k.auc.toFixed(2)}`, x: k.roc.x, y: k.roc.y })),
-                  "False positive rate",
-                  "True positive rate",
+                  t("fig.ml.fpr"),
+                  t("fig.ml.tpr"),
                   true,
                 )}
                 height={HEIGHT}
@@ -314,8 +319,8 @@ function ClassificationPerformance({ run }: { run: MlRun }) {
               <Plot
                 figure={classCurvesFigure(
                   c.class_curves.map((k) => ({ name: `${k.label} · ${t("ml.classShare", { share: (k.share * 100).toFixed(0) })}`, x: k.pr.x, y: k.pr.y })),
-                  "Recall",
-                  "Precision",
+                  t("fig.ml.recall"),
+                  t("fig.ml.precision"),
                   false,
                 )}
                 height={HEIGHT}
@@ -327,8 +332,8 @@ function ClassificationPerformance({ run }: { run: MlRun }) {
                 <Plot
                   figure={classCurvesFigure(
                     c.class_curves.flatMap((k) => (k.calibration ? [{ name: k.label, x: k.calibration.x, y: k.calibration.y }] : [])),
-                    "Predicted probability",
-                    "Observed share",
+                    t("fig.ml.predictedProbability"),
+                    t("fig.ml.observedShare"),
                     true,
                   )}
                   height={HEIGHT}

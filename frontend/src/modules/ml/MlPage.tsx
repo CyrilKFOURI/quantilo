@@ -19,7 +19,9 @@ import {
 } from "../../api/hooks";
 import { formatNumber } from "../../charts/figures";
 import { DecisionsBanner } from "../../features/decisions/DecisionsBanner";
+import { CleanedVersionNote } from "../../features/lineage/CleanedVersionNote";
 import { t, type MessageKey } from "../../lib/i18n";
+import { VersionRuns } from "./VersionRuns";
 import { Button } from "../../ui/Button";
 import { ErrorNote, Select, TextInput } from "../../ui/fields";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -32,6 +34,7 @@ import { ModelPicker } from "./ModelPicker";
 import { incomparable, RunCompare } from "./RunCompare";
 import { TunePanel } from "./TunePanel";
 import { PreparationEditor, preparationSummary } from "./PreparationEditor";
+import { localizeCatalogue } from "./catalogText";
 import { disabledOptions, isVisible, resolveValues, type Values } from "./rules";
 import { DEFAULT_VALIDATION, metricName, PANEL, panelValidation, SettingField, SettingsDrawer } from "./SettingsDrawer";
 import { PredictSection } from "./Predict";
@@ -65,6 +68,7 @@ export function MlPage() {
         <p className="mt-1 text-ink-2">{t("ml.description")}</p>
       </header>
       <DecisionsBanner datasetId={datasetId} ready={ready} />
+      <CleanedVersionNote datasetId={datasetId} page="ml" />
       {targets.isError ? (
         <ErrorNote>{targets.error.message}</ErrorNote>
       ) : !targets.data ? (
@@ -201,10 +205,12 @@ function Workbench({
     };
   }, [candidates, candidate.name, rows, validation.max_rows, validation.method, validation.test_size, effectiveTask]);
   const catalog = useMlCatalog(context);
+  // M01: names, settings and reasons of the catalogue in the interface language
+  const catalogue = useMemo(() => catalog.data && localizeCatalogue(catalog.data), [catalog.data]);
   const reference = effectiveTask === "regression" ? "linear_regression" : "logistic_regression";
   const [modelEdited, setModelEdited] = useState<string | null>(null);
   const runModel = run.data && run.data.task === effectiveTask ? run.data.model : null;
-  const models = catalog.data?.models;
+  const models = catalogue?.models;
   const model = models?.find((m) => m.key === (modelEdited ?? runModel ?? reference)) ?? models?.find((m) => m.key === reference);
   const [values, setValues] = useState<Values>({});
   const [drawer, setDrawer] = useState(false);
@@ -367,11 +373,11 @@ function Workbench({
               <Loading label={t("loading.distribution")} className="h-40 rounded-md" />
             ))}
         </section>
-        {catalog.data && model && (
+        {catalogue && model && (
           <section className="space-y-2">
             <span className="text-xs text-ink-3">{t("ml.model")}</span>
             <ModelPicker
-              catalogue={catalog.data}
+              catalogue={catalogue}
               current={model}
               onPick={(key) => {
                 setModelEdited(key);
@@ -397,7 +403,7 @@ function Workbench({
                 {t("ml.settings.all")}
               </Button>
               {/* 102: tuning (Optuna) is left to the desktop app in the browser version (R-WEB-04) */}
-              {catalog.data.browser?.tuning !== false && (
+              {catalogue.browser?.tuning !== false && (
                 <Button
                   variant="ghost"
                   onClick={() => setTuning(true)}
@@ -414,29 +420,29 @@ function Workbench({
                 {t("ml.auto.button")}
               </Button>
             </span>
-            <BrowserNote catalogue={catalog.data} />
+            <BrowserNote catalogue={catalogue} />
           </section>
         )}
-        {catalog.data && comparing && (
+        {catalogue && comparing && (
           <CompareModels
             open={comparing}
             onOpenChange={setComparing}
             datasetId={datasetId}
             target={candidate.name}
-            catalogue={catalog.data}
+            catalogue={catalogue}
             choices={choices}
             classes={classes}
             validation={validation}
             onRun={pickRun}
           />
         )}
-        {catalog.data && automl && (
+        {catalogue && automl && (
           <AutoPanel
             open={automl}
             onOpenChange={setAutoml}
             datasetId={datasetId}
             target={candidate.name}
-            catalogue={catalog.data}
+            catalogue={catalogue}
             choices={choices}
             classes={classes}
             validation={validation}
@@ -497,7 +503,7 @@ function Workbench({
             onReset={resetSetting}
             validation={validation}
             onValidation={setValidationEdited}
-            metrics={catalog.data?.metrics ?? []}
+            metrics={catalogue?.metrics ?? []}
             candidates={candidates}
             task={effectiveTask}
             onPreparation={() => {
@@ -562,6 +568,7 @@ function Workbench({
             onSelect={setSelected}
           />
         )}
+        <VersionRuns datasetId={datasetId} target={candidate.name} />
       </aside>
 
       <div className={`min-w-0 space-y-5 ${training ? "opacity-60" : ""}`} aria-busy={training}>

@@ -1,11 +1,10 @@
-import { Link, useSearch } from "@tanstack/react-router";
+import { Navigate, useSearch } from "@tanstack/react-router";
 
 import { useDatasets } from "../../api/hooks";
 import { DatasetList } from "../../features/datasets/DatasetList";
 import { HealthIndicator } from "../../features/health/HealthIndicator";
 import { ImportPanel } from "../../features/import/ImportPanel";
 import { LegalLinks } from "../../features/legal/LegalLinks";
-import { countLabel } from "../../features/projects/ProjectGroup";
 import { useProjects } from "../../features/projects/api";
 import { t } from "../../lib/i18n";
 import { ErrorNote } from "../../ui/fields";
@@ -27,27 +26,15 @@ export function HomePage() {
   // A project deleted elsewhere (or a stale link): the home page of every dataset
   const open = projects.find((project) => project.id === search.project) ?? null;
   const hasDatasets = (datasets.data?.length ?? 0) > 0;
+  // C1: a project has its own page; the old `/?project=` links lead there
+  if (open) return <Navigate to="/projects/$projectId" params={{ projectId: open.id }} replace />;
 
   return (
     <div className="mx-auto flex min-h-full max-w-5xl flex-col gap-8 px-(--gutter) py-8">
-      {open ? (
-        <div className="space-y-1.5">
-          <nav aria-label={t("projects.breadcrumb")} className="text-[13px] text-ink-3">
-            <Link to="/" className="hover:text-accent">
-              {t("projects.all")}
-            </Link>
-            <span aria-hidden className="px-1.5">
-              /
-            </span>
-          </nav>
-          <PageHeader title={open.name} description={countLabel(open.dataset_ids.length)} />
-        </div>
-      ) : (
-        <PageHeader title={t("home.title")} description={t("home.body")} />
-      )}
-      <ImportPanel compact={hasDatasets} project={open} />
+      <PageHeader title={t("home.title")} description={t("home.body")} />
+      <ImportPanel compact={hasDatasets} project={null} />
       {datasets.isError && <ErrorNote>{datasets.error.message}</ErrorNote>}
-      {(hasDatasets || open) && datasets.data && <DatasetList datasets={datasets.data} openProject={open} />}
+      {hasDatasets && datasets.data && <DatasetList datasets={datasets.data} />}
       <div className="mt-auto space-y-3">
         <HealthIndicator />
         <LegalLinks statement />

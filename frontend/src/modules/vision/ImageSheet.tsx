@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, MapPinOff, TriangleAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, MapPinOff, ScanSearch, TriangleAlert } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { imageUrl } from "../../features/import/imageSetApi";
@@ -34,6 +34,8 @@ type SheetProps = {
   onNavigate: (key: string) => void;
   onClose: () => void;
   onDecide: (keys: string[], decision: Decision | null) => void;
+  /** 117: open this image's "Why?" (what the kept model says about it, and its evidence). */
+  onWhy?: () => void;
 };
 
 const number = (value: number | null, digits: number) =>
@@ -53,7 +55,7 @@ export function imageSentence(row: ImageRow): string {
  * among the set; its file (never a coordinate, R-IMG-05); its copies. ← → or a swipe go through
  * the list the gallery shows.
  */
-export function ImageSheet({ datasetId, row, shown, siblings, groupKind, sorted, rules, draft, onNavigate, onClose, onDecide }: SheetProps) {
+export function ImageSheet({ datasetId, row, shown, siblings, groupKind, sorted, rules, draft, onNavigate, onClose, onDecide, onWhy }: SheetProps) {
   const position = shown.findIndex((other) => other.key === row.key);
   const previous = position > 0 ? shown[position - 1] : undefined;
   const next = position >= 0 && position < shown.length - 1 ? shown[position + 1] : undefined;
@@ -136,7 +138,14 @@ export function ImageSheet({ datasetId, row, shown, siblings, groupKind, sorted,
 
         <div className="min-w-0 space-y-5 text-[13px]">
           <section className="space-y-2">
-            <p className="text-ink-1 tabular-nums">{imageSentence(row)}</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-ink-1 tabular-nums">{imageSentence(row)}</p>
+              {onWhy && row.decodeOk && (
+                <Button variant="secondary" icon={ScanSearch} onClick={onWhy} title={t("vision.why.open")} className="shrink-0">
+                  {t("vision.why.button")}
+                </Button>
+              )}
+            </div>
             <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
               <Pair label={t("vision.field.label")} value={row.label ?? t("vision.none")} mono />
               <Pair label={t("vision.field.split")} value={row.split ?? t("vision.none")} mono />

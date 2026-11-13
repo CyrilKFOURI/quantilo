@@ -1,5 +1,6 @@
 """Time series page: one series of a dataset, read through the active filters, then analysed."""
 
+import re
 from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
@@ -18,7 +19,7 @@ from quantilo.compare.analyze import (
 from quantilo.errors import ExplorerError
 from quantilo.filters.model import Condition, filters_key
 from quantilo.filters.scope import scoped_source, where_for
-from quantilo.ingestion.sql import lit
+from quantilo.ingestion.sql import ident, lit
 from quantilo.timeseries import autocorrelation as ac
 from quantilo.timeseries import breaks as br
 from quantilo.timeseries import builder, choice, methods
@@ -26,6 +27,7 @@ from quantilo.timeseries import drivers as dv
 from quantilo.timeseries import forecast as fc
 from quantilo.timeseries import groups as gr
 from quantilo.timeseries import hierarchy as hi
+from quantilo.timeseries import public_holidays as ph
 from quantilo.timeseries import regimes as rg
 from quantilo.timeseries import residuals as rs
 from quantilo.timeseries import series as ts
@@ -62,6 +64,11 @@ SUM_ROLES = ts.SUM_ROLES
 CACHE_SIZE = 16
 MAX_CANDIDATES = 50  # columns read when suggesting drivers
 MAX_PARENTS = 20  # columns checked as parents of the group (039)
+# A column that names countries (028 A5): its detected role, or its name.
+COUNTRY_NAME = re.compile(r"country|countries|pays|nation|land$|pa\u00eds|paese", re.IGNORECASE)
+MAX_COUNTRY_COLUMNS = 5
+OWN_VALUES = ("calendar", "holidays")  # drivers computed from the dates, not read from a column
+NO_COUNTRY = "No column names a country: choose the country of the holidays."
 
 
 class TimeSeriesError(ExplorerError):
@@ -274,6 +281,32 @@ class SeriesBreaks:
 
 
 @dataclass
+class CountryGuess:
+    """The country proposed for the public holidays (028 A5) and the rule behind it: `group` (the
+    series is one country of the group), `column` (a country column with a single value),
+    `unknown_value` (that value is not a known country), `several` (the column holds several),
+    `none` (no country column)."""
+
+    code: str | None
+    rule: Literal["group", "column", "unknown_value", "several", "none"]
+    reason: str
+    column: str | None = None
+    value: str | None = None
+
+
+@dataclass
+class HolidayOffer:
+    """The public-holiday calendar as a driver (028 A5): whether it can be used here, and the
+    country proposed by a coded rule, always with its reason (never added without a click)."""
+
+    usable: bool
+    reason: str | None  # why it cannot be used (package absent, period)
+    weekly: bool  # weekly series: the flag is the share of holiday days in the week
+    countries: list[ph.Country]
+    guess: CountryGuess
+
+
+@dataclass
 class SeriesDrivers:
     """The columns that could explain the series (028 A4), most correlated first."""
 
@@ -281,6 +314,7 @@ class SeriesDrivers:
     horizon: int
     candidates: list[dv.DriverCandidate]
     calendar: list[str]  # calendar variables that make sense for the period
+    holidays: HolidayOffer | None = None  # 028 A5
 
 
 @dataclass
@@ -870,6 +904,7 @@ class TimeSeriesService:
         order: tuple[int, int, int] = (1, 1, 1),
         seasonal_order: tuple[int, int, int] = (0, 0, 0),
         drivers: list[dv.Driver] | None = None,
+        tuning: fc.Tuning | None = None,
     ) -> ForecastJob:
         prepared = self.prepare(dataset_id, request, conditions)
         setup, built = prepared.setup, prepared.built
@@ -881,7 +916,10 @@ class TimeSeriesService:
             keys = [key for key in keys if key not in ("seasonal_naive", "holt_winters")] or [
                 "naive"
             ]
-        models = {key: self._model(key, order, seasonal_order) for key in keys}
+        tuning = tuning or fc.DEFAULT_TUNING
+        models = {
+            key: self._model(key, order, seasonal_order, built.period, tuning) for key in keys
+        }
         driver_set = (
             self._driver_set(dataset_id, conditions, prepared, drivers, horizon)
             if drivers
@@ -896,6 +934,7 @@ class TimeSeriesService:
             order,
             seasonal_order,
             tuple(drivers or ()),
+            tuning,
         )
         return self.forecasts.start(
             key,
@@ -906,16 +945,32 @@ class TimeSeriesService:
             horizon,
             models,
             driver_set,
+            tuning.time_limit,
         )
 
     @staticmethod
     def _model(
-        key: str, order: tuple[int, int, int], seasonal_order: tuple[int, int, int]
+        key: str,
+        order: tuple[int, int, int],
+        seasonal_order: tuple[int, int, int],
+        period: ts.Period | None = None,
+        tuning: fc.Tuning = fc.DEFAULT_TUNING,
     ) -> fc.Model:
+        """The model of a key, with the options of `tuning` (028 A7)."""
         if key == "sarima":
             return fc.sarima_manual(order, seasonal_order)
         if key == "sarimax":
-            return fc.sarimax_model()  # its own cache of ARIMA orders
+            return fc.sarimax_model(tuning)
+        if key == "arima_auto":
+            return fc.arima_model(tuning)
+        if key == "gbm_lags":
+            return fc.lag_model("gbm", tuning.gbm_grid)
+        if key == "prophet_like":
+            return fc.prophet_model(period, tuning)  # cycles of the period (028 A6)
+        if key in fc.PERIOD_MODELS:
+            return fc.PERIOD_MODELS[key](period)  # seasonal cycles of the period (028 A6)
+        if key in fc.NEURAL_MODELS:
+            return fc.ai_model(key, tuning)  # trained within the time limit (028 B4)
         return fc.MODELS[key]
 
     # --- Drivers (028 A4) ----------------------------------------------------------------------
@@ -1005,7 +1060,7 @@ class TimeSeriesService:
         setup, period = prepared.setup, prepared.built.period
         types = {v.name: v.type for v in self.columns.columns(dataset_id) if not v.excluded}
         for driver in drivers:
-            if driver.kind == "calendar":
+            if driver.kind in ("calendar", "holidays"):
                 continue
             if driver.column in (setup.time, setup.value):
                 raise dv.DriverError(f"{driver.column!r} is the series itself: it cannot drive it.")
@@ -1018,7 +1073,7 @@ class TimeSeriesService:
             dataset_id,
             conditions,
             prepared,
-            [(d.column, d.kind == "flag") for d in drivers if d.kind != "calendar"],
+            [(d.column, d.kind == "flag") for d in drivers if d.kind not in OWN_VALUES],
             future,
         )
         return dv.build(
@@ -1055,7 +1110,107 @@ class TimeSeriesService:
             for name in names
         ]
         found.sort(key=lambda c: (not c.suggested, -abs(c.correlation or 0)))
-        return SeriesDrivers(setup, horizon, found, dv.calendar_parts(period))
+        return SeriesDrivers(
+            setup,
+            horizon,
+            found,
+            dv.calendar_parts(period),
+            self._holiday_offer(dataset_id, conditions, prepared),
+        )
+
+    # --- Public holidays (028 A5) ---------------------------------------------------------------
+
+    def _holiday_offer(
+        self, dataset_id: str, conditions: list[Condition], prepared: _Prepared
+    ) -> HolidayOffer:
+        period = prepared.built.period
+        absent = ph.missing()
+        if absent:
+            return HolidayOffer(False, absent, False, [], CountryGuess(None, "none", NO_COUNTRY))
+        if period not in ph.PERIODS:
+            reason = (
+                f"Public holidays need hourly, daily or weekly periods, not {period}: a month or "
+                "a longer period always holds about the same holidays."
+            )
+            guess = CountryGuess(None, "none", NO_COUNTRY)
+            return HolidayOffer(False, reason, False, list(ph.countries()), guess)
+        guess = self._guess_country(dataset_id, conditions, prepared)
+        return HolidayOffer(True, None, period == "week", list(ph.countries()), guess)
+
+    def _guess_country(
+        self, dataset_id: str, conditions: list[Condition], prepared: _Prepared
+    ) -> CountryGuess:
+        """The country proposed for the holiday calendar, by rule (never silently: the reason is
+        shown). 1. The series is one group of a country column: that country. 2. A country column
+        (its role, or a name such as country / pays) holds a single value under the filters: that
+        country. Otherwise the user chooses."""
+        setup = prepared.setup
+        views = [v for v in self.columns.columns(dataset_id) if not v.excluded]
+        names = {c.code: c.name for c in ph.countries()}
+
+        def country_like(view: Any) -> bool:
+            if view.type in NUMBERS or view.type in DATES:
+                return False
+            return view.role == "country" or bool(COUNTRY_NAME.search(view.name))
+
+        found = [v for v in views if country_like(v)][:MAX_COUNTRY_COLUMNS]
+        by_name = {v.name: v for v in found}
+        if setup.group in by_name and setup.series and setup.series != builder.OTHERS:
+            code = ph.country_code(setup.series)
+            if code:
+                return CountryGuess(
+                    code,
+                    "group",
+                    f"The series is {setup.group} = {setup.series}: the public holidays of "
+                    f"{names.get(code, code)} ({code}).",
+                    setup.group,
+                    setup.series,
+                )
+        if not found:
+            return CountryGuess(None, "none", NO_COUNTRY)
+        dataset = self.columns.ready(dataset_id)
+        connection = duckdb.connect()
+        try:
+            source = scoped_source(dataset.storage_path, where_for(views, conditions))
+            for view in found:
+                column = ident(view.name)
+                values = [
+                    str(row[0])
+                    for row in connection.execute(
+                        f"SELECT DISTINCT CAST({column} AS VARCHAR) FROM {source} "
+                        f"WHERE {column} IS NOT NULL LIMIT 2"
+                    ).fetchall()
+                ]
+                if len(values) == 1:
+                    code = ph.country_code(values[0])
+                    if code:
+                        return CountryGuess(
+                            code,
+                            "column",
+                            f"The column {view.name} holds a single value, {values[0]}: the "
+                            f"public holidays of {names.get(code, code)} ({code}).",
+                            view.name,
+                            values[0],
+                        )
+                    return CountryGuess(
+                        None,
+                        "unknown_value",
+                        f"The column {view.name} holds {values[0]}, which the holiday calendar "
+                        "does not know: choose the country.",
+                        view.name,
+                        values[0],
+                    )
+                if len(values) > 1:
+                    return CountryGuess(
+                        None,
+                        "several",
+                        f"The column {view.name} holds several countries: choose one, or analyse "
+                        f"one country at a time with Group = {view.name}.",
+                        view.name,
+                    )
+        finally:
+            connection.close()
+        return CountryGuess(None, "none", NO_COUNTRY)
 
     def forecast_with_drivers(
         self,
@@ -1067,10 +1222,12 @@ class TimeSeriesService:
         model: str = "tslm",
         horizon: int | None = None,
         changes: list[dv.ScenarioChange] | None = None,
+        tuning: fc.Tuning | None = None,
     ) -> DriverForecast:
-        """The final forecast of one driver model (`sarimax`, `tslm`, `gbm_lags`) with given
-        future values of the known-in-advance drivers: the engine of what-if scenarios (039).
-        `changes` (± x %, a fixed value, over a range of periods) apply after `future`."""
+        """The final forecast of one driver model (`sarimax`, `tslm`, `gbm_lags`,
+        `prophet_like`) with given future values of the known-in-advance drivers: the engine of
+        what-if scenarios (039). `changes` (± x %, a fixed value, over a range of periods) apply
+        after `future`."""
         if model not in fc.DRIVER_MODELS:
             raise TimeSeriesError(
                 f"{model!r} does not use drivers: {', '.join(fc.DRIVER_MODELS)}.", "bad_driver"
@@ -1088,7 +1245,11 @@ class TimeSeriesService:
         series, _ = ts.complete(prepared.core)
         try:
             prediction = dv.forecast_with_drivers(
-                series, horizon, setup.season, self._model(model, (1, 1, 1), (0, 0, 0)), chosen
+                series,
+                horizon,
+                setup.season,
+                self._model(model, (1, 1, 1), (0, 0, 0), period, tuning or fc.DEFAULT_TUNING),
+                chosen,
             )
         except fc.ModelError as error:
             raise TimeSeriesError(str(error), "model_failed") from error

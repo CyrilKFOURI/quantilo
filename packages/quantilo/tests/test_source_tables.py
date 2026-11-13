@@ -140,3 +140,38 @@ def test_an_empty_first_sheet_is_skipped(tmp_path: Path) -> None:
     preview = preview_source(path, SourceOptions())
     assert [c.name for c in preview.columns] == ["a", "b"]
     assert any("R-ING-07" in note for note in preview.warnings)
+
+
+def test_user_null_tokens_change_the_reading_not_the_tables(tmp_path: Path) -> None:
+    """T2u (b2, Advanced > More): the user's placeholder 'nil' becomes empty and the column a
+    number; a token kept as text stays; where the tables are found does not change."""
+    from openpyxl import Workbook
+
+    from quantilo.ingestion.layout.cells import kind, null_token, user_null_tokens
+
+    wb = Workbook()
+    ws = wb.active
+    assert ws is not None
+    ws.title = "T"
+    ws.append(["Item", "Amount", "Mark"])
+    for i in range(12):
+        ws.append([f"I{i}", "nil" if i in (3, 7) else 10 + i, "n/a" if i == 5 else "ok"])
+    path = tmp_path / "tokens.xlsx"
+    wb.save(path)
+    plain = preview_source(path, SourceOptions())
+    assert plain.tables is not None
+    table = plain.tables[0].id
+    before = preview_source(path, SourceOptions(table=table))
+    amount = next(c for c in before.columns if c.name == "Amount")
+    assert amount.dtype in ("VARCHAR", "varchar")  # 'nil' keeps the column text
+    asked = SourceOptions(table=table, null_tokens=["NIL "], text_tokens=["n/a"])
+    after = preview_source(path, asked)
+    assert [t.id for t in after.tables or []] == [t.id for t in plain.tables]
+    amount = next(c for c in after.columns if c.name == "Amount")
+    assert amount.dtype.upper() in ("DOUBLE", "BIGINT", "INTEGER")
+    rows = {row[0]: row for row in after.rows}
+    assert rows["I3"][1] is None and rows["I5"][2] == "n/a"
+    assert any("'nil' read as empty" in note and "T2u" in note for note in after.warnings)
+    with user_null_tokens(["nil"], ["n/a"]):
+        assert null_token("Nil") == "strong" and null_token("n/a") is None and kind("nil") == "z"
+    assert null_token("nil") is None and null_token("n/a") == "strong" and kind("nil") == "s"

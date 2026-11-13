@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import type {
   DriverForecast,
   DriverSpec,
+  ForecastTuning,
   ScenarioChange,
   SeriesParams,
 } from "../../api/client";
@@ -109,6 +110,7 @@ export function ScenariosPanel({
   scenarios,
   model,
   onChange,
+  tuning,
 }: {
   datasetId: string;
   params: SeriesParams;
@@ -122,6 +124,8 @@ export function ScenariosPanel({
   scenarios: StoredScenario[];
   model: string | undefined;
   onChange: (scenarios: StoredScenario[] | undefined, model?: string) => void;
+  /** The forecast's ⚙ Options (028 A7), so a scenario refits the same model. */
+  tuning?: ForecastTuning;
 }) {
   const known = changeableDrivers(drivers);
   const offered = [...new Set([...models, ...DRIVER_MODELS])];
@@ -135,7 +139,15 @@ export function ScenariosPanel({
     () => [[] as ScenarioChange[], ...scenarios.map((s) => [toChange(s)])],
     [scenarios],
   );
-  const results = useScenarios(datasetId, params, extra, drivers, lists, known.length > 0);
+  const results = useScenarios(
+    datasetId,
+    params,
+    extra,
+    drivers,
+    lists,
+    known.length > 0,
+    tuning,
+  );
   const base = results.data[0];
   const done = useMemo(
     () =>

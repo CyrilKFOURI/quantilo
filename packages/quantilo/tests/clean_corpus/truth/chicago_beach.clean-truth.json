@@ -1,0 +1,13 @@
+{
+ "label": "chicago_beach",
+ "corpus": "data-corpus",
+ "path": "iot_sensors/chicago_beach_water_sensors/beach_water_quality_sensors.csv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-09:water_temperature:-100000", "verdict": "correct", "why": "-100000 is the sensors' code for 'no measure' (3 columns) (mode S)", "op": "null_values"},
+  {"id": "B-09:turbidity:-100000", "verdict": "correct", "why": "-100000 is the sensors' code for 'no measure' (3 columns) (mode S)", "op": "null_values"},
+  {"id": "B-09:wave_period:-100000", "verdict": "correct", "why": "-100000 is the sensors' code for 'no measure' (3 columns) (mode S)", "op": "null_values"},
+  {"id": "B-10:water_temperature", "verdict": "correct", "why": "N10: 44.4 and 46.6 °C are no lake temperatures", "op": "null_outside"}
+ ]
+}

@@ -19,6 +19,10 @@ export type SegmentMap = Segmentation["map"];
 export type SegmentProfileRow = Segmentation["profiles"][number];
 export type SegmentDendrogram = NonNullable<Segmentation["dendrogram"]>;
 export type SegmentRunSummary = Complete<Schemas["SegmentRunSummary"]>;
+/** 124: the segments described by a sparse tree. */
+export type SegmentTree = Complete<Schemas["SegmentTree"]>;
+export type SegmentTreeRules = SegmentTree["segments"][number];
+export type OptimalSegmentTree = Complete<Schemas["OptimalTree"]>;
 export type SegmentComparison = Complete<Schemas["SegmentComparison"]>;
 export type SegmentMethod = SegmentPlan["method"];
 export type UnusualRun = Complete<Schemas["UnusualRun"]>;
@@ -50,6 +54,9 @@ const query = (filters: Condition[]) => {
   return params ? `?${params}` : "";
 };
 
+/** The maps of the optional `interpret` extra (122). */
+export type ExtraMap = "pacmap" | "trimap";
+
 export const segmentsApi = {
   plan: (id: string, body: SegmentRequest, filters: Condition[]) =>
     request<SegmentPlan>("POST", `${BASE}/datasets/${id}/plan${query(filters)}`, body),
@@ -65,11 +72,18 @@ export const segmentsApi = {
       `${BASE}/datasets/${id}/runs/${runId}/words?${new URLSearchParams({ column })}`,
     ),
   run: (id: string, runId: string) => request<SegmentRun>("GET", `${BASE}/datasets/${id}/runs/${runId}`),
+  /** 124: "Describe segments with a tree", under Advanced, asked with its button. */
+  tree: (id: string, runId: string, depth: number | null, leaves: number | null) =>
+    request<SegmentTree>("POST", `${BASE}/datasets/${id}/runs/${runId}/tree`, { depth, leaves }),
+  optimalTree: (id: string, runId: string, segment: number, depth: number) =>
+    request<OptimalSegmentTree>("POST", `${BASE}/datasets/${id}/runs/${runId}/tree/optimal`, { segment, depth }),
   compare: (id: string, runIds: string[]) =>
     request<SegmentComparison>("GET", `${BASE}/datasets/${id}/runs/compare?runs=${runIds.map(encodeURIComponent).join(",")}`),
   rename: (id: string, runId: string, names: Record<string, string>) =>
     request<SegmentRun>("PATCH", `${BASE}/datasets/${id}/runs/${runId}/names`, { names }),
   tsne: (id: string, runId: string) => request<SegmentJob>("POST", `${BASE}/datasets/${id}/runs/${runId}/tsne`),
+  /** 122: PaCMAP or TriMAP, under the map's More (optional extra `interpret`). */
+  map: (id: string, runId: string, method: ExtraMap) => request<SegmentJob>("POST", `${BASE}/datasets/${id}/runs/${runId}/map/${method}`),
   save: (id: string, runId: string) => request<{ dataset_id: string }>("POST", `${BASE}/datasets/${id}/runs/${runId}/dataset`),
   profilesUrl: (id: string, runId: string) => `/api/v1${BASE}/datasets/${id}/runs/${runId}/profiles.csv`,
   findUnusual: (id: string, body: UnusualRequest, filters: Condition[]) =>
@@ -106,6 +120,29 @@ export function useSegmentRun(id: string, runId: string | null) {
     queryKey: [...key(id), "run", runId],
     queryFn: () => segmentsApi.run(id, runId ?? ""),
     enabled: Boolean(runId),
+    retry: false,
+  });
+}
+
+/** 124: computed only once asked; depth and leaves left to the rules (R-SGT-02) until changed. */
+export function useSegmentTree(id: string, runId: string, depth: number | null, leaves: number | null, enabled: boolean) {
+  return useQuery({
+    queryKey: [...key(id), "run", runId, "tree", depth, leaves],
+    queryFn: () => segmentsApi.tree(id, runId, depth, leaves),
+    enabled,
+    staleTime: Infinity,
+    placeholderData: (previous) => previous,
+    retry: false,
+  });
+}
+
+/** 124 bis (R-SGT-06): GOSDT's optimal tree of one segment, asked for by its button. */
+export function useOptimalSegmentTree(id: string, runId: string, segment: number | null, depth: number) {
+  return useQuery({
+    queryKey: [...key(id), "run", runId, "tree-optimal", segment, depth],
+    queryFn: () => segmentsApi.optimalTree(id, runId, segment ?? 0, depth),
+    enabled: segment !== null,
+    staleTime: Infinity,
     retry: false,
   });
 }
@@ -170,6 +207,7 @@ export function useSegmentActions(id: string) {
       },
     }),
     tsne: useMutation({ mutationFn: (runId: string) => segmentsApi.tsne(id, runId) }),
+    map: useMutation({ mutationFn: ({ runId, method }: { runId: string; method: ExtraMap }) => segmentsApi.map(id, runId, method) }),
     refresh,
   };
 }

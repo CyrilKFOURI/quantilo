@@ -4,7 +4,9 @@ import { formatCount } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { ErrorNote } from "../../ui/fields";
 import { Loading } from "../../ui/Loading";
-import type { CleanPreview } from "./api";
+import type { CleanPreview, Op } from "./api";
+import { ColumnBar } from "./ColumnQuality";
+import { opLabel } from "./steps";
 
 /** "54 cells changed in description · 6 rows removed": the conclusion, then the first rows
  *  touched with their changed cells marked (C-10). */
@@ -33,10 +35,15 @@ export function PreviewPanel({
   if (preview.rows_removed > 0) parts.push(t("clean.preview.rows", { count: formatCount(preview.rows_removed) }));
   if (preview.added.length) parts.push(t("clean.preview.added", { columns: preview.added.join(", ") }));
   if (preview.dropped.length) parts.push(t("clean.preview.dropped", { columns: preview.dropped.join(", ") }));
+  // C-59: a step reshaped the table; its rows are shown as they are, nothing is compared cell by cell
+  const reshaped = preview.reshaped
+    ? t("clean.preview.reshaped", { step: preview.reshaped, op: preview.reshaped_op ? opLabel(preview.reshaped_op as Op) : "", before: formatCount(preview.rows_before), after: formatCount(preview.rows_after) })
+    : null;
   return (
     <section aria-label={title} aria-busy={loading} className={`space-y-2 transition-opacity ${loading ? "opacity-60" : ""}`}>
       <h3 className="text-xs text-ink-3">{title}</h3>
-      <p className="text-[13px] text-ink-1">{parts.length ? parts.join(" · ") : t("clean.preview.none")}</p>
+      <p className="text-[13px] text-ink-1">{parts.length ? parts.join(" · ") : reshaped ? null : t("clean.preview.none")}</p>
+      {reshaped && <p className="max-w-prose border-l-2 border-warn pl-3 text-[13px] text-ink-2">{reshaped}</p>}
       {preview.sample.length > 0 && <SampleTable preview={preview} />}
     </section>
   );
@@ -55,6 +62,8 @@ function SampleTable({ preview }: { preview: CleanPreview }) {
               {preview.shown.map((column) => (
                 <th key={column} scope="col" className="px-2 py-1.5 font-mono font-normal whitespace-nowrap">
                   {column}
+                  {/* N37: the column's quality as the draft stands (nothing for a column a step adds) */}
+                  <ColumnBar column={column} dense className="mt-1 min-w-12" />
                 </th>
               ))}
             </tr>

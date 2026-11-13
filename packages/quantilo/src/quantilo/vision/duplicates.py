@@ -185,6 +185,59 @@ def group_ids(n: int, groups: Sequence[DuplicateGroup]) -> np.ndarray:
     return ids
 
 
+SEMANTIC_COSINE = 0.95  # R-VQ-17 (Advanced): cosine of two frozen-network vectors at least this
+SEMANTIC_BLOCK = 1_024  # rows compared at once: a block x n matrix of float32
+
+
+def semantic_pairs(
+    vectors: np.ndarray, threshold: float = SEMANTIC_COSINE, block: int = SEMANTIC_BLOCK
+) -> list[tuple[int, int, float]]:
+    """R-VQ-17: pairs (i, j, cosine) with i < j and a cosine of at least `threshold`, by blocks of
+    rows (the n x n matrix is never held). A row with a NaN (an image that failed) has no pair."""
+    x = np.asarray(vectors, dtype=np.float32)
+    if x.ndim != 2 or len(x) < 2:
+        return []
+    ok = np.flatnonzero(np.isfinite(x).all(axis=1))
+    unit = x[ok].astype(np.float32)
+    norms = np.linalg.norm(unit, axis=1, keepdims=True)
+    unit = np.divide(unit, norms, out=np.zeros_like(unit), where=norms > 0)
+    found: list[tuple[int, int, float]] = []
+    for start in range(0, len(unit), block):
+        sims = unit[start : start + block] @ unit.T
+        rows, cols = np.nonzero(sims >= threshold)
+        for r, c in zip(rows.tolist(), cols.tolist(), strict=True):
+            i = start + r
+            if c > i:
+                found.append((int(ok[i]), int(ok[c]), float(min(1.0, sims[r, c]))))
+    return found
+
+
+def semantic_groups(
+    n: int,
+    pairs: Sequence[tuple[int, int, float]],
+    known: Sequence[DuplicateGroup] = (),
+) -> list[DuplicateGroup]:
+    """R-VQ-17: the connected parts of the semantic pairs (union-find) that are not already one
+    group of R-VQ-09 / 10 (`known`): only what the hashes did not see is new. Kind `near`, nothing
+    kept by default (a person decides)."""
+    uf = _UnionFind(n)
+    for i, j, _ in pairs:
+        uf.union(i, j)
+    members: dict[int, list[int]] = {}
+    for r in sorted({r for i, j, _ in pairs for r in (i, j)}):
+        members.setdefault(uf.find(r), []).append(r)
+    old = group_ids(n, known) if known else np.full(n, -1)
+    groups = []
+    for rows in sorted(members.values(), key=lambda v: v[0]):
+        if len(rows) < 2:
+            continue
+        before = {int(old[r]) for r in rows}
+        if len(before) == 1 and -1 not in before:
+            continue  # the hashes already grouped them all
+        groups.append(DuplicateGroup(len(groups), "near", tuple(rows), None))
+    return groups
+
+
 @dataclass(frozen=True)
 class Leak:
     """R-VQ-11: a duplicate group with images in train and in an evaluation split."""
@@ -223,4 +276,6 @@ __all__ = [
     "label_conflicts",
     "leaks",
     "near_pairs",
+    "semantic_groups",
+    "semantic_pairs",
 ]

@@ -42,6 +42,8 @@ def test_pin_label_colour_and_unpin(client: TestClient, tmp_path: Path) -> None:
         "labels": [],
         "missing": 0,
         "limit": 5000,
+        "parent": None,
+        "inherited": 0,
     }
 
     first = client.put(url(dataset), json={"rows": [3, 17], "label": " big ", "color": 2}).json()
@@ -151,3 +153,34 @@ def test_the_agent_compares_pinned_rows(client: TestClient, tmp_path: Path) -> N
     wrong = tool.parse({"label": "nope"})
     with pytest.raises(ToolError, match="No pinned row"):
         tool.run(ToolContext(dataset), wrong)
+
+
+def test_a_cleaned_version_follows_the_parent_pins_and_data_shows_them_alone(
+    client: TestClient, tmp_path: Path
+) -> None:
+    """099 bis: R-PIN-16, the parent's pins on the rows the cleaning kept; R-PIN-17, the Data
+    page's rows narrowed to the pinned ones."""
+    dataset = import_path(client, shop(tmp_path / "shop.csv"))
+    client.put(url(dataset), json={"rows": [0, 3, 17], "label": "big", "color": 2})
+    child = save(client, dataset, [{"id": "s1", "op": "drop_rows", "rows": [0]}])
+
+    found = client.get(url(child)).json()
+    assert [(p["row"], p["label"], p["inherited"]) for p in found["pins"]] == [
+        (2, "big", True),
+        (16, "big", True),
+    ]
+    assert found["inherited"] == 2 and "R-PIN-16" in found["parent"]
+    assert "1 were on rows the cleaning removed" in found["parent"]
+    # the child's own pin on a row takes over the inherited one
+    client.put(url(child), json={"rows": [2], "label": "test", "color": 4})
+    mine = {p["row"]: (p["label"], p["inherited"]) for p in client.get(url(child)).json()["pins"]}
+    assert mine[2] == ("test", False) and mine[16] == ("big", True)
+
+    rows = client.get(f"/api/v1/datasets/{child}/rows", params={"pinned": True}).json()
+    assert rows["total"] == 2 and [r[0] for r in rows["rows"]] == [3, 17]  # shown from 1
+    big = client.get(
+        f"/api/v1/datasets/{child}/rows", params={"pinned": True, "pin_label": "big"}
+    ).json()
+    assert big["total"] == 1
+    none = client.get(f"/api/v1/datasets/{dataset}/rows", params={"pinned": True, "pin_label": "x"})
+    assert none.json()["total"] == 0

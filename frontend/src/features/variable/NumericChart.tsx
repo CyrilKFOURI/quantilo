@@ -39,7 +39,7 @@ export function NumericChart({ datasetId, column, type, profile }: NumericChartP
     if (view === "violin") return violinFigure(profile);
     if (view === "box") return boxFromProfile(profile);
     if (view === "qq" && profile.qq) {
-      return qqFigure(profile.qq.theoretical, profile.qq.sample, profile.qq, "Normal quantiles (z)");
+      return qqFigure(profile.qq.theoretical, profile.qq.sample, profile.qq, t("fig.variable.normalQuantilesZ"));
     }
     if (!chart.data) return null;
     return chart.data.kind === "bars" ? barsFigure(chart.data, type) : histogramFigure(chart.data, type);

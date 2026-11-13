@@ -14,6 +14,10 @@ and `model.neutralize(["feature_1"], 1.0)`.
 
 Where it is wrong (036): `model.errors()` (subgroups, error by column, worst predictions, hints),
 `model.compare_errors(other)`, `model.fairness("sex")`.
+
+Readable by construction, two classes (121, 122): `model.scorecard()` (FasterRisk: points per
+condition, total → risk, gap to the model), `model.sparse_tree()` (CART, 1-SE pruning);
+with the `interpret` extra, `model.optimal_tree()` (GOSDT) and `model.rashomon_set()`.
 """
 
 from collections.abc import Callable, Iterator
@@ -21,9 +25,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+import duckdb
 import numpy as np
 
 from quantilo.filters.model import Condition
+from quantilo.interpret import rashomon as optimal
+from quantilo.interpret import risk_score as interpretable
+from quantilo.interpret import sparse_tree as sparse
 from quantilo.ml import auto as automl
 from quantilo.ml import classes as binning
 from quantilo.ml import error_analysis as mistakes
@@ -134,6 +142,84 @@ class TrainedModel(Predicting):
         positive rate, recall; numbers: mean error, prediction and actual), with the largest gap.
         Display only: nothing is corrected."""
         return self._engine._fairness(self._id, self, self._held_out(), self._conditions, column)
+
+    def scorecard(
+        self, conditions: int = 5, points: int = 5, monotone: bool = False
+    ) -> interpretable.RiskScores:
+        """Two classes (121): FasterRisk's scorecard, at most `conditions` conditions with
+        integer points from -`points` to `points` (3, 5 or 10), the table total to risk, and its
+        gap to this model on the same held-out rows (`gap`, R-XAI-07)."""
+        return self._engine._risk_scores(
+            self._id,
+            self.result.pipeline,
+            self,
+            self._conditions,
+            self._held_out(),
+            conditions,
+            points,
+            monotone,
+        )
+
+    def class_scorecards(
+        self, conditions: int = 5, points: int = 5, monotone: bool = False
+    ) -> interpretable.ClassCards:
+        """Three classes or more (121 bis, R-XAI-17): one card per class, that class against the
+        others; a row goes to the class whose card gives the highest risk."""
+        return self._engine._class_cards(
+            self._id,
+            self.result.pipeline,
+            self,
+            self._conditions,
+            self._held_out(),
+            conditions,
+            points,
+            monotone,
+        )
+
+    def scorecard_row(
+        self, data: Any, row: int, conditions: int = 5, points: int = 5
+    ) -> interpretable.CardRow:
+        """121 bis (R-XAI-18): this run's best scorecard read on one row of new data (a Dataset
+        or a DataFrame): the conditions that hold, their points, the total and the risk."""
+        found = self.scorecard(conditions, points)
+        source, views = self._scope(data)
+        connection = duckdb.connect()
+        try:
+            frame = use.one_row(connection, source, self.card, views, row)
+        finally:
+            connection.close()
+        if frame.empty:
+            raise MlError("This row is not in the data.")
+        try:
+            return interpretable.card_row(found, frame, row)
+        except interpretable.RiskScoreError as error:
+            raise MlError(str(error), "no_scorecard") from None
+
+    def sparse_tree(self, depth: int = 4, leaves: int = 12) -> sparse.SparseTree:
+        """A sparse CART tree learnt on the target (122; 122 bis: any number of classes and
+        numbers), pruned with the 1-SE rule (R-XAI-09), and its gap to this model on the same
+        held-out rows (ROC AUC for two classes, R² for a number)."""
+        return self._engine._sparse_tree(
+            self._id, self.result.pipeline, self, self._conditions, self._held_out(), depth, leaves
+        )
+
+    def optimal_tree(self, depth: int = 4) -> optimal.OptimalTree | optimal.RashomonSet:
+        """Two classes (122, extra `interpret`): GOSDT's optimal sparse tree."""
+        return self._engine._optimal(
+            self._id, self.result.pipeline, self, self._conditions, self._held_out(), "gosdt", depth
+        )
+
+    def rashomon_set(self, depth: int = 4) -> optimal.OptimalTree | optimal.RashomonSet:
+        """Two classes (122, extra `interpret`): TreeFARMS's trees within 5 % of the best."""
+        return self._engine._optimal(
+            self._id,
+            self.result.pipeline,
+            self,
+            self._conditions,
+            self._held_out(),
+            "treefarms",
+            depth,
+        )
 
     def neutralize(self, columns: list[str], proportion: float = 1.0) -> panels.Neutralized:
         """Remove from the held-out predictions the part `columns` explain linearly, period by

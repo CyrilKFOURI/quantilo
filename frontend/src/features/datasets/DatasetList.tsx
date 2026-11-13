@@ -11,6 +11,7 @@ import {
   projectKeys,
   useCreateProject,
   useDeleteProject,
+  useAddToProject,
   useMoveDatasets,
   useProjects,
   useRenameProject,
@@ -25,6 +26,9 @@ import { groupFamilies, type FamilyRow } from "../../modules/clean/lineage";
 import { Dialog } from "../../ui/Dialog";
 import { Checkbox, ErrorNote, TextInput } from "../../ui/fields";
 import { StatusBadge } from "./StatusBadge";
+
+/** The "New project…" of the ticked datasets' Move to… (they go in once it is created). */
+const SELECTION = "__selection__";
 
 /** Of two datasets, the one imported last is the new version; the other is the reference. */
 export function versionsOrder(first: Dataset, second: Dataset): [Dataset, Dataset] {
@@ -41,9 +45,9 @@ export function DatasetList({ datasets, openProject = null }: { datasets: Datase
   const [selected, setSelected] = useState<string[]>([]);
   const navigate = useNavigate();
   const chosen = datasets.filter((dataset) => selected.includes(dataset.id) && dataset.status === "ready");
-  // Ticking a third dataset replaces the oldest tick: two are compared at most.
+  // C1: any number can be ticked (to move them together); exactly two are compared.
   const toggle = (id: string) =>
-    setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id].slice(-2)));
+    setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   const compare = () => {
     const [first, second] = chosen;
     if (!first || !second) return;
@@ -70,22 +74,31 @@ export function DatasetList({ datasets, openProject = null }: { datasets: Datase
   const renameProject = useRenameProject();
   const deleteProject = useDeleteProject();
   const move = useMoveDatasets();
+  const addTo = useAddToProject();
   const [collapsed, setCollapsed] = useStoredState<string[]>("de.projects.collapsed", []);
   // `pendingMove`: "New project…" from a dataset's Move to… menu: the dataset goes in once created
   const [creating, setCreating] = useState<{ pendingMove: string | null } | null>(null);
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
-  const [dragging, setDragging] = useState<FamilyRow | null>(null);
+  // the row dragged and the group it is dragged from (C1: a dataset may be in several projects)
+  const [dragging, setDraggingState] = useState<{ row: FamilyRow; from: string | null } | null>(null);
+  const setDragging = (row: FamilyRow | null, from: string | null = null) => setDraggingState(row ? { row, from } : null);
   const [over, setOver] = useState<string | null>(null);
-  const error = remove.error ?? reimport.error ?? move.error ?? renameProject.error ?? deleteProject.error;
+  const error = remove.error ?? reimport.error ?? move.error ?? addTo.error ?? renameProject.error ?? deleteProject.error;
   // R-PRJ-10: no project, no group (the list of before)
   const grouped = projects.length > 0 || creating !== null || openProject !== null;
   const groups = groupByProject(rows, projects).filter((group) => !openProject || group.project?.id === openProject.id);
-  const projectOfRow = (row: FamilyRow) => groups.find((group) => group.rows.includes(row))?.project?.id ?? null;
+  const memberOf = (row: FamilyRow) =>
+    projects.filter((project) => project.dataset_ids.includes(row.version?.parentId ?? row.dataset.id)).map((project) => project.id);
 
-  const moveRow = (row: FamilyRow, projectId: string | null) => {
-    if (projectOfRow(row) === projectId) return;
-    move.mutate({ datasetIds: familyIds(row, rows), projectId });
+  /** Out of the group it is shown in (`from`), into `projectId` (C1: its other projects kept). */
+  const moveRow = (row: FamilyRow, projectId: string | null, from: string | null) => {
+    if (from === projectId) return;
+    move.mutate({ datasetIds: familyIds(row, rows), projectId, fromProjectId: from });
   };
+  const addRow = (row: FamilyRow, projectId: string) => addTo.mutate({ datasetIds: familyIds(row, rows), projectId });
+  // C1: "Move to…" on the ticked datasets (their families), out of every other project
+  const selectedRows = rows.filter((row) => selected.includes(row.dataset.id));
+  const selectionIds = [...new Set(selectedRows.flatMap((row) => familyIds(row, rows)))];
   const startCreate = (pendingMove: string | null = null) => {
     createProject.reset();
     setCreating({ pendingMove });
@@ -96,6 +109,7 @@ export function DatasetList({ datasets, openProject = null }: { datasets: Datase
         const pending = rows.find((row) => row.dataset.id === creating?.pendingMove);
         setCreating(null);
         if (pending) move.mutate({ datasetIds: familyIds(pending, rows), projectId: project.id });
+        else if (creating?.pendingMove === SELECTION) move.mutate({ datasetIds: selectionIds, projectId: project.id });
       },
     });
   const toggleGroup = (key: string) =>
@@ -106,7 +120,7 @@ export function DatasetList({ datasets, openProject = null }: { datasets: Datase
     const target = project?.id ?? null;
     const accepts = (event: DragEvent) => dragging !== null && event.dataTransfer.types.includes(DRAG_TYPE);
     return {
-      dropActive: over === key && dragging !== null && projectOfRow(dragging) !== target,
+      dropActive: over === key && dragging !== null && dragging.from !== target,
       onDragOver: (event: DragEvent) => {
         if (!accepts(event)) return;
         event.preventDefault();
@@ -120,14 +134,14 @@ export function DatasetList({ datasets, openProject = null }: { datasets: Datase
       onDrop: (event: DragEvent) => {
         if (!accepts(event) || !dragging) return;
         event.preventDefault();
-        moveRow(dragging, target);
+        moveRow(dragging.row, target, dragging.from);
         setOver(null);
         setDragging(null);
       },
     };
   };
 
-  const renderRows = (list: FamilyRow[]) =>
+  const renderRows = (list: FamilyRow[], from: string | null = null) =>
     list.map((row) => (
       <DatasetRow
         key={row.dataset.id}
@@ -140,8 +154,8 @@ export function DatasetList({ datasets, openProject = null }: { datasets: Datase
           setDeleting(row);
         }}
         onReimport={() => reimport.mutate(row.dataset.id)}
-        dragging={dragging !== null && familyIds(dragging, rows).includes(row.dataset.id)}
-        onDragStart={grouped ? () => setDragging(row) : undefined}
+        dragging={dragging !== null && familyIds(dragging.row, rows).includes(row.dataset.id)}
+        onDragStart={grouped ? () => setDragging(row, from) : undefined}
         onDragEnd={() => {
           setDragging(null);
           setOver(null);
@@ -150,9 +164,11 @@ export function DatasetList({ datasets, openProject = null }: { datasets: Datase
           projects.length > 0 ? (
             <MoveToMenu
               name={row.dataset.name}
-              current={projectOfRow(row)}
+              current={from}
+              memberOf={memberOf(row)}
               projects={projects}
-              onMove={(projectId) => moveRow(row, projectId)}
+              onMove={(projectId) => moveRow(row, projectId, from)}
+              onAdd={(projectId) => addRow(row, projectId)}
               onNew={() => startCreate(row.dataset.id)}
             />
           ) : null
@@ -171,8 +187,21 @@ export function DatasetList({ datasets, openProject = null }: { datasets: Datase
             </Button>
           ) : (
             datasets.length > 1 && (
-              <span className="text-xs text-ink-3">{t(chosen.length === 1 ? "changes.pickOneMore" : "changes.pickTwo")}</span>
+              <span className="text-xs text-ink-3">{t(chosen.length === 1 ? "changes.pickOneMore" : chosen.length > 2 ? "projects.pickTwoToCompare" : "changes.pickTwo")}</span>
             )
+          )}
+          {/* C1: the ticked datasets moved together (keyboard, phone, tablet: no dragging) */}
+          {projects.length > 0 && selectedRows.length > 0 && (
+            <MoveToMenu
+              name={t("projects.selection", { count: String(selectedRows.length) })}
+              current={null}
+              memberOf={[]}
+              projects={projects}
+              label={t("projects.moveSelected", { count: String(selectedRows.length) })}
+              onMove={(projectId) => move.mutate({ datasetIds: selectionIds, projectId }, { onSuccess: () => setSelected([]) })}
+              onAdd={(projectId) => addTo.mutate({ datasetIds: selectionIds, projectId }, { onSuccess: () => setSelected([]) })}
+              onNew={() => startCreate(SELECTION)}
+            />
           )}
           {!openProject && (
             <Button icon={FolderPlus} onClick={() => startCreate()} disabled={creating !== null}>
@@ -224,7 +253,7 @@ export function DatasetList({ datasets, openProject = null }: { datasets: Datase
                     onRename={project ? (name) => renameProject.mutate({ id: project.id, name }) : undefined}
                     onDelete={project ? () => setDeletingProject(project) : undefined}
                   >
-                    {group.rows.length > 0 ? renderRows(group.rows) : <EmptyGroup open={isOpen} />}
+                    {group.rows.length > 0 ? renderRows(group.rows, project?.id ?? null) : <EmptyGroup open={isOpen} />}
                   </ProjectGroup>
                 );
               })

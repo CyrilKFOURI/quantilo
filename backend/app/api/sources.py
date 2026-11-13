@@ -5,7 +5,7 @@ from fastapi import APIRouter, Query, Request, Response
 from quantilo.ingestion.browse import Listing
 from quantilo.ingestion.image_sets import IMAGE_SUFFIXES, image_source
 from quantilo.ingestion.original import Original
-from quantilo.ingestion.preview import Preview
+from quantilo.ingestion.preview import Preview, TableStack
 from quantilo.ingestion.sniff import sniff_path
 from quantilo.ingestion.sources import detect_format
 
@@ -22,6 +22,7 @@ from app.schemas.datasets import (
     SourceImportRequest,
     SourceImportResponse,
     SourceOut,
+    StacksRequest,
     UploadOut,
 )
 from app.services.datasets.service import DatasetService
@@ -53,6 +54,12 @@ def source_original(body: OriginalRequest, service: Datasets) -> Original:
     return service.original(body.path, body.sheet)
 
 
+@router.post("/sources/stacks")
+def source_stacks(body: StacksRequest, service: Datasets) -> list[TableStack]:
+    """S1 (C1): the tables of a workbook that share their columns (Advanced, on demand)."""
+    return service.stacks(body.path)
+
+
 @router.post("/sources/import", status_code=201)
 def import_tables(
     body: SourceImportRequest, service: Datasets, projects: Projects
@@ -63,7 +70,11 @@ def import_tables(
     if body.project_id is not None:
         projects.get(body.project_id)  # 404 before anything is imported
     source, started = service.import_tables(
-        body.path, [(table.id, table.name) for table in body.tables], body.options, body.name
+        body.path,
+        [(table.id, table.name) for table in body.tables],
+        body.options,
+        body.name,
+        stack=body.stack,
     )
     if body.project_id is not None:
         projects.move([record.id for record, _ in started], body.project_id)

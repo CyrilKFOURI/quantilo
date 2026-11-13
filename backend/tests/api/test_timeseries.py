@@ -1,6 +1,7 @@
 import json
 import math
 import time
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -232,6 +233,68 @@ def test_forecast_with_drivers(client: TestClient, shop: str) -> None:
         assert refused.status_code == 422, refused.text
 
 
+@pytest.fixture
+def french_shop(client: TestClient, tmp_path: Path) -> str:
+    """Daily sales of a French shop, closed (low sales) on public holidays."""
+    import holidays
+
+    closed = holidays.country_holidays("FR", years=[2023, 2024])
+    lines = ["day,sales,country"]
+    start = date(2023, 1, 2)
+    for i in range(420):
+        day = start + timedelta(days=i)
+        sales = 200 + 20 * (day.weekday() < 5) - (120 if day in closed else 0) + (i % 3)
+        lines.append(f"{day:%Y-%m-%d},{sales},France")
+    path = tmp_path / "french_shop.csv"
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return import_path(client, path)
+
+
+def test_public_holidays_and_tuning(client: TestClient, french_shop: str) -> None:
+    """028 A5 / A7: the country proposed by rule, the holidays driver, the options of the models."""
+    params = {"time": "day", "value": "sales", "period": "day", "horizon": 14}
+    offer = get(client, french_shop, "drivers", **params).json()["holidays"]
+    assert offer["usable"] and not offer["weekly"]
+    assert offer["guess"]["code"] == "FR" and offer["guess"]["rule"] == "column"
+    assert offer["guess"]["column"] == "country" and offer["guess"]["value"] == "France"
+    assert any(c["code"] == "US" for c in offer["countries"])
+
+    body = {
+        "drivers": [{"column": "FR", "kind": "holidays", "known": True}],
+        "tuning": {"changepoints": 5, "gbm_grid": "small", "time_limit": 120},
+    }
+    started = client.post(
+        f"{BASE}/{french_shop}/forecast",
+        params={**params, "methods": "naive,tslm,prophet_like"},
+        json=body,
+    )
+    assert started.status_code == 202, started.text
+    job = wait(client, started.json())
+    assert job["status"] == "done", job
+    result = job["result"]
+    (info,) = result["drivers"]
+    assert info["kind"] == "holidays" and info["label"] == "Public holidays (FR)"
+    tslm = next(r for r in result["results"] if r["key"] == "tslm")
+    assert tslm["drivers"][0]["verdict"] == "helps"
+    assert tslm["drivers"][0]["coefficient"] == pytest.approx(-120, abs=15)
+    prophet = next(r for r in result["results"] if r["key"] == "prophet_like")
+    assert [c["kind"] for c in prophet["components"]][:1] == ["trend"]
+    assert "holidays" in {c["kind"] for c in prophet["components"]}
+
+    monthly = get(client, french_shop, "drivers", **{**params, "period": "month"}).json()
+    assert not monthly["holidays"]["usable"]
+    refused = [
+        {"drivers": [{"column": "FR", "kind": "holidays"}]},  # monthly periods
+        {"tuning": {"max_p": 9}},
+        {"tuning": {"criterion": "hqic"}},
+    ]
+    for wrong in refused:
+        answer = client.post(
+            f"{BASE}/{french_shop}/forecast", params={**params, "period": "month"}, json=wrong
+        )
+        assert answer.status_code == 422, answer.text
+
+
 def test_ar_order_and_volatility_window(client: TestClient, sales: str) -> None:
     auto = get(client, sales, "autocorrelation", value="revenue").json()["ar"]
     assert auto["chosen_by"] == "AIC" and len(auto["orders"]) >= 5
@@ -403,6 +466,39 @@ def test_kalman_gaps_anomalies_and_structural_model(client: TestClient, sales: s
     done = wait(client, job)
     structural = next(m for m in done["result"]["results"] if m["key"] == "structural")
     assert structural["info"].startswith("UCM(") and structural["scores"] is not None
+
+
+def test_prophet_like_and_stlf(client: TestClient, sales: str, shop: str) -> None:
+    """028 A6: daily sales over three years have a weekly and a yearly cycle; the Prophet-like
+    model takes drivers and drives scenarios like the linear regression."""
+    job = client.post(
+        f"{BASE}/{sales}/forecast",
+        params={"period": "day", "methods": "naive,prophet_like,stlf", "horizon": 14},
+    ).json()
+    done = wait(client, job)
+    assert done["status"] == "done", done
+    result = done["result"]
+    assert result["cycles"] == ["weekly", "yearly"]
+    models = {m["key"]: m for m in result["results"]}
+    assert "weekly (K=3) + yearly (K=10)" in models["prophet_like"]["info"]
+    assert models["stlf"]["info"].startswith("MSTL (7, 365) + ETS(")
+    assert all(models[k]["scores"] is not None for k in ("prophet_like", "stlf"))
+
+    params = {"time": "month", "value": "sales", "period": "month", "horizon": 4}
+    body = {"drivers": [{"column": "price", "known": True}]}
+    started = client.post(
+        f"{BASE}/{shop}/forecast", params={**params, "methods": "naive,prophet_like"}, json=body
+    )
+    prophet = next(
+        r for r in wait(client, started.json())["result"]["results"] if r["key"] == "prophet_like"
+    )
+    assert prophet["uses_drivers"] and prophet["drivers"][0]["p_value"] is None
+    assert prophet["drivers"][0]["coefficient"] == pytest.approx(-10, abs=1)
+    scenario = client.post(
+        f"{BASE}/{shop}/scenario", params={**params, "model": "prophet_like"}, json=body
+    )
+    assert scenario.status_code == 200, scenario.text
+    assert len(scenario.json()["forecast"]) == 4
 
 
 def test_regimes_route(client: TestClient, sales: str) -> None:

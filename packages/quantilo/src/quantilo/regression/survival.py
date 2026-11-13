@@ -24,6 +24,9 @@ MIN_EVENTS = 10  # R-REG-SURV-01
 MAX_COX_ROWS = 50_000
 MAX_TOBIT_ROWS = 20_000  # R-REG-TOB-01
 PH_P = 0.01  # R-REG-SURV-02
+MAX_STRATA = 20  # R-REG-SURV-03
+MAX_PROFILES = 6  # R-REG-SURV-05: adjusted curves drawn
+CURVE_POINTS = 200
 CENSORED_SHARE = 0.10  # R-REG-06
 SEED = 42
 LEAST_SQUARES = ("ols", "wls")
@@ -125,6 +128,24 @@ class CoxTable:
     sentence: str = ""
     ph_sentence: str = ""
     notes: list[str] = field(default_factory=list)
+    strata: str | None = None  # R-REG-SURV-03: each level its own baseline hazard
+    strata_count: int = 0
+    strata_hint: str = ""  # R-REG-SURV-03: a category whose hazards are not proportional
+    start: str | None = None  # R-REG-SURV-04: rows are intervals (start, duration]
+    start_reason: str = ""
+    curves: list["AdjustedCurve"] = field(default_factory=list)  # R-REG-SURV-05
+    curves_sentence: str = ""
+
+
+@dataclass
+class AdjustedCurve:
+    """R-REG-SURV-05: S(t | profile) = exp(−H₀(t)·exp(x′β)), H₀ by Breslow (Nelson–Aalen
+    form), the other columns at their mean."""
+
+    label: str
+    times: list[float]
+    survival: list[float]
+    median: float | None  # the first time S ≤ ½, None when never reached
 
 
 def schoenfeld_test(
@@ -152,13 +173,58 @@ def schoenfeld_test(
     return found
 
 
-def cox(fit: an.Fitted, event: np.ndarray, name: str, reason: str) -> CoxTable:
-    """Advanced › More › Survival (076, R-REG-SURV-01, 02): `event` is 1/0 over the used rows."""
+@dataclass
+class Strata:
+    """R-REG-SURV-03: a category over the used rows (codes, −1 missing) and its labels."""
+
+    column: str
+    codes: np.ndarray
+    labels: list[str]
+
+
+@dataclass
+class Entry:
+    """R-REG-SURV-04: the start of each row's interval, over the used rows."""
+
+    column: str
+    values: np.ndarray
+    reason: str
+
+
+def cox(
+    fit: an.Fitted,
+    event: np.ndarray,
+    name: str,
+    reason: str,
+    strata: Strata | None = None,
+    entry: Entry | None = None,
+) -> CoxTable:
+    """Advanced › More › Survival (076, R-REG-SURV-01…05): `event` is 1/0 over the used rows;
+    `strata` gives each of its levels its own baseline hazard, `entry` reads each row as the
+    interval (entry, duration] (time-varying columns, one row per interval)."""
     durations = fit.original if fit.original is not None else fit.design.y
-    columns = [j for j, term in enumerate(fit.design.terms) if term != INTERCEPT]
+    columns = [
+        j
+        for j, term in enumerate(fit.design.terms)
+        if term != INTERCEPT and (strata is None or fit.design.columns[j] != strata.column)
+    ]
     if not columns:
         return CoxTable(False, "Add an explanatory column: the Cox model compares hazards.")
     ok = np.isfinite(event) & np.isfinite(durations) & (durations >= 0)
+    late = 0
+    if strata is not None:
+        ok &= strata.codes >= 0
+        if len(np.unique(strata.codes[ok])) > MAX_STRATA:
+            return CoxTable(
+                False,
+                f"`{strata.column}` has more than {MAX_STRATA} levels: too many baselines to "
+                "estimate (R-REG-SURV-03).",
+            )
+    if entry is not None:
+        ok &= np.isfinite(entry.values)
+        bad = ok & (entry.values >= durations)
+        late = int(bad.sum())
+        ok &= ~bad
     if (durations < 0).any():
         reason_neg = f" {int((durations < 0).sum()):,} rows with a negative duration are left out."
     else:
@@ -167,6 +233,8 @@ def cox(fit: an.Fitted, event: np.ndarray, name: str, reason: str) -> CoxTable:
     sampled = len(picked) > MAX_COX_ROWS
     picked = picked[_sample(len(picked), MAX_COX_ROWS)]
     t, e, x = durations[picked], event[picked], fit.design.x[np.ix_(picked, columns)]
+    codes = strata.codes[picked] if strata is not None else None
+    starts = entry.values[picked] if entry is not None else None
     events = int(e.sum())
     if events < MIN_EVENTS:
         return CoxTable(
@@ -176,7 +244,7 @@ def cox(fit: an.Fitted, event: np.ndarray, name: str, reason: str) -> CoxTable:
         )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        model = PHReg(t, x, status=e, ties="breslow")
+        model = PHReg(t, x, status=e, entry=starts, strata=codes, ties="breslow")
         found: Any = model.fit()
         null: float = cast(Any, model).loglike(np.zeros(x.shape[1]))
         residuals = np.asarray(found.schoenfeld_residuals, dtype=float)
@@ -250,8 +318,160 @@ def cox(fit: an.Fitted, event: np.ndarray, name: str, reason: str) -> CoxTable:
         )
     if reason_neg:
         table.notes.append(reason_neg.strip())
+    if strata is not None:
+        table.strata = strata.column
+        table.strata_count = len(np.unique(codes)) if codes is not None else 0
+        table.notes.append(
+            f"R-REG-SURV-03: stratified by `{strata.column}` ({table.strata_count} levels): each "
+            "level has its own baseline hazard, so it gets no hazard ratio; the other effects "
+            "are shared."
+        )
+    else:
+        table.strata_hint = _strata_hint(fit, columns, terms)
+    if entry is not None:
+        table.start, table.start_reason = entry.column, entry.reason
+        table.notes.append(
+            f"R-REG-SURV-04: each row is the interval from `{entry.column}` to "
+            f"`{fit.inputs.target}`; a row counts in the risk set only within its interval, so "
+            "columns that change over time take one row per interval."
+        )
+        if late:
+            table.notes.append(
+                f"{late:,} rows whose start is not before their end are left out (R-REG-SURV-04)."
+            )
+    table.curves = _curves(fit, model, params, x, columns, terms, strata, codes)
+    table.curves_sentence = _curves_sentence(table.curves, fit.inputs.target, name)
     table.notes.append("Ties by Breslow's method; survival curves by group: Compare › Durations.")
     return table
+
+
+def _strata_hint(fit: an.Fitted, columns: list[int], terms: list[HazardTerm]) -> str:
+    """R-REG-SURV-03: a category whose indicators break proportional hazards is stratified on
+    rather than modelled: its hazards need not keep their ratio over time. Proposed, never
+    applied."""
+    for j, term in zip(columns, terms, strict=True):
+        if term.proportional is False and fit.design.levels[j] is not None:
+            column = fit.design.columns[j]
+            return (
+                f"R-REG-SURV-03: the hazards of `{column}` do not keep their ratio over time "
+                f"(Schoenfeld {an.fmt_p(term.ph_p)}): pick it in Strata, each level then gets its "
+                "own baseline."
+            )
+    return ""
+
+
+def _profiles(
+    fit: an.Fitted, x: np.ndarray, columns: list[int], terms: list[HazardTerm]
+) -> list[tuple[str, np.ndarray]]:
+    """R-REG-SURV-05: the average row, or each level of the category with the clearest
+    effect (the other columns at their mean), or the strongest number at its 10th and 90th
+    percentiles."""
+    mean = x.mean(axis=0)
+    levels: dict[str, list[int]] = {}
+    for i, j in enumerate(columns):
+        if fit.design.levels[j] is not None:
+            levels.setdefault(fit.design.columns[j], []).append(i)
+    candidates = [(column, idx) for column, idx in levels.items() if len(idx) < MAX_PROFILES]
+
+    def clearest(item: tuple[str, list[int]]) -> float:
+        return min(_p(terms[i]) for i in item[1])
+
+    picked = min(candidates, key=clearest) if candidates else None
+    if picked is not None:
+        column, idx = picked
+        reference = next(
+            (r.level for r in fit.design.references if r.column == column), "reference"
+        )
+        found: list[tuple[str, np.ndarray]] = []
+        base = mean.copy()
+        base[idx] = 0.0
+        found.append((f"{column} = {reference}", base))
+        for i in idx:
+            row = base.copy()
+            row[i] = 1.0
+            found.append((f"{column} = {fit.design.levels[columns[i]]}", row))
+        return found
+    numeric = [i for i, j in enumerate(columns) if fit.design.levels[j] is None]
+    if numeric:
+        i = min(numeric, key=lambda i: _p(terms[i]))
+        low, high = np.quantile(x[:, i], [0.1, 0.9])
+        if high > low:
+            term = fit.design.terms[columns[i]]
+            rows = []
+            for label, value in (
+                (f"{term} = {an.fmt(low)} (10th pct)", low),
+                (f"{term} = {an.fmt(high)} (90th pct)", high),
+            ):
+                row = mean.copy()
+                row[i] = value
+                rows.append((label, row))
+            return rows
+    return [("Average row", mean)]
+
+
+def _p(term: HazardTerm) -> float:
+    return term.p_value if term.p_value is not None else 1.0
+
+
+def _thin_curve(times: np.ndarray, values: np.ndarray) -> tuple[list[float], list[float]]:
+    if len(times) > CURVE_POINTS:
+        keep = np.unique(np.linspace(0, len(times) - 1, CURVE_POINTS).astype(int))
+        times, values = times[keep], values[keep]
+    return [0.0, *(float(v) for v in times)], [1.0, *(float(v) for v in values)]
+
+
+def _median(times: np.ndarray, survival: np.ndarray) -> float | None:
+    below = np.flatnonzero(survival <= 0.5)
+    return float(times[below[0]]) if len(below) else None
+
+
+def _curves(
+    fit: an.Fitted,
+    model: Any,
+    params: np.ndarray,
+    x: np.ndarray,
+    columns: list[int],
+    terms: list[HazardTerm],
+    strata: Strata | None,
+    codes: np.ndarray | None,
+) -> list[AdjustedCurve]:
+    """R-REG-SURV-05: adjusted survival curves, one per profile (or per stratum)."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        baselines = cast(Any, model).baseline_cumulative_hazard(params)
+    curves: list[AdjustedCurve] = []
+    if strata is not None and codes is not None:
+        mean = x.mean(axis=0)
+        names = [
+            strata.labels[c] if 0 <= c < len(strata.labels) else str(c) for c in np.unique(codes)
+        ]
+        for label, (times, hazard, _) in list(zip(names, baselines, strict=False))[:MAX_PROFILES]:
+            t, h = np.asarray(times, dtype=float), np.asarray(hazard, dtype=float)
+            surv = np.exp(-h * math.exp(float(mean @ params)))
+            xs, ys = _thin_curve(t, surv)
+            curves.append(AdjustedCurve(f"{strata.column} = {label}", xs, ys, _median(t, surv)))
+        return curves
+    times, hazard, _ = baselines[0]
+    t, h = np.asarray(times, dtype=float), np.asarray(hazard, dtype=float)
+    for label, row in _profiles(fit, x, columns, terms):
+        surv = np.exp(-h * math.exp(float(row @ params)))
+        xs, ys = _thin_curve(t, surv)
+        curves.append(AdjustedCurve(label, xs, ys, _median(t, surv)))
+    return curves
+
+
+def _curves_sentence(curves: list[AdjustedCurve], target: str, event: str) -> str:
+    if not curves:
+        return ""
+    parts = [
+        f"`{c.label}` by {an.fmt(c.median)}" if c.median is not None else f"`{c.label}` never"
+        for c in curves
+    ]
+    return (
+        f"Adjusted for the other columns (at their mean), half the rows reach `{event}`: "
+        + "; ".join(parts)
+        + f" (in units of `{target}`, R-REG-SURV-05)."
+    )
 
 
 def _hazard_sentence(term: HazardTerm, event: str) -> str:

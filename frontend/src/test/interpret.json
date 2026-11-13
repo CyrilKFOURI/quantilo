@@ -1,0 +1,567 @@
+{
+ "matchingOffer": {
+  "available": true,
+  "reason": "Two actions (email, sms) and 2 columns describing the units (age, region): the units can be matched exactly on them, to compare like with like (R-MAT-01)."
+ },
+ "matched": {
+  "treatment": "offer",
+  "treated": "sms",
+  "control": "email",
+  "outcome": "converted",
+  "kind": "rate",
+  "units": 1600,
+  "held_out": 400,
+  "sampled": false,
+  "treated_units": 512,
+  "control_units": 1088,
+  "matched_treated": 512,
+  "matched_control": 1088,
+  "effects": [
+   {
+    "key": "naive",
+    "label": "Naive gap (no matching)",
+    "value": 0.13338694852941177,
+    "low": 0.08707714384154805,
+    "high": 0.1796967532172755,
+    "units": 1600,
+    "sentence": "Naive gap, offer = sms vs offer = email without matching: +13.3 points on converted, 95 % CI [+8.7 ; +18.0]."
+   },
+   {
+    "key": "ate",
+    "label": "Average effect (matched units)",
+    "value": 0.08994955759954706,
+    "low": 0.0404469467472798,
+    "high": 0.13945216845181432,
+    "units": 1600,
+    "sentence": "Average effect of offer = sms over the matched units: +9.0 points on converted, 95 % CI [+4.0 ; +13.9]."
+   },
+   {
+    "key": "att",
+    "label": "Effect on the treated (matched)",
+    "value": 0.12016666790453814,
+    "low": 0.07066359453412882,
+    "high": 0.16966974127494747,
+    "units": 512,
+    "sentence": "Effect on the matched units with offer = sms: +12.0 points on converted, 95 % CI [+7.1 ; +17.0]."
+   }
+  ],
+  "group_count": 8,
+  "groups": [
+   {
+    "id": 1,
+    "level": 1,
+    "conditions": [
+     "age ≤ 30",
+     "region = north"
+    ],
+    "treated": 127,
+    "control": 89,
+    "treated_mean": 0.3937007874015748,
+    "control_mean": 0.20224719101123595,
+    "effect": 0.19145359639033888,
+    "low": 0.07870161716610441,
+    "high": 0.30420557561457334,
+    "rows": [
+     4,
+     14,
+     24,
+     47,
+     62,
+     66,
+     87,
+     92,
+     100,
+     155,
+     156,
+     178,
+     182,
+     217,
+     221,
+     229,
+     237,
+     241,
+     243,
+     247
+    ]
+   },
+   {
+    "id": 2,
+    "level": 1,
+    "conditions": [
+     "30 < age ≤ 44",
+     "region = south"
+    ],
+    "treated": 68,
+    "control": 145,
+    "treated_mean": 0.20588235294117646,
+    "control_mean": 0.16551724137931034,
+    "effect": 0.04036511156186612,
+    "low": -0.08496222292387118,
+    "high": 0.16569244604760341,
+    "rows": [
+     12,
+     19,
+     35,
+     73,
+     89,
+     102,
+     103,
+     118,
+     136,
+     138,
+     143,
+     157,
+     159,
+     166,
+     167,
+     172,
+     174,
+     176,
+     181,
+     184
+    ]
+   },
+   {
+    "id": 3,
+    "level": 1,
+    "conditions": [
+     "44 < age ≤ 57",
+     "region = north"
+    ],
+    "treated": 45,
+    "control": 164,
+    "treated_mean": 0.28888888888888886,
+    "control_mean": 0.21341463414634146,
+    "effect": 0.0754742547425474,
+    "low": -0.07036270307068224,
+    "high": 0.22131121255577704,
+    "rows": [
+     2,
+     8,
+     13,
+     40,
+     46,
+     51,
+     54,
+     56,
+     70,
+     76,
+     78,
+     81,
+     104,
+     106,
+     115,
+     116,
+     117,
+     120,
+     133,
+     139
+    ]
+   },
+   {
+    "id": 4,
+    "level": 1,
+    "conditions": [
+     "44 < age ≤ 57",
+     "region = south"
+    ],
+    "treated": 45,
+    "control": 162,
+    "treated_mean": 0.15555555555555556,
+    "control_mean": 0.15432098765432098,
+    "effect": 0.001234567901234579,
+    "low": -0.14474954084565658,
+    "high": 0.14721867664812574,
+    "rows": [
+     11,
+     18,
+     28,
+     33,
+     36,
+     43,
+     48,
+     53,
+     71,
+     77,
+     85,
+     101,
+     107,
+     122,
+     147,
+     153,
+     161,
+     162,
+     164,
+     165
+    ]
+   },
+   {
+    "id": 5,
+    "level": 1,
+    "conditions": [
+     "age ≤ 30",
+     "region = south"
+    ],
+    "treated": 108,
+    "control": 86,
+    "treated_mean": 0.4351851851851852,
+    "control_mean": 0.23255813953488372,
+    "effect": 0.20262704565030146,
+    "low": 0.0841130871000898,
+    "high": 0.3211410042005131,
+    "rows": [
+     25,
+     29,
+     44,
+     45,
+     79,
+     97,
+     105,
+     110,
+     119,
+     135,
+     137,
+     140,
+     146,
+     149,
+     196,
+     230,
+     239,
+     249,
+     251,
+     257
+    ]
+   },
+   {
+    "id": 6,
+    "level": 1,
+    "conditions": [
+     "30 < age ≤ 44",
+     "region = north"
+    ],
+    "treated": 52,
+    "control": 142,
+    "treated_mean": 0.3269230769230769,
+    "control_mean": 0.20422535211267606,
+    "effect": 0.12269772481040087,
+    "low": -0.01663095399885886,
+    "high": 0.26202640361966056,
+    "rows": [
+     20,
+     26,
+     27,
+     30,
+     39,
+     57,
+     63,
+     65,
+     68,
+     69,
+     72,
+     86,
+     94,
+     98,
+     111,
+     123,
+     126,
+     154,
+     160,
+     185
+    ]
+   },
+   {
+    "id": 7,
+    "level": 1,
+    "conditions": [
+     "age > 57",
+     "region = north"
+    ],
+    "treated": 34,
+    "control": 156,
+    "treated_mean": 0.17647058823529413,
+    "control_mean": 0.16666666666666666,
+    "effect": 0.009803921568627472,
+    "low": -0.15512765289911098,
+    "high": 0.17473549603636593,
+    "rows": [
+     0,
+     15,
+     16,
+     32,
+     50,
+     59,
+     64,
+     67,
+     75,
+     80,
+     83,
+     88,
+     91,
+     93,
+     95,
+     112,
+     113,
+     124,
+     128,
+     129
+    ]
+   },
+   {
+    "id": 8,
+    "level": 1,
+    "conditions": [
+     "age > 57",
+     "region = south"
+    ],
+    "treated": 33,
+    "control": 144,
+    "treated_mean": 0.21212121212121213,
+    "control_mean": 0.1388888888888889,
+    "effect": 0.07323232323232323,
+    "low": -0.09475771706941599,
+    "high": 0.24122236353406246,
+    "rows": [
+     6,
+     31,
+     82,
+     96,
+     114,
+     130,
+     151,
+     169,
+     198,
+     204,
+     209,
+     218,
+     219,
+     234,
+     242,
+     245,
+     250,
+     262,
+     272,
+     289
+    ]
+   }
+  ],
+  "levels": [
+   {
+    "level": 1,
+    "covariates": [
+     "age",
+     "region"
+    ],
+    "dropped": null,
+    "prediction_error": 1.0420872775586365,
+    "balancing": 2.0,
+    "groups": 8,
+    "treated": 512,
+    "control": 1088
+   }
+  ],
+  "covariates": [
+   {
+    "column": "age",
+    "used": true,
+    "how": "4 bins at its quantiles",
+    "levels": [
+     "age ≤ 30",
+     "30 < age ≤ 44",
+     "44 < age ≤ 57",
+     "age > 57"
+    ],
+    "dropped_at": null
+   },
+   {
+    "column": "region",
+    "used": true,
+    "how": "its values",
+    "levels": [
+     "region = north",
+     "region = south"
+    ],
+    "dropped_at": null
+   }
+  ],
+  "balance": [
+   {
+    "column": "age",
+    "before": 0.6966200844569842,
+    "after": 0.041876404028656146,
+    "balanced": true,
+    "dropped_at": null
+   },
+   {
+    "column": "region",
+    "before": 0.005055417321379412,
+    "after": 0.0,
+    "balanced": true,
+    "dropped_at": null
+   }
+  ],
+  "stopped": "Every treated unit is matched.",
+  "sentence": "512 of 512 units with offer = sms (100%) matched exactly with 1,088 with offer = email in 8 groups, on 1 level. Average effect of offer = sms on converted: +9.0 points (95 % CI [+4.0 ; +13.9]), against a naive gap of +13.3 points.",
+  "warnings": [
+   "Observational: matching compares like with like on the columns given, it does not remove a hidden factor that drove both the decision and the outcome. Use columns measured before the decision, never ones it changed."
+  ],
+  "method": "FLAME (almost-exact matching, Wang, Rudin et al. 2021): units are grouped exactly on their covariates (numbers cut into bins); the unmatched ones are matched again after dropping the covariate that least helps to predict the outcome, measured on 20% held-out rows never matched. Intervals: normal approximation, given the groups."
+ },
+ "segmentTree": {
+  "depth": 3,
+  "found_depth": 2,
+  "leaves": 3,
+  "max_leaves": 8,
+  "alpha": 0.0,
+  "fidelity": 1.0,
+  "learnt": 210,
+  "checked": 90,
+  "nodes": [
+   {
+    "id": 0,
+    "depth": 0,
+    "value": "Low income (37%)",
+    "samples": 210,
+    "left": 1,
+    "right": 2,
+    "left_rule": "income ≤ 2.337e+04",
+    "right_rule": "income > 2.337e+04"
+   },
+   {
+    "id": 1,
+    "depth": 1,
+    "value": "Low income (54%)",
+    "samples": 143,
+    "left": 3,
+    "right": 4,
+    "left_rule": "age ≤ 36.2",
+    "right_rule": "age > 36.2"
+   },
+   {
+    "id": 2,
+    "depth": 1,
+    "value": "High income · Low age (100%)",
+    "samples": 67,
+    "left": null,
+    "right": null,
+    "left_rule": null,
+    "right_rule": null
+   },
+   {
+    "id": 3,
+    "depth": 2,
+    "value": "High age (100%)",
+    "samples": 66,
+    "left": null,
+    "right": null,
+    "left_rule": null,
+    "right_rule": null
+   },
+   {
+    "id": 4,
+    "depth": 2,
+    "value": "Low income (100%)",
+    "samples": 77,
+    "left": null,
+    "right": null,
+    "left_rule": null,
+    "right_rule": null
+   }
+  ],
+  "pruning": [
+   {
+    "alpha": 0.0,
+    "leaves": 3,
+    "error": 0.0,
+    "se": 0.0
+   },
+   {
+    "alpha": 0.33249433106575965,
+    "leaves": 1,
+    "error": 0.3857142857142858,
+    "se": 0.1574671977503472
+   }
+  ],
+  "segments": [
+   {
+    "segment": 0,
+    "name": "High income · Low age",
+    "rules": [
+     {
+      "parts": [
+       {
+        "column": "income",
+        "op": ">",
+        "value": 23369.509765625,
+        "text": "income > 23,370"
+       }
+      ],
+      "text": "income > 23,370",
+      "rows": 33,
+      "precision": 1.0
+     }
+    ],
+    "recall": 1.0,
+    "precision": 1.0,
+    "text": "These rules find 100 % of High income · Low age (100 % of the rows they find belong to it)."
+   },
+   {
+    "segment": 1,
+    "name": "Low income",
+    "rules": [
+     {
+      "parts": [
+       {
+        "column": "income",
+        "op": "<=",
+        "value": 23369.509765625,
+        "text": "income ≤ 23,370"
+       },
+       {
+        "column": "age",
+        "op": ">",
+        "value": 36.20000076293945,
+        "text": "age > 36.2"
+       }
+      ],
+      "text": "income ≤ 23,370 and age > 36.2",
+      "rows": 23,
+      "precision": 1.0
+     }
+    ],
+    "recall": 1.0,
+    "precision": 1.0,
+    "text": "These rules find 100 % of Low income (100 % of the rows they find belong to it)."
+   },
+   {
+    "segment": 2,
+    "name": "High age",
+    "rules": [
+     {
+      "parts": [
+       {
+        "column": "income",
+        "op": "<=",
+        "value": 23369.509765625,
+        "text": "income ≤ 23,370"
+       },
+       {
+        "column": "age",
+        "op": "<=",
+        "value": 36.20000076293945,
+        "text": "age ≤ 36.2"
+       }
+      ],
+      "text": "income ≤ 23,370 and age ≤ 36.2",
+      "rows": 34,
+      "precision": 1.0
+     }
+    ],
+    "recall": 1.0,
+    "precision": 1.0,
+    "text": "These rules find 100 % of High age (100 % of the rows they find belong to it)."
+   }
+  ],
+  "sentence": "A tree of 2 levels and 3 leaves (greedy CART, not optimal) puts 100 % of 90 rows it did not learn from in their own segment. Pruned by 5-fold cross-validation, the simplest tree within one standard error of the best (R-SGT-01).",
+  "warning": null
+ }
+}

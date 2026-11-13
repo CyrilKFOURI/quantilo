@@ -42,6 +42,10 @@ class CleanPreview:
     shown: list[str] = field(default_factory=list)  # the columns of `sample`
     sample: list[PreviewRow] = field(default_factory=list)
     problems: dict[str, str] = field(default_factory=dict)
+    # C-59: the step that reshaped the table between the two stages (its id), when one did: the
+    # rows no longer pair one to one, `sample` shows the first rows of the result as they are
+    reshaped: str | None = None
+    reshaped_op: str | None = None
 
 
 def _origins(compiled: Compiled, start: int, end: int) -> dict[str, str | None]:
@@ -64,6 +68,9 @@ def compare(
     before: Stage = compiled.stages[start]
     after: Stage = compiled.stages[end]
     origins = _origins(compiled, start, end)
+    reshaping = compiled.reshaped(start, end)
+    if reshaping is not None:
+        return _reshaped(connection, compiled, start, end, origins, reshaping)
     pairs = [(a, b) for a, b in origins.items() if b is not None]
     kept = set(b for _, b in pairs)
     dropped = [name for name in before.names if name not in kept]
@@ -141,6 +148,58 @@ def compare(
                 else [o != n for o, n in zip(old, new, strict=True)],
             )
         )
+    return preview
+
+
+def _reshaped(
+    connection: duckdb.DuckDBPyConnection,
+    compiled: Compiled,
+    start: int,
+    end: int,
+    origins: dict[str, str | None],
+    reshaping: Stage,
+) -> CleanPreview:
+    """C-59: the rows before and after, the columns, and the first rows of the result; no cell is
+    compared (a row of the result does not come from one row before)."""
+    before, after = compiled.stages[start], compiled.stages[end]
+    with_clause = ", ".join(compiled.ctes[: end + 1])
+    try:
+        row = connection.execute(
+            f"WITH {with_clause} SELECT (SELECT count(*) FROM {before.name}), "
+            f"(SELECT count(*) FROM {after.name})"
+        ).fetchone()
+    except duckdb.Error as error:
+        message = str(error).splitlines()[0]
+        raise CleanError(f"The preview could not be computed: {message}") from None
+    assert row is not None
+    kept = {b for b in origins.values() if b is not None}
+    shown = after.names[:SHOWN_COLUMNS]
+    preview = CleanPreview(
+        rows_before=int(row[0]),
+        rows_after=int(row[1]),
+        rows_removed=0,
+        cells_changed=0,
+        columns=[
+            ColumnDiff(a, b, 0, before.dtype(b) if b is not None else None, after.dtype(a))
+            for a, b in origins.items()
+        ],
+        added=[a for a, b in origins.items() if b is None],
+        dropped=[name for name in before.names if name not in kept],
+        shown=shown,
+        problems=dict(compiled.problems),
+        reshaped=reshaping.step.id,
+        reshaped_op=reshaping.step.op,
+    )
+    if not shown:
+        return preview
+    values = ", ".join(as_text(name, after.dtype(name)) for name in shown)
+    sample = connection.execute(
+        f"WITH {with_clause} SELECT {ident(ROW)}, {values} FROM {after.name} "
+        f"ORDER BY {ident(ROW)} LIMIT {SAMPLE_ROWS}"
+    ).fetchall()
+    for record in sample:
+        cells = [None if v is None else str(v) for v in record[1:]]
+        preview.sample.append(PreviewRow(int(record[0]), False, cells, cells, [False] * len(cells)))
     return preview
 
 

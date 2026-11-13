@@ -1,0 +1,14 @@
+{
+ "label": "melbourne",
+ "corpus": "data-corpus",
+ "path": "real_estate/melbourne_housing/melb_data.csv",
+ "sample_pct": 100,
+ "judged": "audit 2026-11-12 (docs/etudes/2026-11-12-audit-nettoyage.md, § 2.3): every proposal in mode A, and the mode S candidates of the table",
+ "verdicts": [
+  {"id": "B-03:SellerG", "verdict": "correct", "why": "same value up to case or accents, each group read", "op": "map_values"},
+  {"id": "B-22:Bedroom2:rare", "verdict": "correct", "why": "N10: 16 homes with 0 bedrooms, worth a look (shown, not changed)"},
+  {"id": "B-22:Bathroom:rare", "verdict": "correct", "why": "N10: 34 homes with 0 bathrooms, worth a look (shown, not changed)"},
+  {"id": "B-22:BuildingArea:rare", "verdict": "correct", "why": "N10: 17 buildings of 0 m², worth a look (shown, not changed)"},
+  {"id": "B-10:YearBuilt:year", "verdict": "correct", "why": "N11: 1196 among 1830 to 2018, a typing error (1916 or 1996)", "op": "null_values"}
+ ]
+}

@@ -1,0 +1,1348 @@
+[
+ {
+  "place": "columns",
+  "text": "name suggests order key",
+  "code": "TYP.name",
+  "vars": {
+   "role": "order key"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "99% unique values",
+  "code": "TYP.unique",
+  "vars": {
+   "share": "99%"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "name suggests customer key",
+  "code": "TYP.name",
+  "vars": {
+   "role": "customer key"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "only 78% unique values: a reference shared by rows, used as categories",
+  "code": "TYP.shared_key",
+  "vars": {
+   "share": "78%"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "name suggests free text",
+  "code": "TYP.name",
+  "vars": {
+   "role": "free text"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "median 2 words (P90 2)",
+  "code": "TYP.words",
+  "vars": {
+   "median": "2",
+   "p90": "2"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "name suggests city",
+  "code": "TYP.name",
+  "vars": {
+   "role": "city"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "9 distinct values, e.g. Spoon, Cup, Mug",
+  "code": "TYP.distinct",
+  "vars": {
+   "count": "9",
+   "examples": "Spoon, Cup, Mug"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "9 distinct values, e.g. Plain Brand, Nestlé, Café Noir",
+  "code": "TYP.distinct",
+  "vars": {
+   "count": "9",
+   "examples": "Plain Brand, Nestlé, Café Noir"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "9 distinct values, e.g. Simple Title, Tom & Jerry, Salt & Pepper",
+  "code": "TYP.distinct",
+  "vars": {
+   "count": "9",
+   "examples": "Simple Title, Tom & Jerry, Salt & Pepper"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "name suggests status",
+  "code": "TYP.name",
+  "vars": {
+   "role": "status"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "name suggests region",
+  "code": "TYP.name",
+  "vars": {
+   "role": "region"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "100% of values read as numbers (e.g. $1659.25, 1309.28)",
+  "code": "TYP.numbers",
+  "vars": {
+   "share": "100%",
+   "examples": "$1659.25, 1309.28"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "name suggests amount",
+  "code": "TYP.name",
+  "vars": {
+   "role": "amount"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "98% of values read as numbers (e.g. 18.7, 14.7)",
+  "code": "TYP.numbers",
+  "vars": {
+   "share": "98%",
+   "examples": "18.7, 14.7"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "words in place of numbers ('see note', '?kg', 'heavy': 2% of values) read as missing (R-TYP-02)",
+  "code": "R-TYP-02",
+  "vars": {
+   "words": "'see note', '?kg', 'heavy'",
+   "share": "2%"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "210 distinct numeric values",
+  "code": "TYP.continuous",
+  "vars": {
+   "count": "210"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "75 distinct numeric values",
+  "code": "TYP.continuous",
+  "vars": {
+   "count": "75"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "name suggests quantity",
+  "code": "TYP.name",
+  "vars": {
+   "role": "quantity"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "only 17 distinct whole numbers: shown as categories",
+  "code": "TYP.discrete",
+  "vars": {
+   "count": "17"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "381 distinct values, e.g. 2022-08-25, 27/04/2019, 01/07/2020",
+  "code": "TYP.distinct",
+  "vars": {
+   "count": "381",
+   "examples": "2022-08-25, 27/04/2019, 01/07/2020"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "stored as a date",
+  "code": "TYP.stored_date",
+  "vars": {}
+ },
+ {
+  "place": "columns",
+  "text": "name suggests postal code",
+  "code": "TYP.name",
+  "vars": {
+   "role": "postal code"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "6 distinct values, e.g. 0, 1, yes",
+  "code": "TYP.distinct",
+  "vars": {
+   "count": "6",
+   "examples": "0, 1, yes"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "stored as true/false",
+  "code": "TYP.stored_boolean",
+  "vars": {}
+ },
+ {
+  "place": "columns",
+  "text": "a single value everywhere: 'FR'",
+  "code": "TYP.constant",
+  "vars": {
+   "value": "'FR'"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "100% of values are empty",
+  "code": "TYP.empty",
+  "vars": {
+   "share": "100%"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "median 3 words (P90 4)",
+  "code": "TYP.words",
+  "vars": {
+   "median": "3",
+   "p90": "4"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "language: English (100% of texts)",
+  "code": "TYP.language",
+  "vars": {
+   "language": "English",
+   "share": "100%"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "name suggests rating",
+  "code": "TYP.name",
+  "vars": {
+   "role": "rating"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "100 distinct numeric values",
+  "code": "TYP.continuous",
+  "vars": {
+   "count": "100"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "3 distinct values, e.g. Office, Technology, Furniture",
+  "code": "TYP.distinct",
+  "vars": {
+   "count": "3",
+   "examples": "Office, Technology, Furniture"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "name suggests identifier",
+  "code": "TYP.name",
+  "vars": {
+   "role": "identifier"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "98% unique values",
+  "code": "TYP.unique",
+  "vars": {
+   "share": "98%"
+  }
+ },
+ {
+  "place": "clean",
+  "text": "1 row has no value at all. A reliable fix: this rule was right on 99% or more of the cases measured (n = 1). Check your data.",
+  "code": "B-15",
+  "vars": {
+   "count": "1"
+  },
+  "measured": 1
+ },
+ {
+  "place": "clean",
+  "text": "Invisible characters (zero-width spaces, byte-order marks, control characters) found in 13 values. A reliable fix: it only removes characters that cannot be seen, so no value changes meaning. Check your data.",
+  "code": "B-02",
+  "vars": {
+   "count": "13"
+  },
+  "measured": 0
+ },
+ {
+  "place": "clean",
+  "text": "54 values had extra spaces (at the ends, doubled, tabs or no-break spaces). Line breaks are kept: a free text keeps its paragraphs (N29). A reliable fix: this rule was right on 99% or more of the cases measured (n = 50). Check your data.",
+  "code": "B-01.free_text",
+  "vars": {
+   "count": "54"
+  },
+  "measured": 50
+ },
+ {
+  "place": "clean",
+  "text": "5 values had extra spaces (at the ends, doubled, tabs or no-break spaces). A reliable fix: this rule was right on 99% or more of the cases measured (n = 50). Check your data.",
+  "code": "B-01",
+  "vars": {
+   "count": "5"
+  },
+  "measured": 50
+ },
+ {
+  "place": "clean",
+  "text": "56 values were saved in one encoding and read in another: 'HÃ¤agen' → 'Häagen' (wrong encoding). A reliable fix: this rule was right on 99% or more of the cases measured (n = 1). Check your data.",
+  "code": "B-05",
+  "vars": {
+   "count": "56",
+   "before": "'HÃ¤agen'",
+   "after": "'Häagen'"
+  },
+  "measured": 1
+ },
+ {
+  "place": "clean",
+  "text": "HTML codes such as '&amp;' decoded in 112 values. A reliable fix: this rule was right on 99% or more of the cases measured (n = 7). Check your data.",
+  "code": "B-06",
+  "vars": {
+   "count": "112"
+  },
+  "measured": 7
+ },
+ {
+  "place": "clean",
+  "text": "20 values are words for 'missing' ('#N/A', 'n/a', ''): read as empty. A reliable fix: this rule was right on 99% or more of the cases measured (n = 21). Check your data.",
+  "code": "B-04",
+  "vars": {
+   "count": "20",
+   "values": "'#N/A', 'n/a', ''"
+  },
+  "measured": 21
+ },
+ {
+  "place": "clean",
+  "text": "22 values are words for 'missing' ('unknown'): read as empty. Check they are not a real category.",
+  "code": "B-04+B-04.category",
+  "vars": {
+   "count": "22",
+   "values": "'unknown'"
+  },
+  "measured": null
+ },
+ {
+  "place": "clean",
+  "text": "'BERLIN', 'berlin' → 'Berlin' (most frequent): same value up to case or accents. 55 cells in 5 groups. A reliable fix: this rule was right on 99% or more of the cases measured (n = 20). Check your data.",
+  "code": "B-03",
+  "vars": {
+   "others": "'BERLIN', 'berlin'",
+   "value": "'Berlin'",
+   "cells": "55",
+   "groups": "5"
+  },
+  "measured": 20
+ },
+ {
+  "place": "clean",
+  "text": "An identifier stored as decimal numbers: all 406 values end in '.0' ('17407.0' → '17407'). A reliable fix: this rule was right on 99% or more of the cases measured (n = 1). Check your data.",
+  "code": "B-12",
+  "vars": {
+   "count": "406",
+   "before": "'17407.0'",
+   "after": "'17407'"
+  },
+  "measured": 1
+ },
+ {
+  "place": "clean",
+  "text": "21 postal codes of FR rows are shorter than the usual 5 digits: they lost their leading zero. A reliable fix: this rule was right on 99% or more of the cases measured (n = 1). Check your data.",
+  "code": "B-13.countries+CHECK",
+  "vars": {
+   "count": "21",
+   "countries": "FR",
+   "digits": "5"
+  },
+  "measured": 1
+ },
+ {
+  "place": "clean",
+  "text": "406 values are numbers stored as text (decimal point, in $). A reliable fix: this rule was right on 99% or more of the cases measured (n = 42). Check your data.",
+  "code": "B-07+CHECK",
+  "vars": {
+   "count": "406",
+   "forms": "decimal point, in $"
+  },
+  "measured": 42
+ },
+ {
+  "place": "clean",
+  "text": "396 values are numbers stored as text (decimal point). 10 values cannot be read and become empty: 'see note', '?kg', 'heavy'.",
+  "code": "B-07+B-07.unreadable",
+  "vars": {
+   "count": "396",
+   "forms": "decimal point",
+   "unreadable": "10",
+   "unread": "'see note', '?kg', 'heavy'"
+  },
+  "measured": null
+ },
+ {
+  "place": "clean",
+  "text": "406 dates stored as text in 2 formats (%d/%m/%Y, %Y-%m-%d), 5 as Excel day numbers. A reliable fix: this rule was right on 99% or more of the cases measured (n = 5). Check your data.",
+  "code": "B-11+B-11.formats+B-11.excel+B-11.end+CHECK",
+  "vars": {
+   "count": "406",
+   "formats": "2",
+   "listed": "%d/%m/%Y, %Y-%m-%d",
+   "serials": "5"
+  },
+  "measured": 5
+ },
+ {
+  "place": "clean",
+  "text": "6 spellings of yes and no mixed ('0', '1', 'yes', 'Y', 'N', 'no'): unified.",
+  "code": "B-18.mixed",
+  "vars": {
+   "count": "6",
+   "values": "'0', '1', 'yes', 'Y', 'N', 'no'"
+  },
+  "measured": null
+ },
+ {
+  "place": "clean",
+  "text": "-999 appears 13 times (3.2%), 13 times as frequent as a typical value (middle half 3.403e+04 to 4.598e+04): likely a code for 'missing'.",
+  "code": "B-09+B-09.frequent+B-09.end",
+  "vars": {
+   "value": "-999",
+   "count": "13",
+   "share": "3.2%",
+   "times": "13",
+   "q1": "3.403e+04",
+   "q3": "4.598e+04"
+  },
+  "measured": null
+ },
+ {
+  "place": "clean",
+  "text": "9999-12-31 is used 22 times (5.4%): a placeholder meaning 'no end date', not a real date.",
+  "code": "B-16.end",
+  "vars": {
+   "day": "9999-12-31",
+   "count": "22",
+   "share": "5.4%"
+  },
+  "measured": null
+ },
+ {
+  "place": "clean",
+  "text": "3 values are outside the plausible range of age (0 to 130): '230', '230', '-4'.",
+  "code": "B-10",
+  "vars": {
+   "count": "3",
+   "label": "age",
+   "span": "0 to 130",
+   "values": "'230', '230', '-4'"
+  },
+  "measured": null
+ },
+ {
+  "place": "clean",
+  "text": "Refunds or cancellations? 13 negative quantities (3.2%). Remove them only if they are errors.",
+  "code": "B-10.refunds",
+  "vars": {
+   "count": "13",
+   "share": "3.2%"
+  },
+  "measured": null
+ },
+ {
+  "place": "clean",
+  "text": "6 rows are exact copies of another row (1.5%). Even their identifier repeats: a row entered twice. A reliable fix: this rule was right on 99% or more of the cases measured (n = 1). Check your data.",
+  "code": "B-14+B-14.identified",
+  "vars": {
+   "count": "6",
+   "share": "1.5%"
+  },
+  "measured": 1
+ },
+ {
+  "place": "clean",
+  "text": "Always 'FR': no information. Kept unless you remove it: a filter or a KPI may name it.",
+  "code": "B-19+B-19.kept",
+  "vars": {
+   "value": "'FR'"
+  },
+  "measured": null
+ },
+ {
+  "place": "clean",
+  "text": "It has no value at all. Kept unless you remove it: a filter or a KPI may name it.",
+  "code": "B-19.empty+B-19.kept",
+  "vars": {},
+  "measured": null
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-02 · income is an amount that adds up over rows: summed",
+  "code": "R-SUG-02",
+  "vars": {
+   "column": "income"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 90/100: weight 90 for this kind of KPI, 100% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "90",
+   "weight": "90",
+   "share": "100%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-17 · Over end_date: the only date column",
+  "code": "R-SUG-17+R-SUG-17.only",
+  "vars": {
+   "date": "end_date"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-12 · income ÷ distinct order_id: the average value of an order (400 orders)",
+  "code": "R-SUG-12",
+  "vars": {
+   "flow": "income",
+   "order": "order_id",
+   "orders": "400"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 85/100: weight 85 for this kind of KPI, 100% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "85",
+   "weight": "85",
+   "share": "100%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-10 · customer_id names the customer: 317 distinct customers over 406 rows",
+  "code": "R-SUG-10",
+  "vars": {
+   "column": "customer_id",
+   "customers": "317",
+   "rows": "406"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 80/100: weight 80 for this kind of KPI, 100% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "80",
+   "weight": "80",
+   "share": "100%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-15 · income ÷ distinct customer_id: what one customer brings (317 customers)",
+  "code": "R-SUG-15",
+  "vars": {
+   "flow": "income",
+   "customer": "customer_id",
+   "customers": "317"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 76/100: weight 76 for this kind of KPI, 100% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "76",
+   "weight": "76",
+   "share": "100%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-22 · status is a status (delivered against pending, shipped): the share of rows that are delivered",
+  "code": "R-SUG-22",
+  "vars": {
+   "column": "status",
+   "tracked": "delivered",
+   "opposite": "pending, shipped",
+   "states": "delivered"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 68/100: weight 72 for this kind of KPI, 95% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "68",
+   "weight": "72",
+   "share": "95%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-03 · quantity is a quantity: units add up, so it is summed",
+  "code": "R-SUG-03",
+  "vars": {
+   "column": "quantity"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 63/100: weight 70 for this kind of KPI, medium-confidence type (x0.9), 100% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.confidence+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "63",
+   "weight": "70",
+   "confidence": "medium",
+   "factor": "0.9",
+   "share": "100%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-09 · price is a price or level (its name says price): averaged, as a sum of prices means nothing",
+  "code": "R-SUG-09",
+  "vars": {
+   "column": "price",
+   "word": "price"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 62/100: weight 62 for this kind of KPI, 100% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "62",
+   "weight": "62",
+   "share": "100%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-23 · Weighted by quantity: Σ(price x quantity) ÷ Σ quantity, so a value on 100 units counts 100 times (rows without a positive quantity are left out)",
+  "code": "R-SUG-23",
+  "vars": {
+   "weight": "quantity",
+   "column": "price"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-13 · quantity ÷ distinct order_id: how many units an order holds",
+  "code": "R-SUG-13",
+  "vars": {
+   "quantity": "quantity",
+   "order": "order_id"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 61/100: weight 68 for this kind of KPI, medium-confidence type (x0.9), 100% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.confidence+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "61",
+   "weight": "68",
+   "confidence": "medium",
+   "factor": "0.9",
+   "share": "100%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-01 · Counts the rows: the volume of records, always available",
+  "code": "R-SUG-01",
+  "vars": {}
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 60/100: weight 60 for this kind of KPI",
+  "code": "R-SUG-16+R-SUG-16.weight",
+  "vars": {
+   "score": "60",
+   "weight": "60"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-14 · Σ income ÷ Σ quantity: the average price paid per unit, weighted by the units (a ratio of sums, not a mean of prices)",
+  "code": "R-SUG-14",
+  "vars": {
+   "flow": "income",
+   "quantity": "quantity"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 59/100: weight 66 for this kind of KPI, medium-confidence type (x0.9), 100% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.confidence+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "59",
+   "weight": "66",
+   "confidence": "medium",
+   "factor": "0.9",
+   "share": "100%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-06 · newsletter is yes or no: the share of yes",
+  "code": "R-SUG-06",
+  "vars": {
+   "column": "newsletter"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 55/100: weight 55 for this kind of KPI, 100% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "55",
+   "weight": "55",
+   "share": "100%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-28 · age is a measure without a role (no amount, quantity or price): averaged, as its sum rarely means anything",
+  "code": "R-SUG-28",
+  "vars": {
+   "column": "age"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 52/100: weight 52 for this kind of KPI, 100% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "52",
+   "weight": "52",
+   "share": "100%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-TIME-04 · 23 rows left out of the time axis: 1 row without a date; 22 rows dated 9999-12-31 (a placeholder meaning no end date, not a real date). Clean can read the placeholders as missing.",
+  "code": "R-TIME-04+R-TIME-04.part_undated+SEP.semicolon+R-TIME-04.part_placeholder+R-TIME-04.end",
+  "vars": {
+   "total": "23 rows",
+   "rows": "1 row",
+   "rows@3": "22 rows",
+   "day": "9999-12-31",
+   "meaning": "no end date"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "1191 distinct values, e.g. 2025-03-26, 2024-04-12, 2024-05-11",
+  "code": "TYP.distinct",
+  "vars": {
+   "count": "1191",
+   "examples": "2025-03-26, 2024-04-12, 2024-05-11"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "only 42% unique values: a reference shared by rows, used as categories",
+  "code": "TYP.shared_key",
+  "vars": {
+   "share": "42%"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "443 distinct values, e.g. Gabriel Simon, Léa Bernard, Arthur Thomas",
+  "code": "TYP.distinct",
+  "vars": {
+   "count": "443",
+   "examples": "Gabriel Simon, Léa Bernard, Arthur Thomas"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "only 14% unique values",
+  "code": "TYP.few_unique",
+  "vars": {
+   "share": "14%"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "name suggests age",
+  "code": "TYP.name",
+  "vars": {
+   "role": "age"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "kept as text to preserve leading zeros and formatting",
+  "code": "TYP.kept_text",
+  "vars": {}
+ },
+ {
+  "place": "columns",
+  "text": "name suggests country",
+  "code": "TYP.name",
+  "vars": {
+   "role": "country"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "19 distinct values, e.g. USB-C Cable, Wireless Mouse, Webcam HD",
+  "code": "TYP.distinct",
+  "vars": {
+   "count": "19",
+   "examples": "USB-C Cable, Wireless Mouse, Webcam HD"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "5 distinct values, e.g. Accessories, Furniture, Audio",
+  "code": "TYP.distinct",
+  "vars": {
+   "count": "5",
+   "examples": "Accessories, Furniture, Audio"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "9 distinct values, e.g. Logitech, Anker, IKEA",
+  "code": "TYP.distinct",
+  "vars": {
+   "count": "9",
+   "examples": "Logitech, Anker, IKEA"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "only 4 distinct whole numbers: shown as categories",
+  "code": "TYP.discrete",
+  "vars": {
+   "count": "4"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "name suggests unit price",
+  "code": "TYP.name",
+  "vars": {
+   "role": "unit price"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "name suggests percentage",
+  "code": "TYP.name",
+  "vars": {
+   "role": "percentage"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "9 distinct numeric values",
+  "code": "TYP.continuous",
+  "vars": {
+   "count": "9"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "5 distinct numeric values",
+  "code": "TYP.continuous",
+  "vars": {
+   "count": "5"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "24 distinct numeric values",
+  "code": "TYP.continuous",
+  "vars": {
+   "count": "24"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "only 6 distinct whole numbers: shown as categories",
+  "code": "TYP.discrete",
+  "vars": {
+   "count": "6"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "100% of values read as numbers (e.g. €1,482.41, €1,535.02)",
+  "code": "TYP.numbers",
+  "vars": {
+   "share": "100%",
+   "examples": "€1,482.41, €1,535.02"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "3 distinct values, e.g. Web, Store, Phone",
+  "code": "TYP.distinct",
+  "vars": {
+   "count": "3",
+   "examples": "Web, Store, Phone"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "3 distinct values, e.g. Card, PayPal, Transfer",
+  "code": "TYP.distinct",
+  "vars": {
+   "count": "3",
+   "examples": "Card, PayPal, Transfer"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "2226 distinct numeric values",
+  "code": "TYP.continuous",
+  "vars": {
+   "count": "2226"
+  }
+ },
+ {
+  "place": "columns",
+  "text": "a single value everywhere: 'EUR'",
+  "code": "TYP.constant",
+  "vars": {
+   "value": "'EUR'"
+  }
+ },
+ {
+  "place": "clean",
+  "text": "6 rows have no value at all. A reliable fix: this rule was right on 99% or more of the cases measured (n = 1). Check your data.",
+  "code": "B-15",
+  "vars": {
+   "count": "6"
+  },
+  "measured": 1
+ },
+ {
+  "place": "clean",
+  "text": "Invisible characters (zero-width spaces, byte-order marks, control characters) found in 5 values. A reliable fix: it only removes characters that cannot be seen, so no value changes meaning. Check your data.",
+  "code": "B-02",
+  "vars": {
+   "count": "5"
+  },
+  "measured": 0
+ },
+ {
+  "place": "clean",
+  "text": "Invisible characters (zero-width spaces, byte-order marks, control characters) found in 76 values. A reliable fix: it only removes characters that cannot be seen, so no value changes meaning. Check your data.",
+  "code": "B-02",
+  "vars": {
+   "count": "76"
+  },
+  "measured": 0
+ },
+ {
+  "place": "clean",
+  "text": "27 values had extra spaces (at the ends, doubled, tabs or no-break spaces). A reliable fix: this rule was right on 99% or more of the cases measured (n = 50). Check your data.",
+  "code": "B-01",
+  "vars": {
+   "count": "27"
+  },
+  "measured": 50
+ },
+ {
+  "place": "clean",
+  "text": "11 values had extra spaces (at the ends, doubled, tabs or no-break spaces). A reliable fix: this rule was right on 99% or more of the cases measured (n = 50). Check your data.",
+  "code": "B-01",
+  "vars": {
+   "count": "11"
+  },
+  "measured": 50
+ },
+ {
+  "place": "clean",
+  "text": "62 values had extra spaces (at the ends, doubled, tabs or no-break spaces). Line breaks are kept: a free text keeps its paragraphs (N29). A reliable fix: this rule was right on 99% or more of the cases measured (n = 50). Check your data.",
+  "code": "B-01.free_text",
+  "vars": {
+   "count": "62"
+  },
+  "measured": 50
+ },
+ {
+  "place": "clean",
+  "text": "5 values were saved in one encoding and read in another: 'GenÃ¨ve' → 'Genève' (wrong encoding). A reliable fix: this rule was right on 99% or more of the cases measured (n = 1). Check your data.",
+  "code": "B-05",
+  "vars": {
+   "count": "5",
+   "before": "'GenÃ¨ve'",
+   "after": "'Genève'"
+  },
+  "measured": 1
+ },
+ {
+  "place": "clean",
+  "text": "61 values were saved in one encoding and read in another: 'Livraison trÃ¨s rapide' → 'Livraison très rapide' (wrong encoding). A reliable fix: this rule was right on 99% or more of the cases measured (n = 1). Check your data.",
+  "code": "B-05",
+  "vars": {
+   "count": "61",
+   "before": "'Livraison trÃ¨s rapide'",
+   "after": "'Livraison très rapide'"
+  },
+  "measured": 1
+ },
+ {
+  "place": "clean",
+  "text": "HTML codes such as '&amp;' decoded in 31 values. A reliable fix: this rule was right on 99% or more of the cases measured (n = 7). Check your data.",
+  "code": "B-06",
+  "vars": {
+   "count": "31"
+  },
+  "measured": 7
+ },
+ {
+  "place": "clean",
+  "text": "HTML codes such as '&amp;' decoded in 78 values. A reliable fix: this rule was right on 99% or more of the cases measured (n = 7). Check your data.",
+  "code": "B-06",
+  "vars": {
+   "count": "78"
+  },
+  "measured": 7
+ },
+ {
+  "place": "clean",
+  "text": "48 values are words for 'missing' ('N/A'): read as empty. A reliable fix: this rule was right on 99% or more of the cases measured (n = 21). Check your data.",
+  "code": "B-04",
+  "vars": {
+   "count": "48",
+   "values": "'N/A'"
+  },
+  "measured": 21
+ },
+ {
+  "place": "clean",
+  "text": "85 values are words for 'missing' ('-', 'unknown'): read as empty. Check they are not a real category.",
+  "code": "B-04+B-04.category",
+  "vars": {
+   "count": "85",
+   "values": "'-', 'unknown'"
+  },
+  "measured": null
+ },
+ {
+  "place": "clean",
+  "text": "'GABRIEL SIMON' → 'Gabriel Simon' (most frequent): same value up to case or accents. 98 cells in 83 groups. A reliable fix: this rule was right on 99% or more of the cases measured (n = 20). Check your data.",
+  "code": "B-03",
+  "vars": {
+   "others": "'GABRIEL SIMON'",
+   "value": "'Gabriel Simon'",
+   "cells": "98",
+   "groups": "83"
+  },
+  "measured": 20
+ },
+ {
+  "place": "clean",
+  "text": "'PARIS', 'paris' → 'Paris' (most frequent): same value up to case or accents. 107 cells in 8 groups. A reliable fix: this rule was right on 99% or more of the cases measured (n = 20). Check your data.",
+  "code": "B-03",
+  "vars": {
+   "others": "'PARIS', 'paris'",
+   "value": "'Paris'",
+   "cells": "107",
+   "groups": "8"
+  },
+  "measured": 20
+ },
+ {
+  "place": "clean",
+  "text": "'france' → 'France' (most frequent): same value up to case or accents. 51 cells in 1 groups. A reliable fix: this rule was right on 99% or more of the cases measured (n = 20). Check your data.",
+  "code": "B-03",
+  "vars": {
+   "others": "'france'",
+   "value": "'France'",
+   "cells": "51",
+   "groups": "1"
+  },
+  "measured": 20
+ },
+ {
+  "place": "clean",
+  "text": "'wireless mouse' → 'Wireless Mouse' (most frequent): same value up to case or accents. 15 cells in 1 groups. A reliable fix: this rule was right on 99% or more of the cases measured (n = 20). Check your data.",
+  "code": "B-03",
+  "vars": {
+   "others": "'wireless mouse'",
+   "value": "'Wireless Mouse'",
+   "cells": "15",
+   "groups": "1"
+  },
+  "measured": 20
+ },
+ {
+  "place": "clean",
+  "text": "'delivered' → 'Delivered' (most frequent): same value up to case or accents. 43 cells in 1 groups. A reliable fix: this rule was right on 99% or more of the cases measured (n = 20). Check your data.",
+  "code": "B-03",
+  "vars": {
+   "others": "'delivered'",
+   "value": "'Delivered'",
+   "cells": "43",
+   "groups": "1"
+  },
+  "measured": 20
+ },
+ {
+  "place": "clean",
+  "text": "93 postal codes of France rows are shorter than the usual 5 digits: they lost their leading zero. A reliable fix: this rule was right on 99% or more of the cases measured (n = 1). Check your data.",
+  "code": "B-13.countries+CHECK",
+  "vars": {
+   "count": "93",
+   "countries": "France",
+   "digits": "5"
+  },
+  "measured": 1
+ },
+ {
+  "place": "clean",
+  "text": "3,060 values are numbers stored as text (decimal point, in EUR). A reliable fix: this rule was right on 99% or more of the cases measured (n = 42). Check your data.",
+  "code": "B-07+CHECK",
+  "vars": {
+   "count": "3,060",
+   "forms": "decimal point, in EUR"
+  },
+  "measured": 42
+ },
+ {
+  "place": "clean",
+  "text": "3,068 dates stored as text in 3 formats (%Y-%m-%d, %d/%m/%Y, %d %B %Y). Month names are read in English and in French (janv., févr., août…). A reliable fix: this rule was right on 99% or more of the cases measured (n = 5). Check your data.",
+  "code": "B-11+B-11.formats+B-11.end+B-11.months+CHECK",
+  "vars": {
+   "count": "3,068",
+   "formats": "3",
+   "listed": "%Y-%m-%d, %d/%m/%Y, %d %B %Y"
+  },
+  "measured": 5
+ },
+ {
+  "place": "clean",
+  "text": "99 appears 54 times (2.0%), far from the other values (middle half 2 to 4): likely a code for 'missing'.",
+  "code": "B-09+B-09.far+B-09.end",
+  "vars": {
+   "value": "99",
+   "count": "54",
+   "share": "2.0%",
+   "q1": "2",
+   "q3": "4"
+  },
+  "measured": null
+ },
+ {
+  "place": "clean",
+  "text": "30 rows are exact copies of another row (1.0%). Even their identifier repeats: a row entered twice. A reliable fix: this rule was right on 99% or more of the cases measured (n = 1). Check your data.",
+  "code": "B-14+B-14.identified",
+  "vars": {
+   "count": "30",
+   "share": "1.0%"
+  },
+  "measured": 1
+ },
+ {
+  "place": "clean",
+  "text": "Always 'EUR': no information. Kept unless you remove it: a filter or a KPI may name it.",
+  "code": "B-19+B-19.kept",
+  "vars": {
+   "value": "'EUR'"
+  },
+  "measured": null
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-02 · total is an amount that adds up over rows: summed",
+  "code": "R-SUG-02",
+  "vars": {
+   "column": "total"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-17 · Over ship_date: the only date column; birth_date is never a time axis",
+  "code": "R-SUG-17+R-SUG-17.only+R-SUG-17.never",
+  "vars": {
+   "date": "ship_date",
+   "never": "birth_date"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-12 · total ÷ distinct order_id: the average value of an order (3,038 orders)",
+  "code": "R-SUG-12",
+  "vars": {
+   "flow": "total",
+   "order": "order_id",
+   "orders": "3,038"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-10 · customer_id names the customer: 1,301 distinct customers over 3,068 rows",
+  "code": "R-SUG-10",
+  "vars": {
+   "column": "customer_id",
+   "customers": "1,301",
+   "rows": "3,068"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-15 · total ÷ distinct customer_id: what one customer brings (1,301 customers)",
+  "code": "R-SUG-15",
+  "vars": {
+   "flow": "total",
+   "customer": "customer_id",
+   "customers": "1,301"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 70/100: weight 70 for this kind of KPI, 100% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "70",
+   "weight": "70",
+   "share": "100%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-22 · status is a status (delivered against Shipped, Cancelled, Returned): the share of rows that are delivered",
+  "code": "R-SUG-22",
+  "vars": {
+   "column": "status",
+   "tracked": "delivered",
+   "opposite": "Shipped, Cancelled, Returned",
+   "states": "delivered"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 69/100: weight 72 for this kind of KPI, 96% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "69",
+   "weight": "72",
+   "share": "96%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 68/100: weight 68 for this kind of KPI, 100% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "68",
+   "weight": "68",
+   "share": "100%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-14 · Σ total ÷ Σ quantity: the average price paid per unit, weighted by the units (a ratio of sums, not a mean of prices)",
+  "code": "R-SUG-14",
+  "vars": {
+   "flow": "total",
+   "quantity": "quantity"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 66/100: weight 66 for this kind of KPI, 100% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "66",
+   "weight": "66",
+   "share": "100%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-09 · unit_price is a unit price: averaged, as a sum of prices means nothing",
+  "code": "R-SUG-09.unit",
+  "vars": {
+   "column": "unit_price"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-23 · Weighted by quantity: Σ(unit_price x quantity) ÷ Σ quantity, so a value on 100 units counts 100 times (rows without a positive quantity are left out)",
+  "code": "R-SUG-23",
+  "vars": {
+   "weight": "quantity",
+   "column": "unit_price"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-28 · lifetime_value is a measure without a role (no amount, quantity or price): averaged, as its sum rarely means anything",
+  "code": "R-SUG-28",
+  "vars": {
+   "column": "lifetime_value"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-07 · customer_age is an age: averaged",
+  "code": "R-SUG-07",
+  "vars": {
+   "column": "customer_age",
+   "what": "an age"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "R-SUG-16 · Score 50/100: weight 50 for this kind of KPI, 100% of values filled",
+  "code": "R-SUG-16+R-SUG-16.weight+SEP.comma+R-SUG-16.filled",
+  "vars": {
+   "score": "50",
+   "weight": "50",
+   "share": "100%"
+  }
+ },
+ {
+  "place": "kpi",
+  "text": "14 rows without a date are left out.",
+  "code": "R-TIME-04.undated",
+  "vars": {
+   "count": "14"
+  }
+ }
+]

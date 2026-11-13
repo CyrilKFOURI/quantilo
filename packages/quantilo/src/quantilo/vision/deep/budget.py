@@ -21,6 +21,7 @@ from quantilo.vision.deep.backbones import BackboneSpec
 Choice = Literal["auto", "cpu", "gpu"]
 
 REFERENCE_MB = 6 * 1024  # the batches of § 10 are sized for a 6 GB card (RTX 4050 Laptop)
+REFERENCE_TOLERANCE = 0.97  # what the driver reports is a little under the nominal size
 LONG_RUN_SECONDS = 15 * 60  # R-VDP-05
 CPU_BATCH_CAP = 32
 
@@ -92,8 +93,9 @@ def physical_cores() -> int:
 
 
 def scaled_batch(base: int, memory_mb: int | None) -> int:
-    """The batch of a 6 GB card, scaled down to the card's memory (power of 2, at least 1)."""
-    if not memory_mb or memory_mb >= REFERENCE_MB:
+    """The batch of a 6 GB card, scaled down to the card's memory (power of 2, at least 1). A
+    card within 3 % of 6 GB counts as one: the RTX 4050 Laptop reports 6,141 MiB."""
+    if not memory_mb or memory_mb >= REFERENCE_MB * REFERENCE_TOLERANCE:
         return base
     share = base * memory_mb / REFERENCE_MB
     return max(1, 2 ** math.floor(math.log2(max(share, 1))))

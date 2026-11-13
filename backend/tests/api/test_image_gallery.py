@@ -104,3 +104,63 @@ def test_saved_decisions_survive_a_reimport(client: TestClient, tmp_path: Path) 
     again = client.get(f"{base}/index").json()
     position = again["rel_path"].index(target)
     assert again["excluded"][position] is True and again["decision"][position] == "exclude"
+
+
+def test_labels_and_pins_are_saved_with_the_rules_run_again(
+    client: TestClient, settings: Settings, tmp_path: Path
+) -> None:
+    """c3, R-VED-01 to 03: a label edited in the gallery, a pin, then a version."""
+    dataset_id = _set(client, tmp_path)
+    base = f"/api/v1/datasets/{dataset_id}/images"
+    index = client.get(f"{base}/index").json()
+    dogs = [k for k, label in zip(index["rel_path"], index["label"], strict=True) if label == "dog"]
+    relabel = {key: "cat" for key in dogs[:3]}
+    body = {"labels": relabel, "pins": {dogs[4]: True}}
+    draft = client.put(f"{base}/decisions", json=body).json()
+    assert draft["pending"] == 4 and draft["pending_by"]["labels"] == 3
+    assert draft["labels_draft"] == relabel and draft["pins_draft"] == {dogs[4]: True}
+    too_long = client.put(f"{base}/decisions", json={"labels": {dogs[0]: "x" * 101}})
+    assert too_long.status_code == 422
+    applied = client.post(f"{base}/decisions/apply").json()
+    assert applied["relabelled"] == 3 and applied["pinned"] == 1 and applied["reassessed"]
+    after = client.get(f"{base}/index").json()
+    at = after["rel_path"].index(dogs[0])
+    assert after["label"][at] == "cat" and after["label_original"][at] == "dog"
+    assert after["pinned"][after["rel_path"].index(dogs[4])] is True
+    # two dogs left: R-VQ-14 leaves the class out of models (the rules read the new labels)
+    report = client.get(f"{base}/report").json()
+    assert "R-VQ-14" in [f["code"] for f in report["quality"]["findings"]]
+    assert after["excluded"][after["rel_path"].index(dogs[3])] is True
+    # back to the import's label
+    client.put(f"{base}/decisions", json={"labels": {dogs[0]: None}, "pins": {dogs[4]: False}})
+    client.post(f"{base}/decisions/apply")
+    again = client.get(f"{base}/index").json()
+    assert again["label"][again["rel_path"].index(dogs[0])] == "dog"
+    assert again["pinned"][again["rel_path"].index(dogs[4])] is False
+
+
+def test_thresholds_preview_then_saved_with_the_set(
+    client: TestClient, settings: Settings, tmp_path: Path
+) -> None:
+    """c3, R-VQT-01, 02: nothing written by a preview; saved thresholds are the set's own."""
+    dataset_id = _set(client, tmp_path)
+    base = f"/api/v1/datasets/{dataset_id}/images"
+    strict = {"min_side": 10_000}  # every image is now too small (R-VQ-02)
+    preview = client.post(f"{base}/quality/preview", json={"thresholds": strict})
+    assert preview.status_code == 200, preview.text
+    found = preview.json()
+    assert found["counts"]["R-VQ-02"] == 11 and "R-VQ-02" not in found["current_counts"]
+    assert found["quality"]["thresholds"]["min_side"] == 10_000
+    bad = client.post(f"{base}/quality/preview", json={"thresholds": {"nope": 1}})
+    assert bad.status_code == 422
+    assert client.put(f"{base}/decisions", json={"thresholds": {"nope": 1}}).status_code == 422
+    draft = client.put(f"{base}/decisions", json={"thresholds": strict}).json()
+    assert draft["pending_by"]["thresholds"] == 1 and draft["thresholds_draft"] == strict
+    applied = client.post(f"{base}/decisions/apply").json()
+    assert applied["reassessed"] is True
+    report = client.get(f"{base}/report").json()
+    assert "R-VQ-02" in [f["code"] for f in report["quality"]["findings"]]
+    record = client.get(f"/api/v1/datasets/{dataset_id}").json()
+    assert record["status"] == "ready"
+    saved = client.get(f"{base}/decisions").json()
+    assert saved["pending"] == 0 and saved["thresholds_applied"] == strict

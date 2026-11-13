@@ -9,14 +9,16 @@ from typing import Literal, cast
 from quantilo.compare import durations as du
 from quantilo.regression import analyze as an
 from quantilo.regression import crosssection as xs
+from quantilo.regression import mixed as mx
 from quantilo.regression import physics as ph
 from quantilo.regression import stability as st
 from quantilo.regression import survival as sv
+from quantilo.regression import varying as vr
 from quantilo.typing.types import AnalysisType, Parser
 
 MethodKind = Literal[
     "cross_section", "outputs", "components", "measurement", "curves", "survival", "tobit",
-    "mixed",
+    "mixed", "varying", "regimes",
 ]  # fmt: skip
 UNCERTAINTY_ROLE = "uncertainty"
 TITLES: dict[MethodKind, str] = {
@@ -28,6 +30,8 @@ TITLES: dict[MethodKind, str] = {
     "survival": "Survival (Cox)",
     "tobit": "Censored (Tobit)",
     "mixed": "Mixed model",
+    "varying": "Coefficients that drift (Kalman)",
+    "regimes": "Regimes (Markov switching)",
 }
 
 
@@ -68,6 +72,8 @@ class MoreMethods:
     sigma_x: Pick | None = None
     event: Pick | None = None  # R-SRV-01
     group: Pick | None = None  # R-REG-MIX-01
+    categories: list[str] = field(default_factory=list)  # R-REG-SURV-03: strata to pick from
+    start: Pick | None = None  # R-REG-SURV-04
 
 
 def _words(name: str) -> set[str]:
@@ -91,6 +97,22 @@ def uncertainty_for(column: str, uncertainties: list[str], fallback: bool) -> Pi
             f"R-REG-PHY-01: `{name}` is the only column of role uncertainty: read as the "
             f"uncertainty of `{column}`. Check that your data was read correctly.",
         )
+    return None
+
+
+START_WORDS = {"start", "entry", "begin", "tstart", "enter", "entered"}
+
+
+def start_column(target: MethodColumn, numbers: list[str]) -> Pick | None:
+    """R-REG-SURV-04: a numeric column named like the start of an interval (start, entry,
+    begin) next to a duration: the rows are intervals (start, duration]."""
+    for name in numbers:
+        if _words(name) & START_WORDS:
+            return Pick(
+                name,
+                f"R-REG-SURV-04: `{name}` is named like the start of an interval: each row is "
+                f"read from `{name}` to `{target.name}`. Check that your data was read correctly.",
+            )
     return None
 
 
@@ -148,6 +170,15 @@ def listing(
         rest = [u for u in uncertainties if not found.sigma or u != found.sigma.column]
         found.sigma_x = uncertainty_for(xcol, rest, False)
     found.event = event_column(target, columns)
+    if found.event is not None:
+        found.start = start_column(target, numbers)
+    found.categories = [
+        c.name
+        for c in columns
+        if c.name != target.name
+        and c.type in ("categorical_nominal", "categorical_ordinal", "boolean")
+        and (c.distinct is None or c.distinct <= sv.MAX_STRATA)
+    ]
     if fit.inputs.cluster:
         found.group = Pick(
             fit.inputs.cluster, f"R-REG-MIX-01: `{fit.inputs.cluster}` is chosen in Grouped by."
@@ -287,19 +318,67 @@ def listing(
             "R-REG-TOB-01",
         )
     )
+    mixable = least or fit.model in mx.GENERALISED
     add(
         MoreMethod(
             "mixed",
             TITLES["mixed"],
-            least and found.group is not None,
-            least and found.group is not None,
+            mixable and found.group is not None,
+            mixable and found.group is not None,
             (
                 f"R-REG-MIX-01: rows of one `{found.group.column}` look alike: a random intercept "
                 "by group, its share of the variance (ICC)."
-                if least and found.group is not None
+                + (
+                    " The target keeps its family (R-REG-MIX-02)."
+                    if fit.model in mx.GENERALISED
+                    else ""
+                )
+                if mixable and found.group is not None
                 else "Set Grouped by (a patient, a school, a store) in How (R-REG-MIX-01)."
+                if mixable
+                else "Needs least squares, a logistic or a Poisson model (R-REG-MIX-02)."
             ),
             "R-REG-MIX-01",
+        )
+    )
+    # 073: coefficients that move, proposed when R-REG-15 says they change
+    dated = st._unavailable(fit) is None
+    moving = any(c.key == "stability" and c.status == "warn" for c in fit.result.checks)
+    add(
+        MoreMethod(
+            "varying",
+            TITLES["varying"],
+            dated and moving,
+            dated,
+            (
+                "R-REG-STAB-05: the coefficients change over the series (R-REG-15): each one let "
+                "free to drift as a random walk, estimated by the Kalman smoother."
+                if dated and moving
+                else "R-REG-STAB-05: each coefficient let free to drift along the dates (Kalman), "
+                "tested against fixed coefficients."
+                if dated
+                else "Needs one series in time fitted by least squares (R-REG-STAB-01)."
+            ),
+            "R-REG-STAB-05",
+        )
+    )
+    few = vr._regimes_unavailable(fit) is None
+    add(
+        MoreMethod(
+            "regimes",
+            TITLES["regimes"],
+            few and moving,
+            few,
+            (
+                "R-REG-STAB-07: the coefficients change over the series (R-REG-15): two regimes, "
+                "each with its coefficients and the spread of its errors (Markov switching)."
+                if few and moving
+                else "R-REG-STAB-07: two or three regimes of the coefficients and of the spread "
+                "of the errors (Markov switching), a few seconds."
+                if few
+                else (vr._regimes_unavailable(fit) or "")
+            ),
+            "R-REG-STAB-07",
         )
     )
     found.methods.sort(key=lambda m: (not m.proposed, not m.available))

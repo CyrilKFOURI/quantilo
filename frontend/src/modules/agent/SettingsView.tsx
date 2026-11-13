@@ -5,6 +5,8 @@ import { t } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
 import { ErrorNote, Field, Select, TextInput } from "../../ui/fields";
 import type { AgentSettings } from "./api";
+import { privacyText } from "./RowsCard";
+import { RowsSharing } from "./RowsSharing";
 import { useAgentModels, useTestAgentKey, useUpdateAgentSettings } from "./useAgent";
 
 const MODEL_LABELS: Record<string, string> = {
@@ -21,8 +23,16 @@ const KEY_PLACEHOLDERS: Record<string, string> = {
 };
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 
-/** Provider, key, model, effort and budget of the assistant (spec 026 § 9). */
-export function SettingsView({ settings, onDone }: { settings: AgentSettings; onDone: () => void }) {
+/** Provider, key, model, effort, budget and row sharing of the assistant (spec 026 § 9). */
+export function SettingsView({
+  datasetId,
+  settings,
+  onDone,
+}: {
+  datasetId: string;
+  settings: AgentSettings;
+  onDone: () => void;
+}) {
   const update = useUpdateAgentSettings();
   const test = useTestAgentKey();
   const [key, setKey] = useState("");
@@ -111,8 +121,10 @@ export function SettingsView({ settings, onDone }: { settings: AgentSettings; on
           )}
         </div>
         {test.isError && <ErrorNote>{test.error.message}</ErrorNote>}
-        <p className="text-xs text-ink-3">{t("agent.privacy")}</p>
+        <p className="text-xs text-ink-3">{privacyText(settings.rows_sharing)}</p>
       </section>
+
+      <RowsSharing datasetId={datasetId} level={settings.rows_sharing} />
 
       <section className="space-y-3">
         <ModelPicker key={settings.active} settings={settings} onChange={(model) => update.mutate({ model })} />
