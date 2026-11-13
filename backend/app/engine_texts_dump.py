@@ -119,7 +119,7 @@ def _pattern(node: ast.expr) -> str | None:
         return node.value
     if isinstance(node, ast.JoinedStr):
         return "".join(
-            part.value if isinstance(part, ast.Constant) else "{}" for part in node.values
+            str(part.value) if isinstance(part, ast.Constant) else "{}" for part in node.values
         )
     return None
 
