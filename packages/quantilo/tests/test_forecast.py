@@ -258,3 +258,25 @@ def test_combination_scores_without_hindsight() -> None:
 def test_combination_needs_two_scored_models() -> None:
     only = [fc.run_model("naive", fc.naive, SEASONAL, 12, 12)]
     assert fc.combine(only, SEASONAL, 12, 12).error is not None
+
+
+def test_arima_bands_come_from_the_residuals_when_the_native_ones_are_not_numbers() -> None:
+    """Linux's BLAS gave NaN forecast variances on SEASONAL where Windows did not."""
+    fit = fc._sarimax(SEASONAL, (1, 1, 1), (0, 0, 0, 0))
+    native = fit.get_forecast
+
+    class Broken:
+        def __init__(self, h, exog=None):
+            self.inner = native(h, exog=exog)
+            self.predicted_mean = self.inner.predicted_mean
+
+        def conf_int(self, alpha):
+            return np.full_like(np.asarray(self.inner.conf_int(alpha=alpha)), np.nan)
+
+    fit.get_forecast = Broken
+    prediction = fc._arima_prediction(fit, 12, "ARIMA(1,1,1)")
+    assert np.isfinite(prediction.low95).all() and np.isfinite(prediction.high95).all()
+    assert np.all(prediction.low95 < prediction.low80)
+    assert np.all(prediction.low80 < prediction.mean)
+    widths = prediction.high95 - prediction.low95
+    assert np.all(np.diff(widths) > 0)  # wider further out

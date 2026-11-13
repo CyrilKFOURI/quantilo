@@ -428,6 +428,12 @@ def _arima_prediction(fit, h: int, label: str, exog: np.ndarray | None = None) -
     i80 = np.asarray(forecast.conf_int(alpha=0.2), dtype=float)
     i95 = np.asarray(forecast.conf_int(alpha=0.05), dtype=float)
     burn = max(fit.model.k_diff + fit.model.k_seasonal_diff * fit.model.seasonal_periods, 1)
+    resid = np.asarray(fit.resid, dtype=float)[burn:]
+    if not (np.isfinite(i80).all() and np.isfinite(i95).all()) and np.isfinite(mean).all():
+        # a fit whose forecast variance came out negative or NaN (seen on Linux's BLAS with the
+        # same data): the bands come from the residuals instead, widening with the horizon
+        sigma = float(np.sqrt(np.nanmean(resid**2))) * np.sqrt(np.arange(1, h + 1))
+        return _band(mean, sigma, label, resid)
     return Prediction(
         mean,
         i80[:, 0],
@@ -435,7 +441,7 @@ def _arima_prediction(fit, h: int, label: str, exog: np.ndarray | None = None) -
         i95[:, 0],
         i95[:, 1],
         label,
-        np.asarray(fit.resid, dtype=float)[burn:],
+        resid,
     )
 
 
