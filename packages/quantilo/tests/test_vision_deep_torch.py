@@ -234,7 +234,7 @@ def test_load_fills_a_timm_network_from_a_verified_safetensors_file(
     if deep.missing():
         pytest.skip("the vision extra is not installed")
     import timm  # pyright: ignore[reportMissingImports]
-    from safetensors.torch import save_file
+    from safetensors.torch import save_file  # pyright: ignore[reportMissingImports]
 
     source = timm.create_model(architecture, pretrained=False)
     state = {k: v.contiguous() for k, v in source.state_dict().items()}
