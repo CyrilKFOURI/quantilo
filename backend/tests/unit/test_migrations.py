@@ -40,6 +40,9 @@ def test_migrations_create_tables(tmp_path: Path) -> None:
         "0027_project_model",
         "0030_pinned_rows",
         "0031_projects_c1",
+        "0032_clean_dismissed",
+        "0033_clean_checks",
+        "0034_clean_journal",
     ]
     expected = {
         "schema_migrations",
@@ -75,6 +78,10 @@ def test_migrations_create_tables(tmp_path: Path) -> None:
         "sources",
         "dataset_links",
         "pinned_rows",
+        "clean_dismissed",
+        "clean_checks",
+        "clean_check_runs",
+        "clean_journal",
     }
     assert expected <= tables
 
@@ -120,6 +127,9 @@ def test_projects_migration_is_additive_on_a_filled_0024_base(
         "0027_project_model",
         "0030_pinned_rows",
         "0031_projects_c1",
+        "0032_clean_dismissed",
+        "0033_clean_checks",
+        "0034_clean_journal",
     ]
     names = [row[0] for row in connection.execute("SELECT id FROM datasets ORDER BY id")]
     versions = connection.execute("SELECT count(*) FROM clean_versions").fetchone()[0]

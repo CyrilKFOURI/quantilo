@@ -1,6 +1,7 @@
 """106: an image set as a dataset (`format = 'images'`): preview, import job, report, files."""
 
 import io
+import sys
 import zipfile
 from pathlib import Path
 
@@ -155,7 +156,8 @@ def test_reimport_and_rules(client: TestClient, tmp_path: Path) -> None:
 
 def test_network_paths_and_tables_are_refused(client: TestClient, tmp_path: Path) -> None:
     unc = client.post("/api/v1/images/preview", json={"path": "\\\\server\\share\\photos"})
-    assert unc.status_code in (400, 422)
+    # a network path only on Windows; elsewhere backslashes are a file name that does not exist
+    assert unc.status_code in ((400, 422) if sys.platform == "win32" else (400, 404, 422))
     csv = tmp_path / "t.csv"
     csv.write_text("a\n1\n")
     imported = client.post("/api/v1/datasets", json={"path": str(csv)}).json()

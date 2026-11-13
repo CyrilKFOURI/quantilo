@@ -69,6 +69,8 @@ jobs:
         run: uv run ruff check . && uv run ruff format --check .
       - name: Typecheck
         run: uv run pyright
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144  # pyright on the whole engine passed 2 GB
       - name: Tests
         run: uv run pytest
       - name: Builds a wheel
