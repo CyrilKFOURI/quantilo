@@ -4,8 +4,9 @@ WORKDIR /web
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
-# The Guide page reads the user guide from docs/ (imported at build time).
+# The Guide and legal pages read docs/USER_GUIDE.md and docs/legal/ (imported at build time).
 COPY docs/USER_GUIDE.md /docs/USER_GUIDE.md
+COPY docs/legal/ /docs/legal/
 RUN npm run build
 
 # --- Python dependencies, installed without uv's cache --------------------------------------

@@ -9,6 +9,7 @@ frontend/dist
 data
 docs
 !docs/USER_GUIDE.md
+!docs/legal
 backend/tests
 backend/openapi.json
 backend/evals
